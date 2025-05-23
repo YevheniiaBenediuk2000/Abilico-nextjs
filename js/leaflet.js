@@ -118,19 +118,8 @@ async function refreshPlaces() {
       const title = feat.properties.name || "Unnamed place";
       marker.bindPopup(`<strong>${title}</strong>`);
 
-      marker.on("click", async () => {
-        const start = [map.getCenter().lng, map.getCenter().lat]; // or use real user location
-        const end = [latlng.lng, latlng.lat];
-        try {
-          const route = await getRoute(start, end);
-          L.geoJSON(route, { style: { color: "red", weight: 5 } }).addTo(map);
-          console.log({ feat });
-          renderDetails(feat.properties);
-        } catch (e) {
-          console.error(e);
-          alert("Could not fetch route");
-        }
-      });
+      marker.on("click", () => renderDetails(feat.properties));
+
       return marker;
     },
   }).addTo(map);
@@ -151,8 +140,18 @@ const showDirectionsUI = (start) => {
     } else {
       startInputClearBtn.classList.remove("visible");
     }
-    const onSuggestionSelect = (end) => {
+    const onSuggestionSelect = async (end) => {
       startInput.value = end.display_name;
+
+      const routeData = await getRoute(
+        [start.lon, start.lat],
+        [end.lon, end.lat]
+      );
+      console.log("Route Data:", routeData);
+
+      L.geoJSON(routeData, {
+        style: { color: "red", weight: 5 },
+      }).addTo(map);
     };
     renderSuggestions(startInputValue, onSuggestionSelect);
   });
@@ -251,23 +250,6 @@ const handleDOMContentLoaded = () => {
     .openPopup();
 
   avoidPolygon = bufferedObstacle.geometry;
-
-  const start = [8.6818, 49.4141]; // [lng, lat]
-  const end = [8.6872, 49.4203]; // [lng, lat]
-
-  getRoute(start, end).then((routeData) => {
-    L.geoJSON(routeData, {
-      style: { color: "red", weight: 5 },
-    }).addTo(map);
-
-    L.marker([start[1], start[0]])
-      .addTo(map) // Convert to [lat, lng]
-      .bindPopup("Start Point");
-
-    L.marker([end[1], end[0]])
-      .addTo(map) // Convert to [lat, lng]
-      .bindPopup("End Point");
-  });
 
   refreshPlaces();
   map.on("moveend", () => refreshPlaces());
