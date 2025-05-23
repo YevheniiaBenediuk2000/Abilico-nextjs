@@ -15,7 +15,8 @@ const EXCLUDED_PROPS = new Set([
 ]);
 
 const ORS_API_KEY = "5b3ce3597851110001cf624808521bae358447e592780fc0039f7235";
-let map;
+const map = L.map("map").setView([49.41461, 8.681495], 16);
+
 let placeLayer;
 let avoidPolygon = null;
 
@@ -26,7 +27,7 @@ let selectedMarker = null;
 
 const suggestionsDiv = document.getElementById("suggestions");
 const directions = document.querySelector(".directions");
-const searchInputContainer = document.querySelector(".search-input-container");
+const directionsContainer = document.querySelector(".directions-container");
 const searchInput = document.getElementById("search-input");
 const detailsPanel = document.getElementById("details-panel");
 const directionsButtonElement = document.createElement("button");
@@ -127,7 +128,7 @@ async function refreshPlaces() {
 
 const showDirectionsUI = (start) => {
   console.log("Directions UI:", start);
-  searchInputContainer.style.display = "none";
+  directionsContainer.style.display = "none";
   directions.style.display = "block";
 
   endInput.value = start.display_name;
@@ -232,13 +233,7 @@ const renderSuggestions = async (query, onSuggestionSelect) => {
   suggestionsDiv.style.display = "block";
 };
 
-const handleDOMContentLoaded = () => {
-  map = L.map("map").setView([49.41461, 8.681495], 16);
-  const attribution = "© OpenStreetMap contributors";
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution,
-  }).addTo(map);
-
+function getObstacles() {
   const obstacle = turf.point([8.681495, 49.41461]);
   const bufferedObstacle = turf.buffer(obstacle, 0.01, {
     units: "kilometers",
@@ -250,40 +245,47 @@ const handleDOMContentLoaded = () => {
     .openPopup();
 
   avoidPolygon = bufferedObstacle.geometry;
+}
 
-  refreshPlaces();
-  map.on("moveend", () => refreshPlaces());
+searchInput.addEventListener("input", (e) => {
+  searchInputValue = e.target.value;
 
-  searchInput.addEventListener("input", (e) => {
-    searchInputValue = e.target.value;
-
-    if (searchInputValue.trim().length > 0) {
-      searchInputClearBtn.classList.add("visible");
-    } else {
-      searchInputClearBtn.classList.remove("visible");
-    }
-    renderSuggestions(searchInputValue, renderDetails);
-  });
-
-  searchInputClearBtn.addEventListener("click", () => {
-    searchInput.value = "";
-    searchInputValue = "";
+  if (searchInputValue.trim().length > 0) {
+    searchInputClearBtn.classList.add("visible");
+  } else {
     searchInputClearBtn.classList.remove("visible");
-    suggestionsDiv.style.display = "none";
-    searchInput.focus();
+  }
+  renderSuggestions(searchInputValue, renderDetails);
+});
 
-    document.getElementById("details-panel").style.display = "none";
-    if (selectedMarker) {
-      map.removeLayer(selectedMarker);
-      selectedMarker = null;
-    }
-  });
+searchInputClearBtn.addEventListener("click", () => {
+  searchInput.value = "";
+  searchInputValue = "";
+  searchInputClearBtn.classList.remove("visible");
+  suggestionsDiv.style.display = "none";
+  searchInput.focus();
 
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest(".search-input-container")) {
-      suggestionsDiv.style.display = "none";
-    }
-  });
+  document.getElementById("details-panel").style.display = "none";
+  if (selectedMarker) {
+    map.removeLayer(selectedMarker);
+    selectedMarker = null;
+  }
+});
+
+const dismissSuggestions = (e) => {
+  if (e.target.closest(".suggestion-item")) return;
+
+  suggestionsDiv.style.display = "none";
 };
 
-addEventListener("DOMContentLoaded", handleDOMContentLoaded);
+document.addEventListener("click", dismissSuggestions);
+
+const attribution = "© OpenStreetMap contributors";
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution,
+}).addTo(map);
+
+getObstacles();
+
+refreshPlaces();
+map.on("moveend", () => refreshPlaces());
