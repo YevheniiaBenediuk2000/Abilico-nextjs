@@ -1,7 +1,7 @@
 const fetchSuggestions = async (query) => {
   try {
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=100`
+      `https://nominatim.openstreetmap.org/search?q=${query}&format=jsonv2&limit=100`
     );
     const data = await response.json();
     console.log("Suggestions:", data);

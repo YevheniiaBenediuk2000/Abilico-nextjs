@@ -6,7 +6,6 @@ const EXCLUDED_PROPS = new Set([
   "osm_type",
   "lat",
   "lon",
-  "icon",
   "class",
   "place_rank",
   "importance",
@@ -81,7 +80,7 @@ async function fetchPlaces(bounds) {
   const query = `
     [out:json][maxsize:1073741824];
     (
-      node(${boundingBox})["name"];    
+      node(${boundingBox})[wheelchair];    
     );
     out center tags;
   `;
@@ -117,6 +116,7 @@ async function refreshPlaces() {
       });
 
       const title = feat.properties.name || "Unnamed place";
+      console.log("feat ", feat.properties);
       marker.bindPopup(`<strong>${title}</strong>`);
 
       marker.on("click", () => renderDetails(feat.properties));
@@ -171,6 +171,7 @@ const selectMarker = (result) => {
   }
 
   const title = result.name || "Unnamed place";
+  console.log("icon:", result.icon);
 
   selectedMarker = L.circleMarker([result.lat, result.lon])
     .bindPopup(`<strong>${title}</strong>`)
