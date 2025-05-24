@@ -80,7 +80,7 @@ async function fetchPlaces(bounds) {
   const query = `
     [out:json][maxsize:1073741824];
     (
-      node(${boundingBox})[wheelchair];    
+      node(${boundingBox})[amenity][wheelchair];    
     );
     out center tags;
   `;
@@ -107,19 +107,16 @@ async function refreshPlaces() {
   const geojson = await fetchPlaces(map.getBounds());
 
   placeLayer = L.geoJSON(geojson, {
-    pointToLayer: (feat, latlng) => {
+    pointToLayer: ({ properties: tags }, latlng) => {
       const marker = L.circleMarker(latlng, {
-        fillOpacity: 0.8,
-        radius: 8,
-        weight: 2,
         color: "purple",
       });
 
-      const title = feat.properties.name || "Unnamed place";
-      console.log("feat ", feat.properties);
+      const title = tags.name || "Unnamed place";
+
       marker.bindPopup(`<strong>${title}</strong>`);
 
-      marker.on("click", () => renderDetails(feat.properties));
+      marker.on("click", () => renderDetails(tags));
 
       return marker;
     },
