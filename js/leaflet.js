@@ -140,7 +140,6 @@ const showDirectionsUI = (start) => {
     }
     const onSuggestionSelect = async (end) => {
       startInput.value = end.display_name;
-
       const routeData = await getRoute(
         [start.lon, start.lat],
         [end.lon, end.lat]
@@ -151,6 +150,7 @@ const showDirectionsUI = (start) => {
         style: { color: "red", weight: 5 },
       }).addTo(map);
     };
+
     renderSuggestions(startInputValue, onSuggestionSelect);
   });
 
@@ -202,7 +202,9 @@ const renderDetails = (result) => {
   directionsButtonElement.innerHTML = "";
   directionsButtonElement.className = "directions-button";
   directionsButtonElement.textContent = "Directions";
-  directionsButtonElement.onclick = () => showDirectionsUI(result);
+  directionsButtonElement.addEventListener("click", () =>
+    showDirectionsUI(result)
+  );
   detailsPanel.appendChild(directionsButtonElement);
 };
 
