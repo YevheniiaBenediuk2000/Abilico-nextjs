@@ -168,7 +168,6 @@ const selectMarker = (result) => {
   }
 
   const title = result.name || "Unnamed place";
-  console.log("icon:", result.icon);
 
   selectedMarker = L.circleMarker([result.lat, result.lon])
     .bindPopup(`<strong>${title}</strong>`)
