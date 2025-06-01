@@ -80,7 +80,7 @@ async function fetchPlaces(bounds) {
   const query = `
     [out:json][maxsize:1073741824];
     (
-      node(${boundingBox})[amenity][wheelchair];    
+      node(${boundingBox})[amenity];    
     );
     out center tags;
   `;
@@ -101,6 +101,28 @@ async function fetchPlaces(bounds) {
   }
 }
 
+const ICON_BASE =
+  "https://cdn.jsdelivr.net/gh/openstreetmap/map-icons@master/svg";
+
+function ruleMatches(rule, tags) {
+  const condKeys = ["condition", "condition_2nd", "condition_3rd"].filter(
+    (k) => rule[k]
+  );
+  return condKeys.every((k) => tags[rule[k].k] === rule[k].v);
+}
+
+function iconFor(tags) {
+  const rule = ICON_RULES.find((r) => ruleMatches(r, tags));
+
+  if (rule) {
+    // "vehicle.parking" → "vehicle/parking.svg"
+    const relPath = rule.v.replace(/\./g, "/") + ".svg";
+    const url = `${ICON_BASE}/${relPath}`;
+
+    return url;
+  }
+}
+
 async function refreshPlaces() {
   if (placeLayer) map.removeLayer(placeLayer);
 
@@ -108,11 +130,14 @@ async function refreshPlaces() {
 
   placeLayer = L.geoJSON(geojson, {
     pointToLayer: ({ properties: tags }, latlng) => {
-      const marker = L.circleMarker(latlng, {
-        color: "purple",
+      const marker = L.marker(latlng, {
+        icon: L.icon({
+          iconUrl: iconFor(tags),
+          iconSize: [24, 24],
+        }),
       });
 
-      const title = tags.name || "Unnamed place";
+      const title = tags.name || tags.amenity || "Unnamed place";
 
       marker.bindPopup(`<strong>${title}</strong>`);
 

@@ -14,7 +14,7 @@ parser.parseString(xml, (err, result) => {
   if (err) throw err;
 
   fs.writeFileSync(
-    "icons.js",
+    "./js/static/icons.js",
     `export default ${JSON.stringify(result.rules.rule, null, 2)};`
   );
 });
