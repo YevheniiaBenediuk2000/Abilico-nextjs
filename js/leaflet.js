@@ -173,11 +173,10 @@ const showDirectionsUI = (endTags, endLatLng) => {
     }
     const onSuggestionSelect = async (start) => {
       startInput.value = start.display_name;
-
-      const routeData = await fetchRoute(
-        [start.lon, start.lat],
-        [endLatLng.lng, endLatLng.lat]
-      );
+      const endCoords = endLatLng
+        ? [endLatLng.lng, endLatLng.lat]
+        : [endTags.lon, endTags.lat];
+      const routeData = await fetchRoute([start.lon, start.lat], endCoords);
       console.log("Route Data:", routeData);
       const routeLayer = L.geoJSON(routeData, { style: { weight: 5 } }).addTo(
         map
@@ -190,7 +189,8 @@ const showDirectionsUI = (endTags, endLatLng) => {
     renderSuggestions(startInputValue, onSuggestionSelect);
   };
 
-  startInput.addEventListener("input", _.debounce(handleStartInputChange, 300));
+  startInput.focus();
+  startInput.addEventListener("input", _.debounce(handleStartInputChange, 400));
 
   startInputClearBtn.addEventListener("click", () => {
     startInput.value = "";
@@ -244,7 +244,6 @@ const renderDetails = (tags, latlng) => {
     showDirectionsUI(tags, latlng)
   );
   detailsPanel.appendChild(directionsButtonElement);
-  searchInput.value = "";
 };
 
 const renderSuggestions = async (query, onSuggestionSelect) => {
@@ -296,7 +295,7 @@ const handleSearchInputChange = (e) => {
   renderSuggestions(searchInputValue, renderDetails);
 };
 
-searchInput.addEventListener("input", _.debounce(handleSearchInputChange, 300));
+searchInput.addEventListener("input", _.debounce(handleSearchInputChange, 400));
 
 searchInputClearBtn.addEventListener("click", () => {
   searchInput.value = "";
