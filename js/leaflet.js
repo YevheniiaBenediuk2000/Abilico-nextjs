@@ -43,7 +43,7 @@ function showConstraintModal() {
   modal.style.display = "block";
 }
 
-async function getRoute(start, end) {
+async function fetchRoute(start, end) {
   const url =
     "https://api.openrouteservice.org/v2/directions/wheelchair/geojson";
 
@@ -188,14 +188,19 @@ const showDirectionsUI = (end) => {
     const onSuggestionSelect = async (start) => {
       startInput.value = start.display_name;
 
-      const routeData = await getRoute(
+      const routeData = await fetchRoute(
         [start.lon, start.lat],
         [end.lon, end.lat]
       );
       console.log("Route Data:", routeData);
-      L.geoJSON(routeData, {
+      const routeLayer = L.geoJSON(routeData, {
         style: { color: "red", weight: 5 },
       }).addTo(map);
+      console.log("Route Layer:", routeLayer);
+      map.fitBounds(routeLayer.getBounds(), {
+        padding: [30, 30],
+        maxZoom: 14,
+      });
     };
     renderSuggestions(startInputValue, onSuggestionSelect);
   };
