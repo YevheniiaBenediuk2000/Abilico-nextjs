@@ -119,29 +119,15 @@ async function fetchPlaces(bounds) {
 }
 
 function iconFor(tags) {
-  let url;
-
-  // const ICON_BASE_PATH = "../map-icons/svg";
-  // const arr1 = tags.amenity.split("_");
-  // ICON_RULES.forEach((rule) => {
-  //   const arr2 = rule.v.split(".");
-  //   const isOverlap = arr1.every((item) => arr2.includes(item));
-  //   if (isOverlap) {
-  //     const relPath = rule.v.replace(/\./g, "/") + ".svg";
-  //     url = `${ICON_BASE_PATH}/${relPath}`;
-  //   }
-  // });
+  const BASE_PATH = "../map-icons";
 
   const candidates = ICON_MANIFEST.filter((p) =>
     p.endsWith(`/${tags.amenity}.svg`)
   );
-  if (candidates.length) {
-    url = `../map-icons/${candidates[0]}`;
-  }
 
-  if (!url) {
-    url = "../map-icons/svg/misc/no_icon.svg";
-  }
+  const url = candidates.length
+    ? `${BASE_PATH}/${candidates[0]}`
+    : `${BASE_PATH}/svg/misc/no_icon.svg`;
 
   return url;
 }
@@ -258,6 +244,7 @@ const renderDetails = (tags, latlng) => {
     showDirectionsUI(tags, latlng)
   );
   detailsPanel.appendChild(directionsButtonElement);
+  searchInput.value = "";
 };
 
 const renderSuggestions = async (query, onSuggestionSelect) => {
