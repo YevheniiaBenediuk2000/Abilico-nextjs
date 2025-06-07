@@ -279,7 +279,7 @@ function getObstacles() {
   avoidPolygon = bufferedObstacle.geometry;
 }
 
-searchInput.addEventListener("input", (e) => {
+const handleSearchInputChange = (e) => {
   searchInputValue = e.target.value;
 
   if (searchInputValue.trim().length > 0) {
@@ -288,7 +288,9 @@ searchInput.addEventListener("input", (e) => {
     searchInputClearBtn.classList.remove("visible");
   }
   renderSuggestions(searchInputValue, renderDetails);
-});
+};
+
+searchInput.addEventListener("input", _.debounce(handleSearchInputChange, 300));
 
 searchInputClearBtn.addEventListener("click", () => {
   searchInput.value = "";
