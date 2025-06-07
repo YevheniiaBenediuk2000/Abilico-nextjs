@@ -24,6 +24,7 @@ let startInputValue = "";
 
 let selectedMarker = null;
 
+const searchInputContainer = document.querySelector(".search-input-container");
 const suggestionsDiv = document.getElementById("suggestions");
 const directions = document.querySelector(".directions");
 const directionsContainer = document.querySelector(".directions-container");
@@ -34,6 +35,13 @@ const searchInputClearBtn = document.getElementById("search-input-clear-btn");
 const startInputClearBtn = document.getElementById("start-input-clear-btn");
 const startInput = document.getElementById("start-input");
 const endInput = document.getElementById("end-input");
+
+const modal = document.getElementById("constraint-modal");
+const closeBtn = document.getElementById("constraint-modal-close");
+
+function showConstraintModal() {
+  modal.style.display = "block";
+}
 
 async function getRoute(start, end) {
   const url =
@@ -53,8 +61,15 @@ async function getRoute(start, end) {
       },
       body: JSON.stringify(requestBody),
     });
-    if (!response.ok) throw new Error(await response.text());
     const data = await response.json();
+
+    if (!response.ok) {
+      if (data.error.code === 2004) {
+        showConstraintModal();
+      }
+
+      throw new Error(JSON.stringify(data.error));
+    }
     console.log("Alternative Route:", data);
 
     const routeGeometry = data.features[0].geometry; // LineString coordinates
@@ -63,7 +78,7 @@ async function getRoute(start, end) {
 
     return data;
   } catch (error) {
-    console.error("Routing error:", error);
+    console.error(error);
   }
 }
 
@@ -96,7 +111,7 @@ async function fetchPlaces(bounds) {
     if (!response.ok) throw new Error("Overpass error " + response.status);
 
     const data = await response.json();
-    console.log("Places data:", data);
+
     return osmtogeojson(data);
   } catch (error) {
     console.error("Places fetch error:", error);
@@ -156,14 +171,13 @@ async function refreshPlaces() {
   }).addTo(map);
 }
 
-const showDirectionsUI = (start) => {
-  console.log("Directions UI:", start);
-  directionsContainer.style.display = "none";
+const showDirectionsUI = (end) => {
+  searchInputContainer.style.display = "none";
   directions.style.display = "block";
 
-  endInput.value = start.display_name;
+  endInput.value = end.display_name;
 
-  startInput.addEventListener("input", (e) => {
+  const handleStartInputChange = (e) => {
     startInputValue = e.target.value;
 
     if (startInputValue.trim().length > 0) {
@@ -171,21 +185,22 @@ const showDirectionsUI = (start) => {
     } else {
       startInputClearBtn.classList.remove("visible");
     }
-    const onSuggestionSelect = async (end) => {
-      startInput.value = end.display_name;
+    const onSuggestionSelect = async (start) => {
+      startInput.value = start.display_name;
+
       const routeData = await getRoute(
         [start.lon, start.lat],
         [end.lon, end.lat]
       );
       console.log("Route Data:", routeData);
-
       L.geoJSON(routeData, {
         style: { color: "red", weight: 5 },
       }).addTo(map);
     };
-
     renderSuggestions(startInputValue, onSuggestionSelect);
-  });
+  };
+
+  startInput.addEventListener("input", _.debounce(handleStartInputChange, 300));
 
   startInputClearBtn.addEventListener("click", () => {
     startInput.value = "";
@@ -323,3 +338,8 @@ getObstacles();
 
 refreshPlaces();
 map.on("moveend", () => refreshPlaces());
+
+closeBtn.addEventListener("click", () => (modal.style.display = "none"));
+window.addEventListener("click", (e) => {
+  if (e.target === modal) modal.style.display = "none";
+});

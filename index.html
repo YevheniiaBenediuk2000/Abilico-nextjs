@@ -28,6 +28,7 @@
       <div class="directions">
         <div class="direction-row start">
           <input
+            value=""
             id="start-input"
             type="search"
             placeholder="Choose starting point, or click on the map"
@@ -46,6 +47,17 @@
 
     <div id="map"></div>
 
+    <div id="constraint-modal" class="modal">
+      <div class="modal-content">
+        <span id="constraint-modal-close" class="modal-close">&times;</span>
+        <h2>Route Too Long</h2>
+        <p>
+          The distance between points is too long (over 300 km). Please choose
+          closer locations.
+        </p>
+      </div>
+    </div>
+
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
@@ -53,9 +65,11 @@
 
     <script src=" https://cdn.jsdelivr.net/npm/@mig8447/lodash-debounce-throttle@4.17.5/dist/lodash-debounce-throttle.min.js "></script>
 
-    <script src="./js/api/getSuggestions.js"></script>
-    <script src="./js/static/icons.js"></script>
+    <script src="./js/api/fetchSuggestions.js"></script>
+    <script src="./js/api/fetchRoute.js"></script>
+
     <script src="./map-icons/manifest.js"></script>
+
     <script src="./js/leaflet.js"></script>
   </body>
 </html>
