@@ -80,7 +80,9 @@ async function fetchPlaces(bounds) {
   const query = `
     [out:json][maxsize:1073741824];
     (
-      node(${boundingBox})[amenity];    
+      node(${boundingBox})
+      [amenity]
+      [amenity!~"bench|waste_basket|bicycle_parking|vending_machine|fountain|ice_cream"];
     );
     out center tags;
   `;
@@ -101,26 +103,32 @@ async function fetchPlaces(bounds) {
   }
 }
 
-const ICON_BASE =
-  "https://cdn.jsdelivr.net/gh/openstreetmap/map-icons@master/svg";
-
-function ruleMatches(rule, tags) {
-  const condKeys = ["condition", "condition_2nd", "condition_3rd"].filter(
-    (k) => rule[k]
-  );
-  return condKeys.every((k) => tags[rule[k].k] === rule[k].v);
-}
-
 function iconFor(tags) {
-  const rule = ICON_RULES.find((r) => ruleMatches(r, tags));
+  let url;
 
-  if (rule) {
-    // "vehicle.parking" → "vehicle/parking.svg"
-    const relPath = rule.v.replace(/\./g, "/") + ".svg";
-    const url = `${ICON_BASE}/${relPath}`;
+  // const ICON_BASE_PATH = "../map-icons/svg";
+  // const arr1 = tags.amenity.split("_");
+  // ICON_RULES.forEach((rule) => {
+  //   const arr2 = rule.v.split(".");
+  //   const isOverlap = arr1.every((item) => arr2.includes(item));
+  //   if (isOverlap) {
+  //     const relPath = rule.v.replace(/\./g, "/") + ".svg";
+  //     url = `${ICON_BASE_PATH}/${relPath}`;
+  //   }
+  // });
 
-    return url;
+  const candidates = ICON_MANIFEST.filter((p) =>
+    p.endsWith(`/${tags.amenity}.svg`)
+  );
+  if (candidates.length) {
+    url = `../map-icons/${candidates[0]}`;
   }
+
+  if (!url) {
+    url = "../map-icons/svg/misc/no_icon.svg";
+  }
+
+  return url;
 }
 
 async function refreshPlaces() {
