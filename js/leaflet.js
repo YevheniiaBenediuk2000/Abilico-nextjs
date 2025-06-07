@@ -160,22 +160,22 @@ async function refreshPlaces() {
         }),
       });
 
-      const title = tags.name || tags.amenity || "Unnamed place";
+      const title = tags.name ?? tags.amenity ?? "Unnamed place";
 
       marker.bindPopup(`<strong>${title}</strong>`);
 
-      marker.on("click", () => renderDetails(tags));
+      marker.on("click", () => renderDetails(tags, latlng));
 
       return marker;
     },
   }).addTo(map);
 }
 
-const showDirectionsUI = (end) => {
+const showDirectionsUI = (endTags, endLatLng) => {
   searchInputContainer.style.display = "none";
   directions.style.display = "block";
 
-  endInput.value = end.display_name;
+  endInput.value = endTags.display_name ?? endTags.name ?? "Unnamed place";
 
   const handleStartInputChange = (e) => {
     startInputValue = e.target.value;
@@ -190,16 +190,15 @@ const showDirectionsUI = (end) => {
 
       const routeData = await fetchRoute(
         [start.lon, start.lat],
-        [end.lon, end.lat]
+        [endLatLng.lng, endLatLng.lat]
       );
       console.log("Route Data:", routeData);
-      const routeLayer = L.geoJSON(routeData, {
-        style: { color: "red", weight: 5 },
-      }).addTo(map);
+      const routeLayer = L.geoJSON(routeData, { style: { weight: 5 } }).addTo(
+        map
+      );
       console.log("Route Layer:", routeLayer);
       map.fitBounds(routeLayer.getBounds(), {
         padding: [30, 30],
-        maxZoom: 14,
       });
     };
     renderSuggestions(startInputValue, onSuggestionSelect);
@@ -228,10 +227,10 @@ const selectMarker = (result) => {
     .openPopup();
 };
 
-const renderDetails = (result) => {
+const renderDetails = (tags, latlng) => {
   detailsPanel.innerHTML = "";
   detailsPanel.style.display = "block";
-  Object.entries(result).forEach(([key, value]) => {
+  Object.entries(tags).forEach(([key, value]) => {
     if (!EXCLUDED_PROPS.has(key)) {
       const div = document.createElement("div");
       div.className = "detail-item";
@@ -256,7 +255,7 @@ const renderDetails = (result) => {
   directionsButtonElement.className = "directions-button";
   directionsButtonElement.textContent = "Directions";
   directionsButtonElement.addEventListener("click", () =>
-    showDirectionsUI(result)
+    showDirectionsUI(tags, latlng)
   );
   detailsPanel.appendChild(directionsButtonElement);
 };
