@@ -14,6 +14,7 @@ const EXCLUDED_PROPS = new Set([
 ]);
 
 let obstacleFeatures = [];
+let reviews = [];
 
 const ORS_API_KEY = "5b3ce3597851110001cf624808521bae358447e592780fc0039f7235";
 
@@ -150,9 +151,10 @@ const selectMarker = (result) => {
     .openPopup();
 };
 
-const renderDetails = (tags, latlng) => {
+const renderDetails = async (tags, latlng) => {
   detailsPanel.innerHTML = "";
   detailsPanel.style.display = "block";
+
   Object.entries(tags).forEach(([key, value]) => {
     if (!EXCLUDED_PROPS.has(key)) {
       const div = document.createElement("div");
@@ -174,6 +176,7 @@ const renderDetails = (tags, latlng) => {
     }
   });
 
+  // Add Directions Button
   directionsButtonElement.innerHTML = "";
   directionsButtonElement.className = "directions-button";
   directionsButtonElement.textContent = "Directions";
@@ -181,6 +184,49 @@ const renderDetails = (tags, latlng) => {
     showDirectionsUI(tags, latlng)
   );
   detailsPanel.appendChild(directionsButtonElement);
+
+  // Add Reviews Section
+  reviews = await reviewStorage();
+
+  const reviewsContainer = document.createElement("div");
+  reviewsContainer.id = "reviews-container";
+  reviewsContainer.innerHTML = "<h3>Reviews</h3>";
+  detailsPanel.appendChild(reviewsContainer);
+
+  const placeId = tags.id;
+
+  const list = document.createElement("ul");
+  reviews.forEach((r) => {
+    if (placeId === r.placeId) {
+      const li = document.createElement("li");
+      li.innerHTML = r.text;
+      list.appendChild(li);
+    }
+  });
+  reviewsContainer.appendChild(list);
+
+  // Add review form
+  const form = document.createElement("form");
+  form.id = "review-form";
+  form.innerHTML = `
+    <textarea id="review-text" placeholder="Write your review..." required></textarea><br>
+    <button type="submit">Submit Review</button>
+  `;
+  reviewsContainer.appendChild(form);
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const text = form.querySelector("#review-text").value.trim();
+    if (!text) return;
+
+    const newReview = { text, placeId };
+    reviews.push(newReview);
+
+    await reviewStorage("PUT", reviews);
+
+    // Refresh details to show new review
+    renderDetails(tags, latlng);
+  });
 };
 
 const renderSuggestions = async (query, onSuggestionSelect) => {
