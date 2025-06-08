@@ -40,94 +40,6 @@ function showConstraintModal() {
   modal.style.display = "block";
 }
 
-async function fetchRoute(start, end) {
-  const url =
-    "https://api.openrouteservice.org/v2/directions/wheelchair/geojson";
-
-  const obstacleCoordinates = obstacleFeatures.map((f) => {
-    if (f.geometry.type === "Polygon") {
-      return [f.geometry.coordinates];
-    } else if (f.geometry.type === "MultiPolygon") {
-      return f.geometry.coordinates;
-    }
-  });
-
-  const requestBody = {
-    coordinates: [start, end],
-    options: {
-      avoid_polygons: {
-        type: "MultiPolygon",
-        coordinates: obstacleCoordinates.flat(),
-      },
-    },
-  };
-
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: ORS_API_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
-    const data = await response.json();
-
-    if (!response.ok) {
-      if (data.error.code === 2004) {
-        showConstraintModal();
-      }
-
-      throw new Error(JSON.stringify(data.error));
-    }
-    console.log("Alternative Route:", data);
-
-    const routeGeometry = data.features[0].geometry; // LineString coordinates
-    // Use your mapping library (e.g., Leaflet/Mapbox) to draw the route
-    console.log("Route Geometry:", routeGeometry);
-
-    return data;
-  } catch (error) {
-    console.error(error);
-  }
-}
-
-async function fetchPlaces(bounds) {
-  const boundingBox = [
-    bounds.getSouth(),
-    bounds.getWest(),
-    bounds.getNorth(),
-    bounds.getEast(),
-  ].join(",");
-
-  const overpassUrl = "https://overpass-api.de/api/interpreter";
-
-  const query = `
-    [out:json][maxsize:1073741824];
-    (
-      node(${boundingBox})
-      [amenity]
-      [amenity!~"bench|waste_basket|bicycle_parking|vending_machine|fountain|ice_cream"];
-    );
-    out center tags;
-  `;
-
-  try {
-    const response = await fetch(overpassUrl, {
-      method: "POST",
-      body: query,
-    });
-
-    if (!response.ok) throw new Error("Overpass error " + response.status);
-
-    const data = await response.json();
-
-    return osmtogeojson(data);
-  } catch (error) {
-    console.error("Places fetch error:", error);
-  }
-}
-
 function iconFor(tags) {
   const BASE_PATH = "../map-icons";
 
@@ -201,7 +113,10 @@ const showDirectionsUI = (endTags, endLatLng) => {
       const endCoords = endLatLng
         ? [endLatLng.lng, endLatLng.lat]
         : [endTags.lon, endTags.lat];
-      const routeData = await fetchRoute([start.lon, start.lat], endCoords);
+      const routeData = await fetchRoute(
+        [[start.lon, start.lat], endCoords],
+        obstacleFeatures
+      );
       console.log("Route Data:", routeData);
       const routeLayer = L.geoJSON(routeData, { style: { weight: 5 } }).addTo(
         map
@@ -377,7 +292,7 @@ function initDrawing() {
 
 const placeClusterGroup = L.markerClusterGroup({
   chunkedLoading: true,
-  maxClusterRadius: 80,
+  maxClusterRadius: 60,
   disableClusteringAtZoom: 17,
 });
 map.addLayer(placeClusterGroup);

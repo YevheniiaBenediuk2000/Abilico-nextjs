@@ -138,7 +138,6 @@ input[type="search"]::-webkit-search-results-decoration {
   background-color: rgba(0, 0, 0, 0.5);
 }
 
-/* Modal content box */
 .modal-content {
   background-color: #fff;
   margin: 10% auto;
