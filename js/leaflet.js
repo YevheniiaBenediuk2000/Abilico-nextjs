@@ -14,7 +14,6 @@ const EXCLUDED_PROPS = new Set([
 ]);
 
 const ORS_API_KEY = "5b3ce3597851110001cf624808521bae358447e592780fc0039f7235";
-const map = L.map("map").setView([49.41461, 8.681495], 16);
 
 let avoidPolygon = null;
 
@@ -34,9 +33,8 @@ const searchInputClearBtn = document.getElementById("search-input-clear-btn");
 const startInputClearBtn = document.getElementById("start-input-clear-btn");
 const startInput = document.getElementById("start-input");
 const endInput = document.getElementById("end-input");
-
 const modal = document.getElementById("constraint-modal");
-const closeBtn = document.getElementById("constraint-modal-close");
+const modalCloseBtn = document.getElementById("constraint-modal-close");
 
 function showConstraintModal() {
   modal.style.display = "block";
@@ -203,8 +201,8 @@ const showDirectionsUI = (endTags, endLatLng) => {
     renderSuggestions(startInputValue, onSuggestionSelect);
   };
 
-  startInput.focus();
   startInput.addEventListener("input", _.debounce(handleStartInputChange, 400));
+  startInput.focus();
 
   startInputClearBtn.addEventListener("click", clearStartInput);
 };
@@ -282,9 +280,7 @@ const renderSuggestions = async (query, onSuggestionSelect) => {
 
 function getObstacles() {
   const obstacle = turf.point([8.681495, 49.41461]);
-  const bufferedObstacle = turf.buffer(obstacle, 0.01, {
-    units: "kilometers",
-  });
+  const bufferedObstacle = turf.buffer(obstacle, 0.01, { units: "kilometers" });
 
   L.geoJSON(bufferedObstacle)
     .addTo(map)
@@ -305,6 +301,82 @@ const handleSearchInputChange = (e) => {
   renderSuggestions(searchInputValue, renderDetails);
 };
 
+const dismissSuggestions = (e) => {
+  if (e.target.closest(".suggestion-item")) return;
+
+  suggestionsDiv.style.display = "none";
+};
+
+function updateAvoidPolygon() {
+  const features = obstaclesLayer.toGeoJSON().features;
+
+  if (features.length === 0) {
+    avoidPolygon = null;
+    return;
+  }
+
+  // union all geometries into one
+  const union = features.reduce((acc, f) => (acc ? turf.union(acc, f) : f));
+
+  // keep only the pure geometry for ORS
+  avoidPolygon = union.geometry;
+}
+
+// ============= INIT ================
+
+const map = L.map("map").setView([49.41461, 8.681495], 16);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: "© OpenStreetMap contributors",
+}).addTo(map);
+
+const obstaclesLayer = L.geoJSON(null, {
+  style: { color: "#ff3333", weight: 2, fillOpacity: 0.25 },
+}).addTo(map);
+const drawControl = new L.Control.Draw({
+  position: "topleft",
+  edit: { featureGroup: obstaclesLayer },
+  draw: {
+    polyline: false,
+    rectangle: false,
+    circle: false,
+    circlemarker: false,
+  },
+});
+map.addControl(drawControl);
+
+const placeClusterGroup = L.markerClusterGroup({
+  chunkedLoading: true,
+  maxClusterRadius: 40,
+  disableClusteringAtZoom: 18,
+});
+map.addLayer(placeClusterGroup);
+
+getObstacles();
+refreshPlaces();
+
+// ============= EVENT LISTENERS ================
+
+map.on("draw:created", (e) => {
+  const layer = e.layer;
+  const gj = layer.toGeoJSON(); // plain GeoJSON
+
+  // If the user only dropped a point we turn it into a ~10 m circle
+  const buffered =
+    gj.geometry.type === "Point"
+      ? turf.buffer(gj, 0.01, { units: "kilometers" }) // ≈ 10 m
+      : gj;
+
+  // add the visible geometry to the map
+  obstaclesLayer.addData(buffered);
+
+  // merge with anything that was already there
+  updateAvoidPolygon();
+});
+map.on("moveend", refreshPlaces);
+modalCloseBtn.addEventListener("click", () => (modal.style.display = "none"));
+window.addEventListener("click", (e) => {
+  if (e.target === modal) modal.style.display = "none";
+});
 searchInput.addEventListener("input", _.debounce(handleSearchInputChange, 400));
 
 searchInputClearBtn.addEventListener("click", () => {
@@ -318,34 +390,4 @@ searchInputClearBtn.addEventListener("click", () => {
     selectedMarker = null;
   }
 });
-
-const dismissSuggestions = (e) => {
-  if (e.target.closest(".suggestion-item")) return;
-
-  suggestionsDiv.style.display = "none";
-};
-
 document.addEventListener("click", dismissSuggestions);
-
-const attribution = "© OpenStreetMap contributors";
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  attribution,
-}).addTo(map);
-
-getObstacles();
-
-const placeClusterGroup = L.markerClusterGroup({
-  chunkedLoading: true,
-  maxClusterRadius: 40,
-  disableClusteringAtZoom: 18,
-});
-map.addLayer(placeClusterGroup);
-
-refreshPlaces();
-
-map.on("moveend", () => refreshPlaces());
-
-closeBtn.addEventListener("click", () => (modal.style.display = "none"));
-window.addEventListener("click", (e) => {
-  if (e.target === modal) modal.style.display = "none";
-});
