@@ -29,15 +29,17 @@ async function fetchRoute(coordinates, obstacleFeatures) {
       },
       body: JSON.stringify(requestBody),
     });
-    const data = await response.json();
 
     if (!response.ok) {
       if (data.error.code === 2004) {
         showConstraintModal();
       }
 
-      throw new Error(JSON.stringify(data.error));
+      throw new Error(await response.text());
     }
+
+    const data = await response.json();
+
     console.log("Alternative Route:", data);
 
     const routeGeometry = data.features[0].geometry; // LineString coordinates

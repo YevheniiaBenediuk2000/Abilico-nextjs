@@ -1,3 +1,5 @@
+const OBSTACLE_API = "https://api.jsonbin.io/v3/b/6845de868a456b7966aafd07";
+
 const EXCLUDED_PROPS = new Set([
   "boundingbox",
   "licence",
@@ -230,7 +232,37 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "© OpenStreetMap contributors",
 }).addTo(map);
 
-function initDrawing() {
+async function obstacleStorage(method = "GET", obstacleFeatures) {
+  try {
+    const options = {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Master-Key":
+          "$2a$10$CjX0SSivai4LuK1ps.sJ6.FKHGD47V/3f8GYK8no8xge0UWBPIwbq",
+        "X-Access-Key":
+          "$2a$10$SjMeRlsBbS2GI3An8hRhouhWQJ7AN800E.UmFOm2JBiIxgFm4WkxO",
+      },
+    };
+    if (method === "PUT") {
+      options.body = JSON.stringify(obstacleFeatures);
+    }
+
+    const response = await fetch(OBSTACLE_API, options);
+
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+
+    const data = await response.json();
+    return data.record;
+  } catch (e) {
+    console.error("Loading obstacles failed:", e);
+    return [];
+  }
+}
+
+async function initDrawingObstacles() {
   const drawnItems = new L.FeatureGroup();
   map.addLayer(drawnItems);
 
@@ -242,12 +274,12 @@ function initDrawing() {
       polygon: { allowIntersection: false, shapeOptions: { color: "red" } },
       rectangle: { shapeOptions: { color: "red" } },
       circle: { shapeOptions: { color: "red" } },
-      circlemarker: { radius: 10, color: "red", fillColor: "red" },
+      circlemarker: { radius: 13, color: "red", fillColor: "red" },
     },
   });
   map.addControl(drawControl);
 
-  map.on(L.Draw.Event.CREATED, (e) => {
+  map.on(L.Draw.Event.CREATED, async (e) => {
     const layer = e.layer;
     drawnItems.addLayer(layer);
 
@@ -265,7 +297,13 @@ function initDrawing() {
       feature = layer.toGeoJSON();
     }
 
-    obstacleFeatures.push({ ...feature, _leaflet_id: layer._leaflet_id });
+    obstacleFeatures = await obstacleStorage("PUT", [
+      ...obstacleFeatures,
+      {
+        ...feature,
+        _leaflet_id: layer._leaflet_id,
+      },
+    ]);
   });
 
   map.on(L.Draw.Event.EDITED, (e) => {
@@ -277,6 +315,7 @@ function initDrawing() {
         let newFeature = layer.toGeoJSON();
         newFeature._leaflet_id = layer._leaflet_id;
         obstacleFeatures[idx] = newFeature;
+        obstacleStorage("PUT", obstacleFeatures);
       }
     });
   });
@@ -287,6 +326,21 @@ function initDrawing() {
         (f) => f._leaflet_id !== layer._leaflet_id
       );
     });
+
+    obstacleStorage("PUT", obstacleFeatures);
+  });
+
+  obstacleFeatures = await obstacleStorage();
+
+  obstacleFeatures.forEach((feature) => {
+    // const layer = L.geoJSON(feature).addTo(drawnItems);
+    // layer._leaflet_id = feature._leaflet_id;
+
+    const layer = L.geoJSON(feature, {
+      style: { color: "red", fillColor: "red" },
+    }).getLayers()[0];
+    layer._leaflet_id = feature._leaflet_id;
+    drawnItems.addLayer(layer);
   });
 }
 
@@ -298,7 +352,8 @@ const placeClusterGroup = L.markerClusterGroup({
 map.addLayer(placeClusterGroup);
 
 refreshPlaces();
-initDrawing();
+initDrawingObstacles();
+
 // ============= EVENT LISTENERS ================
 
 map.on("moveend", refreshPlaces);
