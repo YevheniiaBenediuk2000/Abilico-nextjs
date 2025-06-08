@@ -348,7 +348,28 @@ function initDrawing() {
       feature = layer.toGeoJSON();
     }
 
-    obstacleFeatures.push(feature);
+    obstacleFeatures.push({ ...feature, _leaflet_id: layer._leaflet_id });
+  });
+
+  map.on(L.Draw.Event.EDITED, (e) => {
+    e.layers.eachLayer((layer) => {
+      const idx = obstacleFeatures.findIndex(
+        (f) => f._leaflet_id === layer._leaflet_id
+      );
+      if (idx > -1) {
+        let newFeature = layer.toGeoJSON();
+        newFeature._leaflet_id = layer._leaflet_id;
+        obstacleFeatures[idx] = newFeature;
+      }
+    });
+  });
+
+  map.on(L.Draw.Event.DELETED, (e) => {
+    e.layers.eachLayer((layer) => {
+      obstacleFeatures = obstacleFeatures.filter(
+        (f) => f._leaflet_id !== layer._leaflet_id
+      );
+    });
   });
 }
 
