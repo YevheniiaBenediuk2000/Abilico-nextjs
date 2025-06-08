@@ -313,41 +313,44 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "© OpenStreetMap contributors",
 }).addTo(map);
 
-const drawnItems = new L.FeatureGroup();
-map.addLayer(drawnItems);
+function initDrawing() {
+  const drawnItems = new L.FeatureGroup();
+  map.addLayer(drawnItems);
 
-const drawControl = new L.Control.Draw({
-  draw: {
-    marker: false,
-    polyline: false,
-    polygon: true,
-    rectangle: true,
-    circle: true,
-  },
-  edit: { featureGroup: drawnItems },
-});
-map.addControl(drawControl);
+  const drawControl = new L.Control.Draw({
+    edit: { featureGroup: drawnItems },
+    draw: {
+      polyline: false,
+      marker: false,
+      polygon: true,
+      rectangle: true,
+      circle: true,
+      circlemarker: true,
+    },
+  });
+  map.addControl(drawControl);
 
-map.on(L.Draw.Event.CREATED, (e) => {
-  const layer = e.layer;
-  drawnItems.addLayer(layer);
+  map.on(L.Draw.Event.CREATED, (e) => {
+    const layer = e.layer;
+    drawnItems.addLayer(layer);
 
-  let feature;
+    let feature;
 
-  if (e.layerType === "circle" || e.layerType === "circlemarker") {
-    // turf.buffer requires a point + radius in km
-    const center = layer.getLatLng();
-    feature = turf.buffer(
-      turf.point([center.lng, center.lat]),
-      layer.getRadius() / 1000,
-      { units: "kilometers" }
-    );
-  } else {
-    feature = layer.toGeoJSON(); // polygon or rectangle
-  }
+    if (e.layerType === "circle" || e.layerType === "circlemarker") {
+      // turf.buffer requires a point + radius in km
+      const center = layer.getLatLng();
+      feature = turf.buffer(
+        turf.point([center.lng, center.lat]),
+        layer.getRadius() / 1000,
+        { units: "kilometers" }
+      );
+    } else {
+      feature = layer.toGeoJSON(); // polygon or rectangle
+    }
 
-  obstacleFeatures.push(feature);
-});
+    obstacleFeatures.push(feature);
+  });
+}
 
 const placeClusterGroup = L.markerClusterGroup({
   chunkedLoading: true,
@@ -357,7 +360,7 @@ const placeClusterGroup = L.markerClusterGroup({
 map.addLayer(placeClusterGroup);
 
 refreshPlaces();
-
+initDrawing();
 // ============= EVENT LISTENERS ================
 
 map.on("moveend", refreshPlaces);
