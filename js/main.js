@@ -152,7 +152,7 @@ const selectMarker = (result) => {
 };
 
 const renderDetails = async (tags, latlng) => {
-  detailsPanel.innerHTML = "";
+  detailsPanel.innerHTML = "<h3 style='margin: 0 0 4px 0;'>Details</h3>";
   detailsPanel.style.display = "block";
 
   Object.entries(tags).forEach(([key, value]) => {
@@ -190,12 +190,13 @@ const renderDetails = async (tags, latlng) => {
 
   const reviewsContainer = document.createElement("div");
   reviewsContainer.id = "reviews-container";
-  reviewsContainer.innerHTML = "<h3>Reviews</h3>";
+  reviewsContainer.innerHTML = "<h3 style='margin: 16px 0 4px 0;'>Reviews</h3>";
   detailsPanel.appendChild(reviewsContainer);
 
   const placeId = tags.id;
 
   const list = document.createElement("ul");
+  list.style.margin = "0 0 4px 0";
   reviews.forEach((r) => {
     if (placeId === r.placeId) {
       const li = document.createElement("li");
