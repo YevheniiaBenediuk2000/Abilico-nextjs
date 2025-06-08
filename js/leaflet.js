@@ -157,10 +157,24 @@ async function refreshPlaces() {
   placeClusterGroup.addLayer(geojsonLayer);
 }
 
+const clearStartInput = () => {
+  startInput.value = "";
+  startInputValue = "";
+  startInputClearBtn.classList.remove("visible");
+};
+
+const clearSearchInput = () => {
+  searchInput.value = "";
+  searchInputValue = "";
+  searchInputClearBtn.classList.remove("visible");
+};
+
 const showDirectionsUI = (endTags, endLatLng) => {
   searchInputContainer.style.display = "none";
   directions.style.display = "block";
 
+  clearSearchInput();
+  clearStartInput();
   endInput.value = endTags.display_name ?? endTags.name ?? "Unnamed place";
 
   const handleStartInputChange = (e) => {
@@ -192,11 +206,7 @@ const showDirectionsUI = (endTags, endLatLng) => {
   startInput.focus();
   startInput.addEventListener("input", _.debounce(handleStartInputChange, 400));
 
-  startInputClearBtn.addEventListener("click", () => {
-    startInput.value = "";
-    startInputValue = "";
-    startInputClearBtn.classList.remove("visible");
-  });
+  startInputClearBtn.addEventListener("click", clearStartInput);
 };
 
 const selectMarker = (result) => {
@@ -298,9 +308,7 @@ const handleSearchInputChange = (e) => {
 searchInput.addEventListener("input", _.debounce(handleSearchInputChange, 400));
 
 searchInputClearBtn.addEventListener("click", () => {
-  searchInput.value = "";
-  searchInputValue = "";
-  searchInputClearBtn.classList.remove("visible");
+  clearSearchInput();
   suggestionsDiv.style.display = "none";
   searchInput.focus();
 
