@@ -226,7 +226,9 @@ const selectMarker = (result) => {
 
   const title = result.name || "Unnamed place";
 
-  selectedMarker = L.circleMarker([result.lat, result.lon])
+  selectedMarker = L.circleMarker([result.lat, result.lon], {
+    radius: 10,
+  })
     .bindPopup(`<strong>${title}</strong>`)
     .addTo(map)
     .openPopup();
@@ -322,10 +324,10 @@ function initDrawing() {
     draw: {
       polyline: false,
       marker: false,
-      polygon: true,
-      rectangle: true,
-      circle: true,
-      circlemarker: true,
+      polygon: { allowIntersection: false, shapeOptions: { color: "red" } },
+      rectangle: { shapeOptions: { color: "red" } },
+      circle: { shapeOptions: { color: "red" } },
+      circlemarker: { radius: 10, color: "red", fillColor: "red" },
     },
   });
   map.addControl(drawControl);
