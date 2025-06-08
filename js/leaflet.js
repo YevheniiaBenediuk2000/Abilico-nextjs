@@ -13,9 +13,9 @@ const EXCLUDED_PROPS = new Set([
   "source",
 ]);
 
-const ORS_API_KEY = "5b3ce3597851110001cf624808521bae358447e592780fc0039f7235";
+let obstacleFeatures = [];
 
-let avoidPolygon = null;
+const ORS_API_KEY = "5b3ce3597851110001cf624808521bae358447e592780fc0039f7235";
 
 let searchInputValue = "";
 let startInputValue = "";
@@ -44,9 +44,22 @@ async function fetchRoute(start, end) {
   const url =
     "https://api.openrouteservice.org/v2/directions/wheelchair/geojson";
 
+  const obstacleCoordinates = obstacleFeatures.map((f) => {
+    if (f.geometry.type === "Polygon") {
+      return [f.geometry.coordinates];
+    } else if (f.geometry.type === "MultiPolygon") {
+      return f.geometry.coordinates;
+    }
+  });
+
   const requestBody = {
     coordinates: [start, end],
-    options: { avoid_polygons: avoidPolygon },
+    options: {
+      avoid_polygons: {
+        type: "MultiPolygon",
+        coordinates: obstacleCoordinates.flat(),
+      },
+    },
   };
 
   try {
@@ -194,9 +207,7 @@ const showDirectionsUI = (endTags, endLatLng) => {
         map
       );
       console.log("Route Layer:", routeLayer);
-      map.fitBounds(routeLayer.getBounds(), {
-        padding: [30, 30],
-      });
+      map.fitBounds(routeLayer.getBounds(), {});
     };
     renderSuggestions(startInputValue, onSuggestionSelect);
   };
@@ -278,18 +289,6 @@ const renderSuggestions = async (query, onSuggestionSelect) => {
   suggestionsDiv.style.display = "block";
 };
 
-function getObstacles() {
-  const obstacle = turf.point([8.681495, 49.41461]);
-  const bufferedObstacle = turf.buffer(obstacle, 0.01, { units: "kilometers" });
-
-  L.geoJSON(bufferedObstacle)
-    .addTo(map)
-    .bindPopup("Obstacle (Stairs)")
-    .openPopup();
-
-  avoidPolygon = bufferedObstacle.geometry;
-}
-
 const handleSearchInputChange = (e) => {
   searchInputValue = e.target.value;
 
@@ -307,71 +306,60 @@ const dismissSuggestions = (e) => {
   suggestionsDiv.style.display = "none";
 };
 
-function updateAvoidPolygon() {
-  const features = obstaclesLayer.toGeoJSON().features;
-
-  if (features.length === 0) {
-    avoidPolygon = null;
-    return;
-  }
-
-  // union all geometries into one
-  const union = features.reduce((acc, f) => (acc ? turf.union(acc, f) : f));
-
-  // keep only the pure geometry for ORS
-  avoidPolygon = union.geometry;
-}
-
 // ============= INIT ================
 
-const map = L.map("map").setView([49.41461, 8.681495], 16);
+const map = L.map("map").setView([49.41461, 8.681495], 17);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "© OpenStreetMap contributors",
 }).addTo(map);
 
-const obstaclesLayer = L.geoJSON(null, {
-  style: { color: "#ff3333", weight: 2, fillOpacity: 0.25 },
-}).addTo(map);
+const drawnItems = new L.FeatureGroup();
+map.addLayer(drawnItems);
+
 const drawControl = new L.Control.Draw({
-  position: "topleft",
-  edit: { featureGroup: obstaclesLayer },
   draw: {
+    marker: false,
     polyline: false,
-    rectangle: false,
-    circle: false,
-    circlemarker: false,
+    polygon: true,
+    rectangle: true,
+    circle: true,
   },
+  edit: { featureGroup: drawnItems },
 });
 map.addControl(drawControl);
 
+map.on(L.Draw.Event.CREATED, (e) => {
+  const layer = e.layer;
+  drawnItems.addLayer(layer);
+
+  let feature;
+
+  if (e.layerType === "circle" || e.layerType === "circlemarker") {
+    // turf.buffer requires a point + radius in km
+    const center = layer.getLatLng();
+    feature = turf.buffer(
+      turf.point([center.lng, center.lat]),
+      layer.getRadius() / 1000,
+      { units: "kilometers" }
+    );
+  } else {
+    feature = layer.toGeoJSON(); // polygon or rectangle
+  }
+
+  obstacleFeatures.push(feature);
+});
+
 const placeClusterGroup = L.markerClusterGroup({
   chunkedLoading: true,
-  maxClusterRadius: 40,
-  disableClusteringAtZoom: 18,
+  maxClusterRadius: 80,
+  disableClusteringAtZoom: 17,
 });
 map.addLayer(placeClusterGroup);
 
-getObstacles();
 refreshPlaces();
 
 // ============= EVENT LISTENERS ================
 
-map.on("draw:created", (e) => {
-  const layer = e.layer;
-  const gj = layer.toGeoJSON(); // plain GeoJSON
-
-  // If the user only dropped a point we turn it into a ~10 m circle
-  const buffered =
-    gj.geometry.type === "Point"
-      ? turf.buffer(gj, 0.01, { units: "kilometers" }) // ≈ 10 m
-      : gj;
-
-  // add the visible geometry to the map
-  obstaclesLayer.addData(buffered);
-
-  // merge with anything that was already there
-  updateAvoidPolygon();
-});
 map.on("moveend", refreshPlaces);
 modalCloseBtn.addEventListener("click", () => (modal.style.display = "none"));
 window.addEventListener("click", (e) => {
