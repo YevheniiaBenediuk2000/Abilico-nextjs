@@ -1,4 +1,4 @@
-const OBSTACLE_API = "https://api.jsonbin.io/v3/b/6845de868a456b7966aafd07";
+const OBSTACLE_API = "https://api.jsonbin.io/v3/b/6845f7fc8960c979a5a6c156";
 
 const EXCLUDED_PROPS = new Set([
   "boundingbox",
@@ -283,24 +283,24 @@ async function initDrawingObstacles() {
     const layer = e.layer;
     drawnItems.addLayer(layer);
 
-    let feature;
+    let newFeature;
 
     if (e.layerType === "circle" || e.layerType === "circlemarker") {
       // turf.buffer requires a point + radius in km
       const center = layer.getLatLng();
-      feature = turf.buffer(
+      newFeature = turf.buffer(
         turf.point([center.lng, center.lat]),
         layer.getRadius() / 1000,
         { units: "kilometers" }
       );
     } else if (e.layerType === "polygon" || e.layerType === "rectangle") {
-      feature = layer.toGeoJSON();
+      newFeature = layer.toGeoJSON();
     }
 
     obstacleFeatures = await obstacleStorage("PUT", [
       ...obstacleFeatures,
       {
-        ...feature,
+        ...newFeature,
         _leaflet_id: layer._leaflet_id,
       },
     ]);
@@ -326,16 +326,12 @@ async function initDrawingObstacles() {
         (f) => f._leaflet_id !== layer._leaflet_id
       );
     });
-
     obstacleStorage("PUT", obstacleFeatures);
   });
 
   obstacleFeatures = await obstacleStorage();
 
   obstacleFeatures.forEach((feature) => {
-    // const layer = L.geoJSON(feature).addTo(drawnItems);
-    // layer._leaflet_id = feature._leaflet_id;
-
     const layer = L.geoJSON(feature, {
       style: { color: "red", fillColor: "red" },
     }).getLayers()[0];
