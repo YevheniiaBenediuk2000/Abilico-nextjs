@@ -32,7 +32,9 @@ async function fetchRoute(coordinates, obstacleFeatures) {
 
     if (!response.ok) {
       if (data.error.code === 2004) {
-        showConstraintModal();
+        showModal(
+          "The distance between points is too long (over 300 km). Please choose closer locations."
+        );
       }
 
       throw new Error(await response.text());

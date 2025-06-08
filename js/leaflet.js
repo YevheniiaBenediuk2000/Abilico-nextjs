@@ -1,5 +1,3 @@
-const OBSTACLE_API = "https://api.jsonbin.io/v3/b/6845f7fc8960c979a5a6c156";
-
 const EXCLUDED_PROPS = new Set([
   "boundingbox",
   "licence",
@@ -38,8 +36,9 @@ const endInput = document.getElementById("end-input");
 const modal = document.getElementById("constraint-modal");
 const modalCloseBtn = document.getElementById("constraint-modal-close");
 
-function showConstraintModal() {
+function showModal(message) {
   modal.style.display = "block";
+  modal.querySelector("h2").textContent = message;
 }
 
 function iconFor(tags) {
@@ -225,43 +224,6 @@ const dismissSuggestions = (e) => {
   suggestionsDiv.style.display = "none";
 };
 
-// ============= INIT ================
-
-const map = L.map("map").setView([49.41461, 8.681495], 17);
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  attribution: "© OpenStreetMap contributors",
-}).addTo(map);
-
-async function obstacleStorage(method = "GET", obstacleFeatures) {
-  try {
-    const options = {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        "X-Master-Key":
-          "$2a$10$CjX0SSivai4LuK1ps.sJ6.FKHGD47V/3f8GYK8no8xge0UWBPIwbq",
-        "X-Access-Key":
-          "$2a$10$SjMeRlsBbS2GI3An8hRhouhWQJ7AN800E.UmFOm2JBiIxgFm4WkxO",
-      },
-    };
-    if (method === "PUT") {
-      options.body = JSON.stringify(obstacleFeatures);
-    }
-
-    const response = await fetch(OBSTACLE_API, options);
-
-    if (!response.ok) {
-      throw new Error(await response.text());
-    }
-
-    const data = await response.json();
-    return data.record;
-  } catch (e) {
-    console.error("Loading obstacles failed:", e);
-    return [];
-  }
-}
-
 async function initDrawingObstacles() {
   const drawnItems = new L.FeatureGroup();
   map.addLayer(drawnItems);
@@ -340,9 +302,39 @@ async function initDrawingObstacles() {
   });
 }
 
+// ============= INIT ================
+
+let initialLatLng = [51.5074, -0.1278]; // London, UK
+
+const map = L.map("map").setView(initialLatLng, 17);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: "© OpenStreetMap contributors",
+}).addTo(map);
+
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const { latitude, longitude } = position.coords;
+      map.setView([latitude, longitude]);
+      L.marker([latitude, longitude]).addTo(map);
+    },
+    (error) => {
+      console.warn(error);
+      if (error.message !== "User denied geolocation prompt") {
+        showModal(
+          `Unable to retrieve location: ${error.message}. Using default location.`
+        );
+      }
+    }
+  );
+} else {
+  console.warn(error);
+  showModal("Geolocation not supported. Using default location.");
+}
+
 const placeClusterGroup = L.markerClusterGroup({
   chunkedLoading: true,
-  maxClusterRadius: 60,
+  maxClusterRadius: 80,
   disableClusteringAtZoom: 17,
 });
 map.addLayer(placeClusterGroup);
