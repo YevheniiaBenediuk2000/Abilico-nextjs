@@ -16,7 +16,6 @@ const EXCLUDED_PROPS = new Set([
 const ORS_API_KEY = "5b3ce3597851110001cf624808521bae358447e592780fc0039f7235";
 const map = L.map("map").setView([49.41461, 8.681495], 16);
 
-let placeLayer;
 let avoidPolygon = null;
 
 let searchInputValue = "";
@@ -133,11 +132,9 @@ function iconFor(tags) {
 }
 
 async function refreshPlaces() {
-  if (placeLayer) map.removeLayer(placeLayer);
-
   const geojson = await fetchPlaces(map.getBounds());
 
-  placeLayer = L.geoJSON(geojson, {
+  const geojsonLayer = L.geoJSON(geojson, {
     pointToLayer: ({ properties: tags }, latlng) => {
       const marker = L.marker(latlng, {
         icon: L.icon({
@@ -154,7 +151,10 @@ async function refreshPlaces() {
 
       return marker;
     },
-  }).addTo(map);
+  });
+  placeClusterGroup.clearLayers();
+
+  placeClusterGroup.addLayer(geojsonLayer);
 }
 
 const showDirectionsUI = (endTags, endLatLng) => {
@@ -326,7 +326,15 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 
 getObstacles();
 
+const placeClusterGroup = L.markerClusterGroup({
+  chunkedLoading: true,
+  maxClusterRadius: 40,
+  disableClusteringAtZoom: 18,
+});
+map.addLayer(placeClusterGroup);
+
 refreshPlaces();
+
 map.on("moveend", () => refreshPlaces());
 
 closeBtn.addEventListener("click", () => (modal.style.display = "none"));
