@@ -344,8 +344,8 @@ function initDrawing() {
         layer.getRadius() / 1000,
         { units: "kilometers" }
       );
-    } else {
-      feature = layer.toGeoJSON(); // polygon or rectangle
+    } else if (e.layerType === "polygon" || e.layerType === "rectangle") {
+      feature = layer.toGeoJSON();
     }
 
     obstacleFeatures.push(feature);
