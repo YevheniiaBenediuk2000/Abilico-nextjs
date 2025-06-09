@@ -8,6 +8,10 @@ import { fetchRoute } from "./api/fetchRoute.js";
 import { obstacleStorage, reviewStorage } from "./api/obstacleStorage.js";
 import { ICON_MANIFEST } from "../map-icons/manifest.js";
 
+// NEW — filter state
+let currentAmenityType = "";
+let currentAccessibility = new Set(); // e.g. “wheelchair”, “ramp”
+
 const EXCLUDED_PROPS = new Set([
   "boundingbox",
   "licence",
@@ -65,7 +69,27 @@ function iconFor(tags) {
 }
 
 async function refreshPlaces() {
-  const geojson = await fetchPlaces(map.getBounds());
+  const geojson = await fetchPlaces(
+    map.getBounds(),
+    currentAmenityType,
+    currentAccessibility
+  );
+
+  // NEW — sort by distance to map centre (or user marker)
+  // Choose origin: use user marker if available else map centre
+  const origin = selectedMarker ? selectedMarker.getLatLng() : map.getCenter();
+
+  geojson.features.sort((a, b) => {
+    const d1 = distanceMeters(
+      origin,
+      L.latLng(a.geometry.coordinates[1], a.geometry.coordinates[0])
+    );
+    const d2 = distanceMeters(
+      origin,
+      L.latLng(b.geometry.coordinates[1], b.geometry.coordinates[0])
+    );
+    return d1 - d2;
+  });
 
   const geojsonLayer = L.geoJSON(geojson, {
     pointToLayer: ({ properties: tags }, latlng) => {
@@ -88,6 +112,36 @@ async function refreshPlaces() {
   placeClusterGroup.clearLayers();
 
   placeClusterGroup.addLayer(geojsonLayer);
+
+  // NEW — show top-5 nearest in #suggestions panel (reuse existing element)
+  (function showNearby() {
+    const max = 10;
+    const list = geojson.features.slice(0, max);
+    suggestionsDiv.innerHTML = ""; // reuse existing container
+    list.forEach((f) => {
+      const { name, amenity } = f.properties;
+      const title = name ?? amenity ?? "Unnamed place";
+      const item = document.createElement("div");
+      item.className = "suggestion-item";
+      item.textContent = title;
+      item.onclick = () => {
+        map.setView([f.geometry.coordinates[1], f.geometry.coordinates[0]], 18);
+        selectMarker({
+          ...f.properties,
+          lat: f.geometry.coordinates[1],
+          lon: f.geometry.coordinates[0],
+          name: title,
+        });
+        renderDetails(
+          f.properties,
+          L.latLng(f.geometry.coordinates[1], f.geometry.coordinates[0])
+        );
+        suggestionsDiv.style.display = "none";
+      };
+      suggestionsDiv.appendChild(item);
+    });
+    suggestionsDiv.style.display = list.length ? "block" : "none";
+  })();
 }
 
 const clearStartInput = () => {
@@ -434,7 +488,7 @@ async function initDrawingObstacles() {
 
 let initialLatLng = [51.5074, -0.1278]; // London, UK
 
-const map = L.map("map").setView(initialLatLng, 17);
+const map = L.map("map").setView([49.41461, 8.681495], 17);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "© OpenStreetMap contributors",
 }).addTo(map);
@@ -472,7 +526,7 @@ initDrawingObstacles();
 
 // ============= EVENT LISTENERS ================
 
-map.on("moveend", refreshPlaces);
+map.on("moveend", _.debounce(refreshPlaces, 400));
 modalCloseBtn.addEventListener("click", () => (modal.style.display = "none"));
 window.addEventListener("click", (e) => {
   if (e.target === modal) modal.style.display = "none";
@@ -620,4 +674,24 @@ function extractAccessibilityPhrases(sentence, category) {
       phrase.includes(category) ||
       accessibilityAdjectives.some((adj) => phrase.includes(adj))
   );
+}
+
+// NEW — filter listeners
+document.getElementById("type-filter").addEventListener("change", (e) => {
+  currentAmenityType = e.target.value; // "" means “any”
+  refreshPlaces(); // re-query Overpass
+});
+
+document
+  .getElementById("accessibility-filter")
+  .addEventListener("change", (e) => {
+    const cb = e.target;
+    if (cb.checked) currentAccessibility.add(cb.value);
+    else currentAccessibility.delete(cb.value);
+    refreshPlaces();
+  });
+
+// NEW — distance helper (Haversine, uses Leaflet’s built-in)
+function distanceMeters(latlng1, latlng2) {
+  return map.distance(latlng1, latlng2); // Leaflet’s Vincenty impl.
 }

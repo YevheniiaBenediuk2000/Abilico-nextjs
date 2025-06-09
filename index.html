@@ -37,6 +37,58 @@
         <div id="details-panel"></div>
       </div>
 
+      <!-- NEW — filter panel -->
+      <div id="filter-panel">
+        <!-- place types (amenity=*) -->
+        <label>
+          Type
+          <select id="type-filter">
+            <option value="">Any</option>
+            <option value="cafe">Café</option>
+            <option value="restaurant">Restaurant</option>
+            <option value="pharmacy">Pharmacy</option>
+            <option value="hospital">Hospital</option>
+            <option value="toilets">Toilets</option>
+          </select>
+        </label>
+
+        <!-- accessibility tags -->
+        <fieldset id="accessibility-filter">
+          <legend>Accessibility</legend>
+
+          <!-- basic physical access -->
+          <label
+            ><input type="checkbox" value="wheelchair" /> Wheelchair
+            access</label
+          >
+          <label><input type="checkbox" value="ramp" /> Ramp</label>
+          <label
+            ><input type="checkbox" value="tactile_paving" /> Tactile
+            paving</label
+          >
+
+          <!-- detailed facilities -->
+          <label
+            ><input type="checkbox" value="toilets:wheelchair" /> Wheelchair
+            toilets</label
+          >
+          <label
+            ><input type="checkbox" value="capacity:disabled" /> Disabled
+            parking</label
+          >
+
+          <!-- traffic-signal aids -->
+          <label
+            ><input type="checkbox" value="traffic_signals:sound" /> Audible
+            signals</label
+          >
+          <label
+            ><input type="checkbox" value="traffic_signals:vibration" /> Vibro
+            signals</label
+          >
+        </fieldset>
+      </div>
+
       <div class="directions">
         <div class="direction-row start">
           <input
@@ -94,13 +146,6 @@
       type="module"
       src=" https://cdn.jsdelivr.net/npm/@mig8447/lodash-debounce-throttle@4.17.5/dist/lodash-debounce-throttle.min.js "
     ></script>
-
-    <!-- <script type="module" src="./js/api/fetchPlaces.js"></script>
-    <script type="module" src="./js/api/obstacleStorage.js"></script>
-    <script type="module" src="./js/api/fetchRoute.js"></script>
-    <script type="module" src="./js/api/fetchSuggestions.js"></script> -->
-
-    <!-- <script type="module" src="./map-icons/manifest.js"></script> -->
 
     <script type="module" src="./js/main.js"></script>
   </body>
