@@ -527,7 +527,7 @@ initDrawingObstacles();
 
 // ============= EVENT LISTENERS ================
 
-map.on("moveend", _.debounce(refreshPlaces, 400));
+map.on("moveend", refreshPlaces);
 modalCloseBtn.addEventListener("click", () => (modal.style.display = "none"));
 window.addEventListener("click", (e) => {
   if (e.target === modal) modal.style.display = "none";
