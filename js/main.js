@@ -96,7 +96,7 @@ async function refreshPlaces() {
       const marker = L.marker(latlng, {
         icon: L.icon({
           iconUrl: iconFor(tags),
-          iconSize: [24, 24],
+          iconSize: [32, 32],
         }),
       });
 

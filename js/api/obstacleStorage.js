@@ -1,6 +1,6 @@
-const OBSTACLE_API = "https://api.jsonbin.io/v3/b/6845f7fc8960c979a5a6c156";
-
 export async function obstacleStorage(method = "GET", obstacleFeatures) {
+  const OBSTACLES_API = "https://api.jsonbin.io/v3/b/6845f7fc8960c979a5a6c156";
+
   try {
     const options = {
       method,
@@ -16,7 +16,7 @@ export async function obstacleStorage(method = "GET", obstacleFeatures) {
       options.body = JSON.stringify(obstacleFeatures);
     }
 
-    const response = await fetch("", options);
+    const response = await fetch(OBSTACLES_API, options);
 
     if (!response.ok) {
       throw new Error(await response.text());
@@ -31,6 +31,8 @@ export async function obstacleStorage(method = "GET", obstacleFeatures) {
 }
 
 export async function reviewStorage(method = "GET", reviews) {
+  const REVIEWS_API = "https://api.jsonbin.io/v3/b/68460b568a456b7966ab06c7";
+
   try {
     const options = {
       method,
@@ -46,7 +48,7 @@ export async function reviewStorage(method = "GET", reviews) {
       options.body = JSON.stringify(reviews);
     }
 
-    const response = await fetch(OBSTACLE_API, options);
+    const response = await fetch(REVIEWS_API, options);
 
     if (!response.ok) {
       throw new Error(await response.text());
