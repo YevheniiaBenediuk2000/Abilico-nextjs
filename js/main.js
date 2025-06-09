@@ -119,11 +119,11 @@ const showDirectionsUI = (endTags, endLatLng) => {
         [[start.lon, start.lat], endCoords],
         obstacleFeatures
       );
-      console.log("Route Data:", routeData);
+
       const routeLayer = L.geoJSON(routeData, { style: { weight: 5 } }).addTo(
         map
       );
-      console.log("Route Layer:", routeLayer);
+
       map.fitBounds(routeLayer.getBounds(), {});
     };
     renderSuggestions(startInputValue, onSuggestionSelect);

@@ -16,7 +16,7 @@ async function obstacleStorage(method = "GET", obstacleFeatures) {
       options.body = JSON.stringify(obstacleFeatures);
     }
 
-    const response = await fetch(OBSTACLE_API, options);
+    const response = await fetch("", options);
 
     if (!response.ok) {
       throw new Error(await response.text());
@@ -48,7 +48,7 @@ async function reviewStorage(method = "GET", reviews) {
       options.body = JSON.stringify(reviews);
     }
 
-    const response = await fetch(OBSTACLE_API, options);
+    const response = await fetch("", options);
 
     if (!response.ok) {
       throw new Error(await response.text());
