@@ -6,7 +6,7 @@ import { fetchSuggestions } from "./api/fetchSuggestions.js";
 import { fetchPlaces } from "./api/fetchPlaces.js";
 import { fetchRoute } from "./api/fetchRoute.js";
 import { obstacleStorage, reviewStorage } from "./api/obstacleStorage.js";
-import { ICON_MANIFEST } from "../map-icons/manifest.js";
+import { ICON_MANIFEST } from "./static/manifest.js";
 
 // NEW — filter state
 let currentAmenityType = "";
