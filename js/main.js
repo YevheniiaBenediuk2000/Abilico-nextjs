@@ -55,7 +55,7 @@ function showModal(message) {
 }
 
 function iconFor(tags) {
-  const BASE_PATH = "../map-icons";
+  const BASE_PATH = "../map-icons-osm";
 
   const candidates = ICON_MANIFEST.filter((p) =>
     p.endsWith(`/${tags.amenity}.svg`)
