@@ -1,4 +1,4 @@
-async function fetchRoute(coordinates, obstacleFeatures) {
+export async function fetchRoute(coordinates, obstacleFeatures) {
   const url =
     "https://api.openrouteservice.org/v2/directions/wheelchair/geojson";
 
@@ -21,6 +21,9 @@ async function fetchRoute(coordinates, obstacleFeatures) {
   };
 
   try {
+    const ORS_API_KEY =
+      "5b3ce3597851110001cf624808521bae358447e592780fc0039f7235";
+
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -30,6 +33,8 @@ async function fetchRoute(coordinates, obstacleFeatures) {
       body: JSON.stringify(requestBody),
     });
 
+    const data = await response.json();
+
     if (!response.ok) {
       if (data.error.code === 2004) {
         showModal(
@@ -37,10 +42,8 @@ async function fetchRoute(coordinates, obstacleFeatures) {
         );
       }
 
-      throw new Error(await response.text());
+      throw new Error(await data.error.message);
     }
-
-    const data = await response.json();
 
     console.log("Alternative Route:", data);
 

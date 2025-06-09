@@ -1,4 +1,4 @@
-const fetchSuggestions = async (query) => {
+export const fetchSuggestions = async (query) => {
   try {
     const response = await fetch(
       `https://nominatim.openstreetmap.org/search?q=${query}&format=jsonv2&limit=100`

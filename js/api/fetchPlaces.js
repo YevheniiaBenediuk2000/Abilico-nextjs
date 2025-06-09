@@ -1,4 +1,4 @@
-async function fetchPlaces(bounds) {
+export async function fetchPlaces(bounds) {
   const boundingBox = [
     bounds.getSouth(),
     bounds.getWest(),

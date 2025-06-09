@@ -1,3 +1,13 @@
+import {
+  pipeline,
+  env,
+} from "https://cdn.jsdelivr.net/npm/@huggingface/transformers";
+import { fetchSuggestions } from "./api/fetchSuggestions.js";
+import { fetchPlaces } from "./api/fetchPlaces.js";
+import { fetchRoute } from "./api/fetchRoute.js";
+import { obstacleStorage, reviewStorage } from "./api/obstacleStorage.js";
+import { ICON_MANIFEST } from "../map-icons/manifest.js";
+
 const EXCLUDED_PROPS = new Set([
   "boundingbox",
   "licence",
@@ -15,8 +25,6 @@ const EXCLUDED_PROPS = new Set([
 
 let obstacleFeatures = [];
 let reviews = [];
-
-const ORS_API_KEY = "5b3ce3597851110001cf624808521bae358447e592780fc0039f7235";
 
 let searchInputValue = "";
 let startInputValue = "";
@@ -228,6 +236,79 @@ const renderDetails = async (tags, latlng) => {
     // Refresh details to show new review
     renderDetails(tags, latlng);
   });
+
+  // Add Accessibility Features Section
+  const accessibilityContainer = document.createElement("div");
+  accessibilityContainer.id = "accessibility-container";
+  accessibilityContainer.innerHTML =
+    "<h3 style='margin: 16px 0 4px 0;'>Accessibility Features</h3>";
+  detailsPanel.appendChild(accessibilityContainer);
+
+  const loadingIndicator = document.createElement("p");
+  loadingIndicator.textContent = "Analyzing accessibility features...";
+  accessibilityContainer.appendChild(loadingIndicator);
+
+  try {
+    const placeId = tags.id;
+    const placeReviews = reviews.filter((r) => placeId === r.placeId);
+
+    if (placeReviews.length > 0) {
+      const accessibilityFeatures = await analyzeReviews(placeReviews);
+
+      // Clear loading indicator
+      accessibilityContainer.removeChild(loadingIndicator);
+
+      if (Object.keys(accessibilityFeatures).length === 0) {
+        const noFeatures = document.createElement("p");
+        noFeatures.textContent =
+          "No accessibility features mentioned in reviews";
+        accessibilityContainer.appendChild(noFeatures);
+      } else {
+        for (const [category, phrases] of Object.entries(
+          accessibilityFeatures
+        )) {
+          const categoryDiv = document.createElement("div");
+          categoryDiv.className = "accessibility-category";
+
+          const categoryHeader = document.createElement("h4");
+          categoryHeader.textContent = category.replace(/\b\w/g, (l) =>
+            l.toUpperCase()
+          );
+          categoryDiv.appendChild(categoryHeader);
+
+          const phrasesList = document.createElement("ul");
+          phrasesList.style.listStyleType = "none";
+          phrasesList.style.paddingLeft = "0";
+
+          phrases.forEach((phrase) => {
+            const li = document.createElement("li");
+            li.textContent = phrase;
+            li.style.marginBottom = "8px";
+            li.style.padding = "4px";
+            li.style.backgroundColor = "#f0f9ff";
+            li.style.borderRadius = "4px";
+            phrasesList.appendChild(li);
+          });
+
+          categoryDiv.appendChild(phrasesList);
+          accessibilityContainer.appendChild(categoryDiv);
+        }
+      }
+    } else {
+      accessibilityContainer.removeChild(loadingIndicator);
+      const noReviews = document.createElement("p");
+      noReviews.textContent =
+        "No reviews available to analyze accessibility features";
+      accessibilityContainer.appendChild(noReviews);
+    }
+  } catch (error) {
+    console.error("Error analyzing accessibility features:", error);
+    accessibilityContainer.removeChild(loadingIndicator);
+    const errorMessage = document.createElement("p");
+    errorMessage.textContent = "Error analyzing accessibility features";
+    errorMessage.style.color = "red";
+    accessibilityContainer.appendChild(errorMessage);
+  }
 };
 
 const renderSuggestions = async (query, onSuggestionSelect) => {
@@ -410,3 +491,133 @@ searchInputClearBtn.addEventListener("click", () => {
   }
 });
 document.addEventListener("click", dismissSuggestions);
+
+// NLP
+// Add this to your main.js
+let nlpPipeline = null;
+
+// Define accessibility categories
+const ACCESSIBILITY_CATEGORIES = [
+  "entrance",
+  "restroom",
+  "pathway",
+  "elevator",
+  "parking",
+  "ramp",
+  "braille",
+  "tactile",
+  "door",
+  "hearing",
+  "visual",
+  "seating",
+  "navigation",
+  "service",
+];
+
+// Initialize NLP pipeline
+async function initializeNLP() {
+  try {
+    // Use a lightweight model for browser compatibility
+    nlpPipeline = await pipeline(
+      "zero-shot-classification",
+      "Xenova/distilbert-base-uncased-mnli",
+      { quantized: true }
+    );
+  } catch (error) {
+    console.error("Failed to initialize NLP pipeline:", error);
+  }
+}
+
+// Process reviews and extract accessibility features
+async function analyzeReviews(reviews) {
+  if (!nlpPipeline) await initializeNLP();
+
+  const accessibilityFeatures = {};
+
+  for (const category of ACCESSIBILITY_CATEGORIES) {
+    accessibilityFeatures[category] = new Set();
+  }
+
+  for (const review of reviews) {
+    const sentences = review.text
+      .split(/[.!?]/)
+      .filter((s) => s.trim().length > 0);
+
+    for (const sentence of sentences) {
+      try {
+        const result = await nlpPipeline(sentence, ACCESSIBILITY_CATEGORIES);
+        const topScore = Math.max(...result.scores);
+
+        if (topScore > 0.25) {
+          // Confidence threshold
+          const topCategory = result.labels[result.scores.indexOf(topScore)];
+
+          // Extract keyword phrases using pattern matching
+          const phrases = extractAccessibilityPhrases(sentence, topCategory);
+
+          phrases.forEach((phrase) => {
+            accessibilityFeatures[topCategory].add(phrase);
+          });
+        }
+      } catch (error) {
+        console.error("Error processing sentence:", error);
+      }
+    }
+  }
+
+  // Convert Sets to Arrays and format output
+  const formattedResults = {};
+  for (const [category, phrases] of Object.entries(accessibilityFeatures)) {
+    if (phrases.size > 0) {
+      formattedResults[category] = Array.from(phrases).map((phrase) =>
+        phrase.toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase())
+      );
+    }
+  }
+
+  return formattedResults;
+}
+
+// Helper function to extract meaningful phrases
+function extractAccessibilityPhrases(sentence, category) {
+  const phrases = [];
+  const words = sentence.toLowerCase().split(/\s+/);
+  const categoryIndex = words.indexOf(category.toLowerCase());
+
+  if (categoryIndex !== -1) {
+    // Extract 2-4 word phrases containing the category
+    const start = Math.max(0, categoryIndex - 2);
+    const end = Math.min(words.length, categoryIndex + 3);
+    phrases.push(words.slice(start, end).join(" "));
+  }
+
+  // Look for common accessibility adjectives
+  const accessibilityAdjectives = [
+    "accessible",
+    "adapted",
+    "wheelchair",
+    "easy",
+    "automatic",
+    "wide",
+    "spacious",
+    "step-free",
+    "barrier-free",
+    "inclusive",
+  ];
+
+  accessibilityAdjectives.forEach((adj) => {
+    const adjIndex = words.indexOf(adj);
+    if (adjIndex !== -1) {
+      // Extract adjective + following 1-2 words
+      const start = adjIndex;
+      const end = Math.min(words.length, adjIndex + 3);
+      phrases.push(words.slice(start, end).join(" "));
+    }
+  });
+
+  return phrases.filter(
+    (phrase) =>
+      phrase.includes(category) ||
+      accessibilityAdjectives.some((adj) => phrase.includes(adj))
+  );
+}

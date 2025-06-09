@@ -1,6 +1,6 @@
-async function obstacleStorage(method = "GET", obstacleFeatures) {
-  const OBSTACLE_API = "https://api.jsonbin.io/v3/b/6845f7fc8960c979a5a6c156";
+const OBSTACLE_API = "https://api.jsonbin.io/v3/b/6845f7fc8960c979a5a6c156";
 
+export async function obstacleStorage(method = "GET", obstacleFeatures) {
   try {
     const options = {
       method,
@@ -30,9 +30,7 @@ async function obstacleStorage(method = "GET", obstacleFeatures) {
   }
 }
 
-async function reviewStorage(method = "GET", reviews) {
-  const OBSTACLE_API = "https://api.jsonbin.io/v3/b/68460b568a456b7966ab06c7";
-
+export async function reviewStorage(method = "GET", reviews) {
   try {
     const options = {
       method,
@@ -48,7 +46,7 @@ async function reviewStorage(method = "GET", reviews) {
       options.body = JSON.stringify(reviews);
     }
 
-    const response = await fetch("", options);
+    const response = await fetch(OBSTACLE_API, options);
 
     if (!response.ok) {
       throw new Error(await response.text());
