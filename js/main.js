@@ -113,11 +113,12 @@ async function refreshPlaces() {
 
   placeClusterGroup.addLayer(geojsonLayer);
 
-  // NEW — show top-5 nearest in #suggestions panel (reuse existing element)
+  // NEW — show top-100 nearest in #suggestions panel (reuse existing element)
   (function showNearby() {
-    const max = 10;
+    const max = 100;
     const list = geojson.features.slice(0, max);
-    suggestionsDiv.innerHTML = ""; // reuse existing container
+    suggestionsDiv.innerHTML =
+      '<h3 style="margin:10px 10px 4px 10px">Nearby Places</h3>'; // reuse existing container
     list.forEach((f) => {
       const { name, amenity } = f.properties;
       const title = name ?? amenity ?? "Unnamed place";
@@ -547,7 +548,6 @@ searchInputClearBtn.addEventListener("click", () => {
 document.addEventListener("click", dismissSuggestions);
 
 // NLP
-// Add this to your main.js
 let nlpPipeline = null;
 
 // Define accessibility categories
@@ -568,7 +568,6 @@ const ACCESSIBILITY_CATEGORIES = [
   "service",
 ];
 
-// Initialize NLP pipeline
 async function initializeNLP() {
   try {
     // Use a lightweight model for browser compatibility
