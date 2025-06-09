@@ -628,7 +628,6 @@ export const ICON_MANIFEST = [
   "svg/school.svg",
   "svg/service/firebrigade.svg",
   "svg/service/police.svg",
-  "svg/service/post_box.svg",
   "svg/service/post_office.svg",
   "svg/service/recycling/trash-bin.svg",
   "svg/service/recycling.svg",

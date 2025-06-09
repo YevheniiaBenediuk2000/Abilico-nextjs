@@ -30,7 +30,7 @@ try {
   const icons = walkDir(ICON_DIR);
   const fileContent =
     `// auto-generated — do not edit by hand\n` +
-    `const ICON_MANIFEST = ${JSON.stringify(icons, null, 2)};\n`;
+    `export const ICON_MANIFEST = ${JSON.stringify(icons, null, 2)};\n`;
 
   fs.writeFileSync(OUT_FILE, fileContent, "utf8");
   console.log(`✅ Wrote ${icons.length} icons to ${OUT_FILE}`);
