@@ -578,7 +578,7 @@ async function analyzeReviews(reviews) {
         const result = await nlpPipeline(sentence, ACCESSIBILITY_CATEGORIES);
         const topScore = Math.max(...result.scores);
 
-        if (topScore > 0.1) {
+        if (topScore > 0.5) {
           // Confidence threshold
           const topCategory = result.labels[result.scores.indexOf(topScore)];
 
