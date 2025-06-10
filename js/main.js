@@ -319,9 +319,7 @@ const renderDetails = async (tags, latlng) => {
           "No accessibility features mentioned in reviews";
         accessibilityContainer.appendChild(noFeatures);
       } else {
-        for (const [category, phrases] of Object.entries(
-          accessibilityFeatures
-        )) {
+        for (const [category] of Object.entries(accessibilityFeatures)) {
           const categoryDiv = document.createElement("div");
           categoryDiv.className = "accessibility-category";
 
@@ -331,21 +329,6 @@ const renderDetails = async (tags, latlng) => {
           );
           categoryDiv.appendChild(categoryHeader);
 
-          const phrasesList = document.createElement("ul");
-          phrasesList.style.listStyleType = "none";
-          phrasesList.style.paddingLeft = "0";
-
-          phrases.forEach((phrase) => {
-            const li = document.createElement("li");
-            li.textContent = phrase;
-            li.style.marginBottom = "8px";
-            li.style.padding = "4px";
-            li.style.backgroundColor = "#f0f9ff";
-            li.style.borderRadius = "4px";
-            phrasesList.appendChild(li);
-          });
-
-          categoryDiv.appendChild(phrasesList);
           accessibilityContainer.appendChild(categoryDiv);
         }
       }
@@ -417,8 +400,8 @@ async function initDrawingObstacles() {
       polyline: false,
       marker: false,
       polygon: { allowIntersection: false, shapeOptions: { color: "red" } },
-      rectangle: { shapeOptions: { color: "red" } },
-      circle: { shapeOptions: { color: "red" } },
+      rectangle: false,
+      circle: false,
       circlemarker: { radius: 13, color: "red", fillColor: "red" },
     },
   });
@@ -489,7 +472,7 @@ async function initDrawingObstacles() {
 
 let initialLatLng = [51.5074, -0.1278]; // London, UK
 
-const map = L.map("map").setView([49.41461, 8.681495], 17);
+const map = L.map("map").setView(initialLatLng, 17);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "© OpenStreetMap contributors",
 }).addTo(map);
@@ -554,18 +537,12 @@ let nlpPipeline = null;
 const ACCESSIBILITY_CATEGORIES = [
   "entrance",
   "restroom",
-  "pathway",
   "elevator",
   "parking",
   "ramp",
-  "braille",
   "tactile",
-  "door",
   "hearing",
   "visual",
-  "seating",
-  "navigation",
-  "service",
 ];
 
 async function initializeNLP() {
@@ -601,16 +578,14 @@ async function analyzeReviews(reviews) {
         const result = await nlpPipeline(sentence, ACCESSIBILITY_CATEGORIES);
         const topScore = Math.max(...result.scores);
 
-        if (topScore > 0.25) {
+        if (topScore > 0.1) {
           // Confidence threshold
           const topCategory = result.labels[result.scores.indexOf(topScore)];
 
           // Extract keyword phrases using pattern matching
           const phrases = extractAccessibilityPhrases(sentence, topCategory);
 
-          phrases.forEach((phrase) => {
-            accessibilityFeatures[topCategory].add(phrase);
-          });
+          accessibilityFeatures[topCategory].add("");
         }
       } catch (error) {
         console.error("Error processing sentence:", error);
