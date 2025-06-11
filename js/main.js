@@ -52,8 +52,6 @@ const isLocal = window.location.protocol === "http:";
 const BASE_PATH = isLocal
   ? "../map-icons-osm"
   : "https://yevheniiabenediuk2000.github.io/Abilico/map-icons-osm";
-// debugger;
-console.log(window.location);
 
 function showModal(message) {
   modal.style.display = "block";
@@ -329,6 +327,7 @@ const renderDetails = async (tags, latlng) => {
           categoryDiv.className = "accessibility-category";
 
           const categoryHeader = document.createElement("h4");
+          categoryHeader.style.margin = "10px 0 10px 0";
           categoryHeader.textContent = category.replace(/\b\w/g, (l) =>
             l.toUpperCase()
           );
