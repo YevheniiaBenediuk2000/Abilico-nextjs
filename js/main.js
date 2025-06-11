@@ -51,7 +51,9 @@ const modalCloseBtn = document.getElementById("constraint-modal-close");
 const isLocal = window.location.protocol === "http:";
 const BASE_PATH = isLocal
   ? "../map-icons-osm"
-  : "https://yevheniiabenediuk2000.github.io/map-icons-osm";
+  : "https://yevheniiabenediuk2000.github.io/Abilico/map-icons-osm";
+// debugger;
+console.log(window.location);
 
 function showModal(message) {
   modal.style.display = "block";
