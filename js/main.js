@@ -38,7 +38,6 @@ let selectedMarker = null;
 const searchInputContainer = document.querySelector(".search-input-container");
 const suggestionsDiv = document.getElementById("suggestions");
 const directions = document.querySelector(".directions");
-const directionsContainer = document.querySelector(".directions-container");
 const searchInput = document.getElementById("search-input");
 const detailsPanel = document.getElementById("details-panel");
 const directionsButtonElement = document.createElement("button");
@@ -260,6 +259,7 @@ const renderDetails = async (tags, latlng) => {
 
   const list = document.createElement("ul");
   list.style.margin = "0 0 4px 0";
+
   reviews.forEach((r) => {
     if (placeId === r.placeId) {
       const li = document.createElement("li");
@@ -486,11 +486,12 @@ if (navigator.geolocation) {
     },
     (error) => {
       console.warn(error);
-      if (error.message !== "User denied geolocation prompt") {
-        showModal(
-          `Unable to retrieve location: ${error.message}. Using default location.`
-        );
-      }
+      const userDeniedGeolocationCode = 1;
+      if (error.code === userDeniedGeolocationCode) return;
+
+      showModal(
+        `Unable to retrieve location: ${error.message}. Using default location.`
+      );
     }
   );
 } else {
