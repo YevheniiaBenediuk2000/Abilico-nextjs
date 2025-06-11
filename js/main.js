@@ -48,14 +48,17 @@ const endInput = document.getElementById("end-input");
 const modal = document.getElementById("constraint-modal");
 const modalCloseBtn = document.getElementById("constraint-modal-close");
 
+const isLocal = window.location.protocol === "http:";
+const BASE_PATH = isLocal
+  ? "../map-icons-osm"
+  : "https://yevheniiabenediuk2000.github.io/map-icons-osm";
+
 function showModal(message) {
   modal.style.display = "block";
   modal.querySelector("h2").textContent = message;
 }
 
 function iconFor(tags) {
-  const BASE_PATH = "../map-icons-osm";
-
   const candidates = ICON_MANIFEST.filter((p) =>
     p.endsWith(`/${tags.amenity}.svg`)
   );
