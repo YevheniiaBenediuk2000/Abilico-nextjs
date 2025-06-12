@@ -77,6 +77,11 @@ async function refreshPlaces() {
     currentAccessibility
   );
 
+  if (!geojson || !geojson.features) {
+    console.error("Nothing fetched – skipping render");
+    return; // ← prevents the TypeError
+  }
+
   // NEW — sort by distance to map centre (or user marker)
   // Choose origin: use user marker if available else map centre
   const origin = selectedMarker ? selectedMarker.getLatLng() : map.getCenter();
