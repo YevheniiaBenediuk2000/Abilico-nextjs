@@ -111,8 +111,15 @@ async function refreshPlaces() {
       return marker;
     },
   });
-  placeClusterGroup.clearLayers();
 
+  if (placeClusterGroup) map.removeLayer(placeClusterGroup);
+
+  placeClusterGroup = L.markerClusterGroup({
+    chunkedLoading: true,
+    maxClusterRadius: 80,
+    disableClusteringAtZoom: 17,
+  });
+  map.addLayer(placeClusterGroup);
   placeClusterGroup.addLayer(geojsonLayer);
 
   // NEW — show top-100 nearest in #suggestions panel (reuse existing element)
@@ -505,7 +512,7 @@ if (navigator.geolocation) {
   showModal("Geolocation not supported. Using default location.");
 }
 
-const placeClusterGroup = L.markerClusterGroup({
+let placeClusterGroup = L.markerClusterGroup({
   chunkedLoading: true,
   maxClusterRadius: 80,
   disableClusteringAtZoom: 17,
