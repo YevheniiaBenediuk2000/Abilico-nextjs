@@ -270,7 +270,7 @@ const renderDetails = async (tags, latlng) => {
   reviewsContainer.innerHTML = "<h3 style='margin: 16px 0 4px 0;'>Reviews</h3>";
   detailsPanel.appendChild(reviewsContainer);
 
-  const placeId = tags.id;
+  const placeId = tags.id ?? tags.osm_id ?? tags.place_id;
 
   const list = document.createElement("ul");
   list.style.margin = "0 0 4px 0";
@@ -319,7 +319,6 @@ const renderDetails = async (tags, latlng) => {
   accessibilityContainer.appendChild(loadingIndicator);
 
   try {
-    const placeId = tags.id;
     const placeReviews = reviews.filter((r) => {
       return placeId === r.placeId;
     });
