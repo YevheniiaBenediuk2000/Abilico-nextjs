@@ -264,7 +264,7 @@ const renderDetails = async (tags, latlng) => {
   list.style.margin = "0 0 4px 0";
 
   reviews.forEach((r) => {
-    if (placeId === r.placeId) {
+    if (placeId && placeId === r.placeId) {
       const li = document.createElement("li");
       li.innerHTML = r.text;
       list.appendChild(li);
@@ -308,9 +308,11 @@ const renderDetails = async (tags, latlng) => {
 
   try {
     const placeId = tags.id;
-    const placeReviews = reviews.filter((r) => placeId === r.placeId);
+    const placeReviews = reviews.filter((r) => {
+      return placeId === r.placeId;
+    });
 
-    if (placeReviews.length > 0) {
+    if (placeId && placeReviews.length > 0) {
       const accessibilityFeatures = await analyzeReviews(placeReviews);
 
       // Clear loading indicator
