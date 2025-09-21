@@ -53,6 +53,59 @@ const BASE_PATH = isLocal
   ? "../map-icons-osm"
   : "https://yevheniiabenediuk2000.github.io/Abilico/map-icons-osm";
 
+// --- LRM adapter that calls our existing OpenRouteService-based fetchRoute() ---
+const WheelchairRouter = L.Class.extend({
+  initialize(options = {}) {
+    L.setOptions(this, options);
+  },
+
+  // LRM calls this when it needs a route
+  route(waypoints, callback, context, opts) {
+    const coords = waypoints.map((wp) => [wp.latLng.lng, wp.latLng.lat]);
+
+    // Use your existing obstacleFeatures + fetchRoute (ORS wheelchair + avoid_polygons)
+    fetchRoute(coords, obstacleFeatures)
+      .then((geojson) => {
+        if (!geojson || !geojson.features || !geojson.features.length) {
+          return callback.call(context, { status: 500, message: "No route" });
+        }
+
+        const feat = geojson.features[0];
+        const line = feat.geometry; // LineString
+        const props = feat.properties || {};
+        const summary = props.summary || { distance: 0, duration: 0 };
+
+        const lrmCoords = line.coordinates.map(([lng, lat]) =>
+          L.latLng(lat, lng)
+        );
+
+        const route = {
+          name: "Wheelchair",
+          coordinates: lrmCoords,
+          // LRM expects these two props in meters/seconds:
+          summary: {
+            totalDistance:
+              summary.distance || props.segments?.[0]?.distance || 0,
+            totalTime: summary.duration || props.segments?.[0]?.duration || 0,
+          },
+          // Echo back waypoints for LRM
+          inputWaypoints: waypoints,
+          waypoints: waypoints.map((wp) => wp.latLng),
+          // You can build turn-by-turn instructions later if you want:
+          instructions: [],
+        };
+
+        callback.call(context, null, [route]);
+      })
+      .catch((err) => {
+        callback.call(context, {
+          status: 500,
+          message: err?.message || "Routing error",
+        });
+      });
+  },
+});
+
 function showModal(message) {
   modal.style.display = "block";
   modal.querySelector("h2").textContent = message;
@@ -250,9 +303,9 @@ const renderDetails = async (tags, latlng) => {
   directionsButtonElement.innerHTML = "";
   directionsButtonElement.className = "directions-button";
   directionsButtonElement.textContent = "Directions";
-  directionsButtonElement.addEventListener("click", () =>
-    showDirectionsUI(tags, latlng)
-  );
+  directionsButtonElement.addEventListener("click", () => {
+    showDirectionsUI(tags, latlng);
+  });
   detailsPanel.appendChild(directionsButtonElement);
 
   // Add Reviews Section
@@ -518,6 +571,27 @@ map.addLayer(placeClusterGroup);
 
 refreshPlaces();
 initDrawingObstacles();
+
+let routingControl = L.Routing.control({
+  router: new WheelchairRouter(),
+  plan: L.Routing.plan([L.latLng(57.74, 11.94), L.latLng(57.6792, 11.949)], {
+    geocoder: L.Control.Geocoder.nominatim(),
+    routeWhileDragging: true,
+    draggableWaypoints: true,
+    createMarker: (i, wp) => L.marker(wp.latLng, { draggable: true }),
+  }),
+  fitSelectedRoutes: "smart",
+
+  // waypoints: [L.latLng(57.74, 11.94), L.latLng(57.6792, 11.949)],
+}).addTo(map);
+
+// setTimeout(() => {
+//   routingControl.setWaypoints([
+//     L.latLng(57.74, 11.94),
+//     L.latLng(57.6792, 11.949),
+//   ]);
+//   routingControl.route();
+// }, 2000);
 
 // ============= EVENT LISTENERS ================
 
