@@ -31,55 +31,25 @@
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <div class="directions-container">
-      <div class="search-input-container">
-        <div class="search-input-wrapper">
-          <input type="search" id="search-input" placeholder="Find place..." />
-          <button id="search-input-clear-btn" aria-label="Clear search">
-            &times;
-          </button>
-        </div>
+    <div id="details-panel"></div>
 
-        <div id="details-panel"></div>
-      </div>
-
-      <!-- NEW — filter panel -->
-      <div id="filter-panel">
-        <!-- place types (amenity=*) -->
-        <label>
-          Type
-          <select id="type-filter">
-            <option value="">Any</option>
-            <option value="cafe">Café</option>
-            <option value="restaurant">Restaurant</option>
-            <option value="cinema">Cinema</option>
-            <option value="pharmacy">Pharmacy</option>
-            <option value="hospital">Hospital</option>
-            <option value="toilets">Toilets</option>
-            <option value="bank">Bank</option>
-            <option value="nightclub">Nightclub</option>
-            <option value="post_office">Post Office</option>
-          </select>
-        </label>
-      </div>
-
-      <div class="directions">
-        <div class="direction-row start">
-          <input
-            id="start-input"
-            type="search"
-            placeholder="Choose starting point, or click on the map"
-          />
-          <button id="start-input-clear-btn" aria-label="Clear search">
-            &times;
-          </button>
-        </div>
-        <div class="direction-row end">
-          <input type="search" id="end-input" disabled />
-        </div>
-      </div>
-
-      <div id="suggestions"></div>
+    <div id="filter-panel">
+      <!-- place types (amenity=*) -->
+      <label>
+        Type
+        <select id="type-filter">
+          <option value="">Any</option>
+          <option value="cafe">Café</option>
+          <option value="restaurant">Restaurant</option>
+          <option value="cinema">Cinema</option>
+          <option value="pharmacy">Pharmacy</option>
+          <option value="hospital">Hospital</option>
+          <option value="toilets">Toilets</option>
+          <option value="bank">Bank</option>
+          <option value="nightclub">Nightclub</option>
+          <option value="post_office">Post Office</option>
+        </select>
+      </label>
     </div>
 
     <div id="map"></div>
@@ -87,6 +57,7 @@
     <div id="constraint-modal" class="modal">
       <div class="modal-content">
         <span id="constraint-modal-close" class="modal-close">&times;</span>
+        <h2></h2>
       </div>
     </div>
 
@@ -94,14 +65,12 @@
 
     <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.min.js"></script>
 
-    <script src="https://unpkg.com/leaflet-control-geocoder@1.13.0/dist/Control.Geocoder.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder@1.13.0/dist/Control.Geocoder.min.js"></script>
 
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
     <script src=" https://cdn.jsdelivr.net/npm/osmtogeojson@3.0.0-beta.5/osmtogeojson.min.js "></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <script src=" https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.min.js "></script>
-
-    <script src=" https://cdn.jsdelivr.net/npm/@mig8447/lodash-debounce-throttle@4.17.5/dist/lodash-debounce-throttle.min.js "></script>
 
     <script type="module" src="./js/main.js"></script>
   </body>

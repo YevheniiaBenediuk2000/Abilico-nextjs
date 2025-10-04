@@ -8,73 +8,6 @@ body {
   margin: 0;
 }
 
-.directions-container {
-  position: absolute;
-  top: 10px;
-  left: 50px;
-  z-index: 1000;
-  width: 400px;
-}
-
-.search-input-wrapper,
-.direction-row.start {
-  position: relative;
-}
-
-#search-input,
-#start-input,
-#end-input {
-  width: 100%;
-  padding: 10px;
-  font-size: 16px;
-}
-
-#suggestions {
-  max-height: 200px;
-  overflow: scroll;
-  background: white;
-  border-radius: 5px;
-  margin-top: 5px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-  display: none;
-}
-
-.suggestion-item {
-  padding: 10px;
-  cursor: pointer;
-  border-bottom: 1px solid #eee;
-}
-
-.suggestion-item:hover {
-  background-color: #f5f5f5;
-}
-
-#search-input-clear-btn,
-#start-input-clear-btn {
-  padding: 0;
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  border: none;
-  background: none;
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-  color: #999;
-  display: none; /* hidden by default */
-}
-
-#search-input-clear-btn:hover,
-#start-input-clear-btn:hover {
-  color: #666;
-}
-
-#search-input-clear-btn.visible,
-#start-input-clear-btn.visible {
-  display: block;
-}
-
 #details-panel {
   display: none;
   background: white;
@@ -90,40 +23,6 @@ body {
   margin: 5px 0;
   font-size: 14px;
   word-break: break-word;
-}
-
-.directions-btn {
-  padding: 8px 18px;
-  background: #3b82f6;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-}
-.directions-btn:hover {
-  background: #2563eb;
-}
-
-.directions {
-  display: none;
-  top: 10px;
-  left: 50px;
-  z-index: 1000;
-
-  background: white;
-  padding: 10px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-}
-
-.direction-row.start {
-  margin-bottom: 10px;
-}
-
-input[type="search"]::-webkit-search-decoration,
-input[type="search"]::-webkit-search-cancel-button,
-input[type="search"]::-webkit-search-results-button,
-input[type="search"]::-webkit-search-results-decoration {
-  -webkit-appearance: none;
 }
 
 .modal {
@@ -152,23 +51,4 @@ input[type="search"]::-webkit-search-results-decoration {
   float: right;
   font-size: 1.5rem;
   cursor: pointer;
-}
-
-#filter-panel {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 10px;
-  margin-top: 5px;
-  background-color: #fff;
-  border-radius: 5px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-}
-#filter-panel fieldset {
-  border: none;
-  padding: 0;
-}
-#filter-panel legend {
-  font-weight: 600;
-  margin-right: 4px;
 }

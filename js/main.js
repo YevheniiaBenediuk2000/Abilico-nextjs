@@ -1,8 +1,7 @@
-import {
-  pipeline,
-  env,
-} from "https://cdn.jsdelivr.net/npm/@huggingface/transformers";
-import { fetchSuggestions } from "./api/fetchSuggestions.js";
+// import {
+//   pipeline,
+//   env,
+// } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers";
 import { fetchPlaces } from "./api/fetchPlaces.js";
 import { fetchRoute } from "./api/fetchRoute.js";
 import { obstacleStorage, reviewStorage } from "./api/obstacleStorage.js";
@@ -29,21 +28,9 @@ const EXCLUDED_PROPS = new Set([
 let obstacleFeatures = [];
 let reviews = [];
 
-let searchInputValue = "";
-let startInputValue = "";
-
 let selectedMarker = null;
 
-const searchInputContainer = document.querySelector(".search-input-container");
-const suggestionsDiv = document.getElementById("suggestions");
-const directions = document.querySelector(".directions");
-const searchInput = document.getElementById("search-input");
 const detailsPanel = document.getElementById("details-panel");
-const directionsButtonElement = document.createElement("button");
-const searchInputClearBtn = document.getElementById("search-input-clear-btn");
-const startInputClearBtn = document.getElementById("start-input-clear-btn");
-const startInput = document.getElementById("start-input");
-const endInput = document.getElementById("end-input");
 const modal = document.getElementById("constraint-modal");
 const modalCloseBtn = document.getElementById("constraint-modal-close");
 
@@ -169,75 +156,6 @@ async function refreshPlaces() {
   placeClusterGroup.addLayer(geojsonLayer);
 }
 
-const clearStartInput = () => {
-  startInput.value = "";
-  startInputValue = "";
-  startInputClearBtn.classList.remove("visible");
-};
-
-const clearSearchInput = () => {
-  searchInput.value = "";
-  searchInputValue = "";
-  searchInputClearBtn.classList.remove("visible");
-};
-
-const showDirectionsUI = (endTags, endLatLng) => {
-  searchInputContainer.style.display = "none";
-  directions.style.display = "block";
-
-  clearSearchInput();
-  clearStartInput();
-  endInput.value = endTags.display_name ?? endTags.name ?? "Unnamed place";
-
-  const handleStartInputChange = (e) => {
-    startInputValue = e.target.value;
-
-    if (startInputValue.trim().length > 0) {
-      startInputClearBtn.classList.add("visible");
-    } else {
-      startInputClearBtn.classList.remove("visible");
-    }
-    const onSuggestionSelect = async (start) => {
-      startInput.value = start.display_name;
-      const endCoords = endLatLng
-        ? [endLatLng.lng, endLatLng.lat]
-        : [endTags.lon, endTags.lat];
-      const routeData = await fetchRoute(
-        [[start.lon, start.lat], endCoords],
-        obstacleFeatures
-      );
-
-      const routeLayer = L.geoJSON(routeData, { style: { weight: 5 } }).addTo(
-        map
-      );
-
-      map.fitBounds(routeLayer.getBounds(), {});
-    };
-    renderSuggestions(startInputValue, onSuggestionSelect);
-  };
-
-  startInput.addEventListener("input", _.debounce(handleStartInputChange, 400));
-  startInput.focus();
-
-  startInputClearBtn.addEventListener("click", clearStartInput);
-};
-
-const selectMarker = (result) => {
-  if (selectedMarker) {
-    map.removeLayer(selectedMarker);
-    selectedMarker = null;
-  }
-
-  const title = result.name || "Unnamed place";
-
-  selectedMarker = L.circleMarker([result.lat, result.lon], {
-    radius: 10,
-  })
-    .bindPopup(`<strong>${title}</strong>`)
-    .addTo(map)
-    .openPopup();
-};
-
 const renderDetails = async (tags, latlng) => {
   detailsPanel.innerHTML = "<h3 style='margin: 0 0 4px 0;'>Details</h3>";
   detailsPanel.style.display = "block";
@@ -262,15 +180,6 @@ const renderDetails = async (tags, latlng) => {
       detailsPanel.appendChild(div);
     }
   });
-
-  // Add Directions Button
-  directionsButtonElement.innerHTML = "";
-  directionsButtonElement.className = "directions-button";
-  directionsButtonElement.textContent = "Directions";
-  directionsButtonElement.addEventListener("click", () => {
-    showDirectionsUI(tags, latlng);
-  });
-  detailsPanel.appendChild(directionsButtonElement);
 
   // Add Reviews Section
   reviews = await reviewStorage();
@@ -316,47 +225,6 @@ const renderDetails = async (tags, latlng) => {
     // Refresh details to show new review
     renderDetails(tags, latlng);
   });
-};
-
-const renderSuggestions = async (query, onSuggestionSelect) => {
-  if (!query) {
-    suggestionsDiv.style.display = "none";
-    return;
-  }
-
-  const data = await fetchSuggestions(query);
-
-  suggestionsDiv.innerHTML = "";
-  data.forEach((result) => {
-    const div = document.createElement("div");
-    div.className = "suggestion-item";
-    div.textContent = result.display_name;
-    div.onclick = () => {
-      map.setView([result.lat, result.lon], 16);
-      suggestionsDiv.style.display = "none";
-      selectMarker(result);
-      onSuggestionSelect(result);
-    };
-    suggestionsDiv.appendChild(div);
-  });
-  suggestionsDiv.style.display = "block";
-};
-
-const handleSearchInputChange = (e) => {
-  searchInputValue = e.target.value;
-
-  if (searchInputValue.trim().length > 0) {
-    searchInputClearBtn.classList.add("visible");
-  } else {
-    searchInputClearBtn.classList.remove("visible");
-  }
-  renderSuggestions(searchInputValue, renderDetails);
-};
-
-const dismissSuggestions = (e) => {
-  if (e.target.closest(".suggestion-item")) return;
-
-  suggestionsDiv.style.display = "none";
 };
 
 async function initDrawingObstacles() {
@@ -503,20 +371,6 @@ modalCloseBtn.addEventListener("click", () => (modal.style.display = "none"));
 window.addEventListener("click", (e) => {
   if (e.target === modal) modal.style.display = "none";
 });
-searchInput.addEventListener("input", _.debounce(handleSearchInputChange, 400));
-
-searchInputClearBtn.addEventListener("click", () => {
-  clearSearchInput();
-  suggestionsDiv.style.display = "none";
-  searchInput.focus();
-
-  document.getElementById("details-panel").style.display = "none";
-  if (selectedMarker) {
-    map.removeLayer(selectedMarker);
-    selectedMarker = null;
-  }
-});
-document.addEventListener("click", dismissSuggestions);
 
 // NEW — filter listeners
 document.getElementById("type-filter").addEventListener("change", (e) => {
