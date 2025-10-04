@@ -577,18 +577,17 @@ const geocoder = L.Control.Geocoder.openrouteservice(
   {}
 );
 
-let routingControl = L.Routing.control({
+let control = L.Routing.control({
   router: new WheelchairRouter(),
   geocoder,
   routeWhileDragging: true,
+  reverseWaypoints: true,
+  showAlternatives: true,
 }).addTo(map);
 
 setTimeout(() => {
-  routingControl.setWaypoints([
-    L.latLng(57.74, 11.94),
-    L.latLng(57.6792, 11.949),
-  ]);
-  routingControl.route();
+  control.setWaypoints([L.latLng(57.74, 11.94), L.latLng(57.6792, 11.949)]);
+  control.route();
 }, 1000);
 
 // ============= EVENT LISTENERS ================
