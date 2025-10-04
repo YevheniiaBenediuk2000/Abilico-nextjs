@@ -1,4 +1,4 @@
-export async function fetchPlaces(bounds, currentAmenityType) {
+export async function fetchPlaces(bounds) {
   const boundingBox = [
     bounds.getSouth(),
     bounds.getWest(),
@@ -9,7 +9,6 @@ export async function fetchPlaces(bounds, currentAmenityType) {
   const overpassUrl = "https://overpass-api.de/api/interpreter";
 
   let selectors = ["[amenity]"]; // default: any amenity
-  if (currentAmenityType) selectors = [`[amenity=${currentAmenityType}]`];
 
   const excluded =
     "bench|waste_basket|bicycle_parking|vending_machine|fountain|ice_cream";

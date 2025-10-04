@@ -7,9 +7,6 @@ import { fetchRoute } from "./api/fetchRoute.js";
 import { obstacleStorage, reviewStorage } from "./api/obstacleStorage.js";
 import { ICON_MANIFEST } from "./static/manifest.js";
 
-// NEW — filter state
-let currentAmenityType = "";
-
 const EXCLUDED_PROPS = new Set([
   "boundingbox",
   "licence",
@@ -110,7 +107,7 @@ function iconFor(tags) {
 }
 
 async function refreshPlaces() {
-  const geojson = await fetchPlaces(map.getBounds(), currentAmenityType);
+  const geojson = await fetchPlaces(map.getBounds());
 
   if (!geojson || !geojson.features) {
     console.error("Nothing fetched – skipping render");
@@ -370,12 +367,6 @@ map.on("moveend", refreshPlaces);
 modalCloseBtn.addEventListener("click", () => (modal.style.display = "none"));
 window.addEventListener("click", (e) => {
   if (e.target === modal) modal.style.display = "none";
-});
-
-// NEW — filter listeners
-document.getElementById("type-filter").addEventListener("change", (e) => {
-  currentAmenityType = e.target.value; // "" means “any”
-  refreshPlaces(); // re-query Overpass
 });
 
 // NEW — distance helper (Haversine, uses Leaflet’s built-in)
