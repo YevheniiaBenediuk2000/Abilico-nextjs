@@ -572,26 +572,24 @@ map.addLayer(placeClusterGroup);
 refreshPlaces();
 initDrawingObstacles();
 
+const geocoder = L.Control.Geocoder.openrouteservice(
+  "5b3ce3597851110001cf624808521bae358447e592780fc0039f7235",
+  {}
+);
+
 let routingControl = L.Routing.control({
   router: new WheelchairRouter(),
-  plan: L.Routing.plan([L.latLng(57.74, 11.94), L.latLng(57.6792, 11.949)], {
-    geocoder: L.Control.Geocoder.nominatim(),
-    routeWhileDragging: true,
-    draggableWaypoints: true,
-    createMarker: (i, wp) => L.marker(wp.latLng, { draggable: true }),
-  }),
-  fitSelectedRoutes: "smart",
-
-  // waypoints: [L.latLng(57.74, 11.94), L.latLng(57.6792, 11.949)],
+  geocoder,
+  routeWhileDragging: true,
 }).addTo(map);
 
-// setTimeout(() => {
-//   routingControl.setWaypoints([
-//     L.latLng(57.74, 11.94),
-//     L.latLng(57.6792, 11.949),
-//   ]);
-//   routingControl.route();
-// }, 2000);
+setTimeout(() => {
+  routingControl.setWaypoints([
+    L.latLng(57.74, 11.94),
+    L.latLng(57.6792, 11.949),
+  ]);
+  routingControl.route();
+}, 1000);
 
 // ============= EVENT LISTENERS ================
 
