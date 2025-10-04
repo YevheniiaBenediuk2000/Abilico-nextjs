@@ -1,35 +1,4 @@
-export async function fetchPlaces(
-  bounds,
-  currentAmenityType,
-  currentAccessibility
-) {
-  // ♿ NEW — map a checkbox value to the Overpass selector(s) we must emit
-  const ACCESS_TAG_SELECTORS = {
-    wheelchair: ["[wheelchair=yes]"],
-    ramp: ["[ramp=yes]"],
-    tactile_paving: ["[tactile_paving=yes]"],
-
-    "toilets:wheelchair": [
-      "[toilets:wheelchair=yes]",
-      "[wheelchair_toilet=yes]",
-    ],
-
-    "capacity:disabled": [
-      "[capacity:disabled>0]",
-      "[parking:side:capacity:disabled>0]",
-    ],
-
-    "information=tactile_map": ["[information=tactile_map]"],
-    "information=tactile_model": ["[information=tactile_model]"],
-
-    "traffic_signals:sound": ["[traffic_signals:sound=yes]"],
-    "traffic_signals:vibration": ["[traffic_signals:vibration=yes]"],
-
-    "wheelchair:description:en": ["[wheelchair:description:en]"],
-    "blind:description:en": ["[blind:description:en]"],
-    "deaf:description:en": ["[deaf:description:en]"],
-  };
-
+export async function fetchPlaces(bounds, currentAmenityType) {
   const boundingBox = [
     bounds.getSouth(),
     bounds.getWest(),
@@ -41,11 +10,6 @@ export async function fetchPlaces(
 
   let selectors = ["[amenity]"]; // default: any amenity
   if (currentAmenityType) selectors = [`[amenity=${currentAmenityType}]`];
-
-  currentAccessibility.forEach((tag) => {
-    const clauses = ACCESS_TAG_SELECTORS[tag] || [`[${tag}=yes]`];
-    selectors.push(...clauses);
-  });
 
   const excluded =
     "bench|waste_basket|bicycle_parking|vending_machine|fountain|ice_cream";

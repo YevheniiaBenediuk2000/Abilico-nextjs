@@ -172,11 +172,3 @@ input[type="search"]::-webkit-search-results-decoration {
   font-weight: 600;
   margin-right: 4px;
 }
-#accessibility-filter label {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 13px;
-  margin-right: 12px;
-  margin-bottom: 4px;
-}

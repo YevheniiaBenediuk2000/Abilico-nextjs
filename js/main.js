@@ -10,7 +10,6 @@ import { ICON_MANIFEST } from "./static/manifest.js";
 
 // NEW — filter state
 let currentAmenityType = "";
-let currentAccessibility = new Set(); // e.g. “wheelchair”, “ramp”
 
 const EXCLUDED_PROPS = new Set([
   "boundingbox",
@@ -124,11 +123,7 @@ function iconFor(tags) {
 }
 
 async function refreshPlaces() {
-  const geojson = await fetchPlaces(
-    map.getBounds(),
-    currentAmenityType,
-    currentAccessibility
-  );
+  const geojson = await fetchPlaces(map.getBounds(), currentAmenityType);
 
   if (!geojson || !geojson.features) {
     console.error("Nothing fetched – skipping render");
@@ -172,37 +167,6 @@ async function refreshPlaces() {
 
   placeClusterGroup.clearLayers();
   placeClusterGroup.addLayer(geojsonLayer);
-
-  // NEW — show top-100 nearest in #suggestions panel (reuse existing element)
-  (function showNearby() {
-    const max = 100;
-    const list = geojson.features.slice(0, max);
-    suggestionsDiv.innerHTML =
-      '<h3 style="margin:10px 10px 4px 10px">Nearby Places</h3>'; // reuse existing container
-    list.forEach((f) => {
-      const { name, amenity } = f.properties;
-      const title = name ?? amenity ?? "Unnamed place";
-      const item = document.createElement("div");
-      item.className = "suggestion-item";
-      item.textContent = title;
-      item.onclick = () => {
-        map.setView([f.geometry.coordinates[1], f.geometry.coordinates[0]], 18);
-        selectMarker({
-          ...f.properties,
-          lat: f.geometry.coordinates[1],
-          lon: f.geometry.coordinates[0],
-          name: title,
-        });
-        renderDetails(
-          f.properties,
-          L.latLng(f.geometry.coordinates[1], f.geometry.coordinates[0])
-        );
-        suggestionsDiv.style.display = "none";
-      };
-      suggestionsDiv.appendChild(item);
-    });
-    suggestionsDiv.style.display = list.length ? "block" : "none";
-  })();
 }
 
 const clearStartInput = () => {
@@ -352,64 +316,6 @@ const renderDetails = async (tags, latlng) => {
     // Refresh details to show new review
     renderDetails(tags, latlng);
   });
-
-  // Add Accessibility Features Section
-  const accessibilityContainer = document.createElement("div");
-  accessibilityContainer.id = "accessibility-container";
-  accessibilityContainer.innerHTML =
-    "<h3 style='margin: 16px 0 4px 0;'>Accessibility Features</h3>";
-  detailsPanel.appendChild(accessibilityContainer);
-
-  const loadingIndicator = document.createElement("p");
-  loadingIndicator.textContent = "Analyzing accessibility features...";
-  accessibilityContainer.appendChild(loadingIndicator);
-
-  try {
-    const placeReviews = reviews.filter((r) => {
-      return placeId === r.placeId;
-    });
-
-    if (placeId && placeReviews.length > 0) {
-      const accessibilityFeatures = await analyzeReviews(placeReviews);
-
-      // Clear loading indicator
-      accessibilityContainer.removeChild(loadingIndicator);
-
-      if (Object.keys(accessibilityFeatures).length === 0) {
-        const noFeatures = document.createElement("p");
-        noFeatures.textContent =
-          "No accessibility features mentioned in reviews";
-        accessibilityContainer.appendChild(noFeatures);
-      } else {
-        for (const [category] of Object.entries(accessibilityFeatures)) {
-          const categoryDiv = document.createElement("div");
-          categoryDiv.className = "accessibility-category";
-
-          const categoryHeader = document.createElement("h4");
-          categoryHeader.style.margin = "10px 0 10px 0";
-          categoryHeader.textContent = category.replace(/\b\w/g, (l) =>
-            l.toUpperCase()
-          );
-          categoryDiv.appendChild(categoryHeader);
-
-          accessibilityContainer.appendChild(categoryDiv);
-        }
-      }
-    } else {
-      accessibilityContainer.removeChild(loadingIndicator);
-      const noReviews = document.createElement("p");
-      noReviews.textContent =
-        "No reviews available to analyze accessibility features";
-      accessibilityContainer.appendChild(noReviews);
-    }
-  } catch (error) {
-    console.error("Error analyzing accessibility features:", error);
-    accessibilityContainer.removeChild(loadingIndicator);
-    const errorMessage = document.createElement("p");
-    errorMessage.textContent = "Error analyzing accessibility features";
-    errorMessage.style.color = "red";
-    accessibilityContainer.appendChild(errorMessage);
-  }
 };
 
 const renderSuggestions = async (query, onSuggestionSelect) => {
@@ -612,140 +518,11 @@ searchInputClearBtn.addEventListener("click", () => {
 });
 document.addEventListener("click", dismissSuggestions);
 
-// NLP
-let nlpPipeline = null;
-
-// Define accessibility categories
-const ACCESSIBILITY_CATEGORIES = [
-  "entrance",
-  "restroom",
-  "elevator",
-  "parking",
-  "ramp",
-  "tactile",
-  "hearing",
-  "visual",
-];
-
-async function initializeNLP() {
-  try {
-    // Use a lightweight model for browser compatibility
-    nlpPipeline = await pipeline(
-      "zero-shot-classification",
-      "Xenova/distilbert-base-uncased-mnli",
-      { quantized: true }
-    );
-  } catch (error) {
-    console.error("Failed to initialize NLP pipeline:", error);
-  }
-}
-
-// Process reviews and extract accessibility features
-async function analyzeReviews(reviews) {
-  if (!nlpPipeline) await initializeNLP();
-
-  const accessibilityFeatures = {};
-
-  for (const category of ACCESSIBILITY_CATEGORIES) {
-    accessibilityFeatures[category] = new Set();
-  }
-
-  for (const review of reviews) {
-    const sentences = review.text
-      .split(/[.!?]/)
-      .filter((s) => s.trim().length > 0);
-
-    for (const sentence of sentences) {
-      try {
-        const result = await nlpPipeline(sentence, ACCESSIBILITY_CATEGORIES);
-        const topScore = Math.max(...result.scores);
-
-        if (topScore > 0.5) {
-          // Confidence threshold
-          const topCategory = result.labels[result.scores.indexOf(topScore)];
-
-          // Extract keyword phrases using pattern matching
-          const phrases = extractAccessibilityPhrases(sentence, topCategory);
-
-          accessibilityFeatures[topCategory].add("");
-        }
-      } catch (error) {
-        console.error("Error processing sentence:", error);
-      }
-    }
-  }
-
-  // Convert Sets to Arrays and format output
-  const formattedResults = {};
-  for (const [category, phrases] of Object.entries(accessibilityFeatures)) {
-    if (phrases.size > 0) {
-      formattedResults[category] = Array.from(phrases).map((phrase) =>
-        phrase.toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase())
-      );
-    }
-  }
-
-  return formattedResults;
-}
-
-// Helper function to extract meaningful phrases
-function extractAccessibilityPhrases(sentence, category) {
-  const phrases = [];
-  const words = sentence.toLowerCase().split(/\s+/);
-  const categoryIndex = words.indexOf(category.toLowerCase());
-
-  if (categoryIndex !== -1) {
-    // Extract 2-4 word phrases containing the category
-    const start = Math.max(0, categoryIndex - 2);
-    const end = Math.min(words.length, categoryIndex + 3);
-    phrases.push(words.slice(start, end).join(" "));
-  }
-
-  // Look for common accessibility adjectives
-  const accessibilityAdjectives = [
-    "accessible",
-    "adapted",
-    "wheelchair",
-    "easy",
-    "automatic",
-    "wide",
-    "spacious",
-    "step-free",
-    "barrier-free",
-    "inclusive",
-  ];
-
-  accessibilityAdjectives.forEach((adj) => {
-    const adjIndex = words.indexOf(adj);
-    if (adjIndex !== -1) {
-      // Extract adjective + following 1-2 words
-      const start = adjIndex;
-      const end = Math.min(words.length, adjIndex + 3);
-      phrases.push(words.slice(start, end).join(" "));
-    }
-  });
-
-  return phrases.filter(
-    (phrase) =>
-      phrase.includes(category) ||
-      accessibilityAdjectives.some((adj) => phrase.includes(adj))
-  );
-}
-
 // NEW — filter listeners
 document.getElementById("type-filter").addEventListener("change", (e) => {
   currentAmenityType = e.target.value; // "" means “any”
   refreshPlaces(); // re-query Overpass
 });
-
-document
-  .getElementById("accessibility-filter")
-  .addEventListener("change", (e) => {
-    const cb = e.target;
-    if (cb.checked) currentAccessibility.add(cb.value);
-    else currentAccessibility.delete(cb.value);
-    refreshPlaces();
-  });
 
 // NEW — distance helper (Haversine, uses Leaflet’s built-in)
 function distanceMeters(latlng1, latlng2) {
