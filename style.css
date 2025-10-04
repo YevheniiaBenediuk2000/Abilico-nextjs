@@ -10,19 +10,12 @@ body {
 
 #details-panel {
   display: none;
-  background: white;
-  border-radius: 5px;
-  margin-top: 5px;
   padding: 10px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-  max-height: 300px;
-  overflow-y: auto;
 }
 
-.detail-item {
+#details-panel .detail-item {
   margin: 5px 0;
   font-size: 14px;
-  word-break: break-word;
 }
 
 .modal {
