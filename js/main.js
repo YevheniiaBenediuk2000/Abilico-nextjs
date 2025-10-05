@@ -373,3 +373,48 @@ window.addEventListener("click", (e) => {
 function distanceMeters(latlng1, latlng2) {
   return map.distance(latlng1, latlng2); // Leaflet’s Vincenty impl.
 }
+
+// --- Map click popup to set start/end (and via) -----------------------------
+function createButton(label, container) {
+  var btn = L.DomUtil.create("button", "", container);
+  btn.setAttribute("type", "button");
+  btn.innerHTML = label;
+  return btn;
+}
+
+map.on("click", function (e) {
+  var container = L.DomUtil.create("div"),
+    startBtn = createButton("Start here", container),
+    endBtn = createButton("Go here", container);
+
+  const wps = control.getWaypoints();
+  const bothSet = wps.every((wp) => !!wp.latLng);
+  let viaBtn;
+  if (bothSet) {
+    viaBtn = createButton("Add via here", container);
+  }
+
+  const popup = L.popup().setLatLng(e.latlng).setContent(container).openOn(map);
+
+  // Set START (replace waypoint 0)
+  L.DomEvent.on(startBtn, "click", function () {
+    control.spliceWaypoints(0, 1, e.latlng);
+    map.closePopup();
+  });
+
+  // Set END (replace last waypoint)
+  L.DomEvent.on(endBtn, "click", function () {
+    const last = control.getWaypoints().length - 1;
+    control.spliceWaypoints(last, 1, e.latlng);
+    map.closePopup();
+  });
+
+  // Insert VIA (before last), only if start+end already set
+  if (viaBtn) {
+    L.DomEvent.on(viaBtn, "click", function () {
+      const last = control.getWaypoints().length - 1;
+      control.spliceWaypoints(last, 0, e.latlng); // insert
+      map.closePopup();
+    });
+  }
+});
