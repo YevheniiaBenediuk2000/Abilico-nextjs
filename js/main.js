@@ -5,36 +5,25 @@
 import { fetchPlaces } from "./api/fetchPlaces.js";
 import { fetchRoute } from "./api/fetchRoute.js";
 import { obstacleStorage, reviewStorage } from "./api/obstacleStorage.js";
+import {
+  BASE_PATH,
+  DEFAULT_ZOOM,
+  EXCLUDED_PROPS,
+  ORS_API_KEY,
+} from "./constants.mjs";
 import { ICON_MANIFEST } from "./static/manifest.js";
 
-const EXCLUDED_PROPS = new Set([
-  "boundingbox",
-  "licence",
-  "place_id",
-  "osm_id",
-  "osm_type",
-  "lat",
-  "lon",
-  "class",
-  "place_rank",
-  "importance",
-  "id",
-  "source",
-]);
+const placeClusterGroup = L.markerClusterGroup({
+  chunkedLoading: true,
+  maxClusterRadius: 80,
+  disableClusteringAtZoom: 17,
+});
 
 let obstacleFeatures = [];
-let reviews = [];
-
-let selectedMarker = null;
 
 const detailsPanel = document.getElementById("details-panel");
 const modal = document.getElementById("constraint-modal");
 const modalCloseBtn = document.getElementById("constraint-modal-close");
-
-const isLocal = window.location.protocol === "http:";
-const BASE_PATH = isLocal
-  ? "../map-icons-osm"
-  : "https://yevheniiabenediuk2000.github.io/Abilico/map-icons-osm";
 
 // --- LRM adapter that calls our existing OpenRouteService-based fetchRoute() ---
 const WheelchairRouter = L.Class.extend({
@@ -88,6 +77,14 @@ const WheelchairRouter = L.Class.extend({
       });
   },
 });
+const geocoder = L.Control.Geocoder.openrouteservice(ORS_API_KEY, {});
+let control = L.Routing.control({
+  router: new WheelchairRouter(),
+  geocoder,
+  routeWhileDragging: true,
+  reverseWaypoints: true,
+  showAlternatives: true,
+});
 
 function showModal(message) {
   modal.style.display = "block";
@@ -107,28 +104,12 @@ function iconFor(tags) {
 }
 
 async function refreshPlaces() {
-  const geojson = await fetchPlaces(map.getBounds());
-
-  if (!geojson || !geojson.features) {
-    console.error("Nothing fetched – skipping render");
-    return; // ← prevents the TypeError
+  if (map.getZoom() < 14) {
+    placeClusterGroup.clearLayers();
+    return;
   }
 
-  // NEW — sort by distance to map centre (or user marker)
-  // Choose origin: use user marker if available else map centre
-  const origin = selectedMarker ? selectedMarker.getLatLng() : map.getCenter();
-
-  geojson.features.sort((a, b) => {
-    const d1 = distanceMeters(
-      origin,
-      L.latLng(a.geometry.coordinates[1], a.geometry.coordinates[0])
-    );
-    const d2 = distanceMeters(
-      origin,
-      L.latLng(b.geometry.coordinates[1], b.geometry.coordinates[0])
-    );
-    return d1 - d2;
-  });
+  const geojson = await fetchPlaces(map.getBounds());
 
   const geojsonLayer = L.geoJSON(geojson, {
     pointToLayer: ({ properties: tags }, latlng) => {
@@ -154,7 +135,6 @@ async function refreshPlaces() {
 }
 
 const renderDetails = async (tags, latlng) => {
-  detailsPanel.innerHTML = "<h3>Details</h3>";
   detailsPanel.style.display = "block";
 
   Object.entries(tags).forEach(([key, value]) => {
@@ -179,7 +159,7 @@ const renderDetails = async (tags, latlng) => {
   });
 
   // Add Reviews Section
-  reviews = await reviewStorage();
+  const reviews = await reviewStorage();
 
   const reviewsContainer = document.createElement("div");
   reviewsContainer.id = "reviews-container";
@@ -272,12 +252,12 @@ async function initDrawingObstacles() {
       const idx = obstacleFeatures.findIndex(
         (f) => f._leaflet_id === layer._leaflet_id
       );
-      if (idx > -1) {
-        let newFeature = layer.toGeoJSON();
-        newFeature._leaflet_id = layer._leaflet_id;
-        obstacleFeatures[idx] = newFeature;
-        obstacleStorage("PUT", obstacleFeatures);
-      }
+      if (idx === -1) return;
+
+      let newFeature = layer.toGeoJSON();
+      newFeature._leaflet_id = layer._leaflet_id;
+      obstacleFeatures[idx] = newFeature;
+      obstacleStorage("PUT", obstacleFeatures);
     });
   });
 
@@ -303,9 +283,7 @@ async function initDrawingObstacles() {
 
 // ============= INIT ================
 
-let initialLatLng = [51.5074, -0.1278]; // London, UK
-
-const map = L.map("map").setView(initialLatLng, 17);
+const map = L.map("map");
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "© OpenStreetMap contributors",
 }).addTo(map);
@@ -314,56 +292,79 @@ if (navigator.geolocation) {
   navigator.geolocation.getCurrentPosition(
     (position) => {
       const { latitude, longitude } = position.coords;
-      map.setView([latitude, longitude]);
+      map.setView([latitude, longitude], DEFAULT_ZOOM);
       L.marker([latitude, longitude]).addTo(map);
     },
     (error) => {
-      console.warn(error);
-      const userDeniedGeolocationCode = 1;
-      if (error.code === userDeniedGeolocationCode) return;
-
-      showModal(
-        `Unable to retrieve location: ${error.message}. Using default location.`
-      );
+      const userDeniedGeolocation = error.code === 1;
+      if (userDeniedGeolocation) {
+        const defaultLatLng = [51.5074, -0.1278]; // London, UK
+        map.setView(defaultLatLng, DEFAULT_ZOOM);
+      } else {
+        console.log(error);
+      }
     }
   );
 } else {
-  console.warn(error);
+  console.log(error);
   showModal("Geolocation not supported. Using default location.");
 }
 
-const placeClusterGroup = L.markerClusterGroup({
-  chunkedLoading: true,
-  maxClusterRadius: 80,
-  disableClusteringAtZoom: 17,
+map.whenReady(() => {
+  map.addLayer(placeClusterGroup);
+
+  control.addTo(map);
+  const directionsContainer = control.getContainer();
+  directionsContainer.appendChild(detailsPanel);
+
+  refreshPlaces();
+  initDrawingObstacles();
+
+  map.on("moveend", refreshPlaces);
+
+  map.on("click", function (e) {
+    const container = L.DomUtil.create("div"),
+      startBtn = createButton("Start here", container),
+      endBtn = createButton("Go here", container);
+
+    const wps = control.getWaypoints();
+    const bothSet = wps.every((wp) => !!wp.latLng);
+    let viaBtn;
+    if (bothSet) {
+      viaBtn = createButton("Add via here", container);
+    }
+
+    const popup = L.popup()
+      .setLatLng(e.latlng)
+      .setContent(container)
+      .openOn(map);
+
+    // Set START (replace waypoint 0)
+    L.DomEvent.on(startBtn, "click", function () {
+      control.spliceWaypoints(0, 1, e.latlng);
+      map.closePopup();
+    });
+
+    // Set END (replace last waypoint)
+    L.DomEvent.on(endBtn, "click", function () {
+      const last = control.getWaypoints().length - 1;
+      control.spliceWaypoints(last, 1, e.latlng);
+      map.closePopup();
+    });
+
+    // Insert VIA (before last), only if start+end already set
+    if (viaBtn) {
+      L.DomEvent.on(viaBtn, "click", function () {
+        const last = control.getWaypoints().length - 1;
+        control.spliceWaypoints(last, 0, e.latlng); // insert
+        map.closePopup();
+      });
+    }
+  });
 });
-map.addLayer(placeClusterGroup);
-
-refreshPlaces();
-initDrawingObstacles();
-
-const geocoder = L.Control.Geocoder.openrouteservice(
-  "5b3ce3597851110001cf624808521bae358447e592780fc0039f7235",
-  {}
-);
-
-let control = L.Routing.control({
-  router: new WheelchairRouter(),
-  geocoder,
-  routeWhileDragging: true,
-  reverseWaypoints: true,
-  showAlternatives: true,
-}).addTo(map);
-const directionsContainer = control.getContainer();
-directionsContainer.appendChild(detailsPanel);
-setTimeout(() => {
-  control.setWaypoints([L.latLng(57.74, 11.94), L.latLng(57.6792, 11.949)]);
-  control.route();
-}, 2000);
 
 // ============= EVENT LISTENERS ================
 
-map.on("moveend", refreshPlaces);
 modalCloseBtn.addEventListener("click", () => (modal.style.display = "none"));
 window.addEventListener("click", (e) => {
   if (e.target === modal) modal.style.display = "none";
@@ -374,47 +375,9 @@ function distanceMeters(latlng1, latlng2) {
   return map.distance(latlng1, latlng2); // Leaflet’s Vincenty impl.
 }
 
-// --- Map click popup to set start/end (and via) -----------------------------
 function createButton(label, container) {
-  var btn = L.DomUtil.create("button", "", container);
+  const btn = L.DomUtil.create("button", "", container);
   btn.setAttribute("type", "button");
   btn.innerHTML = label;
   return btn;
 }
-
-map.on("click", function (e) {
-  var container = L.DomUtil.create("div"),
-    startBtn = createButton("Start here", container),
-    endBtn = createButton("Go here", container);
-
-  const wps = control.getWaypoints();
-  const bothSet = wps.every((wp) => !!wp.latLng);
-  let viaBtn;
-  if (bothSet) {
-    viaBtn = createButton("Add via here", container);
-  }
-
-  const popup = L.popup().setLatLng(e.latlng).setContent(container).openOn(map);
-
-  // Set START (replace waypoint 0)
-  L.DomEvent.on(startBtn, "click", function () {
-    control.spliceWaypoints(0, 1, e.latlng);
-    map.closePopup();
-  });
-
-  // Set END (replace last waypoint)
-  L.DomEvent.on(endBtn, "click", function () {
-    const last = control.getWaypoints().length - 1;
-    control.spliceWaypoints(last, 1, e.latlng);
-    map.closePopup();
-  });
-
-  // Insert VIA (before last), only if start+end already set
-  if (viaBtn) {
-    L.DomEvent.on(viaBtn, "click", function () {
-      const last = control.getWaypoints().length - 1;
-      control.spliceWaypoints(last, 0, e.latlng); // insert
-      map.closePopup();
-    });
-  }
-});

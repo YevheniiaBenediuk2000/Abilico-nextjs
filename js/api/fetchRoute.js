@@ -1,3 +1,5 @@
+import { ORS_API_KEY } from "../constants.mjs";
+
 export async function fetchRoute(coordinates, obstacleFeatures) {
   const url =
     "https://api.openrouteservice.org/v2/directions/wheelchair/geojson";
@@ -21,9 +23,6 @@ export async function fetchRoute(coordinates, obstacleFeatures) {
   };
 
   try {
-    const ORS_API_KEY =
-      "5b3ce3597851110001cf624808521bae358447e592780fc0039f7235";
-
     const response = await fetch(url, {
       method: "POST",
       headers: {
