@@ -95,31 +95,6 @@ body {
 }
 
 /* Details card inside routing container */
-#details-panel {
-  display: none;
-  padding: 12px;
-  border-top: 1px solid #e5e7eb;
-}
-
-#details-panel h3 {
-  margin: 8px 0;
-}
-
-#details-panel .btn {
-  appearance: none;
-  border: 1px solid #1f6feb;
-  background: #1f6feb;
-  color: #fff;
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 14px;
-  cursor: pointer;
-}
-#details-panel .btn.secondary {
-  background: #fff;
-  color: #1f2937;
-  border-color: #d1d5db;
-}
 
 /* Hide LRM geocoders until user clicks Directions */
 .leaflet-routing-container .leaflet-routing-geocoders {

@@ -421,11 +421,11 @@ function renderPlaceCardFromGeocoder(res, latlng) {
   detailsPanel.innerHTML = ""; // clear previous
   detailsPanel.style.display = "block";
 
+  // ensure the panel shows this place
+  renderDetails(res.properties);
+
   const header = document.createElement("div");
-  header.innerHTML = `
-    <h3>${res.name}</h3>
-    <button id="btn-directions" class="btn">Directions</button>
-  `;
+  header.innerHTML = `<button id="btn-directions">Directions</button>`;
   detailsPanel.appendChild(header);
 
   document.getElementById("btn-directions").addEventListener("click", () => {
@@ -444,9 +444,6 @@ function renderPlaceCardFromGeocoder(res, latlng) {
     const routingContainer = routingControl.getContainer();
     routingContainer.classList.add("lrm-show-geocoders");
   });
-
-  // ensure the panel shows this place
-  renderDetails(res.properties);
 }
 
 searchInput.addEventListener(
