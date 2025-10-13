@@ -12,6 +12,13 @@ import {
   ORS_API_KEY,
 } from "./constants.mjs";
 import { ICON_MANIFEST } from "./static/manifest.js";
+import { hideModal, showModal } from "./utils.mjs";
+
+// ===== OMNIBOX STATE =====
+let userLocation = null;
+let selectedPlaceMarker = null;
+const searchInput = document.getElementById("search-input");
+const suggestionsEl = document.getElementById("search-suggestions");
 
 const placeClusterGroup = L.markerClusterGroup({
   chunkedLoading: true,
@@ -86,11 +93,6 @@ const routingControl = L.Routing.control({
   reverseWaypoints: true,
   showAlternatives: true,
 });
-
-function showModal(message) {
-  modal.style.display = "block";
-  modal.querySelector("h2").textContent = message;
-}
 
 function iconFor(tags) {
   const candidates = ICON_MANIFEST.filter((p) =>
@@ -300,6 +302,7 @@ if (navigator.geolocation) {
   navigator.geolocation.getCurrentPosition(
     (position) => {
       const { latitude, longitude } = position.coords;
+      userLocation = L.latLng(latitude, longitude);
       map.setView([latitude, longitude], DEFAULT_ZOOM);
       L.marker([latitude, longitude]).addTo(map);
     },
@@ -320,7 +323,6 @@ if (navigator.geolocation) {
 
 // ============= EVENT LISTENERS ================
 
-const hideModal = () => (modal.style.display = "none");
 modalCloseBtn.addEventListener("click", hideModal);
 window.addEventListener("click", (e) => e.target === modal && hideModal());
 
@@ -332,6 +334,9 @@ map.whenReady(() => {
   routingControl.addTo(map);
   const routingContainer = routingControl.getContainer();
   routingContainer.appendChild(detailsPanel);
+
+  // We’ll toggle this class to show LRM's geocoder fields when needed
+  routingContainer.classList.remove("lrm-show-geocoders");
 
   refreshPlaces();
   initDrawingObstacles();
@@ -378,3 +383,77 @@ map.whenReady(() => {
     }
   });
 });
+
+/** Render suggestions list */
+function renderSuggestions(items) {
+  suggestionsEl.innerHTML = "";
+  if (!items || !items.length) {
+    suggestionsEl.style.display = "none";
+    return;
+  }
+  items.forEach((res, idx) => {
+    const li = document.createElement("li");
+    li.role = "option";
+    li.dataset.index = String(idx);
+    li.innerHTML = res.name;
+    li.addEventListener("click", () => selectSuggestion(items[idx]));
+    suggestionsEl.appendChild(li);
+  });
+  suggestionsEl.style.display = "block";
+}
+
+/** Select a suggestion: center map, drop marker, render card */
+function selectSuggestion(res) {
+  suggestionsEl.style.display = "none";
+
+  map.flyTo(res.center, Math.max(map.getZoom()));
+
+  if (selectedPlaceMarker) {
+    selectedPlaceMarker.remove();
+  }
+  selectedPlaceMarker = L.marker(res.center).addTo(map).bindPopup(res.name);
+  selectedPlaceMarker.openPopup();
+
+  renderPlaceCardFromGeocoder(res, res.center);
+}
+
+/** Render a simple card for the selected place + Directions button */
+function renderPlaceCardFromGeocoder(res, latlng) {
+  detailsPanel.innerHTML = ""; // clear previous
+  detailsPanel.style.display = "block";
+
+  const header = document.createElement("div");
+  header.innerHTML = `
+    <h3>${res.name}</h3>
+    <button id="btn-directions" class="btn">Directions</button>
+  `;
+  detailsPanel.appendChild(header);
+
+  document.getElementById("btn-directions").addEventListener("click", () => {
+    // Reveal LRM geocoders + set destination
+    const wps = routingControl.getWaypoints();
+
+    const start = userLocation || wps[0]?.latLng || null;
+    const end = latlng;
+
+    if (start) {
+      routingControl.setWaypoints([start, end]);
+    } else {
+      routingControl.setWaypoints([null, end]);
+    }
+
+    const routingContainer = routingControl.getContainer();
+    routingContainer.classList.add("lrm-show-geocoders");
+  });
+}
+
+searchInput.addEventListener("input", (e) => {
+  geocoder.geocode(e.target.value.trim(), renderSuggestions);
+});
+
+const hideSuggestionsIfClickedOutside = (e) => {
+  if (!document.getElementById("searchbar").contains(e.target)) {
+    suggestionsEl.style.display = "none";
+  }
+};
+document.addEventListener("click", hideSuggestionsIfClickedOutside);

@@ -1,4 +1,5 @@
 import { ORS_API_KEY } from "../constants.mjs";
+import { showModal } from "../utils.mjs";
 
 export async function fetchRoute(coordinates, obstacleFeatures) {
   const url =

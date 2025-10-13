@@ -31,6 +31,18 @@
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
+    <!-- Omnibox -->
+    <div id="searchbar" class="map-overlay">
+      <input
+        id="search-input"
+        type="text"
+        placeholder="Search places…"
+        autocomplete="off"
+        aria-label="Search places"
+      />
+      <ul id="search-suggestions" role="listbox"></ul>
+    </div>
+
     <div id="details-panel">
       <h3>Details</h3>
     </div>
