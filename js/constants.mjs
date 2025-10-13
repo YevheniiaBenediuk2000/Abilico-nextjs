@@ -16,6 +16,7 @@ export const EXCLUDED_PROPS = new Set([
   "importance",
   "id",
   "source",
+  "created_by",
 ]);
 
 const isLocal = window.location.protocol === "http:";

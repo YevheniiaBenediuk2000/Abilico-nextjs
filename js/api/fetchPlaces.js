@@ -1,28 +1,23 @@
 export async function fetchPlaces(bounds) {
-  const boundingBox = [
-    bounds.getSouth(),
-    bounds.getWest(),
-    bounds.getNorth(),
-    bounds.getEast(),
-  ].join(",");
+  const s = bounds.getSouth();
+  const w = bounds.getWest();
+  const n = bounds.getNorth();
+  const e = bounds.getEast();
+  const boundingBox = `${s},${w},${n},${e}`;
 
   const overpassUrl = "https://overpass-api.de/api/interpreter";
 
-  let selectors = ["[amenity]"]; // default: any amenity
-
-  const excluded =
+  const EXCLUDED =
     "bench|waste_basket|bicycle_parking|vending_machine|fountain|ice_cream";
-
-  selectors.push(`[amenity!~"${excluded}"]`);
-
-  const selectorString = selectors.join("");
-
-  console.log({ selectorString });
 
   const query = `
     [out:json][maxsize:1073741824];
     (
-      node(${boundingBox})${selectorString};
+      node["amenity"]["name"]["amenity"!~"${EXCLUDED}"](${boundingBox});
+      node["shop"]["name"](${boundingBox});
+      node["tourism"]["name"](${boundingBox});
+      node["leisure"]["name"](${boundingBox});
+      node["healthcare"]["name"](${boundingBox});
     );
     out center tags;
   `;

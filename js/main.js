@@ -5,12 +5,7 @@
 import { fetchPlaces } from "./api/fetchPlaces.js";
 import { fetchRoute } from "./api/fetchRoute.js";
 import { obstacleStorage, reviewStorage } from "./api/obstacleStorage.js";
-import {
-  BASE_PATH,
-  DEFAULT_ZOOM,
-  EXCLUDED_PROPS,
-  ORS_API_KEY,
-} from "./constants.mjs";
+import { BASE_PATH, DEFAULT_ZOOM, EXCLUDED_PROPS } from "./constants.mjs";
 import { ICON_MANIFEST } from "./static/manifest.js";
 import { hideModal, showModal } from "./utils.mjs";
 
@@ -39,52 +34,55 @@ const WheelchairRouter = L.Class.extend({
   },
 
   // LRM calls this when it needs a route
-  route(waypoints, callback, context, opts) {
+  async route(waypoints, callback, context, opts) {
     const coords = waypoints.map((wp) => [wp.latLng.lng, wp.latLng.lat]);
 
-    // Use your existing obstacleFeatures + fetchRoute (ORS wheelchair + avoid_polygons)
-    fetchRoute(coords, obstacleFeatures)
-      .then((geojson) => {
-        if (!geojson || !geojson.features || !geojson.features.length) {
-          return callback.call(context, { status: 500, message: "No route" });
-        }
+    try {
+      // Use your existing obstacleFeatures + fetchRoute (ORS wheelchair + avoid_polygons)
+      const geojson = await fetchRoute(coords, obstacleFeatures);
 
-        const feat = geojson.features[0];
-        const line = feat.geometry; // LineString
-        const props = feat.properties || {};
-        const summary = props.summary || { distance: 0, duration: 0 };
+      if (!geojson || !geojson.features || !geojson.features.length) {
+        return callback.call(context, { status: 500, message: "No route" });
+      }
 
-        const lrmCoords = line.coordinates.map(([lng, lat]) =>
-          L.latLng(lat, lng)
-        );
+      const feat = geojson.features[0];
+      const line = feat.geometry; // LineString
+      const props = feat.properties || {};
+      const summary = props.summary || { distance: 0, duration: 0 };
 
-        const route = {
-          name: "Wheelchair",
-          coordinates: lrmCoords,
-          // LRM expects these two props in meters/seconds:
-          summary: {
-            totalDistance:
-              summary.distance || props.segments?.[0]?.distance || 0,
-            totalTime: summary.duration || props.segments?.[0]?.duration || 0,
-          },
-          // Echo back waypoints for LRM
-          inputWaypoints: waypoints,
-          waypoints: waypoints.map((wp) => wp.latLng),
-          // You can build turn-by-turn instructions later if you want:
-          instructions: [],
-        };
+      const lrmCoords = line.coordinates.map(([lng, lat]) =>
+        L.latLng(lat, lng)
+      );
 
-        callback.call(context, null, [route]);
-      })
-      .catch((err) => {
-        callback.call(context, {
-          status: 500,
-          message: err?.message || "Routing error",
-        });
+      const route = {
+        name: "Wheelchair",
+        coordinates: lrmCoords,
+        // LRM expects these two props in meters/seconds:
+        summary: {
+          totalDistance: summary.distance || props.segments?.[0]?.distance || 0,
+          totalTime: summary.duration || props.segments?.[0]?.duration || 0,
+        },
+        // Echo back waypoints for LRM
+        inputWaypoints: waypoints,
+        waypoints: waypoints.map((wp) => wp.latLng),
+        // You can build turn-by-turn instructions later if you want:
+        instructions: [],
+      };
+
+      callback.call(context, null, [route]);
+    } catch (error) {
+      callback.call(context, {
+        status: 500,
+        message: error?.message || "Routing error",
       });
+    }
   },
 });
-const geocoder = L.Control.Geocoder.openrouteservice(ORS_API_KEY, {});
+
+const geocoder = L.Control.Geocoder.photon({
+  serviceUrl: "https://photon.komoot.io/api/",
+  reverseUrl: "https://photon.komoot.io/reverse/",
+});
 const routingControl = L.Routing.control({
   position: "topleft",
   router: new WheelchairRouter(),
@@ -127,7 +125,7 @@ async function refreshPlaces() {
 
       marker.bindPopup(`<strong>${title}</strong>`);
 
-      marker.on("click", () => renderDetails(tags, latlng));
+      marker.on("click", () => renderDetails(tags));
 
       return marker;
     },
@@ -137,7 +135,7 @@ async function refreshPlaces() {
   placeClusterGroup.addLayer(geojsonLayer);
 }
 
-const renderDetails = async (tags, latlng) => {
+const renderDetails = async (tags) => {
   detailsPanel.style.display = "block";
   detailsPanel.innerHTML = "<h3>Details</h3>";
 
@@ -203,7 +201,7 @@ const renderDetails = async (tags, latlng) => {
     await reviewStorage("PUT", reviews);
 
     // Refresh details to show new review
-    renderDetails(tags, latlng);
+    renderDetails(tags);
   });
 };
 
@@ -342,7 +340,7 @@ map.whenReady(() => {
   refreshPlaces();
   initDrawingObstacles();
 
-  map.on("moveend", refreshPlaces);
+  map.on("moveend", _.debounce(refreshPlaces, 1000));
 
   map.on("click", function (e) {
     const container = L.DomUtil.create("div"),
@@ -446,17 +444,23 @@ function renderPlaceCardFromGeocoder(res, latlng) {
     const routingContainer = routingControl.getContainer();
     routingContainer.classList.add("lrm-show-geocoders");
   });
+
+  // ensure the panel shows this place
+  renderDetails(res.properties);
 }
 
-searchInput.addEventListener("input", (e) => {
-  const searchQuery = e.target.value.trim();
-  if (!searchQuery) {
-    suggestionsEl.style.display = "none";
-    return;
-  }
+searchInput.addEventListener(
+  "input",
+  _.debounce((e) => {
+    const searchQuery = e.target.value.trim();
+    if (!searchQuery) {
+      suggestionsEl.style.display = "none";
+      return;
+    }
 
-  geocoder.geocode(searchQuery, renderSuggestions);
-});
+    geocoder.geocode(searchQuery, renderSuggestions);
+  }, 1000)
+);
 
 const hideSuggestionsIfClickedOutside = (e) => {
   if (!document.getElementById("searchbar").contains(e.target)) {
