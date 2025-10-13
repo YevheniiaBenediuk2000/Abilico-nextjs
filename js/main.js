@@ -79,6 +79,7 @@ const WheelchairRouter = L.Class.extend({
 });
 const geocoder = L.Control.Geocoder.openrouteservice(ORS_API_KEY, {});
 const routingControl = L.Routing.control({
+  position: "topleft",
   router: new WheelchairRouter(),
   geocoder,
   routeWhileDragging: true,
@@ -290,7 +291,7 @@ function createButton(label, container) {
 
 // ============= INIT ================
 
-const map = L.map("map");
+const map = L.map("map", { zoomControl: false });
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "© OpenStreetMap contributors",
 }).addTo(map);
@@ -324,6 +325,8 @@ modalCloseBtn.addEventListener("click", hideModal);
 window.addEventListener("click", (e) => e.target === modal && hideModal());
 
 map.whenReady(() => {
+  L.control.zoom({ position: "bottomright" }).addTo(map);
+
   map.addLayer(placeClusterGroup);
 
   routingControl.addTo(map);
