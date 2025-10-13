@@ -78,7 +78,7 @@ const WheelchairRouter = L.Class.extend({
   },
 });
 const geocoder = L.Control.Geocoder.openrouteservice(ORS_API_KEY, {});
-let control = L.Routing.control({
+const routingControl = L.Routing.control({
   router: new WheelchairRouter(),
   geocoder,
   routeWhileDragging: true,
@@ -281,6 +281,13 @@ async function initDrawingObstacles() {
   });
 }
 
+function createButton(label, container) {
+  const btn = L.DomUtil.create("button", "", container);
+  btn.setAttribute("type", "button");
+  btn.innerHTML = label;
+  return btn;
+}
+
 // ============= INIT ================
 
 const map = L.map("map");
@@ -310,12 +317,18 @@ if (navigator.geolocation) {
   showModal("Geolocation not supported. Using default location.");
 }
 
+// ============= EVENT LISTENERS ================
+
+const hideModal = () => (modal.style.display = "none");
+modalCloseBtn.addEventListener("click", hideModal);
+window.addEventListener("click", (e) => e.target === modal && hideModal());
+
 map.whenReady(() => {
   map.addLayer(placeClusterGroup);
 
-  control.addTo(map);
-  const directionsContainer = control.getContainer();
-  directionsContainer.appendChild(detailsPanel);
+  routingControl.addTo(map);
+  const routingContainer = routingControl.getContainer();
+  routingContainer.appendChild(detailsPanel);
 
   refreshPlaces();
   initDrawingObstacles();
@@ -327,7 +340,7 @@ map.whenReady(() => {
       startBtn = createButton("Start here", container),
       endBtn = createButton("Go here", container);
 
-    const wps = control.getWaypoints();
+    const wps = routingControl.getWaypoints();
     const bothSet = wps.every((wp) => !!wp.latLng);
     let viaBtn;
     if (bothSet) {
@@ -341,43 +354,24 @@ map.whenReady(() => {
 
     // Set START (replace waypoint 0)
     L.DomEvent.on(startBtn, "click", function () {
-      control.spliceWaypoints(0, 1, e.latlng);
+      routingControl.spliceWaypoints(0, 1, e.latlng);
       map.closePopup();
     });
 
     // Set END (replace last waypoint)
     L.DomEvent.on(endBtn, "click", function () {
-      const last = control.getWaypoints().length - 1;
-      control.spliceWaypoints(last, 1, e.latlng);
+      const last = routingControl.getWaypoints().length - 1;
+      routingControl.spliceWaypoints(last, 1, e.latlng);
       map.closePopup();
     });
 
     // Insert VIA (before last), only if start+end already set
     if (viaBtn) {
       L.DomEvent.on(viaBtn, "click", function () {
-        const last = control.getWaypoints().length - 1;
-        control.spliceWaypoints(last, 0, e.latlng); // insert
+        const last = routingControl.getWaypoints().length - 1;
+        routingControl.spliceWaypoints(last, 0, e.latlng); // insert
         map.closePopup();
       });
     }
   });
 });
-
-// ============= EVENT LISTENERS ================
-
-modalCloseBtn.addEventListener("click", () => (modal.style.display = "none"));
-window.addEventListener("click", (e) => {
-  if (e.target === modal) modal.style.display = "none";
-});
-
-// NEW — distance helper (Haversine, uses Leaflet’s built-in)
-function distanceMeters(latlng1, latlng2) {
-  return map.distance(latlng1, latlng2); // Leaflet’s Vincenty impl.
-}
-
-function createButton(label, container) {
-  const btn = L.DomUtil.create("button", "", container);
-  btn.setAttribute("type", "button");
-  btn.innerHTML = label;
-  return btn;
-}
