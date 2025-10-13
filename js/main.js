@@ -2,7 +2,7 @@
 //   pipeline,
 //   env,
 // } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers";
-import { fetchPlaces } from "./api/fetchPlaces.js";
+import { fetchPlace, fetchPlaces } from "./api/fetchPlaces.js";
 import { fetchRoute } from "./api/fetchRoute.js";
 import { obstacleStorage, reviewStorage } from "./api/obstacleStorage.js";
 import { BASE_PATH, DEFAULT_ZOOM, EXCLUDED_PROPS } from "./constants.mjs";
@@ -402,7 +402,7 @@ function renderSuggestions(items) {
 }
 
 /** Select a suggestion: center map, drop marker, render card */
-function selectSuggestion(res) {
+async function selectSuggestion(res) {
   suggestionsEl.style.display = "none";
 
   map.flyTo(res.center, Math.max(map.getZoom()));
@@ -413,16 +413,17 @@ function selectSuggestion(res) {
   selectedPlaceMarker = L.marker(res.center).addTo(map).bindPopup(res.name);
   selectedPlaceMarker.openPopup();
 
-  renderPlaceCardFromGeocoder(res, res.center);
+  const tags = await fetchPlace(res.properties.osm_type, res.properties.osm_id);
+  renderPlaceCardFromGeocoder(tags, res.center);
 }
 
 /** Render a simple card for the selected place + Directions button */
-function renderPlaceCardFromGeocoder(res, latlng) {
+function renderPlaceCardFromGeocoder(tags, latlng) {
   detailsPanel.innerHTML = ""; // clear previous
   detailsPanel.style.display = "block";
 
   // ensure the panel shows this place
-  renderDetails(res.properties);
+  renderDetails(tags);
 
   const header = document.createElement("div");
   header.innerHTML = `<button id="btn-directions">Directions</button>`;
@@ -432,7 +433,7 @@ function renderPlaceCardFromGeocoder(res, latlng) {
     // Reveal LRM geocoders + set destination
     const wps = routingControl.getWaypoints();
 
-    const start = userLocation || wps[0]?.latLng || null;
+    const start = userLocation || wps[0].latLng;
     const end = latlng;
 
     if (start) {
@@ -456,7 +457,7 @@ searchInput.addEventListener(
     }
 
     geocoder.geocode(searchQuery, renderSuggestions);
-  }, 1000)
+  }, 200)
 );
 
 const hideSuggestionsIfClickedOutside = (e) => {
