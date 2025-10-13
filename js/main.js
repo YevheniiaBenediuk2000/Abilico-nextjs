@@ -139,6 +139,7 @@ async function refreshPlaces() {
 
 const renderDetails = async (tags, latlng) => {
   detailsPanel.style.display = "block";
+  detailsPanel.innerHTML = "<h3>Details</h3>";
 
   Object.entries(tags).forEach(([key, value]) => {
     if (!EXCLUDED_PROPS.has(key)) {
@@ -448,7 +449,13 @@ function renderPlaceCardFromGeocoder(res, latlng) {
 }
 
 searchInput.addEventListener("input", (e) => {
-  geocoder.geocode(e.target.value.trim(), renderSuggestions);
+  const searchQuery = e.target.value.trim();
+  if (!searchQuery) {
+    suggestionsEl.style.display = "none";
+    return;
+  }
+
+  geocoder.geocode(searchQuery, renderSuggestions);
 });
 
 const hideSuggestionsIfClickedOutside = (e) => {
