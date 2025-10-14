@@ -2,6 +2,8 @@
 //   pipeline,
 //   env,
 // } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers";
+import debounce from "https://cdn.jsdelivr.net/npm/lodash.debounce@4.0.8/+esm";
+
 import { fetchPlace, fetchPlaces } from "./api/fetchPlaces.js";
 import { fetchRoute } from "./api/fetchRoute.js";
 import { obstacleStorage, reviewStorage } from "./api/obstacleStorage.js";
@@ -340,7 +342,7 @@ map.whenReady(() => {
   refreshPlaces();
   initDrawingObstacles();
 
-  map.on("moveend", _.debounce(refreshPlaces, 1000));
+  map.on("moveend", debounce(refreshPlaces, 1000));
 
   map.on("click", function (e) {
     const container = L.DomUtil.create("div"),
@@ -449,7 +451,7 @@ function renderPlaceCardFromGeocoder(tags, latlng) {
 
 searchInput.addEventListener(
   "input",
-  _.debounce((e) => {
+  debounce((e) => {
     const searchQuery = e.target.value.trim();
     if (!searchQuery) {
       suggestionsEl.style.display = "none";

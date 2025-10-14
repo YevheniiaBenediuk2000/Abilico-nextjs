@@ -1,4 +1,9 @@
-const overpassUrl = "https://overpass-api.de/api/interpreter";
+const OVERPASS_ENDPOINTS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.osm.ch/api/interpreter",
+  "https://overpass.openstreetmap.ru/api/interpreter",
+];
 
 export async function fetchPlace(osmType, osmId) {
   const type = { N: "node", W: "way", R: "relation" }[osmType];
@@ -10,7 +15,10 @@ export async function fetchPlace(osmType, osmId) {
   `;
 
   try {
-    const res = await fetch(overpassUrl, { method: "POST", body: query });
+    const res = await fetch(OVERPASS_ENDPOINTS[0], {
+      method: "POST",
+      body: query,
+    });
 
     if (!res.ok) throw new Error("Overpass " + res.status);
     const data = await res.json();
@@ -44,18 +52,25 @@ export async function fetchPlaces(bounds) {
     out center tags;
   `;
 
-  try {
-    const response = await fetch(overpassUrl, {
-      method: "POST",
-      body: query,
-    });
+  let lastError = null;
 
-    if (!response.ok) throw new Error("Overpass error " + response.status);
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      const response = await fetch(endpoint, { method: "POST", body: query });
 
-    const data = await response.json();
-    console.log(data);
-    return osmtogeojson(data);
-  } catch (error) {
-    console.error("Places fetch error:", error);
+      if (!response.ok) {
+        throw new Error(`Overpass error ${response.status} @ ${endpoint}`);
+      }
+
+      const data = await response.json();
+      console.log(data);
+      return osmtogeojson(data);
+    } catch (error) {
+      lastError = error;
+      console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
+    }
   }
+
+  console.error("Places fetch failed on all Overpass endpoints:", lastError);
+  return { type: "FeatureCollection", features: [] };
 }
