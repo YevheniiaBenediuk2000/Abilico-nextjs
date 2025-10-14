@@ -17,12 +17,6 @@ let selectedPlaceMarker = null;
 const searchInput = document.getElementById("search-input");
 const suggestionsEl = document.getElementById("search-suggestions");
 
-const placeClusterLayer = L.markerClusterGroup({
-  chunkedLoading: true,
-  maxClusterRadius: 80,
-  disableClusteringAtZoom: 17,
-});
-
 let obstacleFeatures = [];
 
 const detailsPanel = document.getElementById("details-panel");
@@ -107,11 +101,6 @@ function iconFor(tags) {
 }
 
 async function refreshPlaces() {
-  if (map.getZoom() < 14) {
-    placeClusterLayer.clearLayers();
-    return;
-  }
-
   const geojson = await fetchPlaces(map.getBounds());
 
   const geojsonLayer = L.geoJSON(geojson, {
@@ -133,8 +122,7 @@ async function refreshPlaces() {
     },
   });
 
-  placeClusterLayer.clearLayers();
-  placeClusterLayer.addLayer(geojsonLayer);
+  map.addLayer(geojsonLayer);
 }
 
 const renderDetails = async (tags) => {
@@ -329,8 +317,6 @@ window.addEventListener("click", (e) => e.target === modal && hideModal());
 
 map.whenReady(() => {
   L.control.zoom({ position: "bottomright" }).addTo(map);
-
-  map.addLayer(placeClusterLayer);
 
   routingControl.addTo(map);
   const routingContainer = routingControl.getContainer();
