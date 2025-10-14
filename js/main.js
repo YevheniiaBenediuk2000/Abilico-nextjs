@@ -17,7 +17,7 @@ let selectedPlaceMarker = null;
 const searchInput = document.getElementById("search-input");
 const suggestionsEl = document.getElementById("search-suggestions");
 
-const placeClusterGroup = L.markerClusterGroup({
+const placeClusterLayer = L.markerClusterGroup({
   chunkedLoading: true,
   maxClusterRadius: 80,
   disableClusteringAtZoom: 17,
@@ -108,7 +108,7 @@ function iconFor(tags) {
 
 async function refreshPlaces() {
   if (map.getZoom() < 14) {
-    placeClusterGroup.clearLayers();
+    placeClusterLayer.clearLayers();
     return;
   }
 
@@ -133,8 +133,8 @@ async function refreshPlaces() {
     },
   });
 
-  placeClusterGroup.clearLayers();
-  placeClusterGroup.addLayer(geojsonLayer);
+  placeClusterLayer.clearLayers();
+  placeClusterLayer.addLayer(geojsonLayer);
 }
 
 const renderDetails = async (tags) => {
@@ -330,7 +330,7 @@ window.addEventListener("click", (e) => e.target === modal && hideModal());
 map.whenReady(() => {
   L.control.zoom({ position: "bottomright" }).addTo(map);
 
-  map.addLayer(placeClusterGroup);
+  map.addLayer(placeClusterLayer);
 
   routingControl.addTo(map);
   const routingContainer = routingControl.getContainer();
