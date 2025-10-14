@@ -101,9 +101,13 @@ function iconFor(tags) {
 }
 
 async function refreshPlaces() {
+  if (map.getZoom() < 14) {
+    return;
+  }
+
   const geojson = await fetchPlaces(map.getBounds());
 
-  const geojsonLayer = L.geoJSON(geojson, {
+  const placesLayer = L.geoJSON(geojson, {
     pointToLayer: ({ properties: tags }, latlng) => {
       const marker = L.marker(latlng, {
         icon: L.icon({
@@ -122,7 +126,7 @@ async function refreshPlaces() {
     },
   });
 
-  map.addLayer(geojsonLayer);
+  map.addLayer(placesLayer);
 }
 
 const renderDetails = async (tags) => {
