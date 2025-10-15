@@ -1,5 +1,5 @@
 import pRetry from "https://cdn.jsdelivr.net/npm/p-retry@7.1.0/+esm";
-import { PLACES_DISPLAY_ZOOM } from "../constants.mjs";
+import { SHOW_PLACES_ZOOM } from "../constants.mjs";
 
 const pRetryConfig = { retries: 10, factor: 2, minTimeout: 400 };
 const OVERPASS_ENDPOINTS = [
@@ -53,31 +53,84 @@ export async function fetchPlaces(bounds, zoom) {
   const EXCLUDED =
     "bench|waste_basket|bicycle_parking|vending_machine|fountain|ice_cream";
 
+  const WHEELCHAIR_YES = '["wheelchair"~"^(yes|designated)$"]';
+  const WHEELCHAIR_LIMITED = '["wheelchair"~"^(yes|limited|designated)$"]';
+  const TOILETS_WHEELCHAIR_YES = '["toilets:wheelchair"="yes"]';
+
   const queryParts = [];
 
-  if (zoom >= PLACES_DISPLAY_ZOOM) {
+  const showNoPlaces = zoom < SHOW_PLACES_ZOOM;
+
+  if (showNoPlaces) {
+    return { type: "FeatureCollection", features: [] };
+  }
+
+  if (zoom === SHOW_PLACES_ZOOM) {
+    queryParts.push(
+      `node["amenity"]["name"]${WHEELCHAIR_YES}["amenity"!~"${EXCLUDED}"](${boundingBox})`
+    );
+    queryParts.push(`node["shop"]["name"]${WHEELCHAIR_YES}(${boundingBox})`);
+    queryParts.push(`node["tourism"]["name"]${WHEELCHAIR_YES}(${boundingBox})`);
+    queryParts.push(`node["leisure"]["name"]${WHEELCHAIR_YES}(${boundingBox})`);
+    queryParts.push(
+      `node["healthcare"]["name"]${WHEELCHAIR_YES}(${boundingBox})`
+    );
+
+    queryParts.push(
+      `node["amenity"]["name"]${TOILETS_WHEELCHAIR_YES}["amenity"!~"${EXCLUDED}"](${boundingBox})`
+    );
+    queryParts.push(
+      `node["shop"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
+    );
+    queryParts.push(
+      `node["tourism"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
+    );
+    queryParts.push(
+      `node["leisure"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
+    );
+    queryParts.push(
+      `node["healthcare"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
+    );
+  } else if (zoom >= 14 && zoom < 18) {
+    queryParts.push(
+      `node["amenity"]["name"]${WHEELCHAIR_LIMITED}["amenity"!~"${EXCLUDED}"](${boundingBox})`
+    );
+    queryParts.push(
+      `node["shop"]["name"]${WHEELCHAIR_LIMITED}(${boundingBox})`
+    );
+    queryParts.push(
+      `node["tourism"]["name"]${WHEELCHAIR_LIMITED}(${boundingBox})`
+    );
+    queryParts.push(
+      `node["leisure"]["name"]${WHEELCHAIR_LIMITED}(${boundingBox})`
+    );
+    queryParts.push(
+      `node["healthcare"]["name"]${WHEELCHAIR_LIMITED}(${boundingBox})`
+    );
+
+    queryParts.push(
+      `node["amenity"]["name"]${TOILETS_WHEELCHAIR_YES}["amenity"!~"${EXCLUDED}"](${boundingBox})`
+    );
+    queryParts.push(
+      `node["shop"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
+    );
+    queryParts.push(
+      `node["tourism"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
+    );
+    queryParts.push(
+      `node["leisure"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
+    );
+    queryParts.push(
+      `node["healthcare"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
+    );
+  } else if (zoom >= 18) {
     queryParts.push(
       `node["amenity"]["name"]["amenity"!~"${EXCLUDED}"](${boundingBox})`
     );
-  }
-
-  if (zoom >= 15) {
     queryParts.push(`node["shop"]["name"](${boundingBox})`);
-  }
-
-  if (zoom >= 16) {
     queryParts.push(`node["tourism"]["name"](${boundingBox})`);
-  }
-  if (zoom >= 17) {
     queryParts.push(`node["leisure"]["name"](${boundingBox})`);
-  }
-  if (zoom >= 18) {
     queryParts.push(`node["healthcare"]["name"](${boundingBox})`);
-  }
-
-  // If no parts (very low zoom), return empty
-  if (queryParts.length === 0) {
-    return { type: "FeatureCollection", features: [] };
   }
 
   const query = `

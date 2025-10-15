@@ -10,7 +10,7 @@ import { obstacleStorage, reviewStorage } from "./api/obstacleStorage.js";
 import {
   BASE_PATH,
   DEFAULT_ZOOM,
-  PLACES_DISPLAY_ZOOM,
+  SHOW_PLACES_ZOOM,
   EXCLUDED_PROPS,
 } from "./constants.mjs";
 import { ICON_MANIFEST } from "./static/manifest.js";
@@ -125,7 +125,7 @@ function iconFor(tags) {
 async function refreshPlaces() {
   const zoom = map.getZoom();
 
-  if (zoom < PLACES_DISPLAY_ZOOM) {
+  if (zoom < SHOW_PLACES_ZOOM) {
     placesPane.style.display = "none";
     return;
   }
@@ -310,7 +310,7 @@ if (navigator.geolocation) {
       const userDeniedGeolocation = error.code === 1;
       if (userDeniedGeolocation) {
         const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
-        map.setView(defaultLatLng, PLACES_DISPLAY_ZOOM);
+        map.setView(defaultLatLng, SHOW_PLACES_ZOOM);
       } else {
         console.log(error);
       }
