@@ -1,4 +1,5 @@
 import pRetry from "https://cdn.jsdelivr.net/npm/p-retry@7.1.0/+esm";
+import { PLACES_DISPLAY_ZOOM } from "../constants.mjs";
 
 const pRetryConfig = { retries: 10, factor: 2, minTimeout: 400 };
 const OVERPASS_ENDPOINTS = [
@@ -52,14 +53,37 @@ export async function fetchPlaces(bounds, zoom) {
   const EXCLUDED =
     "bench|waste_basket|bicycle_parking|vending_machine|fountain|ice_cream";
 
+  const queryParts = [];
+
+  if (zoom >= PLACES_DISPLAY_ZOOM) {
+    queryParts.push(
+      `node["amenity"]["name"]["amenity"!~"${EXCLUDED}"](${boundingBox})`
+    );
+  }
+
+  if (zoom >= 15) {
+    queryParts.push(`node["shop"]["name"](${boundingBox})`);
+  }
+
+  if (zoom >= 16) {
+    queryParts.push(`node["tourism"]["name"](${boundingBox})`);
+  }
+  if (zoom >= 17) {
+    queryParts.push(`node["leisure"]["name"](${boundingBox})`);
+  }
+  if (zoom >= 18) {
+    queryParts.push(`node["healthcare"]["name"](${boundingBox})`);
+  }
+
+  // If no parts (very low zoom), return empty
+  if (queryParts.length === 0) {
+    return { type: "FeatureCollection", features: [] };
+  }
+
   const query = `
     [out:json][maxsize:1073741824];
     (
-      node["amenity"]["name"]["amenity"!~"${EXCLUDED}"](${boundingBox});
-      // node["shop"]["name"](${boundingBox});
-      // node["tourism"]["name"](${boundingBox});
-      // node["leisure"]["name"](${boundingBox});
-      // node["healthcare"]["name"](${boundingBox});
+      ${queryParts.join("; ")};
     );
     out center tags;
   `;
