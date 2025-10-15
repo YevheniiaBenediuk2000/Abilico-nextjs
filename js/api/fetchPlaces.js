@@ -42,7 +42,7 @@ export async function fetchPlace(osmType, osmId) {
   return {};
 }
 
-export async function fetchPlaces(bounds) {
+export async function fetchPlaces(bounds, zoom) {
   const s = bounds.getSouth();
   const w = bounds.getWest();
   const n = bounds.getNorth();

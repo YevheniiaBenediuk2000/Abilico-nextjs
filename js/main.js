@@ -7,7 +7,12 @@ import debounce from "https://cdn.jsdelivr.net/npm/lodash.debounce@4.0.8/+esm";
 import { fetchPlace, fetchPlaces } from "./api/fetchPlaces.js";
 import { fetchRoute } from "./api/fetchRoute.js";
 import { obstacleStorage, reviewStorage } from "./api/obstacleStorage.js";
-import { BASE_PATH, DEFAULT_ZOOM, EXCLUDED_PROPS } from "./constants.mjs";
+import {
+  BASE_PATH,
+  DEFAULT_ZOOM,
+  PLACES_DISPLAY_ZOOM,
+  EXCLUDED_PROPS,
+} from "./constants.mjs";
 import { ICON_MANIFEST } from "./static/manifest.js";
 import { hideModal, showModal } from "./utils.mjs";
 
@@ -118,14 +123,16 @@ function iconFor(tags) {
 }
 
 async function refreshPlaces() {
-  if (map.getZoom() < 14) {
+  const zoom = map.getZoom();
+
+  if (zoom < PLACES_DISPLAY_ZOOM) {
     placesPane.style.display = "none";
     return;
   }
 
   placesPane.style.display = "";
 
-  const geojson = await fetchPlaces(map.getBounds());
+  const geojson = await fetchPlaces(map.getBounds(), zoom);
   placesLayer.addData(geojson);
 }
 
@@ -302,8 +309,8 @@ if (navigator.geolocation) {
     (error) => {
       const userDeniedGeolocation = error.code === 1;
       if (userDeniedGeolocation) {
-        const defaultLatLng = [51.5074, -0.1278]; // London, UK
-        map.setView(defaultLatLng, DEFAULT_ZOOM);
+        const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
+        map.setView(defaultLatLng, PLACES_DISPLAY_ZOOM);
       } else {
         console.log(error);
       }
@@ -340,7 +347,7 @@ map.whenReady(() => {
   refreshPlaces();
   initDrawingObstacles();
 
-  map.on("moveend", debounce(refreshPlaces, 1000));
+  map.on("moveend", debounce(refreshPlaces, 400));
 
   map.on("click", function (e) {
     const container = L.DomUtil.create("div"),
