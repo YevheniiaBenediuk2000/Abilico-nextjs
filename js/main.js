@@ -11,6 +11,22 @@ import { BASE_PATH, DEFAULT_ZOOM, EXCLUDED_PROPS } from "./constants.mjs";
 import { ICON_MANIFEST } from "./static/manifest.js";
 import { hideModal, showModal } from "./utils.mjs";
 
+const placesLayer = L.geoJSON(null, {
+  pointToLayer: ({ properties: tags }, latlng) => {
+    const marker = L.marker(latlng, {
+      icon: L.icon({ iconUrl: iconFor(tags), iconSize: [32, 32] }),
+    });
+
+    const title = tags.name ?? tags.amenity ?? "Unnamed place";
+
+    marker.bindPopup(`<strong>${title}</strong>`);
+
+    marker.on("click", () => renderDetails(tags));
+
+    return marker;
+  },
+});
+
 // ===== OMNIBOX STATE =====
 let userLocation = null;
 let selectedPlaceMarker = null;
@@ -101,32 +117,24 @@ function iconFor(tags) {
 }
 
 async function refreshPlaces() {
-  if (map.getZoom() < 14) {
+  if (map.getZoom() < 14 && map.hasLayer(placesLayer)) {
+    placesLayer.eachLayer((layer) => {
+      try {
+        layer.getPane().style.display = "none";
+      } catch {}
+    });
+
     return;
   }
 
-  const geojson = await fetchPlaces(map.getBounds());
-
-  const placesLayer = L.geoJSON(geojson, {
-    pointToLayer: ({ properties: tags }, latlng) => {
-      const marker = L.marker(latlng, {
-        icon: L.icon({
-          iconUrl: iconFor(tags),
-          iconSize: [32, 32],
-        }),
-      });
-
-      const title = tags.name ?? tags.amenity ?? "Unnamed place";
-
-      marker.bindPopup(`<strong>${title}</strong>`);
-
-      marker.on("click", () => renderDetails(tags));
-
-      return marker;
-    },
+  placesLayer.eachLayer((layer) => {
+    try {
+      layer.getPane().style.display = ""; // show
+    } catch {}
   });
 
-  map.addLayer(placesLayer);
+  const geojson = await fetchPlaces(map.getBounds());
+  placesLayer.addData(geojson);
 }
 
 const renderDetails = async (tags) => {
@@ -328,6 +336,8 @@ map.whenReady(() => {
 
   // We’ll toggle this class to show LRM's geocoder fields when needed
   routingContainer.classList.remove("lrm-show-geocoders");
+
+  placesLayer.addTo(map);
 
   refreshPlaces();
   initDrawingObstacles();
