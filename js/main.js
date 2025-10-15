@@ -11,17 +11,18 @@ import { BASE_PATH, DEFAULT_ZOOM, EXCLUDED_PROPS } from "./constants.mjs";
 import { ICON_MANIFEST } from "./static/manifest.js";
 import { hideModal, showModal } from "./utils.mjs";
 
+let placesPane;
+
 const placesLayer = L.geoJSON(null, {
   pointToLayer: ({ properties: tags }, latlng) => {
     const marker = L.marker(latlng, {
+      pane: "places-pane",
       icon: L.icon({ iconUrl: iconFor(tags), iconSize: [32, 32] }),
-    });
+    }).on("click", () => renderDetails(tags));
 
     const title = tags.name ?? tags.amenity ?? "Unnamed place";
 
     marker.bindPopup(`<strong>${title}</strong>`);
-
-    marker.on("click", () => renderDetails(tags));
 
     return marker;
   },
@@ -117,21 +118,12 @@ function iconFor(tags) {
 }
 
 async function refreshPlaces() {
-  if (map.getZoom() < 14 && map.hasLayer(placesLayer)) {
-    placesLayer.eachLayer((layer) => {
-      try {
-        layer.getPane().style.display = "none";
-      } catch {}
-    });
-
+  if (map.getZoom() < 14) {
+    placesPane.style.display = "none";
     return;
   }
 
-  placesLayer.eachLayer((layer) => {
-    try {
-      layer.getPane().style.display = ""; // show
-    } catch {}
-  });
+  placesPane.style.display = "";
 
   const geojson = await fetchPlaces(map.getBounds());
   placesLayer.addData(geojson);
@@ -328,6 +320,12 @@ modalCloseBtn.addEventListener("click", hideModal);
 window.addEventListener("click", (e) => e.target === modal && hideModal());
 
 map.whenReady(() => {
+  placesPane = map.createPane("places-pane");
+  placesPane.style.zIndex = 450; // below selected
+
+  const selectedPane = map.createPane("selected-pane");
+  selectedPane.style.zIndex = 650; // above normal markers
+
   L.control.zoom({ position: "bottomright" }).addTo(map);
 
   routingControl.addTo(map);
@@ -407,13 +405,16 @@ function renderSuggestions(items) {
 async function selectSuggestion(res) {
   suggestionsEl.style.display = "none";
 
-  map.flyTo(res.center, Math.max(map.getZoom()));
+  map.flyTo(res.center, map.getZoom());
 
   if (selectedPlaceMarker) {
     selectedPlaceMarker.remove();
   }
-  selectedPlaceMarker = L.marker(res.center).addTo(map).bindPopup(res.name);
-  selectedPlaceMarker.openPopup();
+
+  selectedPlaceMarker = L.marker(res.center, { pane: "selected-pane" })
+    .addTo(map)
+    .bindPopup(res.name)
+    .openPopup();
 
   const tags = await fetchPlace(res.properties.osm_type, res.properties.osm_id);
   renderPlaceCardFromGeocoder(tags, res.center);
