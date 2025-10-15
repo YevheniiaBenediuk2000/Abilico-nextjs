@@ -124,16 +124,26 @@ function iconFor(tags) {
 
 async function refreshPlaces() {
   const zoom = map.getZoom();
-
-  if (zoom < SHOW_PLACES_ZOOM) {
-    placesPane.style.display = "none";
-    return;
-  }
-
-  placesPane.style.display = "";
-
   const geojson = await fetchPlaces(map.getBounds(), zoom);
-  placesLayer.addData(geojson);
+  const visibleIds = new Set(geojson.features.map((f) => f.id));
+
+  placesLayer.eachLayer((layer) => {
+    const feature = layer.feature;
+    const visible = visibleIds.has(feature.id);
+
+    if (visible) {
+      layer._icon && (layer._icon.style.display = "");
+    } else {
+      layer._icon && (layer._icon.style.display = "none");
+    }
+  });
+
+  const existingIds = new Set();
+  placesLayer.eachLayer((l) => existingIds.add(l.feature.id));
+
+  geojson.features
+    .filter((f) => !existingIds.has(f.id))
+    .forEach((f) => placesLayer.addData(f));
 }
 
 const renderDetails = async (tags) => {
