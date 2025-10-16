@@ -17,6 +17,7 @@ import { ICON_MANIFEST } from "./static/manifest.js";
 import { hideModal, showModal } from "./utils/modal.mjs";
 import { createMarker } from "./utils/wayPoints.mjs";
 
+let selectedPlaceLayer = null;
 let placesPane;
 
 const placesLayer = L.geoJSON(null, {
@@ -36,7 +37,6 @@ const placesLayer = L.geoJSON(null, {
 
 // ===== OMNIBOX STATE =====
 let userLocation = null;
-let selectedPlaceMarker = null;
 const searchInput = document.getElementById("search-input");
 const suggestionsEl = document.getElementById("search-suggestions");
 
@@ -424,16 +424,42 @@ function renderSuggestions(items) {
 async function selectSuggestion(res) {
   suggestionsEl.style.display = "none";
 
-  map.flyTo(res.center, map.getZoom());
-
-  if (selectedPlaceMarker) {
-    selectedPlaceMarker.remove();
+  if (selectedPlaceLayer) {
+    map.removeLayer(selectedPlaceLayer);
   }
 
-  selectedPlaceMarker = L.marker(res.center, { pane: "selected-pane" })
-    .addTo(map)
-    .bindPopup(res.name)
-    .openPopup();
+  map.flyTo(res.center, map.getZoom());
+
+  // Fetch full geometry (way/relation) for the place
+  const osmType = res.properties.osm_type;
+  const osmId = res.properties.osm_id;
+  const type = { N: "node", W: "way", R: "relation" }[osmType];
+
+  const query = `
+    [out:json];
+    ${type}(${osmId});
+    out geom;
+  `;
+
+  const response = await fetch("https://overpass-api.de/api/interpreter", {
+    method: "POST",
+    body: query,
+  });
+  const data = await response.json();
+
+  const geojson = osmtogeojson(data);
+  selectedPlaceLayer = L.geoJSON(geojson, {
+    style: {
+      color: "#d33",
+      weight: 2,
+      opacity: 0.8,
+      fillColor: "#f03",
+      fillOpacity: 0.1,
+    },
+  }).addTo(map);
+
+  const bounds = selectedPlaceLayer.getBounds();
+  if (bounds.isValid()) map.fitBounds(bounds);
 
   const tags = await fetchPlace(res.properties.osm_type, res.properties.osm_id);
   renderPlaceCardFromGeocoder(tags, res.center);
