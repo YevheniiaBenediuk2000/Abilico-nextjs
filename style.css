@@ -107,23 +107,3 @@ body {
 .leaflet-routing-container.leaflet-bar.leaflet-control {
   margin-top: 60px;
 }
-
-/* Waypoint icons (start/via/destination) */
-.waypoint-start {
-  /* background: #1a73e8;
-  border: 3px solid #fff; 
-  border-radius: 50%;
-  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.45); */
-}
-
-.waypoint-via {
-  width: 14px;
-  height: 14px;
-  background: #4285f4;
-  border: 2px solid #fff;
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
-}
-
-.waypoint-dest {
-}
