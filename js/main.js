@@ -97,6 +97,33 @@ const WheelchairRouter = L.Class.extend({
   },
 });
 
+const viaIcon = L.divIcon({
+  className: "waypoint-via",
+  iconSize: [14, 14],
+  iconAnchor: [7, 7],
+});
+const destPinSVG = `
+  <svg viewBox="0 0 32 48" width="34" height="48" aria-hidden="true">
+    <path d="M16 0C7.2 0 0 7.2 0 16c0 11.3 16 32 16 32s16-20.7 16-32C32 7.2 24.8 0 16 0z" fill="#EA4335"/>
+    <circle cx="16" cy="16" r="7" fill="#fff"/>
+  </svg>
+`;
+const endIcon = L.divIcon({
+  className: "waypoint-dest",
+  html: destPinSVG,
+  iconSize: [34, 48],
+  iconAnchor: [17, 48],
+});
+
+const startIcon = L.divIcon({
+  iconSize: [20, 20],
+  iconAnchor: [10, 10],
+  className: "",
+  html: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="10" cy="10" r="10" fill="#4285f4"/>
+    <text x="10" y="15" text-anchor="middle" fill="white" font-size="12" font-family="Arial">A</text>
+  </svg>`,
+});
 const geocoder = L.Control.Geocoder.photon({
   serviceUrl: "https://photon.komoot.io/api/",
   reverseUrl: "https://photon.komoot.io/reverse/",
@@ -108,6 +135,18 @@ const routingControl = L.Routing.control({
   routeWhileDragging: true,
   reverseWaypoints: true,
   showAlternatives: true,
+  createMarker: function (i, wp, nWps) {
+    const isStart = i === 0;
+    const isEnd = i === nWps - 1;
+
+    if (isStart) {
+      return L.marker(wp.latLng, { icon: startIcon });
+    } else if (isEnd) {
+      return L.marker(wp.latLng, { icon: endIcon });
+    } else {
+      return L.marker(wp.latLng, { icon: viaIcon });
+    }
+  },
 });
 
 function iconFor(tags) {
@@ -477,7 +516,7 @@ searchInput.addEventListener(
     }
 
     geocoder.geocode(searchQuery, renderSuggestions);
-  }, 200)
+  }, 300)
 );
 
 const hideSuggestionsIfClickedOutside = (e) => {
