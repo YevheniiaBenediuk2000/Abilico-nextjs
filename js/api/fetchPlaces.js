@@ -52,6 +52,7 @@ export async function fetchPlaces(bounds, zoom) {
 
   const EXCLUDED =
     "bench|waste_basket|bicycle_parking|vending_machine|fountain|ice_cream";
+  // TODO: add excluded for all the other categories
 
   const WHEELCHAIR_YES = '["wheelchair"~"^(yes|designated)$"]';
   const WHEELCHAIR_LIMITED = '["wheelchair"~"^(yes|limited|designated)$"]';
@@ -75,6 +76,13 @@ export async function fetchPlaces(bounds, zoom) {
     queryParts.push(
       `node["healthcare"]["name"]${WHEELCHAIR_YES}(${boundingBox})`
     );
+    queryParts.push(
+      `node["building"]["name"]${WHEELCHAIR_YES}(${boundingBox})`
+    );
+    queryParts.push(`node["office"]["name"]${WHEELCHAIR_YES}(${boundingBox})`);
+    queryParts.push(
+      `node["public_transport"]["name"]${WHEELCHAIR_YES}(${boundingBox})`
+    );
 
     queryParts.push(
       `node["amenity"]["name"]${TOILETS_WHEELCHAIR_YES}["amenity"!~"${EXCLUDED}"](${boundingBox})`
@@ -91,7 +99,16 @@ export async function fetchPlaces(bounds, zoom) {
     queryParts.push(
       `node["healthcare"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
     );
-  } else if (zoom >= 14 && zoom < 18) {
+    queryParts.push(
+      `node["building"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
+    );
+    queryParts.push(
+      `node["office"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
+    );
+    queryParts.push(
+      `node["public_transport"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
+    );
+  } else if (zoom >= SHOW_PLACES_ZOOM + 1 && zoom < 18) {
     queryParts.push(
       `node["amenity"]["name"]${WHEELCHAIR_LIMITED}["amenity"!~"${EXCLUDED}"](${boundingBox})`
     );
@@ -107,6 +124,15 @@ export async function fetchPlaces(bounds, zoom) {
     queryParts.push(
       `node["healthcare"]["name"]${WHEELCHAIR_LIMITED}(${boundingBox})`
     );
+    queryParts.push(
+      `node["building"]["name"]${WHEELCHAIR_LIMITED}(${boundingBox})`
+    );
+    queryParts.push(
+      `node["office"]["name"]${WHEELCHAIR_LIMITED}(${boundingBox})`
+    );
+    queryParts.push(
+      `node["public_transport"]["name"]${WHEELCHAIR_LIMITED}(${boundingBox})`
+    );
 
     queryParts.push(
       `node["amenity"]["name"]${TOILETS_WHEELCHAIR_YES}["amenity"!~"${EXCLUDED}"](${boundingBox})`
@@ -123,6 +149,15 @@ export async function fetchPlaces(bounds, zoom) {
     queryParts.push(
       `node["healthcare"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
     );
+    queryParts.push(
+      `node["building"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
+    );
+    queryParts.push(
+      `node["office"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
+    );
+    queryParts.push(
+      `node["public_transport"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
+    );
   } else if (zoom >= 18) {
     queryParts.push(
       `node["amenity"]["name"]["amenity"!~"${EXCLUDED}"](${boundingBox})`
@@ -131,6 +166,9 @@ export async function fetchPlaces(bounds, zoom) {
     queryParts.push(`node["tourism"]["name"](${boundingBox})`);
     queryParts.push(`node["leisure"]["name"](${boundingBox})`);
     queryParts.push(`node["healthcare"]["name"](${boundingBox})`);
+    queryParts.push(`node["building"]["name"](${boundingBox})`);
+    queryParts.push(`node["office"]["name"](${boundingBox})`);
+    queryParts.push(`node["public_transport"]["name"](${boundingBox})`);
   }
 
   const query = `
