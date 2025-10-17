@@ -33,7 +33,7 @@ const placesLayer = L.geoJSON(null, {
     const marker = L.marker(latlng, {
       pane: "places-pane",
       icon: L.icon({ iconUrl: iconFor(tags), iconSize: [32, 32] }),
-    }).on("click", () => renderPlaceCardFromGeocoder(tags, latlng));
+    }).on("click", () => renderDetails(tags, latlng));
 
     const title = tags.name ?? tags.amenity ?? "Unnamed place";
 
@@ -164,7 +164,7 @@ async function refreshPlaces() {
     .forEach((f) => placesLayer.addData(f));
 }
 
-const renderDetails = async (tags) => {
+const renderDetails = async (tags, latlng) => {
   detailsPanel.style.display = "block";
   detailsPanel.innerHTML = "<h3>Details</h3>";
 
@@ -188,6 +188,18 @@ const renderDetails = async (tags) => {
       detailsPanel.appendChild(div);
     }
   });
+
+  // Add Directions button
+  const dirBtn = document.createElement("button");
+  dirBtn.textContent = "Directions";
+  dirBtn.id = "btn-directions";
+  dirBtn.addEventListener("click", () => {
+    const start = userLocation || routingControl.getWaypoints()[0].latLng;
+    const end = latlng;
+    routingControl.setWaypoints([start, end]);
+    routingControl.getContainer().classList.add("lrm-show-geocoders");
+  });
+  detailsPanel.appendChild(dirBtn);
 
   // Add Reviews Section
   const reviews = await reviewStorage();
@@ -230,7 +242,7 @@ const renderDetails = async (tags) => {
     await reviewStorage("PUT", reviews);
 
     // Refresh details to show new review
-    renderDetails(tags);
+    renderDetails(tags, latlng);
   });
 };
 
@@ -481,15 +493,7 @@ async function selectSuggestion(res) {
 
 /** Render a simple card for the selected place + Directions button */
 function renderPlaceCardFromGeocoder(tags, latlng) {
-  detailsPanel.innerHTML = "";
-  detailsPanel.style.display = "block";
-
-  // ensure the panel shows this place
-  renderDetails(tags);
-
-  const header = document.createElement("div");
-  header.innerHTML = `<button id="btn-directions">Directions</button>`;
-  detailsPanel.appendChild(header);
+  renderDetails(tags, latlng);
 
   document.getElementById("btn-directions").addEventListener("click", () => {
     if (selectedPlaceLayer && selectedPlaceLayer instanceof L.Marker) {
