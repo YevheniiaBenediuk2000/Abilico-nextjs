@@ -437,23 +437,29 @@ async function selectSuggestion(res) {
 
   const geojsonGeometry = await fetchPlaceGeometry(osmType, osmId);
 
-  selectedPlaceLayer = L.geoJSON(geojsonGeometry, {
-    style: {
-      color: "#d33",
-      weight: 2,
-      opacity: 0.8,
-      fillColor: "#f03",
-      fillOpacity: 0.1,
-      dashArray: "6,4",
-    },
-  }).addTo(map);
+  const polyLike =
+    geojsonGeometry.features.find(
+      (f) => f.geometry && f.geometry.type !== "Point"
+    ) || null;
 
-  const bounds = selectedPlaceLayer.getBounds();
-  if (bounds.isValid()) {
-    map.fitBounds(bounds, { padding: [28, 28] });
+  const commonStyle = {
+    color: "#d33",
+    weight: 2,
+    opacity: 0.8,
+    fillColor: "#f03",
+    fillOpacity: 0.1,
+  };
+
+  if (polyLike) {
+    selectedPlaceLayer = L.geoJSON(geojsonGeometry, {
+      style: { ...commonStyle, dashArray: "6,4" },
+    });
   } else {
-    map.flyTo(res.center, map.getZoom());
+    selectedPlaceLayer = L.circle(res.center, { ...commonStyle, radius: 10 });
   }
+
+  selectedPlaceLayer.addTo(map);
+  map.fitBounds(selectedPlaceLayer.getBounds(), { padding: [28, 28] });
 
   const tags = await fetchPlace(res.properties.osm_type, res.properties.osm_id);
   renderPlaceCardFromGeocoder(tags, res.center);
