@@ -45,6 +45,7 @@ const placesLayer = L.geoJSON(null, {
 
 // ===== OMNIBOX STATE =====
 let userLocation = null;
+const searchBar = document.getElementById("search-bar");
 const searchInput = document.getElementById("search-input");
 const suggestionsEl = document.getElementById("search-suggestions");
 
@@ -119,8 +120,12 @@ const routingControl = L.Routing.control({
 });
 
 routingControl.on("routesfound", function (e) {
+  searchBar.style.display = "none";
+  detailsPanel.style.display = "none";
+  routingControl.getContainer().style.marginTop = "10px";
+
   const routeBounds = L.latLngBounds(e.routes[0].coordinates);
-  map.fitBounds(routeBounds, { padding: [50, 50] });
+  map.fitBounds(routeBounds, { padding: [70, 50] });
 });
 
 function iconFor(tags) {
@@ -367,7 +372,7 @@ map.whenReady(() => {
   refreshPlaces();
   initDrawingObstacles();
 
-  map.on("moveend", debounce(refreshPlaces, 400));
+  map.on("moveend", debounce(refreshPlaces, 300));
 
   map.on("click", function (e) {
     const container = L.DomUtil.create("div"),
@@ -519,11 +524,11 @@ searchInput.addEventListener(
     }
 
     geocoder.geocode(searchQuery, renderSuggestions);
-  }, 400)
+  }, 300)
 );
 
 const hideSuggestionsIfClickedOutside = (e) => {
-  if (!document.getElementById("searchbar").contains(e.target)) {
+  if (!searchBar.contains(e.target)) {
     suggestionsEl.style.display = "none";
   }
 };
