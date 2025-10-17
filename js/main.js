@@ -118,6 +118,11 @@ const routingControl = L.Routing.control({
   createMarker,
 });
 
+routingControl.on("routesfound", function (e) {
+  const routeBounds = L.latLngBounds(e.routes[0].coordinates);
+  map.fitBounds(routeBounds, { padding: [50, 50] });
+});
+
 function iconFor(tags) {
   const candidates = ICON_MANIFEST.filter((p) =>
     p.endsWith(`/${tags.amenity}.svg`)
