@@ -18,7 +18,7 @@ import {
   EXCLUDED_PROPS,
 } from "./constants.mjs";
 import { ICON_MANIFEST } from "./static/manifest.js";
-import { hideModal, showModal } from "./utils/modal.mjs";
+import { showModal } from "./utils/modal.mjs";
 import {
   createMarker,
   waypointDivIcon,
@@ -51,8 +51,6 @@ const suggestionsEl = document.getElementById("search-suggestions");
 let obstacleFeatures = [];
 
 const detailsPanel = document.getElementById("details-panel");
-const modal = document.getElementById("constraint-modal");
-const modalCloseBtn = document.getElementById("constraint-modal-close");
 
 // --- LRM adapter that calls our existing OpenRouteService-based fetchRoute() ---
 const WheelchairRouter = L.Class.extend({
@@ -343,9 +341,6 @@ if (navigator.geolocation) {
 
 // ============= EVENT LISTENERS ================
 
-modalCloseBtn.addEventListener("click", hideModal);
-window.addEventListener("click", (e) => e.target === modal && hideModal());
-
 map.whenReady(() => {
   placesPane = map.createPane("places-pane");
   placesPane.style.zIndex = 450; // below selected
@@ -457,7 +452,7 @@ async function selectSuggestion(res) {
         dashArray: "6,4",
       },
     });
-    map.fitBounds(selectedPlaceLayer.getBounds(), { padding: [28, 28] });
+    map.fitBounds(selectedPlaceLayer.getBounds());
   } else {
     const icon = waypointDivIcon("", WP_COLORS.end);
     selectedPlaceLayer = L.marker(res.center, {
