@@ -33,7 +33,7 @@ const placesLayer = L.geoJSON(null, {
     const marker = L.marker(latlng, {
       pane: "places-pane",
       icon: L.icon({ iconUrl: iconFor(tags), iconSize: [32, 32] }),
-    }).on("click", () => renderDetails(tags));
+    }).on("click", () => renderPlaceCardFromGeocoder(tags, latlng));
 
     const title = tags.name ?? tags.amenity ?? "Unnamed place";
 
@@ -481,7 +481,7 @@ async function selectSuggestion(res) {
 
 /** Render a simple card for the selected place + Directions button */
 function renderPlaceCardFromGeocoder(tags, latlng) {
-  detailsPanel.innerHTML = ""; // clear previous
+  detailsPanel.innerHTML = "";
   detailsPanel.style.display = "block";
 
   // ensure the panel shows this place
