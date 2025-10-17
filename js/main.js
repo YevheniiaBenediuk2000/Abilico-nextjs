@@ -432,12 +432,11 @@ async function selectSuggestion(res) {
     map.removeLayer(selectedPlaceLayer);
   }
 
-  map.flyTo(res.center, map.getZoom());
-
   const osmType = res.properties.osm_type;
   const osmId = res.properties.osm_id;
 
   const geojsonGeometry = await fetchPlaceGeometry(osmType, osmId);
+
   selectedPlaceLayer = L.geoJSON(geojsonGeometry, {
     style: {
       color: "#d33",
@@ -450,7 +449,11 @@ async function selectSuggestion(res) {
   }).addTo(map);
 
   const bounds = selectedPlaceLayer.getBounds();
-  if (bounds.isValid()) map.fitBounds(bounds);
+  if (bounds.isValid()) {
+    map.fitBounds(bounds, { padding: [28, 28] });
+  } else {
+    map.flyTo(res.center, map.getZoom());
+  }
 
   const tags = await fetchPlace(res.properties.osm_type, res.properties.osm_id);
   renderPlaceCardFromGeocoder(tags, res.center);
