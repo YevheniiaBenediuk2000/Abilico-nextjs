@@ -9,7 +9,15 @@ const OVERPASS_ENDPOINTS = [
   "https://overpass.osm.jp/api/interpreter",
 ];
 
+let placeGeometryAbortController = null;
+
 export async function fetchPlaceGeometry(osmType, osmId) {
+  if (placeGeometryAbortController) {
+    placeGeometryAbortController.abort();
+  }
+  placeGeometryAbortController = new AbortController();
+  const { signal } = placeGeometryAbortController;
+
   const type = { N: "node", W: "way", R: "relation" }[osmType];
 
   const query = `
@@ -23,7 +31,11 @@ export async function fetchPlaceGeometry(osmType, osmId) {
   for (const endpoint of OVERPASS_ENDPOINTS) {
     try {
       return await pRetry(async () => {
-        const response = await fetch(endpoint, { method: "POST", body: query });
+        const response = await fetch(endpoint, {
+          method: "POST",
+          body: query,
+          signal,
+        });
         if (!response.ok)
           throw new Error(`Overpass error ${response.status} @ ${endpoint}`);
         const data = await response.json();
@@ -41,7 +53,15 @@ export async function fetchPlaceGeometry(osmType, osmId) {
   return { type: "FeatureCollection", features: [] };
 }
 
+let placeAbortController = null;
+
 export async function fetchPlace(osmType, osmId) {
+  if (placeAbortController) {
+    placeAbortController.abort();
+  }
+  placeAbortController = new AbortController();
+  const { signal } = placeAbortController;
+
   const type = { N: "node", W: "way", R: "relation" }[osmType];
 
   const query = `
@@ -58,6 +78,7 @@ export async function fetchPlace(osmType, osmId) {
         const response = await fetch(endpoint, {
           method: "POST",
           body: query,
+          signal,
         });
 
         if (!response.ok) throw new Error("Overpass " + response.status);
@@ -75,7 +96,15 @@ export async function fetchPlace(osmType, osmId) {
   return {};
 }
 
+let placesAbortController = null;
+
 export async function fetchPlaces(bounds, zoom) {
+  if (placesAbortController) {
+    placesAbortController.abort();
+  }
+  placesAbortController = new AbortController();
+  const { signal } = placesAbortController;
+
   const s = bounds.getSouth();
   const w = bounds.getWest();
   const n = bounds.getNorth();
@@ -223,6 +252,7 @@ export async function fetchPlaces(bounds, zoom) {
         const response = await fetch(endpoint, {
           method: "POST",
           body: query,
+          signal,
         });
 
         if (!response.ok) {

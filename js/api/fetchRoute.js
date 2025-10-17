@@ -1,7 +1,15 @@
 import { ORS_API_KEY } from "../constants.mjs";
 import { showModal } from "../utils/modal.mjs";
 
+let routeAbortController = null;
+
 export async function fetchRoute(coordinates, obstacleFeatures) {
+  if (routeAbortController) {
+    routeAbortController.abort();
+  }
+  routeAbortController = new AbortController();
+  const { signal } = routeAbortController;
+
   const url =
     "https://api.openrouteservice.org/v2/directions/wheelchair/geojson";
 
@@ -31,6 +39,7 @@ export async function fetchRoute(coordinates, obstacleFeatures) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(requestBody),
+      signal,
     });
 
     const data = await response.json();

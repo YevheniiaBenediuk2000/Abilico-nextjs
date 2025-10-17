@@ -519,7 +519,7 @@ searchInput.addEventListener(
     }
 
     geocoder.geocode(searchQuery, renderSuggestions);
-  }, 300)
+  }, 400)
 );
 
 const hideSuggestionsIfClickedOutside = (e) => {
