@@ -487,6 +487,11 @@ function renderPlaceCardFromGeocoder(tags, latlng) {
   detailsPanel.appendChild(header);
 
   document.getElementById("btn-directions").addEventListener("click", () => {
+    if (selectedPlaceLayer && selectedPlaceLayer instanceof L.Marker) {
+      map.removeLayer(selectedPlaceLayer);
+      selectedPlaceLayer = null;
+    }
+
     // Reveal LRM geocoders + set destination
     const wps = routingControl.getWaypoints();
 
