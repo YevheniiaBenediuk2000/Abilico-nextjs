@@ -9,6 +9,38 @@ const OVERPASS_ENDPOINTS = [
   "https://overpass.osm.jp/api/interpreter",
 ];
 
+export async function fetchPlaceGeometry(osmType, osmId) {
+  const type = { N: "node", W: "way", R: "relation" }[osmType];
+
+  const query = `
+    [out:json];
+    ${type}(${osmId});
+    out geom;
+  `;
+
+  let lastError = null;
+
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      return await pRetry(async () => {
+        const response = await fetch(endpoint, { method: "POST", body: query });
+        if (!response.ok)
+          throw new Error(`Overpass error ${response.status} @ ${endpoint}`);
+        const data = await response.json();
+
+        // Convert Overpass JSON to GeoJSON (FeatureCollection)
+        return osmtogeojson(data);
+      }, pRetryConfig);
+    } catch (error) {
+      lastError = error;
+      console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
+    }
+  }
+
+  console.error("Geometry fetch failed on all Overpass endpoints:", lastError);
+  return { type: "FeatureCollection", features: [] };
+}
+
 export async function fetchPlace(osmType, osmId) {
   const type = { N: "node", W: "way", R: "relation" }[osmType];
 

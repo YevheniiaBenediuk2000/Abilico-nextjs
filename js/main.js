@@ -4,7 +4,11 @@
 // } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers";
 import debounce from "https://cdn.jsdelivr.net/npm/lodash.debounce@4.0.8/+esm";
 
-import { fetchPlace, fetchPlaces } from "./api/fetchPlaces.js";
+import {
+  fetchPlace,
+  fetchPlaceGeometry,
+  fetchPlaces,
+} from "./api/fetchPlaces.js";
 import { fetchRoute } from "./api/fetchRoute.js";
 import { obstacleStorage, reviewStorage } from "./api/obstacleStorage.js";
 import {
@@ -430,31 +434,18 @@ async function selectSuggestion(res) {
 
   map.flyTo(res.center, map.getZoom());
 
-  // Fetch full geometry (way/relation) for the place
   const osmType = res.properties.osm_type;
   const osmId = res.properties.osm_id;
-  const type = { N: "node", W: "way", R: "relation" }[osmType];
 
-  const query = `
-    [out:json];
-    ${type}(${osmId});
-    out geom;
-  `;
-
-  const response = await fetch("https://overpass-api.de/api/interpreter", {
-    method: "POST",
-    body: query,
-  });
-  const data = await response.json();
-
-  const geojson = osmtogeojson(data);
-  selectedPlaceLayer = L.geoJSON(geojson, {
+  const geojsonGeometry = await fetchPlaceGeometry(osmType, osmId);
+  selectedPlaceLayer = L.geoJSON(geojsonGeometry, {
     style: {
       color: "#d33",
       weight: 2,
       opacity: 0.8,
       fillColor: "#f03",
       fillOpacity: 0.1,
+      dashArray: "6,4",
     },
   }).addTo(map);
 
