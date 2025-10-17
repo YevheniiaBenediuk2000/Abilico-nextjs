@@ -1,6 +1,6 @@
-const WP_COLORS = { start: "#1a73e8", end: "#d93025", via: "#6b7280" };
+export const WP_COLORS = { start: "#1a73e8", end: "#d93025", via: "#6b7280" };
 
-function waypointDivIcon(letter, color) {
+export function waypointDivIcon(letter, color) {
   const svg = `
   <svg width="30" height="42" viewBox="0 0 30 42" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <defs>
@@ -25,7 +25,7 @@ function waypointDivIcon(letter, color) {
   });
 }
 
-const letterFor = (i) => String.fromCharCode(65 + i); // 0->A, 1->B, ...
+export const letterFor = (i) => String.fromCharCode(65 + i); // 0->A, 1->B, ...
 
 export const createMarker = function (i, wp, nWps) {
   const isStart = i === 0;

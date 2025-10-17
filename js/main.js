@@ -19,7 +19,11 @@ import {
 } from "./constants.mjs";
 import { ICON_MANIFEST } from "./static/manifest.js";
 import { hideModal, showModal } from "./utils/modal.mjs";
-import { createMarker } from "./utils/wayPoints.mjs";
+import {
+  createMarker,
+  waypointDivIcon,
+  WP_COLORS,
+} from "./utils/wayPoints.mjs";
 
 let selectedPlaceLayer = null;
 let placesPane;
@@ -442,24 +446,29 @@ async function selectSuggestion(res) {
       (f) => f.geometry && f.geometry.type !== "Point"
     ) || null;
 
-  const commonStyle = {
-    color: "#d33",
-    weight: 2,
-    opacity: 0.8,
-    fillColor: "#f03",
-    fillOpacity: 0.1,
-  };
-
   if (polyLike) {
     selectedPlaceLayer = L.geoJSON(geojsonGeometry, {
-      style: { ...commonStyle, dashArray: "6,4" },
+      style: {
+        color: "#d33",
+        weight: 2,
+        opacity: 0.8,
+        fillColor: "#f03",
+        fillOpacity: 0.1,
+        dashArray: "6,4",
+      },
     });
+    map.fitBounds(selectedPlaceLayer.getBounds(), { padding: [28, 28] });
   } else {
-    selectedPlaceLayer = L.circle(res.center, { ...commonStyle, radius: 10 });
+    const icon = waypointDivIcon("", WP_COLORS.end);
+    selectedPlaceLayer = L.marker(res.center, {
+      icon,
+      keyboard: false,
+      interactive: false,
+    });
+    map.setView(selectedPlaceLayer.getLatLng(), 18);
   }
 
   selectedPlaceLayer.addTo(map);
-  map.fitBounds(selectedPlaceLayer.getBounds(), { padding: [28, 28] });
 
   const tags = await fetchPlace(res.properties.osm_type, res.properties.osm_id);
   renderPlaceCardFromGeocoder(tags, res.center);
