@@ -194,10 +194,25 @@ const renderDetails = async (tags, latlng) => {
   dirBtn.textContent = "Directions";
   dirBtn.id = "btn-directions";
   dirBtn.addEventListener("click", () => {
-    const start = userLocation || routingControl.getWaypoints()[0].latLng;
+    if (selectedPlaceLayer && selectedPlaceLayer instanceof L.Marker) {
+      map.removeLayer(selectedPlaceLayer);
+      selectedPlaceLayer = null;
+    }
+
+    // Reveal LRM geocoders + set destination
+    const wps = routingControl.getWaypoints();
+
+    const start = userLocation || wps[0].latLng;
     const end = latlng;
-    routingControl.setWaypoints([start, end]);
-    routingControl.getContainer().classList.add("lrm-show-geocoders");
+
+    if (start) {
+      routingControl.setWaypoints([start, end]);
+    } else {
+      routingControl.setWaypoints([null, end]);
+    }
+
+    const routingContainer = routingControl.getContainer();
+    routingContainer.classList.add("lrm-show-geocoders");
   });
   detailsPanel.appendChild(dirBtn);
 
@@ -488,34 +503,7 @@ async function selectSuggestion(res) {
   selectedPlaceLayer.addTo(map);
 
   const tags = await fetchPlace(res.properties.osm_type, res.properties.osm_id);
-  renderPlaceCardFromGeocoder(tags, res.center);
-}
-
-/** Render a simple card for the selected place + Directions button */
-function renderPlaceCardFromGeocoder(tags, latlng) {
-  renderDetails(tags, latlng);
-
-  document.getElementById("btn-directions").addEventListener("click", () => {
-    if (selectedPlaceLayer && selectedPlaceLayer instanceof L.Marker) {
-      map.removeLayer(selectedPlaceLayer);
-      selectedPlaceLayer = null;
-    }
-
-    // Reveal LRM geocoders + set destination
-    const wps = routingControl.getWaypoints();
-
-    const start = userLocation || wps[0].latLng;
-    const end = latlng;
-
-    if (start) {
-      routingControl.setWaypoints([start, end]);
-    } else {
-      routingControl.setWaypoints([null, end]);
-    }
-
-    const routingContainer = routingControl.getContainer();
-    routingContainer.classList.add("lrm-show-geocoders");
-  });
+  renderDetails(tags, res.center);
 }
 
 searchInput.addEventListener(
