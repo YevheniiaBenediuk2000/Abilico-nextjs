@@ -276,15 +276,22 @@ async function initDrawingObstacles() {
   map.on(L.Draw.Event.CREATED, async (e) => {
     drawnItems.addLayer(e.layer);
 
-    let newFeature;
+    let newFeature = null;
 
     if (e.layerType === "circle" || e.layerType === "circlemarker") {
       // turf.buffer requires a point + radius in km
       const center = e.layer.getLatLng();
-      const radiusKm = e.layer.getRadius() / 1000;
-      newFeature = turf.buffer(turf.point([center.lng, center.lat]), radiusKm, {
+      newFeature = turf.buffer(
+        turf.point([center.lng, center.lat]),
+        e.layer.getRadius() / 2400,
+        {
+          units: "kilometers",
+        }
+      );
+    } else if (e.layerType === "polyline") {
+      newFeature = turf.buffer(e.layer.toGeoJSON(), 0.0001, {
         units: "kilometers",
-      });
+      }); // ~0.1 m
     } else {
       newFeature = e.layer.toGeoJSON();
     }
@@ -302,12 +309,19 @@ async function initDrawingObstacles() {
   map.on(L.Draw.Event.EDITED, (e) => {
     e.layers.eachLayer((layer) => {
       let updated;
-      if (layer instanceof L.Circle || layer instanceof L.CircleMarker) {
+      if (layer.layerType === "circle" || layer.layerType === "circlemarker") {
         const center = layer.getLatLng();
-        const radiusKm = layer.getRadius() / 1000;
-        updated = turf.buffer(turf.point([center.lng, center.lat]), radiusKm, {
+        updated = turf.buffer(
+          turf.point([center.lng, center.lat]),
+          layer.getRadius() / 2400,
+          {
+            units: "kilometers",
+          }
+        );
+      } else if (layer.layerType === "polyline") {
+        updated = turf.buffer(layer.toGeoJSON(), 0.0001, {
           units: "kilometers",
-        });
+        }); // ~0.1 m
       } else {
         updated = layer.toGeoJSON();
       }
