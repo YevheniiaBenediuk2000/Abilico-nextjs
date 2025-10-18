@@ -216,7 +216,6 @@ const renderDetails = async (tags, latlng) => {
   detailsPanel.appendChild(dirBtn);
 
   // Add Reviews Section
-  const reviews = await reviewStorage();
 
   const reviewsContainer = document.createElement("div");
   reviewsContainer.id = "reviews-container";
@@ -227,13 +226,6 @@ const renderDetails = async (tags, latlng) => {
 
   const list = document.createElement("ul");
 
-  reviews.forEach((r) => {
-    if (placeId && placeId === r.placeId) {
-      const li = document.createElement("li");
-      li.innerHTML = r.text;
-      list.appendChild(li);
-    }
-  });
   reviewsContainer.appendChild(list);
 
   // Add review form
@@ -260,6 +252,15 @@ const renderDetails = async (tags, latlng) => {
     li.innerHTML = record[record.length - 1].text;
     list.appendChild(li);
     textarea.value = "";
+  });
+
+  const reviews = await reviewStorage();
+  reviews.forEach((r) => {
+    if (placeId && placeId === r.placeId) {
+      const li = document.createElement("li");
+      li.innerHTML = r.text;
+      list.appendChild(li);
+    }
   });
 };
 
