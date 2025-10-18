@@ -265,6 +265,14 @@ const renderDetails = async (tags, latlng) => {
 
 async function initDrawingObstacles() {
   const drawnItems = new L.FeatureGroup();
+  obstacleFeatures = await obstacleStorage();
+  obstacleFeatures.forEach((feature) => {
+    const layer = L.geoJSON(feature, {
+      style: { color: "red" },
+    }).getLayers()[0];
+    layer.options.obstacleId = feature.properties.obstacleId;
+    drawnItems.addLayer(layer);
+  });
   map.addLayer(drawnItems);
 
   const drawControl = new L.Control.Draw({
@@ -281,42 +289,50 @@ async function initDrawingObstacles() {
   map.addControl(drawControl);
 
   map.on(L.Draw.Event.CREATED, async (e) => {
-    const layer = e.layer;
-    drawnItems.addLayer(layer);
+    drawnItems.addLayer(e.layer);
 
     let newFeature;
 
     if (e.layerType === "circle" || e.layerType === "circlemarker") {
       // turf.buffer requires a point + radius in km
-      const center = layer.getLatLng();
-      newFeature = turf.buffer(
-        turf.point([center.lng, center.lat]),
-        layer.getRadius() / 1000,
-        { units: "kilometers" }
-      );
+      const center = e.layer.getLatLng();
+      const radiusKm = e.layer.getRadius() / 1000;
+      newFeature = turf.buffer(turf.point([center.lng, center.lat]), radiusKm, {
+        units: "kilometers",
+      });
     } else if (e.layerType === "polygon" || e.layerType === "rectangle") {
-      newFeature = layer.toGeoJSON();
+      newFeature = e.layer.toGeoJSON();
     }
+
+    newFeature.properties.obstacleId =
+      globalThis.crypto?.randomUUID?.() ??
+      `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
     obstacleFeatures = await obstacleStorage("PUT", [
       ...obstacleFeatures,
-      {
-        ...newFeature,
-        _leaflet_id: layer._leaflet_id,
-      },
+      newFeature,
     ]);
   });
 
   map.on(L.Draw.Event.EDITED, (e) => {
     e.layers.eachLayer((layer) => {
-      const idx = obstacleFeatures.findIndex(
-        (f) => f._leaflet_id === layer._leaflet_id
-      );
-      if (idx === -1) return;
+      let updated;
+      if (layer instanceof L.Circle || layer instanceof L.CircleMarker) {
+        const c = layer.getLatLng();
+        const radiusKm = layer.getRadius() / 1000;
+        updated = turf.buffer(turf.point([c.lng, c.lat]), radiusKm, {
+          units: "kilometers",
+        });
+      } else {
+        updated = layer.toGeoJSON();
+      }
 
-      let newFeature = layer.toGeoJSON();
-      newFeature._leaflet_id = layer._leaflet_id;
-      obstacleFeatures[idx] = newFeature;
+      const i = obstacleFeatures.findIndex(
+        (f) => f.properties.obstacleId === layer.feature.properties.obstacleId
+      );
+      if (i === -1) return;
+
+      obstacleFeatures[i] = updated;
       obstacleStorage("PUT", obstacleFeatures);
     });
   });
@@ -324,20 +340,10 @@ async function initDrawingObstacles() {
   map.on(L.Draw.Event.DELETED, (e) => {
     e.layers.eachLayer((layer) => {
       obstacleFeatures = obstacleFeatures.filter(
-        (f) => f._leaflet_id !== layer._leaflet_id
+        (f) => f.properties.obstacleId !== layer.feature.properties.obstacleId
       );
     });
     obstacleStorage("PUT", obstacleFeatures);
-  });
-
-  obstacleFeatures = await obstacleStorage();
-
-  obstacleFeatures.forEach((feature) => {
-    const layer = L.geoJSON(feature, {
-      style: { color: "red", fillColor: "red" },
-    }).getLayers()[0];
-    layer._leaflet_id = feature._leaflet_id;
-    drawnItems.addLayer(layer);
   });
 }
 

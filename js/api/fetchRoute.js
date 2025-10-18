@@ -13,7 +13,7 @@ export async function fetchRoute(coordinates, obstacleFeatures) {
   const url =
     "https://api.openrouteservice.org/v2/directions/wheelchair/geojson";
 
-  const obstacleCoordinates = obstacleFeatures.map((f) => {
+  const obstacleCoordinates = obstacleFeatures.flatMap((f) => {
     if (f.geometry.type === "Polygon") {
       return [f.geometry.coordinates];
     } else if (f.geometry.type === "MultiPolygon") {
@@ -26,7 +26,7 @@ export async function fetchRoute(coordinates, obstacleFeatures) {
     options: {
       avoid_polygons: {
         type: "MultiPolygon",
-        coordinates: obstacleCoordinates.flat(),
+        coordinates: obstacleCoordinates,
       },
     },
   };
