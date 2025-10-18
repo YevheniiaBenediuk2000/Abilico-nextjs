@@ -199,7 +199,6 @@ const renderDetails = async (tags, latlng) => {
       selectedPlaceLayer = null;
     }
 
-    // Reveal LRM geocoders + set destination
     const wps = routingControl.getWaypoints();
 
     const start = userLocation || wps[0].latLng;
@@ -248,16 +247,19 @@ const renderDetails = async (tags, latlng) => {
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const text = form.querySelector("#review-text").value.trim();
+    const textarea = form.querySelector("#review-text");
+    const text = textarea.value.trim();
     if (!text) return;
 
     const newReview = { text, placeId };
     reviews.push(newReview);
 
-    await reviewStorage("PUT", reviews);
+    const record = await reviewStorage("PUT", reviews);
 
-    // Refresh details to show new review
-    renderDetails(tags, latlng);
+    const li = document.createElement("li");
+    li.innerHTML = record[record.length - 1].text;
+    list.appendChild(li);
+    textarea.value = "";
   });
 };
 
