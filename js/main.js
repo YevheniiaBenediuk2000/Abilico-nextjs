@@ -29,7 +29,8 @@ let selectedPlaceLayer = null;
 let placesPane;
 
 const placesLayer = L.geoJSON(null, {
-  pointToLayer: ({ properties: tags }, latlng) => {
+  pointToLayer: (feature, latlng) => {
+    const tags = feature.properties;
     const marker = L.marker(latlng, {
       pane: "places-pane",
       icon: L.icon({ iconUrl: iconFor(tags), iconSize: [32, 32] }),
@@ -143,25 +144,8 @@ function iconFor(tags) {
 async function refreshPlaces() {
   const zoom = map.getZoom();
   const geojson = await fetchPlaces(map.getBounds(), zoom);
-  const visibleIds = new Set(geojson.features.map((f) => f.id));
-
-  placesLayer.eachLayer((layer) => {
-    const feature = layer.feature;
-    const visible = visibleIds.has(feature.id);
-
-    if (visible) {
-      layer._icon && (layer._icon.style.display = "");
-    } else {
-      layer._icon && (layer._icon.style.display = "none");
-    }
-  });
-
-  const existingIds = new Set();
-  placesLayer.eachLayer((l) => existingIds.add(l.feature.id));
-
-  geojson.features
-    .filter((f) => !existingIds.has(f.id))
-    .forEach((f) => placesLayer.addData(f));
+  placesLayer.clearLayers();
+  placesLayer.addData(geojson);
 }
 
 const renderDetails = async (tags, latlng) => {
@@ -174,7 +158,7 @@ const renderDetails = async (tags, latlng) => {
       div.className = "detail-item";
 
       // Format the key for display
-      let displayKey = key;
+      let displayKey = null;
       if (key === "display_name") {
         displayKey = "Address";
       } else {
