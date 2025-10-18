@@ -263,12 +263,12 @@ async function initDrawingObstacles() {
   const drawControl = new L.Control.Draw({
     edit: { featureGroup: drawnItems },
     draw: {
-      polyline: false,
+      polyline: { shapeOptions: { color: "red" } },
       marker: false,
       polygon: { allowIntersection: false, shapeOptions: { color: "red" } },
-      rectangle: false,
-      circle: false,
-      circlemarker: { radius: 13, color: "red", fillColor: "red" },
+      rectangle: { shapeOptions: { color: "red" } },
+      circle: { shapeOptions: { color: "red" } },
+      circlemarker: { radius: 13, color: "red" },
     },
   });
   map.addControl(drawControl);
@@ -285,7 +285,7 @@ async function initDrawingObstacles() {
       newFeature = turf.buffer(turf.point([center.lng, center.lat]), radiusKm, {
         units: "kilometers",
       });
-    } else if (e.layerType === "polygon" || e.layerType === "rectangle") {
+    } else {
       newFeature = e.layer.toGeoJSON();
     }
 
@@ -303,9 +303,9 @@ async function initDrawingObstacles() {
     e.layers.eachLayer((layer) => {
       let updated;
       if (layer instanceof L.Circle || layer instanceof L.CircleMarker) {
-        const c = layer.getLatLng();
+        const center = layer.getLatLng();
         const radiusKm = layer.getRadius() / 1000;
-        updated = turf.buffer(turf.point([c.lng, c.lat]), radiusKm, {
+        updated = turf.buffer(turf.point([center.lng, center.lat]), radiusKm, {
           units: "kilometers",
         });
       } else {
