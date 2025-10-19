@@ -28,20 +28,11 @@ import {
 let selectedPlaceLayer = null;
 let placesPane;
 
-const placesLayer = L.geoJSON(null, {
-  pointToLayer: (feature, latlng) => {
-    const tags = feature.properties;
-    const marker = L.marker(latlng, {
-      pane: "places-pane",
-      icon: L.icon({ iconUrl: iconFor(tags), iconSize: [32, 32] }),
-    }).on("click", () => renderDetails(tags, latlng));
-
-    const title = tags.name ?? tags.amenity ?? "Unnamed place";
-
-    marker.bindPopup(`<strong>${title}</strong>`);
-
-    return marker;
-  },
+const placeClusterLayer = L.markerClusterGroup({
+  chunkedLoading: true,
+  maxClusterRadius: 80,
+  disableClusteringAtZoom: 17,
+  spiderfyOnMaxZoom: false,
 });
 
 // ===== OMNIBOX STATE =====
@@ -144,8 +135,26 @@ function iconFor(tags) {
 async function refreshPlaces() {
   const zoom = map.getZoom();
   const geojson = await fetchPlaces(map.getBounds(), zoom);
-  placesLayer.clearLayers();
-  placesLayer.addData(geojson);
+
+  placeClusterLayer.clearLayers();
+
+  const placesLayer = L.geoJSON(geojson, {
+    pointToLayer: (feature, latlng) => {
+      const tags = feature.properties;
+      const marker = L.marker(latlng, {
+        pane: "places-pane",
+        icon: L.icon({ iconUrl: iconFor(tags), iconSize: [32, 32] }),
+      }).on("click", () => renderDetails(tags, latlng));
+
+      const title = tags.name ?? tags.amenity ?? "Unnamed place";
+
+      marker.bindPopup(`<strong>${title}</strong>`);
+
+      return marker;
+    },
+  });
+
+  placeClusterLayer.addLayer(placesLayer);
 }
 
 const renderDetails = async (tags, latlng) => {
@@ -418,7 +427,7 @@ map.whenReady(() => {
   // We’ll toggle this class to show LRM's geocoder fields when needed
   routingContainer.classList.remove("lrm-show-geocoders");
 
-  placesLayer.addTo(map);
+  placeClusterLayer.addTo(map);
 
   refreshPlaces();
   initDrawingObstacles();
