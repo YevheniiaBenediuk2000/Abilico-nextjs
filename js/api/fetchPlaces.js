@@ -1,7 +1,6 @@
 import pRetry from "https://cdn.jsdelivr.net/npm/p-retry@7.1.0/+esm";
-import { SHOW_PLACES_ZOOM } from "../constants.mjs";
+import { pRetryConfig, SHOW_PLACES_ZOOM } from "../constants.mjs";
 
-const pRetryConfig = { retries: 10, factor: 2, minTimeout: 400 };
 const OVERPASS_ENDPOINTS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",

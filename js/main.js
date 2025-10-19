@@ -283,15 +283,11 @@ async function initDrawingObstacles() {
   const DrawHelpLabel = L.Control.extend({
     options: { position: "topright" },
     onAdd() {
-      const div = L.DomUtil.create("div", "leaflet-bar abilico-draw-label");
+      const div = L.DomUtil.create("div", "leaflet-bar draw-label");
       div.innerHTML = `
         <p>🧱 Draw obstacles</p>
         <p>You can mark areas the route should avoid.</p>
       `;
-      div.setAttribute(
-        "aria-label",
-        "Drawing tools help: mark obstacles the router must avoid."
-      );
       L.DomEvent.disableClickPropagation(div);
       return div;
     },
