@@ -1,3 +1,5 @@
+import turfcircle from "https://cdn.jsdelivr.net/npm/@turf/circle@7.2.0/+esm";
+
 import { ORS_API_KEY } from "../constants.mjs";
 import { showModal } from "../utils/modal.mjs";
 
@@ -18,6 +20,12 @@ export async function fetchRoute(coordinates, obstacleFeatures) {
       return [f.geometry.coordinates];
     } else if (f.geometry.type === "MultiPolygon") {
       return f.geometry.coordinates;
+    } else if (f.geometry.type === "Point") {
+      const poly = turfcircle(f.geometry.coordinates, f.properties.radius, {
+        steps: 32,
+        units: "meters",
+      });
+      return [poly.geometry.coordinates];
     }
   });
 

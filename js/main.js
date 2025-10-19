@@ -248,13 +248,33 @@ const renderDetails = async (tags, latlng) => {
   });
 };
 
+function makeCircleFeature(layer, obstacleId) {
+  const center = layer.getLatLng();
+  const radius = layer.getRadius(); // meters
+  return {
+    type: "Feature",
+    properties: { obstacleId, radius },
+    geometry: { type: "Point", coordinates: [center.lng, center.lat] },
+  };
+}
 async function initDrawingObstacles() {
   const drawnItems = new L.FeatureGroup();
   obstacleFeatures = await obstacleStorage();
+
   obstacleFeatures.forEach((feature) => {
-    const layer = L.geoJSON(feature, {
-      style: { color: "red" },
-    }).getLayers()[0];
+    let layer = null;
+
+    if (feature.geometry.type === "Point") {
+      const [lng, lat] = feature.geometry.coordinates;
+      layer = L.circle([lat, lng], {
+        radius: feature.properties.radius,
+        color: "red",
+      });
+    } else {
+      // Polygons/rectangles/polylines etc. come back via GeoJSON
+      layer = L.geoJSON(feature, { style: { color: "red" } }).getLayers()[0];
+    }
+
     layer.options.obstacleId = feature.properties.obstacleId;
     drawnItems.addLayer(layer);
   });
@@ -268,78 +288,59 @@ async function initDrawingObstacles() {
       polygon: { allowIntersection: false, shapeOptions: { color: "red" } },
       rectangle: { shapeOptions: { color: "red" } },
       circle: { shapeOptions: { color: "red" } },
-      circlemarker: { radius: 13, color: "red" },
+      circlemarker: false,
     },
   });
   map.addControl(drawControl);
 
   map.on(L.Draw.Event.CREATED, async (e) => {
-    drawnItems.addLayer(e.layer);
+    const obstacleId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-    let newFeature = null;
+    let layerToAdd, featureToStore;
 
-    if (e.layerType === "circle" || e.layerType === "circlemarker") {
-      // turf.buffer requires a point + radius in km
-      const center = e.layer.getLatLng();
-      newFeature = turf.buffer(
-        turf.point([center.lng, center.lat]),
-        e.layer.getRadius() / 2400,
-        {
-          units: "kilometers",
-        }
-      );
-    } else if (e.layerType === "polyline") {
-      newFeature = turf.buffer(e.layer.toGeoJSON(), 0.0001, {
-        units: "kilometers",
-      }); // ~0.1 m
+    if (e.layer instanceof L.Circle) {
+      featureToStore = makeCircleFeature(e.layer, obstacleId);
+      layerToAdd = L.circle(e.layer.getLatLng(), {
+        radius: e.layer.getRadius(),
+        color: "red",
+      });
     } else {
-      newFeature = e.layer.toGeoJSON();
+      featureToStore = { ...e.layer.toGeoJSON(), properties: { obstacleId } };
+      layerToAdd = e.layer;
     }
 
-    newFeature.properties.obstacleId =
-      globalThis.crypto?.randomUUID?.() ??
-      `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    layerToAdd.options.obstacleId = obstacleId;
+    drawnItems.addLayer(layerToAdd);
 
     obstacleFeatures = await obstacleStorage("PUT", [
       ...obstacleFeatures,
-      newFeature,
+      featureToStore,
     ]);
   });
 
   map.on(L.Draw.Event.EDITED, (e) => {
     e.layers.eachLayer((layer) => {
       let updated;
-      if (layer.layerType === "circle" || layer.layerType === "circlemarker") {
-        const center = layer.getLatLng();
-        updated = turf.buffer(
-          turf.point([center.lng, center.lat]),
-          layer.getRadius() / 2400,
-          {
-            units: "kilometers",
-          }
-        );
-      } else if (layer.layerType === "polyline") {
-        updated = turf.buffer(layer.toGeoJSON(), 0.0001, {
-          units: "kilometers",
-        }); // ~0.1 m
+
+      if (layer instanceof L.Circle) {
+        updated = makeCircleFeature(layer, layer.options.obstacleId);
       } else {
         updated = layer.toGeoJSON();
       }
 
       const i = obstacleFeatures.findIndex(
-        (f) => f.properties.obstacleId === layer.feature.properties.obstacleId
+        (f) => f.properties.obstacleId === updated.properties.obstacleId
       );
-      if (i === -1) return;
-
-      obstacleFeatures[i] = updated;
-      obstacleStorage("PUT", obstacleFeatures);
+      if (i !== -1) obstacleFeatures[i] = updated;
     });
+
+    obstacleStorage("PUT", obstacleFeatures);
   });
 
   map.on(L.Draw.Event.DELETED, (e) => {
     e.layers.eachLayer((layer) => {
       obstacleFeatures = obstacleFeatures.filter(
-        (f) => f.properties.obstacleId !== layer.feature.properties.obstacleId
+        (f) => f.properties.obstacleId !== layer.options.obstacleId
       );
     });
     obstacleStorage("PUT", obstacleFeatures);
