@@ -30,9 +30,9 @@ let placesPane;
 
 const placeClusterLayer = L.markerClusterGroup({
   chunkedLoading: true,
-  maxClusterRadius: 80,
-  disableClusteringAtZoom: 17,
-  spiderfyOnMaxZoom: false,
+  maxClusterRadius: 40,
+  disableClusteringAtZoom: 18,
+  spiderfyOnMaxZoom: true,
 });
 
 // ===== OMNIBOX STATE =====

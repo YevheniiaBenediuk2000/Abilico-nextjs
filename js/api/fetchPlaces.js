@@ -170,7 +170,7 @@ export async function fetchPlaces(bounds, zoom) {
     queryParts.push(
       `node["craft"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
     );
-  } else if (zoom >= SHOW_PLACES_ZOOM + 1 && zoom < 18) {
+  } else if (zoom >= SHOW_PLACES_ZOOM + 1 && zoom < 17) {
     queryParts.push(
       `node["amenity"]["name"]${WHEELCHAIR_LIMITED}["amenity"!~"${AMENITY_EXCLUDED}"](${boundingBox})`
     );
@@ -220,7 +220,7 @@ export async function fetchPlaces(bounds, zoom) {
     queryParts.push(
       `node["craft"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
     );
-  } else if (zoom >= 18) {
+  } else if (zoom >= 17) {
     queryParts.push(
       `node["amenity"]["name"]["amenity"!~"${AMENITY_EXCLUDED}"](${boundingBox})`
     );
