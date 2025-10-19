@@ -107,3 +107,15 @@ body {
 .leaflet-routing-container.leaflet-bar.leaflet-control {
   margin-top: 60px;
 }
+
+/* Label that sits above the draw toolbar (top-right) */
+.abilico-draw-label {
+  padding: 6px 8px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4);
+  margin: 10px 10px 0 0; /* same spacing as Leaflet bars */
+  max-width: 240px;
+  line-height: 1.2;
+}
