@@ -1,4 +1,5 @@
 import turfcircle from "https://cdn.jsdelivr.net/npm/@turf/circle@7.2.0/+esm";
+import turfbuffer from "https://cdn.jsdelivr.net/npm/@turf/buffer@7.2.0/+esm";
 
 import { ORS_API_KEY } from "../constants.mjs";
 import { showModal } from "../utils/modal.mjs";
@@ -26,6 +27,9 @@ export async function fetchRoute(coordinates, obstacleFeatures) {
         units: "meters",
       });
       return [poly.geometry.coordinates];
+    } else if (f.geometry.type === "LineString") {
+      const buffer = turfbuffer(f, 1, { units: "meters", steps: 16 });
+      return [buffer.geometry.coordinates];
     }
   });
 
