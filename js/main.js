@@ -44,7 +44,7 @@ function ensureObstacleModal() {
  */
 function showObstacleModal(initial = { title: "" }) {
   ensureObstacleModal();
-  obstacleTitleInput.value = initial.title || "";
+  obstacleTitleInput.value = initial.title;
 
   return new Promise((resolve) => {
     let saved = false;
@@ -110,9 +110,7 @@ async function openEditModalForLayer(layer) {
   if (idx === -1) return;
 
   const props = obstacleFeatures[idx].properties || {};
-  const result = await showObstacleModal({
-    title: props.title || "",
-  });
+  const result = await showObstacleModal({ title: props.title });
   if (!result) return; // cancelled
 
   // Update in-memory + storage
@@ -454,7 +452,7 @@ async function initDrawingObstacles() {
     drawnItems.addLayer(layerToAdd);
 
     // Ask for title
-    const result = await showObstacleModal({ title: "" });
+    const result = await showObstacleModal();
 
     if (!result) {
       // Cancelled: remove the layer and do NOT persist

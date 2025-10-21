@@ -25,4 +25,4 @@ export const BASE_PATH = isLocal
   ? "../map-icons-osm"
   : "https://yevheniiabenediuk2000.github.io/Abilico/map-icons-osm";
 
-export const pRetryConfig = { retries: 10, factor: 2, minTimeout: 400 };
+export const pRetryConfig = { retries: 3, factor: 2, minTimeout: 400 };

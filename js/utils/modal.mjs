@@ -8,4 +8,4 @@ export function showModal(message) {
 const hideModal = () => (modal.style.display = "none");
 
 // modalCloseBtn.addEventListener("click", hideModal);
-window.addEventListener("click", (e) => e.target === modal && hideModal());
+// window.addEventListener("click", (e) => e.target === modal && hideModal());
