@@ -18,7 +18,7 @@ import {
   EXCLUDED_PROPS,
 } from "./constants.mjs";
 import { ICON_MANIFEST } from "./static/manifest.js";
-import { showModal } from "./utils/modal.mjs";
+import { showToast } from "./utils/toast.mjs";
 import {
   createMarker,
   waypointDivIcon,
@@ -557,12 +557,20 @@ if (navigator.geolocation) {
         map.setView(defaultLatLng, SHOW_PLACES_ZOOM);
       } else {
         console.log(error);
+        showToast("Could not get your location.", {
+          title: "Location",
+          variant: "danger",
+        });
       }
     }
   );
 } else {
   console.log(error);
-  showModal("Geolocation not supported. Using default location.");
+  showToast("Geolocation not supported. Using default location.", {
+    title: "Location",
+    variant: "warning",
+    assertive: false,
+  });
 }
 
 // ============= EVENT LISTENERS ================

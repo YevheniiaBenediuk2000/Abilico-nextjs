@@ -2,7 +2,7 @@ import turfcircle from "https://cdn.jsdelivr.net/npm/@turf/circle@7.2.0/+esm";
 import turfbuffer from "https://cdn.jsdelivr.net/npm/@turf/buffer@7.2.0/+esm";
 
 import { ORS_API_KEY } from "../constants.mjs";
-import { showModal } from "../utils/modal.mjs";
+import { showToast } from "../utils/toast.mjs";
 
 let routeAbortController = null;
 
@@ -58,9 +58,15 @@ export async function fetchRoute(coordinates, obstacleFeatures) {
 
     if (!response.ok) {
       if (data.error.code === 2004) {
-        showModal(
-          "The distance between points is too long (over 300 km). Please choose closer locations."
+        showToast(
+          "The distance between points is too long (over 300 km). Please choose closer locations.",
+          { title: "Routing", variant: "warning", assertive: false }
         );
+      } else {
+        showToast(data?.error?.message || "Routing failed.", {
+          title: "Routing",
+          variant: "danger",
+        });
       }
 
       throw new Error(await data.error.message);
