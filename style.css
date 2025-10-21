@@ -85,6 +85,4 @@ body {
 
 /* fix bug, i cannot move rectangle after page reload and it gets more points to drug, more than initial 4 */
 
-/* add bomb shelters */
-
-/* reuse bs modal for errors */
+/* close modal only on success or failure */
