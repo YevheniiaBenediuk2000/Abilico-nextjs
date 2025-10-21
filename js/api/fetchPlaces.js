@@ -43,9 +43,17 @@ export async function fetchPlaceGeometry(osmType, osmId) {
         return osmtogeojson(data);
       }, pRetryConfig);
     } catch (error) {
+      if (error?.name === "AbortError") {
+        return { type: "FeatureCollection", features: [] };
+      }
+
       lastError = error;
       console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
     }
+  }
+
+  if (lastError?.name === "AbortError") {
+    return { type: "FeatureCollection", features: [] };
   }
 
   console.error("Geometry fetch failed on all Overpass endpoints:", lastError);

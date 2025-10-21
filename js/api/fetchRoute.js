@@ -2,7 +2,7 @@ import turfcircle from "https://cdn.jsdelivr.net/npm/@turf/circle@7.2.0/+esm";
 import turfbuffer from "https://cdn.jsdelivr.net/npm/@turf/buffer@7.2.0/+esm";
 
 import { ORS_API_KEY } from "../constants.mjs";
-import { showToast } from "../utils/toast.mjs";
+import { toastError, toastWarn } from "../utils/toast.mjs";
 
 let routeAbortController = null;
 
@@ -58,15 +58,11 @@ export async function fetchRoute(coordinates, obstacleFeatures) {
 
     if (!response.ok) {
       if (data.error.code === 2004) {
-        showToast(
+        toastWarn(
           "The distance between points is too long (over 300 km). Please choose closer locations.",
-          { title: "Routing", variant: "warning", assertive: false }
+          { important: true }
         );
-      } else {
-        showToast(data?.error?.message || "Routing failed.", {
-          title: "Routing",
-          variant: "danger",
-        });
+        return;
       }
 
       throw new Error(await data.error.message);
@@ -80,6 +76,10 @@ export async function fetchRoute(coordinates, obstacleFeatures) {
 
     return data;
   } catch (error) {
+    if (error?.name === "AbortError") {
+      return;
+    }
     console.error(error);
+    toastError(error?.message || "Routing error.", { important: true });
   }
 }
