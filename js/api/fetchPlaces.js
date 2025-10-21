@@ -94,9 +94,17 @@ export async function fetchPlace(osmType, osmId) {
         return data.elements[0].tags;
       }, pRetryConfig);
     } catch (error) {
+      if (error?.name === "AbortError") {
+        return {};
+      }
+
       lastError = error;
       console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
     }
+  }
+
+  if (lastError?.name === "AbortError") {
+    return {};
   }
 
   console.error("Place fetch failed on all Overpass endpoints:", lastError);
@@ -121,8 +129,6 @@ export async function fetchPlaces(bounds, zoom) {
   const AMENITY_EXCLUDED =
     "bench|waste_basket|bicycle_parking|vending_machine|fountain|ice_cream|grit_bin|drinking_water|give_box|parcel_locker|water_point|recycling|waste_basket|waste_disposal";
   const LEISURE_EXCLUDED = "park|picnic_table";
-
-  // TODO: add excluded for all the other categories
 
   const WHEELCHAIR_YES = '["wheelchair"~"^(yes|designated)$"]';
   const WHEELCHAIR_LIMITED = '["wheelchair"~"^(yes|limited|designated)$"]';
@@ -271,9 +277,17 @@ export async function fetchPlaces(bounds, zoom) {
         return osmtogeojson(data);
       }, pRetryConfig);
     } catch (error) {
+      if (error?.name === "AbortError") {
+        return { type: "FeatureCollection", features: [] };
+      }
+
       lastError = error;
       console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
     }
+  }
+
+  if (lastError?.name === "AbortError") {
+    return { type: "FeatureCollection", features: [] };
   }
 
   console.error("Places fetch failed on all Overpass endpoints:", lastError);
