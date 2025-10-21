@@ -45,6 +45,9 @@ const placeClusterLayer = L.markerClusterGroup({
   spiderfyOnMaxZoom: true,
 });
 
+// Track when Leaflet.Draw is in editing/deleting mode
+const drawState = { editing: false, deleting: false };
+
 // ===== OMNIBOX STATE =====
 let userLocation = null;
 const searchBar = document.getElementById("search-bar");
@@ -72,7 +75,7 @@ function ensureObstacleModal() {
  * Opens the Bootstrap modal. Returns a Promise that resolves to:
  *  { title } on Save, or null on Cancel/close.
  */
-export function showObstacleModal(initial = { title: "" }) {
+function showObstacleModal(initial = { title: "" }) {
   ensureObstacleModal();
   obstacleTitleInput.value = initial.title;
 
@@ -158,13 +161,16 @@ async function openEditModalForLayer(layer) {
   );
 }
 
-export function hookLayerInteractions(layer, props) {
+function hookLayerInteractions(layer, props) {
   // Ensure the element exists in the DOM before creating tooltip
   // (safe if we call after the layer is added to the map/featureGroup).
   attachBootstrapTooltip(layer, tooltipTextFromProps(props));
 
-  // Click to edit
-  layer.on("click", () => openEditModalForLayer(layer));
+  layer.on("click", () => {
+    if (drawState.deleting || drawState.editing) return;
+
+    openEditModalForLayer(layer);
+  });
 }
 
 // --- LRM adapter that calls our existing OpenRouteService-based fetchRoute() ---
@@ -611,6 +617,19 @@ if (navigator.geolocation) {
 // ============= EVENT LISTENERS ================
 
 map.whenReady(() => {
+  map.on("draw:editstart", () => {
+    drawState.editing = true;
+  });
+  map.on("draw:editstop", () => {
+    drawState.editing = false;
+  });
+  map.on("draw:deletestart", () => {
+    drawState.deleting = true;
+  });
+  map.on("draw:deletestop", () => {
+    drawState.deleting = false;
+  });
+
   placesPane = map.createPane("places-pane");
   placesPane.style.zIndex = 450; // below selected
 

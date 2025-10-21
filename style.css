@@ -76,3 +76,5 @@ body {
 .leaflet-routing-container.leaflet-bar.leaflet-control {
   margin-top: 60px;
 }
+
+/* do not show/load obstacles on certain zoom */
