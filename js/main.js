@@ -25,6 +25,16 @@ import {
   WP_COLORS,
 } from "./utils/wayPoints.mjs";
 
+const DRAW_HELP_LS_KEY = "ui.drawHelp.dismissed";
+const ls = {
+  get(k) {
+    return localStorage.getItem(k);
+  },
+  set(k, v) {
+    localStorage.setItem(k, v);
+  },
+};
+
 let selectedPlaceLayer = null;
 let placesPane;
 
@@ -405,20 +415,46 @@ async function initDrawingObstacles() {
     hookLayerInteractions(layer, feature.properties); // tooltip + click-to-edit
   });
 
-  const DrawHelpLabel = L.Control.extend({
+  const DrawHelpAlert = L.Control.extend({
     options: { position: "topright" },
     onAdd() {
-      const div = L.DomUtil.create("div", "leaflet-bar draw-label");
-      div.innerHTML = `
-        <p>🧱 Draw obstacles</p>
-        <p>You can mark areas the route should avoid.</p>
-      `;
-      L.DomEvent.disableClickPropagation(div);
-      return div;
+      const container = L.DomUtil.create("div", "leaflet-control");
+      container.innerHTML = `
+      <div class="alert alert-light alert-dismissible fade show shadow-sm mb-0" role="alert" style="min-width: 240px; max-width: 300px;">
+        <div class="d-flex align-items-start gap-2">
+          <span class="mt-1" aria-hidden="true">🧱</span>
+          <div>
+            <div class="fw-semibold">Draw obstacles</div>
+            <div class="small text-body-secondary">You can mark areas the route should avoid.</div>
+          </div>
+          <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      </div>
+    `;
+
+      // prevent the alert from panning/zooming the map when interacted with
+      L.DomEvent.disableClickPropagation(container);
+      L.DomEvent.disableScrollPropagation(container);
+
+      const alertEl = container.querySelector(".alert");
+
+      // Persist dismissal before the element is removed
+      alertEl.addEventListener("close.bs.alert", () => {
+        ls.set(DRAW_HELP_LS_KEY, "1");
+      });
+
+      // After it's closed, remove the Leaflet control so no empty box remains
+      alertEl.addEventListener("closed.bs.alert", () => {
+        if (this._map) this._map.removeControl(this);
+      });
+
+      return container;
     },
   });
 
-  map.addControl(new DrawHelpLabel());
+  if (!ls.get(DRAW_HELP_LS_KEY)) {
+    map.addControl(new DrawHelpAlert());
+  }
 
   const drawControl = new L.Control.Draw({
     position: "topright",

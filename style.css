@@ -76,9 +76,3 @@ body {
 .leaflet-routing-container.leaflet-bar.leaflet-control {
   margin-top: 60px;
 }
-
-.draw-label {
-  padding: 6px 8px;
-  background: #fff;
-  max-width: 240px;
-}
