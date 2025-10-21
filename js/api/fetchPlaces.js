@@ -2,10 +2,9 @@ import pRetry from "https://cdn.jsdelivr.net/npm/p-retry@7.1.0/+esm";
 import { pRetryConfig, SHOW_PLACES_ZOOM } from "../constants.mjs";
 
 const OVERPASS_ENDPOINTS = [
+  "https://overpass.osm.jp/api/interpreter",
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
-  "https://overpass.osm.ch/api/interpreter",
-  "https://overpass.osm.jp/api/interpreter",
 ];
 
 let placeGeometryAbortController = null;
@@ -130,7 +129,6 @@ export async function fetchPlaces(bounds, zoom) {
     "bench|waste_basket|bicycle_parking|vending_machine|fountain|ice_cream|grit_bin|drinking_water|give_box|parcel_locker|water_point|recycling|waste_basket|waste_disposal";
   const LEISURE_EXCLUDED = "park|picnic_table";
 
-  const WHEELCHAIR_YES = '["wheelchair"~"^(yes|designated)$"]';
   const WHEELCHAIR_LIMITED = '["wheelchair"~"^(yes|limited|designated)$"]';
   const TOILETS_WHEELCHAIR_YES = '["toilets:wheelchair"="yes"]';
 
@@ -142,49 +140,7 @@ export async function fetchPlaces(bounds, zoom) {
     return { type: "FeatureCollection", features: [] };
   }
 
-  if (zoom === SHOW_PLACES_ZOOM) {
-    queryParts.push(
-      `node["amenity"]["name"]${WHEELCHAIR_YES}["amenity"!~"${AMENITY_EXCLUDED}"](${boundingBox})`
-    );
-    queryParts.push(`node["shop"]["name"]${WHEELCHAIR_YES}(${boundingBox})`);
-    queryParts.push(`node["tourism"]["name"]${WHEELCHAIR_YES}(${boundingBox})`);
-    queryParts.push(
-      `node["leisure"]["name"]${WHEELCHAIR_YES}["leisure"!~"${LEISURE_EXCLUDED}"](${boundingBox})`
-    );
-    queryParts.push(
-      `node["healthcare"]["name"]${WHEELCHAIR_YES}(${boundingBox})`
-    );
-    queryParts.push(
-      `node["building"]["name"]${WHEELCHAIR_YES}(${boundingBox})`
-    );
-    queryParts.push(`node["office"]["name"]${WHEELCHAIR_YES}(${boundingBox})`);
-    queryParts.push(`node["craft"]["name"]${WHEELCHAIR_YES}(${boundingBox})`);
-
-    queryParts.push(
-      `node["amenity"]["name"]${TOILETS_WHEELCHAIR_YES}["amenity"!~"${AMENITY_EXCLUDED}"](${boundingBox})`
-    );
-    queryParts.push(
-      `node["shop"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
-    );
-    queryParts.push(
-      `node["tourism"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
-    );
-    queryParts.push(
-      `node["leisure"]["name"]${TOILETS_WHEELCHAIR_YES}["leisure"!~"${LEISURE_EXCLUDED}"](${boundingBox})`
-    );
-    queryParts.push(
-      `node["healthcare"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
-    );
-    queryParts.push(
-      `node["building"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
-    );
-    queryParts.push(
-      `node["office"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
-    );
-    queryParts.push(
-      `node["craft"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
-    );
-  } else if (zoom >= SHOW_PLACES_ZOOM + 1 && zoom < 17) {
+  if (zoom >= SHOW_PLACES_ZOOM && zoom < 17) {
     queryParts.push(
       `node["amenity"]["name"]${WHEELCHAIR_LIMITED}["amenity"!~"${AMENITY_EXCLUDED}"](${boundingBox})`
     );
