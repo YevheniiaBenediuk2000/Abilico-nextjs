@@ -140,7 +140,7 @@ export async function fetchPlaces(bounds, zoom) {
     return { type: "FeatureCollection", features: [] };
   }
 
-  if (zoom >= SHOW_PLACES_ZOOM && zoom < 17) {
+  if (!showNoPlaces && zoom < 17) {
     queryParts.push(
       `node["amenity"]["name"]${WHEELCHAIR_LIMITED}["amenity"!~"${AMENITY_EXCLUDED}"](${boundingBox})`
     );

@@ -82,7 +82,3 @@ body {
   background: #fff;
   max-width: 240px;
 }
-
-/* fix bug, i cannot move rectangle after page reload and it gets more points to drug, more than initial 4 */
-
-/* close modal only on success or failure */

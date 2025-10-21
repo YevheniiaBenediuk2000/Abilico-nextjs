@@ -26,7 +26,6 @@ export async function obstacleStorage(method = "GET", obstacleFeatures) {
     return data.record;
   } catch (e) {
     console.error("Loading obstacles failed:", e);
-    return [];
   }
 }
 

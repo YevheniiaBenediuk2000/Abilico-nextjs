@@ -386,12 +386,15 @@ async function initDrawingObstacles() {
   obstacleFeatures.forEach((feature) => {
     let layer = null;
 
-    if (feature.geometry.type === "Point") {
+    if (feature.properties.shape === "circle") {
       const [lng, lat] = feature.geometry.coordinates;
       layer = L.circle([lat, lng], {
         radius: feature.properties.radius,
         color: "red",
       });
+    } else if (feature.properties.shape === "rectangle") {
+      const bounds = L.geoJSON(feature).getBounds();
+      layer = L.rectangle(bounds, { color: "red" });
     } else {
       // Polygons/rectangles/polylines etc. come back via GeoJSON
       layer = L.geoJSON(feature, { style: { color: "red" } }).getLayers()[0];
@@ -465,6 +468,7 @@ async function initDrawingObstacles() {
       ...(featureToStore.properties || {}),
       obstacleId,
       title: result.title,
+      shape: e.layerType,
     };
 
     // Attach tooltip + click-to-edit
