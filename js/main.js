@@ -41,7 +41,7 @@ let placesPane;
 const placeClusterLayer = L.markerClusterGroup({
   chunkedLoading: true,
   maxClusterRadius: 40,
-  disableClusteringAtZoom: 18,
+  // disableClusteringAtZoom: 18,
   spiderfyOnMaxZoom: true,
 });
 
@@ -260,9 +260,16 @@ function iconFor(tags) {
   return url;
 }
 
+let placesReqSeq = 0;
+
 async function refreshPlaces() {
+  const mySeq = ++placesReqSeq; // capture this call’s id
+
   const zoom = map.getZoom();
   const geojson = await fetchPlaces(map.getBounds(), zoom);
+
+  // If this response is for an old call, ignore it
+  if (mySeq !== placesReqSeq) return;
 
   placeClusterLayer.clearLayers();
 

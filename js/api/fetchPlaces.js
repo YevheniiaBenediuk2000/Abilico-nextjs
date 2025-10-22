@@ -234,7 +234,7 @@ export async function fetchPlaces(bounds, zoom) {
       }, pRetryConfig);
     } catch (error) {
       if (error?.name === "AbortError") {
-        return { type: "FeatureCollection", features: [] };
+        return;
       }
 
       lastError = error;
@@ -243,9 +243,8 @@ export async function fetchPlaces(bounds, zoom) {
   }
 
   if (lastError?.name === "AbortError") {
-    return { type: "FeatureCollection", features: [] };
+    return;
   }
 
   console.error("Places fetch failed on all Overpass endpoints:", lastError);
-  return { type: "FeatureCollection", features: [] };
 }
