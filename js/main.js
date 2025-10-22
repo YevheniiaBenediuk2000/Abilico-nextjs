@@ -764,6 +764,8 @@ async function selectSuggestion(res) {
   renderDetails(tags, res.center);
 }
 
+let geocodeReqSeq = 0;
+
 searchInput.addEventListener(
   "input",
   debounce((e) => {
@@ -773,8 +775,16 @@ searchInput.addEventListener(
       return;
     }
 
-    geocoder.geocode(searchQuery, renderSuggestions);
-  }, 300)
+    const mySeq = ++geocodeReqSeq; // capture this call’s id
+
+    geocoder.geocode(searchQuery, (items) => {
+      // If this response is for an old call, ignore it
+      if (mySeq !== geocodeReqSeq) {
+        return;
+      }
+      renderSuggestions(items);
+    });
+  }, 500)
 );
 
 const hideSuggestionsIfClickedOutside = (e) => {
