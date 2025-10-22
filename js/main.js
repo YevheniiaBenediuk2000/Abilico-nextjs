@@ -605,19 +605,21 @@ if (navigator.geolocation) {
     },
     (error) => {
       const userDeniedGeolocation = error.code === 1;
-      if (userDeniedGeolocation) {
-        const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
-        map.setView(defaultLatLng, SHOW_PLACES_ZOOM);
-      } else {
+      if (!userDeniedGeolocation) {
         console.log(error);
-        toastError("Could not get your location.", {
+        toastError("Could not get your location. Using default location.", {
           important: true,
         });
       }
+
+      const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
+      map.setView(defaultLatLng, SHOW_PLACES_ZOOM);
     }
   );
 } else {
   console.log(error);
+  const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
+  map.setView(defaultLatLng, SHOW_PLACES_ZOOM);
   toastWarn("Geolocation not supported. Using default location.");
 }
 
