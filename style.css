@@ -15,26 +15,30 @@ body {
 .map-overlay {
   position: absolute;
   z-index: 1100;
+  top: 12px;
+  left: 12px;
+  width: 420px;
+}
+
+#search-input,
+#search-suggestions button {
+  padding-top: 10px;
+  padding-bottom: 10px;
 }
 
 /* Suggestions dropdown */
 #search-suggestions {
-  background: #fff;
+  position: absolute;
+  top: 56px;
   max-height: 320px;
   overflow: auto;
-  display: none; /* toggled via JS */
-}
-
-#search-suggestions li:hover,
-#search-suggestions li.active {
-  background: #f5faff;
 }
 
 /* Hide LRM geocoders until user clicks Directions */
-.leaflet-routing-container .leaflet-routing-geocoders {
+.leaflet-routing-container {
   display: none; /* hidden by default */
 }
-.leaflet-routing-container.lrm-show-geocoders .leaflet-routing-geocoders {
+.leaflet-routing-container.lrm-show-geocoders {
   display: block; /* show when we add the class */
 }
 

@@ -64,6 +64,11 @@ const detailsPanel = document.getElementById("details-panel");
 let obstacleModalInstance = null;
 let obstacleForm, obstacleTitleInput;
 
+function toggleSuggestions(visible) {
+  suggestionsEl.classList.toggle("d-none", !visible);
+  searchInput.setAttribute("aria-expanded", visible ? "true" : "false");
+}
+
 function ensureObstacleModal() {
   if (!obstacleModalInstance) {
     const modalEl = document.getElementById("obstacleModal");
@@ -676,7 +681,6 @@ map.whenReady(() => {
 
   routingControl.addTo(map);
   const routingContainer = routingControl.getContainer();
-  routingContainer.appendChild(detailsPanel);
 
   // We’ll toggle this class to show LRM's geocoder fields when needed
   routingContainer.classList.remove("lrm-show-geocoders");
@@ -734,23 +738,30 @@ map.whenReady(() => {
 function renderSuggestions(items) {
   suggestionsEl.innerHTML = "";
   if (!items || !items.length) {
-    suggestionsEl.style.display = "none";
+    toggleSuggestions(false);
     return;
   }
+
   items.forEach((res, idx) => {
     const li = document.createElement("li");
-    li.role = "option";
-    li.dataset.index = String(idx);
-    li.innerHTML = res.name;
-    li.addEventListener("click", () => selectSuggestion(items[idx]));
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className =
+      "list-group-item list-group-item-action list-group-item-light";
+    btn.role = "option";
+    btn.dataset.index = String(idx);
+    btn.textContent = res.name;
+    btn.addEventListener("click", () => selectSuggestion(items[idx]));
+    li.appendChild(btn);
     suggestionsEl.appendChild(li);
   });
-  suggestionsEl.style.display = "block";
+
+  toggleSuggestions(true);
 }
 
 /** Select a suggestion: center map, drop marker, render card */
 async function selectSuggestion(res) {
-  suggestionsEl.style.display = "none";
+  toggleSuggestions(false);
 
   if (selectedPlaceLayer) {
     map.removeLayer(selectedPlaceLayer);
@@ -794,14 +805,22 @@ async function selectSuggestion(res) {
   renderDetails(tags, res.center);
 }
 
+// Also hide on Escape
+searchInput.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    toggleSuggestions(false);
+  }
+});
+
 let geocodeReqSeq = 0;
 
 searchInput.addEventListener(
   "input",
   debounce((e) => {
     const searchQuery = e.target.value.trim();
+
     if (!searchQuery) {
-      suggestionsEl.style.display = "none";
+      toggleSuggestions(false);
       return;
     }
 
@@ -819,7 +838,7 @@ searchInput.addEventListener(
 
 const hideSuggestionsIfClickedOutside = (e) => {
   if (!searchBar.contains(e.target)) {
-    suggestionsEl.style.display = "none";
+    toggleSuggestions(false);
   }
 };
 document.addEventListener("click", hideSuggestionsIfClickedOutside);

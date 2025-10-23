@@ -40,14 +40,24 @@
   <body>
     <!-- Omnibox -->
     <div id="search-bar" class="map-overlay">
-      <input
-        id="search-input"
-        type="text"
-        placeholder="Search places…"
-        autocomplete="off"
-        aria-label="Search places"
-      />
-      <ul id="search-suggestions" role="listbox"></ul>
+      <div class="position-relative">
+        <input
+          id="search-input"
+          type="search"
+          class="form-control form-control-lg"
+          placeholder="Search places…"
+          autocomplete="off"
+          aria-label="Search places"
+          aria-controls="search-suggestions"
+        />
+
+        <!-- Bootstrap-styled suggestions -->
+        <ul
+          id="search-suggestions"
+          class="list-group w-100 shadow d-none"
+          aria-label="Search suggestions"
+        ></ul>
+      </div>
     </div>
 
     <div id="details-panel">
