@@ -30,9 +30,13 @@ body {
 #search-suggestions {
   position: absolute;
   top: 56px;
-  max-height: 320px;
   overflow: auto;
   background-color: var(--bs-list-group-bg);
+}
+
+#search-suggestions,
+.leaflet-routing-geocoder-result {
+  max-height: 320px;
 }
 
 /* When the search bar lives inside the Offcanvas, make it full-width & non-absolute */
@@ -44,7 +48,6 @@ body {
 .leaflet-routing-container {
   width: 100%;
   box-shadow: none;
-  z-index: 1480;
 }
 
 /* .leaflet-routing-geocoders {
@@ -52,4 +55,7 @@ body {
 } */
 
 /* make place icons a bit transparent */
-/* fix not showing list of entries on routes */
+
+.leaflet-routing-geocoder-result {
+  z-index: 1100;
+}
