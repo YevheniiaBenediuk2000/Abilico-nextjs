@@ -19,11 +19,7 @@ import {
 } from "./constants.mjs";
 import { ICON_MANIFEST } from "./static/manifest.js";
 import { toastError, toastWarn } from "./utils/toast.mjs";
-import {
-  createMarker,
-  waypointDivIcon,
-  WP_COLORS,
-} from "./utils/wayPoints.mjs";
+import { waypointDivIcon, WP_COLORS } from "./utils/wayPoints.mjs";
 
 const directionsUi = document.getElementById("directions-ui");
 
@@ -334,7 +330,6 @@ const renderDetails = async (tags, latlng) => {
   dirBtn.textContent = "Directions";
   dirBtn.id = "btn-directions";
   dirBtn.addEventListener("click", async () => {
-    moveDepartureSearchBarUnderTo();
     directionsUi.classList.remove("d-none");
     departureSearchInput.focus();
     await setTo(latlng);
@@ -355,6 +350,8 @@ const renderDetails = async (tags, latlng) => {
   reviewsContainer.appendChild(list);
 
   directionsUi.classList.add("d-none");
+
+  moveDepartureSearchBarUnderTo();
 
   const titleText = tags.name || tags.amenity || "Details";
   mountInOffcanvas(titleText);

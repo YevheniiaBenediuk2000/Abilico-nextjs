@@ -24,23 +24,3 @@ export function waypointDivIcon(letter, color) {
     popupAnchor: [0, -36],
   });
 }
-
-export const letterFor = (i) => String.fromCharCode(65 + i); // 0->A, 1->B, ...
-
-export const createMarker = function (i, wp, nWps) {
-  const isStart = i === 0;
-  const isEnd = i === nWps - 1;
-
-  let color;
-  if (isStart) {
-    color = WP_COLORS.start;
-  } else if (isEnd) {
-    color = WP_COLORS.end;
-  } else {
-    color = WP_COLORS.via;
-  }
-  const icon = waypointDivIcon(letterFor(i), color);
-  const marker = L.marker(wp.latLng, { draggable: true, icon });
-
-  return marker;
-};
