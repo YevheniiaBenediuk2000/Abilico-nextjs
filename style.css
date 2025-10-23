@@ -5,65 +5,30 @@
 html,
 body {
   height: 100%;
-  margin: 0;
 }
 
 #details-panel {
   display: none;
-  padding: 10px;
-}
-
-#details-panel .detail-item {
-  margin: 5px 0;
-  font-size: 14px;
 }
 
 /* Overlay container */
 .map-overlay {
   position: absolute;
   z-index: 1100;
-  top: 12px;
-  left: 12px;
-}
-
-/* Search input */
-#search-input {
-  padding: 12px 14px;
-  border-radius: 8px;
-  border: 1px solid #d0d7de;
 }
 
 /* Suggestions dropdown */
 #search-suggestions {
-  list-style: none;
-  margin: 6px 0 0;
-  padding: 6px 0;
   background: #fff;
-  border: 1px solid #d0d7de;
-  border-radius: 10px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
   max-height: 320px;
   overflow: auto;
   display: none; /* toggled via JS */
-}
-
-#search-suggestions li {
-  padding: 10px 14px;
-  cursor: pointer;
-  line-height: 1.2;
-  border-top: 1px solid #f2f4f7;
-}
-
-#search-suggestions li:first-child {
-  border-top: none;
 }
 
 #search-suggestions li:hover,
 #search-suggestions li.active {
   background: #f5faff;
 }
-
-/* Details card inside routing container */
 
 /* Hide LRM geocoders until user clicks Directions */
 .leaflet-routing-container .leaflet-routing-geocoders {
@@ -73,9 +38,4 @@ body {
   display: block; /* show when we add the class */
 }
 
-.leaflet-routing-container.leaflet-bar.leaflet-control {
-  margin-top: 60px;
-}
-
-/* do not show/load obstacles on certain zoom */
 /* make place icons a bit transparent */

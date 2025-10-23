@@ -195,7 +195,7 @@ function toggleObstaclesByZoom() {
   }
 
   // Show/hide drawing/editing UI accordingly
-  drawControl._container.style.display = visible ? "" : "none";
+  drawControl._container.style.display = allow ? "" : "none";
 }
 
 // --- LRM adapter that calls our existing OpenRouteService-based fetchRoute() ---
