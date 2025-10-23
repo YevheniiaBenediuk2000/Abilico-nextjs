@@ -331,6 +331,11 @@ const renderDetails = async (tags) => {
 
   reviewsContainer.appendChild(list);
 
+  directionsUi.classList.add("d-none");
+
+  const titleText = tags.name || tags.amenity || "Details";
+  mountInOffcanvas(titleText);
+
   // Add review form
   const form = document.createElement("form");
   form.id = "review-form";
@@ -365,11 +370,6 @@ const renderDetails = async (tags) => {
       list.appendChild(li);
     }
   });
-
-  searchBar.classList.add("d-none");
-
-  const titleText = tags.name || tags.amenity || "Details";
-  mountInOffcanvas(titleText);
 };
 
 function makeCircleFeature(layer) {
