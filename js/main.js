@@ -55,7 +55,6 @@ let drawControl = null;
 let userLocation = null;
 const searchBar = document.getElementById("search-bar");
 const searchBarHome = searchBar.parentElement;
-const searchBarNextSibling = searchBar.nextSibling;
 
 const searchInput = document.getElementById("search-input");
 const suggestionsEl = document.getElementById("search-suggestions");
@@ -79,8 +78,6 @@ function mountInOffcanvas(titleText) {
 
 offcanvasEl.addEventListener("hidden.bs.offcanvas", () => {
   searchBarHome.prepend(searchBar);
-
-  directionsUi.classList.add("d-none");
   searchBar.classList.remove("d-none");
 });
 
@@ -277,7 +274,7 @@ async function refreshPlaces() {
   placeClusterLayer.addLayer(placesLayer);
 }
 
-function moveSearchBarUnderFrom() {
+function moveDepartureSearchBarUnderFrom() {
   directionsUi.classList.remove("d-none");
   const fromLabel = directionsUi.querySelector('label[for="dir-from"]');
   fromLabel.insertAdjacentElement("afterend", searchBar);
@@ -314,7 +311,7 @@ const renderDetails = async (tags) => {
   dirBtn.textContent = "Directions";
   dirBtn.id = "btn-directions";
   dirBtn.addEventListener("click", () => {
-    moveSearchBarUnderFrom();
+    moveDepartureSearchBarUnderFrom();
   });
   detailsPanel.appendChild(dirBtn);
 

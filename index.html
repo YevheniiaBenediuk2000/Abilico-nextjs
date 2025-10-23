@@ -39,17 +39,16 @@
         <input
           id="search-input"
           type="search"
-          class="form-control form-control-lg"
+          class="form-control form-control-lg search-input"
           placeholder="Search place or click on the map…"
           autocomplete="off"
           aria-label="Search places"
           aria-controls="search-suggestions"
         />
 
-        <!-- Bootstrap-styled suggestions -->
         <ul
           id="search-suggestions"
-          class="list-group w-100 shadow d-none"
+          class="list-group w-100 shadow d-none search-suggestions"
           aria-label="Search suggestions"
         ></ul>
       </div>
@@ -104,7 +103,6 @@
       </div>
     </div>
 
-    <!-- Place Offcanvas -->
     <div
       class="offcanvas offcanvas-end"
       tabindex="-1"
@@ -132,6 +130,23 @@
           <div class="row g-2 align-items-center mb-2">
             <div class="col">
               <label class="form-label mb-1" for="dir-to">To</label>
+              <div>
+                <div class="position-relative">
+                  <input
+                    type="search"
+                    class="form-control form-control-lg search-input"
+                    placeholder="Search place or click on the map…"
+                    autocomplete="off"
+                    aria-label="Search places"
+                    aria-controls="search-suggestions"
+                  />
+
+                  <ul
+                    class="list-group w-100 shadow d-none search-suggestions"
+                    aria-label="Search suggestions"
+                  ></ul>
+                </div>
+              </div>
             </div>
           </div>
         </div>

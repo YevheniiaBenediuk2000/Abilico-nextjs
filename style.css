@@ -16,21 +16,22 @@ body {
   width: 420px;
 }
 
-#search-input,
-#search-suggestions button {
+.search-input,
+.search-suggestions button {
   padding-top: 10px;
   padding-bottom: 10px;
 }
 
 /* Suggestions dropdown */
-#search-suggestions {
+.search-suggestions {
   position: absolute;
   top: 56px;
+  z-index: 1;
   overflow: auto;
   background-color: var(--bs-list-group-bg);
 }
 
-#search-suggestions,
+.search-suggestions,
 .leaflet-routing-geocoder-result {
   max-height: 320px;
 }
