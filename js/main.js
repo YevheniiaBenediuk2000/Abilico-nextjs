@@ -47,6 +47,7 @@ const placeClusterLayer = L.markerClusterGroup({
 
 // Track when Leaflet.Draw is in editing/deleting mode
 const drawState = { editing: false, deleting: false };
+let drawControl = null;
 
 // ===== OMNIBOX STATE =====
 let userLocation = null;
@@ -54,6 +55,7 @@ const searchBar = document.getElementById("search-bar");
 const searchInput = document.getElementById("search-input");
 const suggestionsEl = document.getElementById("search-suggestions");
 
+let drawnItems;
 let obstacleFeatures = [];
 
 const detailsPanel = document.getElementById("details-panel");
@@ -164,13 +166,36 @@ async function openEditModalForLayer(layer) {
 function hookLayerInteractions(layer, props) {
   // Ensure the element exists in the DOM before creating tooltip
   // (safe if we call after the layer is added to the map/featureGroup).
-  attachBootstrapTooltip(layer, tooltipTextFromProps(props));
+  // Re-attach tooltip whenever the layer is re-added to the map
+
+  layer.on("add", () => {
+    attachBootstrapTooltip(layer, tooltipTextFromProps(props));
+  });
 
   layer.on("click", () => {
     if (drawState.deleting || drawState.editing) return;
 
     openEditModalForLayer(layer);
   });
+}
+
+function toggleObstaclesByZoom() {
+  const z = map.getZoom();
+  const allow = z >= SHOW_PLACES_ZOOM;
+
+  // Show/hide the whole obstacle layer group
+  if (allow) {
+    if (drawnItems && !map.hasLayer(drawnItems)) {
+      map.addLayer(drawnItems);
+    }
+  } else {
+    if (drawnItems && map.hasLayer(drawnItems)) {
+      map.removeLayer(drawnItems);
+    }
+  }
+
+  // Show/hide drawing/editing UI accordingly
+  drawControl._container.style.display = visible ? "" : "none";
 }
 
 // --- LRM adapter that calls our existing OpenRouteService-based fetchRoute() ---
@@ -402,8 +427,8 @@ function makeCircleFeature(layer) {
   };
 }
 async function initDrawingObstacles() {
-  const drawnItems = new L.FeatureGroup();
-  drawnItems.addTo(map);
+  drawnItems = new L.FeatureGroup();
+
   obstacleFeatures = await obstacleStorage();
 
   obstacleFeatures.forEach((feature) => {
@@ -469,7 +494,7 @@ async function initDrawingObstacles() {
     map.addControl(new DrawHelpAlert());
   }
 
-  const drawControl = new L.Control.Draw({
+  drawControl = new L.Control.Draw({
     position: "topright",
     edit: { featureGroup: drawnItems },
     draw: {
@@ -482,6 +507,8 @@ async function initDrawingObstacles() {
     },
   });
   map.addControl(drawControl);
+
+  toggleObstaclesByZoom();
 
   map.on(L.Draw.Event.CREATED, async (e) => {
     const obstacleId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -658,6 +685,7 @@ map.whenReady(() => {
 
   refreshPlaces();
   initDrawingObstacles();
+  map.on("zoomend", toggleObstaclesByZoom);
 
   map.on("moveend", debounce(refreshPlaces, 300));
 
