@@ -21,6 +21,66 @@ import { ICON_MANIFEST } from "./static/manifest.js";
 import { toastError, toastWarn } from "./utils/toast.mjs";
 import { waypointDivIcon, WP_COLORS } from "./utils/wayPoints.mjs";
 
+let clickPopup = null;
+
+function showQuickRoutePopup(latlng) {
+  const html = `
+    <div class="d-flex align-items-center gap-2" role="group" aria-label="Quick route actions">
+      <button id="qp-start" type="button" class="btn btn-sm btn-primary">Start here</button>
+      <button id="qp-go" type="button" class="btn btn-sm btn-outline-primary">Go here</button>
+    </div>
+  `;
+
+  if (clickPopup) {
+    map.closePopup(clickPopup);
+    clickPopup = null;
+  }
+
+  clickPopup = L.popup({
+    className: "quick-choose-popup",
+    offset: [0, -8],
+    autoClose: true,
+    closeOnClick: true,
+    closeButton: true,
+  })
+    .setLatLng(latlng)
+    .setContent(html)
+    .openOn(map);
+
+  const startBtn = document.getElementById("qp-start");
+  const goBtn = document.getElementById("qp-go");
+
+  startBtn.addEventListener("click", async (ev) => {
+    L.DomEvent.stop(ev);
+    try {
+      directionsUi.classList.remove("d-none");
+      moveDepartureSearchBarUnderTo();
+      mountInOffcanvas("Directions");
+
+      await setFrom(latlng);
+      activeSearch = "destination";
+      destinationSearchInput.focus();
+    } finally {
+      if (clickPopup) map.closePopup(clickPopup);
+    }
+  });
+
+  goBtn.addEventListener("click", async (ev) => {
+    L.DomEvent.stop(ev);
+    try {
+      directionsUi.classList.remove("d-none");
+      moveDepartureSearchBarUnderTo();
+      mountInOffcanvas("Directions");
+
+      await setTo(latlng);
+      activeSearch = "departure";
+      departureSearchInput.focus();
+    } finally {
+      if (clickPopup) map.closePopup(clickPopup);
+    }
+  });
+}
+
 const directionsUi = document.getElementById("directions-ui");
 
 const DRAW_HELP_LS_KEY = "ui.drawHelp.dismissed";
@@ -659,13 +719,9 @@ map.whenReady(() => {
   map.on("moveend", debounce(refreshPlaces, 1));
 
   map.on("click", async (e) => {
-    if (activeSearch === "departure") {
-      await setFrom(e.latlng);
-      departureSearchInput.focus();
-    } else {
-      await setTo(e.latlng);
-      destinationSearchInput.focus();
-    }
+    if (drawState.editing || drawState.deleting) return;
+
+    showQuickRoutePopup(e.latlng);
   });
 });
 
