@@ -656,7 +656,7 @@ map.whenReady(() => {
 
   map.on("zoomend", toggleObstaclesByZoom);
 
-  map.on("moveend", debounce(refreshPlaces, 250));
+  map.on("moveend", debounce(refreshPlaces, 1));
 
   map.on("click", async (e) => {
     if (activeSearch === "departure") {
@@ -745,12 +745,18 @@ async function updateRoute() {
     style: { color: "#1a73e8", weight: 5, opacity: 0.9 },
     interactive: false,
   }).addTo(map);
+
+  const bounds = routeLayer.getBounds();
+  if (bounds.isValid()) {
+    map.fitBounds(bounds, { padding: [80, 80] });
+  }
 }
 
 function reverseAddressAt(latlng) {
   return new Promise((resolve) => {
     geocoder.reverse(latlng, map.options.crs.scale(18), (items) => {
-      resolve(items[0].name);
+      const best = items?.[0]?.name;
+      resolve(best || `${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`);
     });
   });
 }
@@ -868,7 +874,7 @@ destinationSearchInput.addEventListener(
 
       renderDestinationSuggestions(items);
     });
-  }, 250)
+  }, 1)
 );
 
 let departureGeocodeReqSeq = 0;
@@ -885,7 +891,7 @@ departureSearchInput.addEventListener(
       if (mySeq !== departureGeocodeReqSeq) return;
       renderDepartureSuggestions(items);
     });
-  }, 250)
+  }, 1)
 );
 
 const hideSuggestionsIfClickedOutside = (e) => {
