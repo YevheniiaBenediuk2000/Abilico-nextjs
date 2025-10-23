@@ -656,7 +656,7 @@ map.whenReady(() => {
 
   map.on("zoomend", toggleObstaclesByZoom);
 
-  map.on("moveend", debounce(refreshPlaces, 300));
+  map.on("moveend", debounce(refreshPlaces, 250));
 
   map.on("click", async (e) => {
     if (activeSearch === "departure") {
@@ -773,16 +773,20 @@ async function setFrom(latlng, text) {
 
 async function setTo(latlng, text) {
   toLatLng = latlng;
-  if (toMarker) map.removeLayer(toMarker);
-  toMarker = L.marker(latlng, {
-    draggable: true,
-    icon: waypointDivIcon("B", WP_COLORS.end),
-  }).addTo(map);
-  attachDraggable(toMarker, async (ll) => {
-    toLatLng = ll;
-    destinationSearchInput.value = await reverseAddressAt(ll);
-    updateRoute();
-  });
+  const directionsActive = !directionsUi.classList.contains("d-none");
+  if (directionsActive) {
+    if (toMarker) map.removeLayer(toMarker);
+    toMarker = L.marker(latlng, {
+      draggable: true,
+      icon: waypointDivIcon("B", WP_COLORS.end),
+    }).addTo(map);
+    attachDraggable(toMarker, async (ll) => {
+      toLatLng = ll;
+      destinationSearchInput.value = await reverseAddressAt(ll);
+      updateRoute();
+    });
+  }
+
   destinationSearchInput.value = text ?? (await reverseAddressAt(latlng));
   updateRoute();
 }
@@ -864,7 +868,7 @@ destinationSearchInput.addEventListener(
 
       renderDestinationSuggestions(items);
     });
-  }, 500)
+  }, 250)
 );
 
 let departureGeocodeReqSeq = 0;
@@ -881,7 +885,7 @@ departureSearchInput.addEventListener(
       if (mySeq !== departureGeocodeReqSeq) return;
       renderDepartureSuggestions(items);
     });
-  }, 500)
+  }, 250)
 );
 
 const hideSuggestionsIfClickedOutside = (e) => {
