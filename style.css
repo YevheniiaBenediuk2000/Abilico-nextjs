@@ -14,7 +14,7 @@ body {
 /* Overlay container */
 .map-overlay {
   position: absolute;
-  z-index: 1100;
+  z-index: 401;
   top: 12px;
   left: 12px;
   width: 420px;
@@ -44,6 +44,7 @@ body {
 .leaflet-routing-container {
   width: 100%;
   box-shadow: none;
+  z-index: 1480;
 }
 
 /* .leaflet-routing-geocoders {

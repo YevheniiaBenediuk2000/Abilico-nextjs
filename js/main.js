@@ -87,7 +87,6 @@ function mountRoutingInOffcanvas() {
     offcanvasBody.firstChild
   );
 
-  // Ensure it's visible (your global CSS hides it unless this or the offcanvas override applies)
   routingControl.getContainer().classList.remove("d-none");
 }
 
