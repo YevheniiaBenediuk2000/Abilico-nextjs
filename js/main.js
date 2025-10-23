@@ -66,14 +66,8 @@ const offcanvasBody = offcanvasEl.querySelector(".offcanvas-body");
 const offcanvasTitleEl = document.getElementById("placeOffcanvasLabel");
 const offcanvasInstance = new bootstrap.Offcanvas(offcanvasEl);
 
-// Create placeholders so we can return nodes to their original places on close
-const searchPlaceholder = document.createElement("div");
-searchPlaceholder.id = "search-placeholder";
-searchBar.after(searchPlaceholder);
-
 /** Mount search bar + details panel into the Offcanvas and open it. */
 function mountInOffcanvas(titleText) {
-  offcanvasBody.appendChild(searchBar);
   offcanvasBody.appendChild(detailsPanel);
 
   detailsPanel.style.display = "block";
@@ -81,9 +75,8 @@ function mountInOffcanvas(titleText) {
   offcanvasInstance.show();
 }
 
-/** Restore search bar to its original places when Offcanvas closes. */
 offcanvasEl.addEventListener("hidden.bs.offcanvas", () => {
-  searchPlaceholder.parentNode.insertBefore(searchBar, searchPlaceholder);
+  searchBar.classList.remove("d-none");
 });
 
 /** Move the LRM container into the Offcanvas (above details/search) and show it */
@@ -230,15 +223,14 @@ function toggleObstaclesByZoom() {
   if (allow) {
     if (drawnItems && !map.hasLayer(drawnItems)) {
       map.addLayer(drawnItems);
+      map.addControl(drawControl);
     }
   } else {
     if (drawnItems && map.hasLayer(drawnItems)) {
       map.removeLayer(drawnItems);
+      map.removeControl(drawControl);
     }
   }
-
-  // Show/hide drawing/editing UI accordingly
-  drawControl._container.style.display = allow ? "" : "none";
 }
 
 // --- LRM adapter that calls our existing OpenRouteService-based fetchRoute() ---
@@ -343,7 +335,9 @@ async function refreshPlaces() {
       const marker = L.marker(latlng, {
         pane: "places-pane",
         icon: L.icon({ iconUrl: iconFor(tags), iconSize: [32, 32] }),
-      }).on("click", () => renderDetails(tags, latlng));
+      }).on("click", () => {
+        renderDetails(tags, latlng);
+      });
 
       const title = tags.name ?? tags.amenity ?? "Unnamed place";
 
@@ -453,6 +447,8 @@ const renderDetails = async (tags, latlng) => {
       list.appendChild(li);
     }
   });
+
+  searchBar.classList.add("d-none");
 
   const titleText = tags.name || tags.amenity || "Details";
   mountInOffcanvas(titleText);
