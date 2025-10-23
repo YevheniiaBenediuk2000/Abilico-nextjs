@@ -11,10 +11,6 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.css"
     />
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css"
-    />
 
     <link
       rel="stylesheet"
@@ -130,7 +126,84 @@
           aria-label="Close"
         ></button>
       </div>
-      <div class="offcanvas-body"></div>
+      <div class="offcanvas-body">
+        <div id="directions-ui" class="mb-3 d-none">
+          <div class="row g-2 align-items-center mb-1">
+            <div class="col">
+              <label class="form-label mb-1" for="dir-from">From</label>
+              <div class="input-group">
+                <input
+                  id="dir-from"
+                  type="search"
+                  class="form-control"
+                  placeholder="Start location…"
+                  autocomplete="off"
+                  aria-controls="dir-from-suggestions"
+                />
+                <button
+                  id="dir-use-my"
+                  class="btn btn-outline-secondary"
+                  type="button"
+                  title="Use my location"
+                  aria-label="Use my location"
+                >
+                  📍
+                </button>
+              </div>
+              <ul
+                id="dir-from-suggestions"
+                class="list-group shadow w-100 d-none mt-1"
+                aria-label="From suggestions"
+              ></ul>
+            </div>
+          </div>
+
+          <div class="row g-2 align-items-center mb-2">
+            <div class="col">
+              <label class="form-label mb-1" for="dir-to">To</label>
+              <div class="input-group">
+                <input
+                  id="dir-to"
+                  type="search"
+                  class="form-control"
+                  placeholder="Destination…"
+                  autocomplete="off"
+                  aria-controls="dir-to-suggestions"
+                />
+                <button
+                  id="dir-swap"
+                  class="btn btn-outline-secondary"
+                  type="button"
+                  title="Swap start/end"
+                  aria-label="Swap"
+                >
+                  ⇄
+                </button>
+              </div>
+              <ul
+                id="dir-to-suggestions"
+                class="list-group shadow w-100 d-none mt-1"
+                aria-label="To suggestions"
+              ></ul>
+            </div>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button id="dir-route" class="btn btn-primary" type="button">
+              Route
+            </button>
+            <button
+              id="dir-clear"
+              class="btn btn-outline-secondary"
+              type="button"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+
+        <!-- Details panel will be moved here by JS -->
+      </div>
     </div>
 
     <!-- Toast stack (screen-reader friendly, stacks automatically) -->
@@ -142,8 +215,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-
-    <script src="https://cdn.jsdelivr.net/npm/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
 
     <script src="https://cdn.jsdelivr.net/npm/leaflet-control-geocoder@1.13.0/dist/Control.Geocoder.js"></script>
 

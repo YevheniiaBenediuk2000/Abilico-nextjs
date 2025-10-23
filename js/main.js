@@ -79,17 +79,6 @@ offcanvasEl.addEventListener("hidden.bs.offcanvas", () => {
   searchBar.classList.remove("d-none");
 });
 
-/** Move the LRM container into the Offcanvas (above details/search) and show it */
-function mountRoutingInOffcanvas() {
-  // Put LRM as the first element inside Offcanvas body (before search/details)
-  offcanvasBody.insertBefore(
-    routingControl.getContainer(),
-    offcanvasBody.firstChild
-  );
-
-  routingControl.getContainer().classList.remove("d-none");
-}
-
 // ---------- Bootstrap Modal + Tooltip helpers ----------
 let obstacleModalInstance = null;
 let obstacleForm, obstacleTitleInput;
@@ -232,75 +221,9 @@ function toggleObstaclesByZoom() {
   }
 }
 
-// --- LRM adapter that calls our existing OpenRouteService-based fetchRoute() ---
-const WheelchairRouter = L.Class.extend({
-  initialize(options = {}) {
-    L.setOptions(this, options);
-  },
-
-  // LRM calls this when it needs a route
-  async route(waypoints, callback, context, opts) {
-    const coords = waypoints.map((wp) => [wp.latLng.lng, wp.latLng.lat]);
-
-    try {
-      // Use your existing obstacleFeatures + fetchRoute (ORS wheelchair + avoid_polygons)
-      const geojson = await fetchRoute(coords, obstacleFeatures);
-
-      if (!geojson || !geojson.features || !geojson.features.length) {
-        return callback.call(context, { status: 500, message: "No route" });
-      }
-
-      const feat = geojson.features[0];
-      const line = feat.geometry; // LineString
-      const props = feat.properties || {};
-      const summary = props.summary || { distance: 0, duration: 0 };
-
-      const lrmCoords = line.coordinates.map(([lng, lat]) =>
-        L.latLng(lat, lng)
-      );
-
-      const route = {
-        name: "Wheelchair",
-        coordinates: lrmCoords,
-        // LRM expects these two props in meters/seconds:
-        summary: {
-          totalDistance: summary.distance || props.segments?.[0]?.distance || 0,
-          totalTime: summary.duration || props.segments?.[0]?.duration || 0,
-        },
-        // Echo back waypoints for LRM
-        inputWaypoints: waypoints,
-        waypoints: waypoints.map((wp) => wp.latLng),
-        // You can build turn-by-turn instructions later if you want:
-        instructions: [],
-      };
-
-      callback.call(context, null, [route]);
-    } catch (error) {
-      callback.call(context, {
-        status: 500,
-        message: error?.message || "Routing error",
-      });
-    }
-  },
-});
-
 const geocoder = L.Control.Geocoder.photon({
   serviceUrl: "https://photon.komoot.io/api/",
   reverseUrl: "https://photon.komoot.io/reverse/",
-});
-const routingControl = L.Routing.control({
-  position: "topleft",
-  router: new WheelchairRouter(),
-  geocoder,
-  routeWhileDragging: true,
-  reverseWaypoints: true,
-  showAlternatives: true,
-  createMarker,
-});
-
-routingControl.on("routesfound", function (e) {
-  const routeBounds = L.latLngBounds(e.routes[0].coordinates);
-  map.fitBounds(routeBounds, { padding: [70, 50] });
 });
 
 function iconFor(tags) {
@@ -377,26 +300,7 @@ const renderDetails = async (tags, latlng) => {
   const dirBtn = document.createElement("button");
   dirBtn.textContent = "Directions";
   dirBtn.id = "btn-directions";
-  dirBtn.addEventListener("click", () => {
-    if (selectedPlaceLayer && selectedPlaceLayer instanceof L.Marker) {
-      map.removeLayer(selectedPlaceLayer);
-      selectedPlaceLayer = null;
-    }
-
-    const wps = routingControl.getWaypoints();
-
-    const start = userLocation || wps[0].latLng;
-    const end = latlng;
-
-    if (start) {
-      routingControl.setWaypoints([start, end]);
-    } else {
-      routingControl.setWaypoints([null, end]);
-    }
-
-    // Show routing UI *inside* the Offcanvas
-    mountRoutingInOffcanvas();
-  });
+  dirBtn.addEventListener("click", () => {});
   detailsPanel.appendChild(dirBtn);
 
   // Add Reviews Section
@@ -710,59 +614,16 @@ map.whenReady(() => {
 
   L.control.zoom({ position: "bottomright" }).addTo(map);
 
-  routingControl.addTo(map);
-  const routingContainer = routingControl.getContainer();
-
-  // We’ll toggle this class to show LRM's geocoder fields when needed
-  routingContainer.classList.add("d-none");
-
   placeClusterLayer.addTo(map);
 
   refreshPlaces();
   initDrawingObstacles();
+
   map.on("zoomend", toggleObstaclesByZoom);
 
   map.on("moveend", debounce(refreshPlaces, 300));
 
-  map.on("click", function (e) {
-    const container = L.DomUtil.create("div"),
-      startBtn = createButton("Start here", container),
-      endBtn = createButton("Go here", container);
-
-    const wps = routingControl.getWaypoints();
-    const bothSet = wps.every((wp) => !!wp.latLng);
-    let viaBtn;
-    if (bothSet) {
-      viaBtn = createButton("Add via here", container);
-    }
-
-    const popup = L.popup()
-      .setLatLng(e.latlng)
-      .setContent(container)
-      .openOn(map);
-
-    // Set START (replace waypoint 0)
-    L.DomEvent.on(startBtn, "click", function () {
-      routingControl.spliceWaypoints(0, 1, e.latlng);
-      map.closePopup();
-    });
-
-    // Set END (replace last waypoint)
-    L.DomEvent.on(endBtn, "click", function () {
-      const last = routingControl.getWaypoints().length - 1;
-      routingControl.spliceWaypoints(last, 1, e.latlng);
-      map.closePopup();
-    });
-
-    // Insert VIA (before last), only if start+end already set
-    if (viaBtn) {
-      L.DomEvent.on(viaBtn, "click", function () {
-        const last = routingControl.getWaypoints().length - 1;
-        routingControl.spliceWaypoints(last, 0, e.latlng); // insert
-        map.closePopup();
-      });
-    }
-  });
+  map.on("click", function (e) {});
 });
 
 /** Render suggestions list */
