@@ -60,6 +60,44 @@ let obstacleFeatures = [];
 
 const detailsPanel = document.getElementById("details-panel");
 
+// ----- Offcanvas integration -----
+const offcanvasEl = document.getElementById("placeOffcanvas");
+const offcanvasBody = offcanvasEl.querySelector(".offcanvas-body");
+const offcanvasTitleEl = document.getElementById("placeOffcanvasLabel");
+const offcanvasInstance = new bootstrap.Offcanvas(offcanvasEl);
+
+// Create placeholders so we can return nodes to their original places on close
+const searchPlaceholder = document.createElement("div");
+searchPlaceholder.id = "search-placeholder";
+searchBar.after(searchPlaceholder);
+
+/** Mount search bar + details panel into the Offcanvas and open it. */
+function mountInOffcanvas(titleText) {
+  offcanvasBody.appendChild(searchBar);
+  offcanvasBody.appendChild(detailsPanel);
+
+  detailsPanel.style.display = "block";
+  offcanvasTitleEl.textContent = titleText;
+  offcanvasInstance.show();
+}
+
+/** Restore search bar to its original places when Offcanvas closes. */
+offcanvasEl.addEventListener("hidden.bs.offcanvas", () => {
+  searchPlaceholder.parentNode.insertBefore(searchBar, searchPlaceholder);
+});
+
+/** Move the LRM container into the Offcanvas (above details/search) and show it */
+function mountRoutingInOffcanvas() {
+  // Put LRM as the first element inside Offcanvas body (before search/details)
+  offcanvasBody.insertBefore(
+    routingControl.getContainer(),
+    offcanvasBody.firstChild
+  );
+
+  // Ensure it's visible (your global CSS hides it unless this or the offcanvas override applies)
+  routingControl.getContainer().classList.remove("d-none");
+}
+
 // ---------- Bootstrap Modal + Tooltip helpers ----------
 let obstacleModalInstance = null;
 let obstacleForm, obstacleTitleInput;
@@ -270,10 +308,6 @@ const routingControl = L.Routing.control({
 });
 
 routingControl.on("routesfound", function (e) {
-  searchBar.style.display = "none";
-  detailsPanel.style.display = "none";
-  routingControl.getContainer().style.marginTop = "10px";
-
   const routeBounds = L.latLngBounds(e.routes[0].coordinates);
   map.fitBounds(routeBounds, { padding: [70, 50] });
 });
@@ -323,7 +357,6 @@ async function refreshPlaces() {
 }
 
 const renderDetails = async (tags, latlng) => {
-  detailsPanel.style.display = "block";
   detailsPanel.innerHTML = "<h3>Details</h3>";
 
   Object.entries(tags).forEach(([key, value]) => {
@@ -368,8 +401,8 @@ const renderDetails = async (tags, latlng) => {
       routingControl.setWaypoints([null, end]);
     }
 
-    const routingContainer = routingControl.getContainer();
-    routingContainer.classList.add("lrm-show-geocoders");
+    // Show routing UI *inside* the Offcanvas
+    mountRoutingInOffcanvas();
   });
   detailsPanel.appendChild(dirBtn);
 
@@ -420,6 +453,9 @@ const renderDetails = async (tags, latlng) => {
       list.appendChild(li);
     }
   });
+
+  const titleText = tags.name || tags.amenity || "Details";
+  mountInOffcanvas(titleText);
 };
 
 function makeCircleFeature(layer) {
@@ -683,7 +719,7 @@ map.whenReady(() => {
   const routingContainer = routingControl.getContainer();
 
   // We’ll toggle this class to show LRM's geocoder fields when needed
-  routingContainer.classList.remove("lrm-show-geocoders");
+  routingContainer.classList.add("d-none");
 
   placeClusterLayer.addTo(map);
 

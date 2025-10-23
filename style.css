@@ -32,14 +32,22 @@ body {
   top: 56px;
   max-height: 320px;
   overflow: auto;
+  background-color: var(--bs-list-group-bg);
 }
 
-/* Hide LRM geocoders until user clicks Directions */
+/* When the search bar lives inside the Offcanvas, make it full-width & non-absolute */
+#placeOffcanvas #search-bar {
+  position: static;
+  width: 100%;
+}
+
 .leaflet-routing-container {
-  display: none; /* hidden by default */
+  width: 100%;
+  box-shadow: none;
 }
-.leaflet-routing-container.lrm-show-geocoders {
-  display: block; /* show when we add the class */
-}
+
+/* .leaflet-routing-geocoders {
+  border-bottom: none;
+} */
 
 /* make place icons a bit transparent */
