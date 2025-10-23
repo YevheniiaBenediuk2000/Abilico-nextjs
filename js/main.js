@@ -25,6 +25,8 @@ import {
   WP_COLORS,
 } from "./utils/wayPoints.mjs";
 
+const directionsUi = document.getElementById("directions-ui");
+
 const DRAW_HELP_LS_KEY = "ui.drawHelp.dismissed";
 const ls = {
   get(k) {
@@ -52,6 +54,9 @@ let drawControl = null;
 // ===== OMNIBOX STATE =====
 let userLocation = null;
 const searchBar = document.getElementById("search-bar");
+const searchBarHome = searchBar.parentElement;
+const searchBarNextSibling = searchBar.nextSibling;
+
 const searchInput = document.getElementById("search-input");
 const suggestionsEl = document.getElementById("search-suggestions");
 
@@ -76,6 +81,9 @@ function mountInOffcanvas(titleText) {
 }
 
 offcanvasEl.addEventListener("hidden.bs.offcanvas", () => {
+  searchBarHome.prepend(searchBar);
+
+  directionsUi.classList.add("d-none");
   searchBar.classList.remove("d-none");
 });
 
@@ -272,6 +280,18 @@ async function refreshPlaces() {
   placeClusterLayer.addLayer(placesLayer);
 }
 
+function moveSearchBarUnderFrom() {
+  // Show the directions block
+  directionsUi.classList.remove("d-none");
+
+  const fromLabel = directionsUi.querySelector('label[for="dir-from"]');
+
+  fromLabel.insertAdjacentElement("afterend", searchBar);
+
+  searchBar.classList.remove("d-none");
+  searchInput.focus();
+}
+
 const renderDetails = async (tags, latlng) => {
   detailsPanel.innerHTML = "<h3>Details</h3>";
 
@@ -300,7 +320,9 @@ const renderDetails = async (tags, latlng) => {
   const dirBtn = document.createElement("button");
   dirBtn.textContent = "Directions";
   dirBtn.id = "btn-directions";
-  dirBtn.addEventListener("click", () => {});
+  dirBtn.addEventListener("click", () => {
+    moveSearchBarUnderFrom();
+  });
   detailsPanel.appendChild(dirBtn);
 
   // Add Reviews Section
