@@ -73,9 +73,6 @@ const offcanvasInstance = new bootstrap.Offcanvas(offcanvasEl);
 
 /** Mount search bar + details panel into the Offcanvas and open it. */
 function mountInOffcanvas(titleText) {
-  offcanvasBody.appendChild(detailsPanel);
-
-  detailsPanel.style.display = "block";
   offcanvasTitleEl.textContent = titleText;
   offcanvasInstance.show();
 }
@@ -266,7 +263,7 @@ async function refreshPlaces() {
         pane: "places-pane",
         icon: L.icon({ iconUrl: iconFor(tags), iconSize: [32, 32] }),
       }).on("click", () => {
-        renderDetails(tags, latlng);
+        renderDetails(tags);
       });
 
       const title = tags.name ?? tags.amenity ?? "Unnamed place";
@@ -281,18 +278,14 @@ async function refreshPlaces() {
 }
 
 function moveSearchBarUnderFrom() {
-  // Show the directions block
   directionsUi.classList.remove("d-none");
-
   const fromLabel = directionsUi.querySelector('label[for="dir-from"]');
-
   fromLabel.insertAdjacentElement("afterend", searchBar);
-
   searchBar.classList.remove("d-none");
   searchInput.focus();
 }
 
-const renderDetails = async (tags, latlng) => {
+const renderDetails = async (tags) => {
   detailsPanel.innerHTML = "<h3>Details</h3>";
 
   Object.entries(tags).forEach(([key, value]) => {
@@ -716,7 +709,7 @@ async function selectSuggestion(res) {
   selectedPlaceLayer.addTo(map);
 
   const tags = await fetchPlace(res.properties.osm_type, res.properties.osm_id);
-  renderDetails(tags, res.center);
+  renderDetails(tags);
 }
 
 // Also hide on Escape
