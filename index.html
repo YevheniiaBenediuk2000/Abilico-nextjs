@@ -34,24 +34,21 @@
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <div id="search-bar" class="map-overlay">
-      <div class="position-relative">
-        <input
-          id="search-input"
-          type="search"
-          class="form-control form-control-lg search-input"
-          placeholder="Search place or click on the map…"
-          autocomplete="off"
-          aria-label="Search places"
-          aria-controls="search-suggestions"
-        />
+    <div class="map-overlay" id="destination-search-bar">
+      <input
+        id="destination-search-input"
+        type="search"
+        class="form-control form-control-lg search-input"
+        placeholder="Search place or click on the map…"
+        aria-label="Search places"
+        aria-controls="destination-suggestions"
+      />
 
-        <ul
-          id="search-suggestions"
-          class="list-group w-100 shadow d-none search-suggestions"
-          aria-label="Search suggestions"
-        ></ul>
-      </div>
+      <ul
+        id="destination-suggestions"
+        class="list-group w-100 shadow d-none search-suggestions"
+        aria-label="Search suggestions"
+      ></ul>
     </div>
 
     <div id="map"></div>
@@ -111,7 +108,7 @@
       data-bs-backdrop="false"
     >
       <div class="offcanvas-header">
-        <h5 class="offcanvas-title" id="placeOffcanvasLabel">Details</h5>
+        <h2 class="offcanvas-title" id="placeOffcanvasLabel">Details</h2>
         <button
           type="button"
           class="btn-close"
@@ -124,29 +121,28 @@
           <div class="row g-2 align-items-center mb-1">
             <div class="col">
               <label class="form-label mb-1" for="dir-from">From</label>
+              <div id="departure-search-bar" class="position-relative">
+                <input
+                  id="departure-search-input"
+                  type="search"
+                  class="form-control form-control-lg search-input"
+                  placeholder="Search place or click on the map…"
+                  aria-label="Search places"
+                  aria-controls="departure-suggestions"
+                />
+
+                <ul
+                  class="list-group w-100 shadow d-none search-suggestions"
+                  aria-label="Search suggestions"
+                  id="departure-suggestions"
+                ></ul>
+              </div>
             </div>
           </div>
 
           <div class="row g-2 align-items-center mb-2">
             <div class="col">
               <label class="form-label mb-1" for="dir-to">To</label>
-              <div>
-                <div class="position-relative">
-                  <input
-                    type="search"
-                    class="form-control form-control-lg search-input"
-                    placeholder="Search place or click on the map…"
-                    autocomplete="off"
-                    aria-label="Search places"
-                    aria-controls="search-suggestions"
-                  />
-
-                  <ul
-                    class="list-group w-100 shadow d-none search-suggestions"
-                    aria-label="Search suggestions"
-                  ></ul>
-                </div>
-              </div>
             </div>
           </div>
         </div>

@@ -53,11 +53,15 @@ let drawControl = null;
 
 // ===== OMNIBOX STATE =====
 let userLocation = null;
-const searchBar = document.getElementById("search-bar");
-const searchBarHome = searchBar.parentElement;
+const destinationSearchBar = document.getElementById("destination-search-bar");
+const destinationSearchBarHome = destinationSearchBar.parentElement;
 
-const searchInput = document.getElementById("search-input");
-const suggestionsEl = document.getElementById("search-suggestions");
+const destinationSearchInput = document.getElementById(
+  "destination-search-input"
+);
+const destinationSuggestionsEl = document.getElementById(
+  "destination-suggestions"
+);
 
 let drawnItems;
 let obstacleFeatures = [];
@@ -66,7 +70,6 @@ const detailsPanel = document.getElementById("details-panel");
 
 // ----- Offcanvas integration -----
 const offcanvasEl = document.getElementById("placeOffcanvas");
-const offcanvasBody = offcanvasEl.querySelector(".offcanvas-body");
 const offcanvasTitleEl = document.getElementById("placeOffcanvasLabel");
 const offcanvasInstance = new bootstrap.Offcanvas(offcanvasEl);
 
@@ -77,17 +80,20 @@ function mountInOffcanvas(titleText) {
 }
 
 offcanvasEl.addEventListener("hidden.bs.offcanvas", () => {
-  searchBarHome.prepend(searchBar);
-  searchBar.classList.remove("d-none");
+  destinationSearchBarHome.prepend(destinationSearchBar);
+  destinationSearchBar.classList.remove("d-none");
 });
 
 // ---------- Bootstrap Modal + Tooltip helpers ----------
 let obstacleModalInstance = null;
 let obstacleForm, obstacleTitleInput;
 
-function toggleSuggestions(visible) {
-  suggestionsEl.classList.toggle("d-none", !visible);
-  searchInput.setAttribute("aria-expanded", visible ? "true" : "false");
+function toggleDestinationSuggestions(visible) {
+  destinationSuggestionsEl.classList.toggle("d-none", !visible);
+  destinationSearchInput.setAttribute(
+    "aria-expanded",
+    visible ? "true" : "false"
+  );
 }
 
 function ensureObstacleModal() {
@@ -275,11 +281,8 @@ async function refreshPlaces() {
 }
 
 function moveDepartureSearchBarUnderFrom() {
-  directionsUi.classList.remove("d-none");
-  const fromLabel = directionsUi.querySelector('label[for="dir-from"]');
-  fromLabel.insertAdjacentElement("afterend", searchBar);
-  searchBar.classList.remove("d-none");
-  searchInput.focus();
+  const toLabel = directionsUi.querySelector('label[for="dir-to"]');
+  toLabel.insertAdjacentElement("afterend", destinationSearchBar);
 }
 
 const renderDetails = async (tags) => {
@@ -312,6 +315,9 @@ const renderDetails = async (tags) => {
   dirBtn.id = "btn-directions";
   dirBtn.addEventListener("click", () => {
     moveDepartureSearchBarUnderFrom();
+    directionsUi.classList.remove("d-none");
+
+    document.getElementById("departure-search-input").focus();
   });
   detailsPanel.appendChild(dirBtn);
 
@@ -638,11 +644,10 @@ map.whenReady(() => {
   map.on("click", function (e) {});
 });
 
-/** Render suggestions list */
-function renderSuggestions(items) {
-  suggestionsEl.innerHTML = "";
+function renderDestinationSuggestions(items) {
+  destinationSuggestionsEl.innerHTML = "";
   if (!items || !items.length) {
-    toggleSuggestions(false);
+    toggleDestinationSuggestions(false);
     return;
   }
 
@@ -657,15 +662,15 @@ function renderSuggestions(items) {
     btn.textContent = res.name;
     btn.addEventListener("click", () => selectSuggestion(items[idx]));
     li.appendChild(btn);
-    suggestionsEl.appendChild(li);
+    destinationSuggestionsEl.appendChild(li);
   });
 
-  toggleSuggestions(true);
+  toggleDestinationSuggestions(true);
 }
 
 /** Select a suggestion: center map, drop marker, render card */
 async function selectSuggestion(res) {
-  toggleSuggestions(false);
+  toggleDestinationSuggestions(false);
 
   if (selectedPlaceLayer) {
     map.removeLayer(selectedPlaceLayer);
@@ -710,21 +715,21 @@ async function selectSuggestion(res) {
 }
 
 // Also hide on Escape
-searchInput.addEventListener("keydown", (e) => {
+destinationSearchInput.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
-    toggleSuggestions(false);
+    toggleDestinationSuggestions(false);
   }
 });
 
 let geocodeReqSeq = 0;
 
-searchInput.addEventListener(
+destinationSearchInput.addEventListener(
   "input",
   debounce((e) => {
     const searchQuery = e.target.value.trim();
 
     if (!searchQuery) {
-      toggleSuggestions(false);
+      toggleDestinationSuggestions(false);
       return;
     }
 
@@ -735,14 +740,14 @@ searchInput.addEventListener(
       if (mySeq !== geocodeReqSeq) {
         return;
       }
-      renderSuggestions(items);
+      renderDestinationSuggestions(items);
     });
   }, 500)
 );
 
 const hideSuggestionsIfClickedOutside = (e) => {
-  if (!searchBar.contains(e.target)) {
-    toggleSuggestions(false);
+  if (!destinationSearchBar.contains(e.target)) {
+    toggleDestinationSuggestions(false);
   }
 };
 document.addEventListener("click", hideSuggestionsIfClickedOutside);

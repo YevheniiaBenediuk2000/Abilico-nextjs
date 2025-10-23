@@ -36,9 +36,11 @@ body {
   max-height: 320px;
 }
 
-/* When the search bar lives inside the Offcanvas, make it full-width & non-absolute */
-#placeOffcanvas #search-bar {
-  position: static;
+/* When the destination-search-bar lives inside the Offcanvas, make it full-width & non-absolute */
+#placeOffcanvas #destination-search-bar {
+  position: relative;
+  top: 0;
+  left: 0;
   width: 100%;
 }
 
