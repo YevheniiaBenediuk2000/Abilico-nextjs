@@ -58,10 +58,9 @@ function showQuickRoutePopup(latlng) {
       mountInOffcanvas("Directions");
 
       await setFrom(latlng);
-      activeSearch = "destination";
       destinationSearchInput.focus();
     } finally {
-      if (clickPopup) map.closePopup(clickPopup);
+      map.closePopup(clickPopup);
     }
   });
 
@@ -73,10 +72,9 @@ function showQuickRoutePopup(latlng) {
       mountInOffcanvas("Directions");
 
       await setTo(latlng);
-      activeSearch = "departure";
       departureSearchInput.focus();
     } finally {
-      if (clickPopup) map.closePopup(clickPopup);
+      map.closePopup(clickPopup);
     }
   });
 }
@@ -122,7 +120,6 @@ const departureSearchBar = document.getElementById("departure-search-bar");
 const departureSearchInput = document.getElementById("departure-search-input");
 const departureSuggestionsEl = document.getElementById("departure-suggestions");
 
-let activeSearch = "destination";
 let fromLatLng = null;
 let toLatLng = null;
 let fromMarker = null;
@@ -804,7 +801,7 @@ async function updateRoute() {
 
   const bounds = routeLayer.getBounds();
   if (bounds.isValid()) {
-    map.fitBounds(bounds, { padding: [80, 80] });
+    map.fitBounds(bounds, { padding: [120, 120] });
   }
 }
 
@@ -960,12 +957,3 @@ const hideSuggestionsIfClickedOutside = (e) => {
   }
 };
 document.addEventListener("click", hideSuggestionsIfClickedOutside);
-
-destinationSearchInput.addEventListener(
-  "focus",
-  () => (activeSearch = "destination")
-);
-departureSearchInput.addEventListener(
-  "focus",
-  () => (activeSearch = "departure")
-);

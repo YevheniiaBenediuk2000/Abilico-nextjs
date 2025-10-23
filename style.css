@@ -41,8 +41,6 @@ body {
   width: 100%;
 }
 
-/* make place icons a bit transparent */
-
 .quick-choose-popup .leaflet-popup-content {
   margin: 12px 16px;
 }
