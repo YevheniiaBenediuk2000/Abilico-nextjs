@@ -55,13 +55,23 @@ let drawControl = null;
 let userLocation = null;
 const destinationSearchBar = document.getElementById("destination-search-bar");
 const destinationSearchBarHome = destinationSearchBar.parentElement;
-
 const destinationSearchInput = document.getElementById(
   "destination-search-input"
 );
 const destinationSuggestionsEl = document.getElementById(
   "destination-suggestions"
 );
+
+const departureSearchBar = document.getElementById("departure-search-bar");
+const departureSearchInput = document.getElementById("departure-search-input");
+const departureSuggestionsEl = document.getElementById("departure-suggestions");
+
+let activeSearch = "destination";
+let fromLatLng = null;
+let toLatLng = null;
+let fromMarker = null;
+let toMarker = null;
+let routeLayer = null;
 
 let drawnItems;
 let obstacleFeatures = [];
@@ -87,6 +97,14 @@ offcanvasEl.addEventListener("hidden.bs.offcanvas", () => {
 // ---------- Bootstrap Modal + Tooltip helpers ----------
 let obstacleModalInstance = null;
 let obstacleForm, obstacleTitleInput;
+
+function toggleDepartureSuggestions(visible) {
+  departureSuggestionsEl.classList.toggle("d-none", !visible);
+  departureSearchInput.setAttribute(
+    "aria-expanded",
+    visible ? "true" : "false"
+  );
+}
 
 function toggleDestinationSuggestions(visible) {
   destinationSuggestionsEl.classList.toggle("d-none", !visible);
@@ -266,7 +284,7 @@ async function refreshPlaces() {
         pane: "places-pane",
         icon: L.icon({ iconUrl: iconFor(tags), iconSize: [32, 32] }),
       }).on("click", () => {
-        renderDetails(tags);
+        renderDetails(tags, latlng);
       });
 
       const title = tags.name ?? tags.amenity ?? "Unnamed place";
@@ -280,12 +298,14 @@ async function refreshPlaces() {
   placeClusterLayer.addLayer(placesLayer);
 }
 
-function moveDepartureSearchBarUnderFrom() {
-  const toLabel = directionsUi.querySelector('label[for="dir-to"]');
+function moveDepartureSearchBarUnderTo() {
+  const toLabel = directionsUi.querySelector(
+    'label[for="destination-search-input"]'
+  );
   toLabel.insertAdjacentElement("afterend", destinationSearchBar);
 }
 
-const renderDetails = async (tags) => {
+const renderDetails = async (tags, latlng) => {
   detailsPanel.innerHTML = "<h3>Details</h3>";
 
   Object.entries(tags).forEach(([key, value]) => {
@@ -313,11 +333,11 @@ const renderDetails = async (tags) => {
   const dirBtn = document.createElement("button");
   dirBtn.textContent = "Directions";
   dirBtn.id = "btn-directions";
-  dirBtn.addEventListener("click", () => {
-    moveDepartureSearchBarUnderFrom();
+  dirBtn.addEventListener("click", async () => {
+    moveDepartureSearchBarUnderTo();
     directionsUi.classList.remove("d-none");
-
-    document.getElementById("departure-search-input").focus();
+    departureSearchInput.focus();
+    await setTo(latlng);
   });
   detailsPanel.appendChild(dirBtn);
 
@@ -641,16 +661,23 @@ map.whenReady(() => {
 
   map.on("moveend", debounce(refreshPlaces, 300));
 
-  map.on("click", function (e) {});
+  map.on("click", async (e) => {
+    if (activeSearch === "departure") {
+      await setFrom(e.latlng);
+      departureSearchInput.focus();
+    } else {
+      await setTo(e.latlng);
+      destinationSearchInput.focus();
+    }
+  });
 });
 
-function renderDestinationSuggestions(items) {
-  destinationSuggestionsEl.innerHTML = "";
+function renderDepartureSuggestions(items) {
+  departureSuggestionsEl.innerHTML = "";
   if (!items || !items.length) {
-    toggleDestinationSuggestions(false);
+    toggleDepartureSuggestions(false);
     return;
   }
-
   items.forEach((res, idx) => {
     const li = document.createElement("li");
     const btn = document.createElement("button");
@@ -660,16 +687,115 @@ function renderDestinationSuggestions(items) {
     btn.role = "option";
     btn.dataset.index = String(idx);
     btn.textContent = res.name;
-    btn.addEventListener("click", () => selectSuggestion(items[idx]));
+    btn.addEventListener("click", () => selectDepartureSuggestion(items[idx]));
+    li.appendChild(btn);
+    departureSuggestionsEl.appendChild(li);
+  });
+  toggleDepartureSuggestions(true);
+}
+
+function renderDestinationSuggestions(items) {
+  destinationSuggestionsEl.innerHTML = "";
+  if (!items || !items.length) {
+    toggleDestinationSuggestions(false);
+    return;
+  }
+  items.forEach((res, idx) => {
+    const li = document.createElement("li");
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className =
+      "list-group-item list-group-item-action list-group-item-light";
+    btn.role = "option";
+    btn.dataset.index = String(idx);
+    btn.textContent = res.name;
+    btn.addEventListener("click", () =>
+      selectDestinationSuggestion(items[idx])
+    );
     li.appendChild(btn);
     destinationSuggestionsEl.appendChild(li);
   });
-
   toggleDestinationSuggestions(true);
 }
 
-/** Select a suggestion: center map, drop marker, render card */
-async function selectSuggestion(res) {
+function attachDraggable(marker, onMove) {
+  marker.on("dragend", async (e) => {
+    const ll = e.target.getLatLng();
+    await onMove(ll);
+  });
+}
+
+function clearRoute() {
+  if (routeLayer) {
+    map.removeLayer(routeLayer);
+    routeLayer = null;
+  }
+}
+
+async function updateRoute() {
+  clearRoute();
+  if (!fromLatLng || !toLatLng) return;
+
+  const geojson = await fetchRoute(
+    [
+      [fromLatLng.lng, fromLatLng.lat],
+      [toLatLng.lng, toLatLng.lat],
+    ],
+    obstacleFeatures
+  );
+
+  routeLayer = L.geoJSON(geojson, {
+    style: { color: "#1a73e8", weight: 5, opacity: 0.9 },
+    interactive: false,
+  }).addTo(map);
+}
+
+function reverseAddressAt(latlng) {
+  return new Promise((resolve) => {
+    geocoder.reverse(latlng, map.options.crs.scale(18), (items) => {
+      resolve(items[0].name);
+    });
+  });
+}
+
+async function setFrom(latlng, text) {
+  fromLatLng = latlng;
+  if (fromMarker) map.removeLayer(fromMarker);
+  fromMarker = L.marker(latlng, {
+    draggable: true,
+    icon: waypointDivIcon("A", WP_COLORS.start),
+  }).addTo(map);
+  attachDraggable(fromMarker, async (ll) => {
+    fromLatLng = ll;
+    departureSearchInput.value = await reverseAddressAt(ll);
+    updateRoute();
+  });
+  departureSearchInput.value = text ?? (await reverseAddressAt(latlng));
+  updateRoute();
+}
+
+async function setTo(latlng, text) {
+  toLatLng = latlng;
+  if (toMarker) map.removeLayer(toMarker);
+  toMarker = L.marker(latlng, {
+    draggable: true,
+    icon: waypointDivIcon("B", WP_COLORS.end),
+  }).addTo(map);
+  attachDraggable(toMarker, async (ll) => {
+    toLatLng = ll;
+    destinationSearchInput.value = await reverseAddressAt(ll);
+    updateRoute();
+  });
+  destinationSearchInput.value = text ?? (await reverseAddressAt(latlng));
+  updateRoute();
+}
+
+async function selectDepartureSuggestion(res) {
+  toggleDepartureSuggestions(false);
+  await setFrom(res.center, res.name);
+}
+
+async function selectDestinationSuggestion(res) {
   toggleDestinationSuggestions(false);
 
   if (selectedPlaceLayer) {
@@ -709,20 +835,21 @@ async function selectSuggestion(res) {
   }
 
   selectedPlaceLayer.addTo(map);
+  await setTo(res.center, res.name);
 
   const tags = await fetchPlace(res.properties.osm_type, res.properties.osm_id);
-  renderDetails(tags);
+  renderDetails(tags, res.center);
 }
 
 // Also hide on Escape
+departureSearchInput.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") toggleDepartureSuggestions(false);
+});
 destinationSearchInput.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
-    toggleDestinationSuggestions(false);
-  }
+  if (e.key === "Escape") toggleDestinationSuggestions(false);
 });
 
-let geocodeReqSeq = 0;
-
+let destinationGeocodeReqSeq = 0;
 destinationSearchInput.addEventListener(
   "input",
   debounce((e) => {
@@ -733,21 +860,49 @@ destinationSearchInput.addEventListener(
       return;
     }
 
-    const mySeq = ++geocodeReqSeq; // capture this call’s id
+    const mySeq = ++destinationGeocodeReqSeq;
 
     geocoder.geocode(searchQuery, (items) => {
-      // If this response is for an old call, ignore it
-      if (mySeq !== geocodeReqSeq) {
-        return;
-      }
+      if (mySeq !== destinationGeocodeReqSeq) return;
+
       renderDestinationSuggestions(items);
     });
   }, 500)
 );
 
+let departureGeocodeReqSeq = 0;
+departureSearchInput.addEventListener(
+  "input",
+  debounce((e) => {
+    const searchQuery = e.target.value.trim();
+    if (!searchQuery) {
+      toggleDepartureSuggestions(false);
+      return;
+    }
+    const mySeq = ++departureGeocodeReqSeq;
+    geocoder.geocode(searchQuery, (items) => {
+      if (mySeq !== departureGeocodeReqSeq) return;
+      renderDepartureSuggestions(items);
+    });
+  }, 500)
+);
+
 const hideSuggestionsIfClickedOutside = (e) => {
+  if (!departureSearchBar.contains(e.target)) {
+    toggleDepartureSuggestions(false);
+  }
+
   if (!destinationSearchBar.contains(e.target)) {
     toggleDestinationSuggestions(false);
   }
 };
 document.addEventListener("click", hideSuggestionsIfClickedOutside);
+
+destinationSearchInput.addEventListener(
+  "focus",
+  () => (activeSearch = "destination")
+);
+departureSearchInput.addEventListener(
+  "focus",
+  () => (activeSearch = "departure")
+);
