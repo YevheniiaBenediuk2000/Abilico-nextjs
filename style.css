@@ -51,7 +51,7 @@ body {
 #accessibility-legend {
   padding-right: 38px;
 }
-.accessibility-legend-circle {
+#accessibility-legend .circle {
   display: inline-block;
   background-color: var(--bs-secondary-bg);
   border-radius: 50%;
