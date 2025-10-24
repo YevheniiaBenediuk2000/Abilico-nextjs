@@ -1,4 +1,8 @@
-export const WP_COLORS = { start: "#1a73e8", end: "#d93025", via: "#6b7280" };
+export const WP_COLORS = {
+  start: "var(--bs-primary)",
+  end: "var(--bs-danger)",
+  via: "var(--bs-secondary)",
+};
 
 export function waypointDivIcon(letter, color) {
   const svg = `

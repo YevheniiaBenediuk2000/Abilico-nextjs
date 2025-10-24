@@ -27,7 +27,7 @@ function showQuickRoutePopup(latlng) {
   const html = `
     <div class="d-flex align-items-center gap-2" role="group" aria-label="Quick route actions">
       <button id="qp-start" type="button" class="btn btn-sm btn-primary">Start here</button>
-      <button id="qp-go" type="button" class="btn btn-sm btn-outline-primary">Go here</button>
+      <button id="qp-go" type="button" class="btn btn-sm btn-danger">Go here</button>
     </div>
   `;
 
@@ -798,7 +798,7 @@ async function updateRoute({ fit = true } = {}) {
   );
 
   routeLayer = L.geoJSON(geojson, {
-    style: { color: "#1a73e8", weight: 5, opacity: 0.9 },
+    style: { color: "var(--bs-indigo)", weight: 5, opacity: 0.9 },
     interactive: false,
   }).addTo(map);
 
