@@ -47,3 +47,12 @@ body {
 .quick-choose-popup .btn {
   margin: 2px 4px 2px 0;
 }
+
+#accessibility-legend {
+  padding-right: 38px;
+}
+.accessibility-legend-circle {
+  display: inline-block;
+  background-color: var(--bs-secondary-bg);
+  border-radius: 50%;
+}

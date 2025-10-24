@@ -20,6 +20,18 @@ import {
 import { ICON_MANIFEST } from "./static/manifest.js";
 import { toastError, toastWarn } from "./utils/toast.mjs";
 import { waypointDivIcon, WP_COLORS } from "./utils/wayPoints.mjs";
+import {
+  DRAW_HELP_LS_KEY,
+  DrawHelpAlert,
+} from "./leaflet-controls/DrawHelpAlert.mjs";
+import {
+  ACCESSIBILITY_LEGEND_LS_KEY,
+  AccessibilityLegend,
+  getAccessibilityTier,
+  SIZE_BY_TIER,
+  Z_INDEX_BY_TIER,
+} from "./leaflet-controls/AccessibilityLegend.mjs";
+import { ls } from "./utils/localStorage.mjs";
 
 let clickPopup = null;
 
@@ -80,16 +92,6 @@ function showQuickRoutePopup(latlng) {
 }
 
 const directionsUi = document.getElementById("directions-ui");
-
-const DRAW_HELP_LS_KEY = "ui.drawHelp.dismissed";
-const ls = {
-  get(k) {
-    return localStorage.getItem(k);
-  },
-  set(k, v) {
-    localStorage.setItem(k, v);
-  },
-};
 
 let selectedPlaceLayer = null;
 let placesPane;
@@ -318,7 +320,6 @@ function iconFor(tags) {
 }
 
 let placesReqSeq = 0;
-
 async function refreshPlaces() {
   const mySeq = ++placesReqSeq; // capture this call’s id
 
@@ -333,9 +334,20 @@ async function refreshPlaces() {
   const placesLayer = L.geoJSON(geojson, {
     pointToLayer: (feature, latlng) => {
       const tags = feature.properties;
+      const tier = getAccessibilityTier(tags);
+      const size = SIZE_BY_TIER[tier] ?? SIZE_BY_TIER.unknown;
+      const zIndexOffset = Z_INDEX_BY_TIER[tier] ?? Z_INDEX_BY_TIER.unknown;
+
       const marker = L.marker(latlng, {
         pane: "places-pane",
-        icon: L.icon({ iconUrl: iconFor(tags), iconSize: [32, 32] }),
+        icon: L.icon({
+          iconUrl: iconFor(tags),
+          iconSize: [size, size],
+          iconAnchor: [Math.round(size / 2), Math.round(size * 0.9)],
+          popupAnchor: [0, -Math.round(size * 0.6)],
+          tooltipAnchor: [0, -Math.round(size * 0.5)],
+        }),
+        zIndexOffset,
       })
         .on("click", () => {
           renderDetails(tags, latlng, { keepDirectionsUi: true });
@@ -496,43 +508,6 @@ async function initDrawingObstacles() {
     hookLayerInteractions(layer, feature.properties); // tooltip + click-to-edit
   });
 
-  const DrawHelpAlert = L.Control.extend({
-    options: { position: "topright" },
-    onAdd() {
-      const container = L.DomUtil.create("div", "leaflet-control");
-      container.innerHTML = `
-      <div class="alert alert-light alert-dismissible fade show shadow-sm mb-0" role="alert" style="min-width: 240px; max-width: 300px;">
-        <div class="d-flex align-items-start gap-2">
-          <span class="mt-1" aria-hidden="true">🧱</span>
-          <div>
-            <div class="fw-semibold">Draw obstacles</div>
-            <div class="small text-body-secondary">You can mark areas the route should avoid.</div>
-          </div>
-          <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-      </div>
-    `;
-
-      // prevent the alert from panning/zooming the map when interacted with
-      L.DomEvent.disableClickPropagation(container);
-      L.DomEvent.disableScrollPropagation(container);
-
-      const alertEl = container.querySelector(".alert");
-
-      // Persist dismissal before the element is removed
-      alertEl.addEventListener("close.bs.alert", () => {
-        ls.set(DRAW_HELP_LS_KEY, "1");
-      });
-
-      // After it's closed, remove the Leaflet control so no empty box remains
-      alertEl.addEventListener("closed.bs.alert", () => {
-        if (this._map) this._map.removeControl(this);
-      });
-
-      return container;
-    },
-  });
-
   if (!ls.get(DRAW_HELP_LS_KEY)) {
     map.addControl(new DrawHelpAlert());
   }
@@ -682,7 +657,8 @@ if (navigator.geolocation) {
         });
       }
 
-      const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
+      // const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
+      const defaultLatLng = [51.5074, -0.1278]; // London, UK
       map.setView(defaultLatLng, SHOW_PLACES_ZOOM);
     }
   );
@@ -716,6 +692,10 @@ map.whenReady(() => {
   selectedPane.style.zIndex = 650; // above normal markers
 
   L.control.zoom({ position: "bottomright" }).addTo(map);
+
+  if (!ls.get(ACCESSIBILITY_LEGEND_LS_KEY)) {
+    map.addControl(new AccessibilityLegend());
+  }
 
   placeClusterLayer.addTo(map);
 
