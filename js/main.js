@@ -57,7 +57,7 @@ function showQuickRoutePopup(latlng) {
       moveDepartureSearchBarUnderTo();
       mountInOffcanvas("Directions");
 
-      await setFrom(latlng);
+      await setFrom(latlng, null, { fit: false });
       destinationSearchInput.focus();
     } finally {
       map.closePopup(clickPopup);
@@ -71,7 +71,7 @@ function showQuickRoutePopup(latlng) {
       moveDepartureSearchBarUnderTo();
       mountInOffcanvas("Directions");
 
-      await setTo(latlng);
+      await setTo(latlng, null, { fit: false });
       departureSearchInput.focus();
     } finally {
       map.closePopup(clickPopup);
@@ -782,7 +782,7 @@ function clearRoute() {
   }
 }
 
-async function updateRoute() {
+async function updateRoute({ fit = true } = {}) {
   clearRoute();
   if (!fromLatLng || !toLatLng) return;
 
@@ -800,7 +800,7 @@ async function updateRoute() {
   }).addTo(map);
 
   const bounds = routeLayer.getBounds();
-  if (bounds.isValid()) {
+  if (fit && bounds.isValid()) {
     map.fitBounds(bounds, { padding: [120, 120] });
   }
 }
@@ -814,7 +814,7 @@ function reverseAddressAt(latlng) {
   });
 }
 
-async function setFrom(latlng, text) {
+async function setFrom(latlng, text, opts = {}) {
   fromLatLng = latlng;
   if (fromMarker) map.removeLayer(fromMarker);
   fromMarker = L.marker(latlng, {
@@ -824,13 +824,13 @@ async function setFrom(latlng, text) {
   attachDraggable(fromMarker, async (ll) => {
     fromLatLng = ll;
     departureSearchInput.value = await reverseAddressAt(ll);
-    updateRoute();
+    updateRoute({ fit: false });
   });
   departureSearchInput.value = text ?? (await reverseAddressAt(latlng));
-  updateRoute();
+  updateRoute(opts);
 }
 
-async function setTo(latlng, text) {
+async function setTo(latlng, text, opts = {}) {
   toLatLng = latlng;
   const directionsActive = !directionsUi.classList.contains("d-none");
   if (directionsActive) {
@@ -842,12 +842,12 @@ async function setTo(latlng, text) {
     attachDraggable(toMarker, async (ll) => {
       toLatLng = ll;
       destinationSearchInput.value = await reverseAddressAt(ll);
-      updateRoute();
+      updateRoute({ fit: false });
     });
   }
 
   destinationSearchInput.value = text ?? (await reverseAddressAt(latlng));
-  updateRoute();
+  updateRoute(opts);
 }
 
 async function selectDepartureSuggestion(res) {
