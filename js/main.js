@@ -336,13 +336,21 @@ async function refreshPlaces() {
       const marker = L.marker(latlng, {
         pane: "places-pane",
         icon: L.icon({ iconUrl: iconFor(tags), iconSize: [32, 32] }),
-      }).on("click", () => {
-        renderDetails(tags, latlng, { keepDirectionsUi: true });
-      });
+      })
+        .on("click", () => {
+          renderDetails(tags, latlng, { keepDirectionsUi: true });
+        })
+        .on("add", () => {
+          const title = tags.name ?? tags.amenity ?? "Unnamed place";
 
-      const title = tags.name ?? tags.amenity ?? "Unnamed place";
-
-      marker.bindPopup(`<strong>${title}</strong>`);
+          attachBootstrapTooltip(marker, title);
+        })
+        .on("remove", () => {
+          if (marker._bsTooltip) {
+            marker._bsTooltip.dispose();
+            marker._bsTooltip = null;
+          }
+        });
 
       return marker;
     },
