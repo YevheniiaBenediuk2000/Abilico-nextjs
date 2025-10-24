@@ -337,7 +337,7 @@ async function refreshPlaces() {
         pane: "places-pane",
         icon: L.icon({ iconUrl: iconFor(tags), iconSize: [32, 32] }),
       }).on("click", () => {
-        renderDetails(tags, latlng);
+        renderDetails(tags, latlng, { keepDirectionsUi: true });
       });
 
       const title = tags.name ?? tags.amenity ?? "Unnamed place";
@@ -358,7 +358,7 @@ function moveDepartureSearchBarUnderTo() {
   toLabel.insertAdjacentElement("afterend", destinationSearchBar);
 }
 
-const renderDetails = async (tags, latlng) => {
+const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   detailsPanel.innerHTML = "<h3>Details</h3>";
 
   Object.entries(tags).forEach(([key, value]) => {
@@ -388,8 +388,9 @@ const renderDetails = async (tags, latlng) => {
   dirBtn.id = "btn-directions";
   dirBtn.addEventListener("click", async () => {
     directionsUi.classList.remove("d-none");
-    departureSearchInput.focus();
     await setTo(latlng);
+    departureSearchInput.focus();
+    detailsPanel.innerHTML = "";
   });
   detailsPanel.appendChild(dirBtn);
 
@@ -406,7 +407,9 @@ const renderDetails = async (tags, latlng) => {
 
   reviewsContainer.appendChild(list);
 
-  directionsUi.classList.add("d-none");
+  if (!keepDirectionsUi) {
+    directionsUi.classList.add("d-none");
+  }
 
   moveDepartureSearchBarUnderTo();
 
