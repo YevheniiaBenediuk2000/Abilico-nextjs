@@ -19,7 +19,7 @@ export const ACCESSIBILITY_LEGEND_LS_KEY = "ui.accessibilityLegend.dismissed";
 export const AccessibilityLegend = L.Control.extend({
   options: { position: "topright" },
   onAdd() {
-    const div = L.DomUtil.create("div", "leaflet-control ");
+    const div = L.DomUtil.create("div", "leaflet-control");
     const accessibilityLegendEl = document.getElementById(
       "accessibility-legend"
     );

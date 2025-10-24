@@ -191,33 +191,70 @@
       class="alert alert-light alert-dismissible fade show shadow-sm mb-0"
       role="alert"
     >
-      <div class="fw-semibold mb-1">Accessibility</div>
-      <div class="d-flex align-items-center gap-2">
-        <span
-          style="width: 44px; height: 44px"
-          class="circle"
-          data-bs-toggle="tooltip"
-          data-bs-title="Designated"
-        ></span>
-        <span
-          style="width: 40px; height: 40px"
-          class="circle"
-          data-bs-title="Yes"
-          data-bs-toggle="tooltip"
-        ></span>
-        <span
-          style="width: 34px; height: 34px"
-          class="circle"
-          data-bs-title="Limited"
-          data-bs-toggle="tooltip"
-        ></span>
-        <span
-          style="width: 26px; height: 26px"
-          class="circle"
-          data-bs-title="No"
-          data-bs-toggle="tooltip"
-        ></span>
-      </div>
+      <form>
+        <div class="fw-semibold mb-1">Place Accessibility</div>
+        <div class="d-flex align-items-center gap-2">
+          <input
+            type="checkbox"
+            class="btn-check"
+            id="btn-check"
+            autocomplete="off"
+            checked
+          />
+          <label
+            style="width: 44px; height: 44px"
+            class="btn btn-primary"
+            for="btn-check"
+            data-bs-toggle="tooltip"
+            data-bs-title="Designated"
+          ></label>
+
+          <input
+            type="checkbox"
+            class="btn-check"
+            id="btn-check-2"
+            autocomplete="off"
+            checked
+          />
+          <label
+            style="width: 40px; height: 40px"
+            class="btn btn-primary"
+            for="btn-check-2"
+            data-bs-toggle="tooltip"
+            data-bs-title="Yes"
+          ></label>
+
+          <input
+            type="checkbox"
+            class="btn-check"
+            id="btn-check-3"
+            autocomplete="off"
+            checked
+          />
+          <label
+            style="width: 34px; height: 34px"
+            class="btn btn-primary"
+            for="btn-check-3"
+            data-bs-toggle="tooltip"
+            data-bs-title="Limited"
+          ></label>
+
+          <input
+            type="checkbox"
+            class="btn-check"
+            id="btn-check-4"
+            autocomplete="off"
+          />
+          <label
+            style="width: 26px; height: 26px"
+            class="btn btn-primary"
+            for="btn-check-4"
+            data-bs-toggle="tooltip"
+            data-bs-title="No"
+          ></label>
+        </div>
+      </form>
+
       <button
         type="button"
         class="btn-close ms-auto"
