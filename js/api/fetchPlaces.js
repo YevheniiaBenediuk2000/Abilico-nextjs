@@ -173,6 +173,9 @@ export async function fetchPlaces(bounds, zoom, options) {
   const AMENITY_EXCLUDED =
     "bench|waste_basket|bicycle_parking|vending_machine|fountain|ice_cream|grit_bin|drinking_water|give_box|parcel_locker|water_point|recycling|waste_basket|waste_disposal";
   const LEISURE_EXCLUDED = "park|picnic_table";
+  const MAN_MADE_EXCLUDED =
+    "surveillance|pump|pipeline|pier|groyne|flagpole|embankment|dyke|clearcut|cutline";
+  const MILITARY_EXCLUDED = "trench";
 
   if (accessibilityFilter.size === 0) {
     // Nothing checked ⇒ show nothing
@@ -189,6 +192,9 @@ export async function fetchPlaces(bounds, zoom, options) {
     `node["building"]["name"]`,
     `node["office"]["name"]`,
     `node["craft"]["name"]`,
+    `node["historic"]["name"]`,
+    `node["man_made"]["name"]["man_made"!~"${MAN_MADE_EXCLUDED}"]`,
+    `node["military"]["name"]["military"!~"${MILITARY_EXCLUDED}"]`,
   ];
 
   const accClauses = buildAccessibilityClauses(accessibilityFilter);
@@ -248,3 +254,5 @@ export async function fetchPlaces(bounds, zoom, options) {
 
   console.error("Places fetch failed on all Overpass endpoints:", lastError);
 }
+
+// add my email for feedback
