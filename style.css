@@ -7,13 +7,13 @@ body {
   height: 100%;
 }
 
-/* Overlay container */
 .map-overlay {
   position: absolute;
   z-index: 401;
   top: 12px;
   left: 12px;
-  width: 420px;
+  width: clamp(240px, 60vw, 420px);
+  max-width: 90vw;
 }
 
 .search-input,
