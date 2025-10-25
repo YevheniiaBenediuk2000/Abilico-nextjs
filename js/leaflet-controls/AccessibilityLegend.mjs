@@ -1,20 +1,15 @@
-export const SIZE_BY_TIER = {
-  designated: 44, // biggest: fully designated accessible
-  yes: 40,
-  limited: 34,
-  unknown: 30, // default when we don't know
-  no: 26, // smallest when explicitly not accessible
-};
+import { SIZE_BY_TIER } from "../constants.mjs";
+import { ls } from "../utils/localStorage.mjs";
 
-export const Z_INDEX_BY_TIER = {
-  designated: 1200,
-  yes: 1100,
-  limited: 1000,
-  unknown: 900,
-  no: 800,
-};
+export const ACCESSIBILITY_FILTER_LS_KEY = "ui.placeAccessibility.filter";
 
-export const ACCESSIBILITY_LEGEND_LS_KEY = "ui.accessibilityLegend.dismissed";
+const idToTier = new Map([
+  ["btn-check-designated", "designated"],
+  ["btn-check-yes", "yes"],
+  ["btn-check-limited", "limited"],
+  ["btn-check-unknown", "unknown"],
+  ["btn-check-no", "no"],
+]);
 
 export const AccessibilityLegend = L.Control.extend({
   options: { position: "topright" },
@@ -27,20 +22,46 @@ export const AccessibilityLegend = L.Control.extend({
     const tooltipTriggerList = accessibilityLegendEl.querySelectorAll(
       '[data-bs-toggle="tooltip"]'
     );
-    tooltipTriggerList.forEach(
-      (tooltipTriggerEl) => new bootstrap.Tooltip(tooltipTriggerEl)
-    );
+    tooltipTriggerList.forEach((tooltipTriggerEl) => {
+      tooltipTriggerEl.style.width = `${
+        SIZE_BY_TIER[idToTier.get(tooltipTriggerEl.htmlFor)]
+      }px`;
+      tooltipTriggerEl.style.height = `${
+        SIZE_BY_TIER[idToTier.get(tooltipTriggerEl.htmlFor)]
+      }px`;
+      new bootstrap.Tooltip(tooltipTriggerEl);
+    });
 
     div.append(accessibilityLegendEl);
     L.DomEvent.disableClickPropagation(div);
     L.DomEvent.disableScrollPropagation(div);
 
-    accessibilityLegendEl.addEventListener("close.bs.alert", () => {
-      ls.set(ACCESSIBILITY_LEGEND_LS_KEY, "1");
+    const inputs = accessibilityLegendEl.querySelectorAll("input.btn-check");
+    const persisted = JSON.parse(ls.get(ACCESSIBILITY_FILTER_LS_KEY)) ?? "";
+    inputs.forEach((inp) => {
+      const tier = idToTier.get(inp.id);
+      inp.checked = persisted.includes(tier);
     });
-    accessibilityLegendEl.addEventListener("closed.bs.alert", () => {
-      if (this._map) this._map.removeControl(this);
+
+    const emitChange = () => {
+      const tiers = [];
+
+      idToTier.forEach((tier, id) => {
+        const inp = accessibilityLegendEl.querySelector(`#${id}`);
+        if (inp.checked) tiers.push(tier);
+      });
+
+      ls.set(ACCESSIBILITY_FILTER_LS_KEY, JSON.stringify(tiers));
+
+      document.dispatchEvent(
+        new CustomEvent("accessibilityFilterChanged", { detail: tiers })
+      );
+    };
+
+    inputs.forEach((inp) => {
+      inp.addEventListener("change", emitChange);
     });
+    emitChange();
 
     return div;
   },

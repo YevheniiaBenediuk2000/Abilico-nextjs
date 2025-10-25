@@ -110,9 +110,54 @@ export async function fetchPlace(osmType, osmId) {
   return {};
 }
 
-let placesAbortController = null;
+function buildAccessibilityClauses(allowed) {
+  const ALL = ["designated", "yes", "limited", "unknown", "no"];
+  if (ALL.every((t) => allowed.has(t))) return [""];
 
-export async function fetchPlaces(bounds, zoom) {
+  const clauses = new Set();
+  const KEYS = ["wheelchair", "toilets:wheelchair", "wheelchair:toilets"];
+
+  if (allowed.has("designated")) {
+    clauses.add('["wheelchair"="designated"]');
+  }
+
+  if (allowed.has("yes")) {
+    KEYS.forEach((k) => clauses.add(`["${k}"~"^(yes|true)$"]`));
+  }
+
+  if (allowed.has("limited")) {
+    // IMPORTANT: use a normal capturing group, not (?:...)
+    KEYS.forEach((k) => clauses.add(`["${k}"~"^(limited|partial)$"]`));
+    // If you don't want to accept "partial", change to: ^limited$
+  }
+
+  if (allowed.has("no")) {
+    KEYS.forEach((k) => clauses.add(`["${k}"~"^(no|false)$"]`));
+  }
+
+  if (allowed.has("unknown")) {
+    // wheelchairs present but value is not any of the recognized ones
+    clauses.add(
+      '["wheelchair"!~"^(designated|yes|true|limited|partial|no|false)$"]'
+    );
+    // …or none of the relevant keys exist at all
+    clauses.add(
+      '[!"wheelchair"][!"toilets:wheelchair"][!"wheelchair:toilets"]'
+    );
+  }
+
+  return Array.from(clauses);
+}
+
+let placesAbortController = null;
+export async function fetchPlaces(bounds, zoom, options) {
+  const { accessibilityFilter } = options;
+
+  const showNoPlaces = zoom < SHOW_PLACES_ZOOM;
+  if (showNoPlaces) {
+    return { type: "FeatureCollection", features: [] };
+  }
+
   if (placesAbortController) {
     placesAbortController.abort();
   }
@@ -129,86 +174,41 @@ export async function fetchPlaces(bounds, zoom) {
     "bench|waste_basket|bicycle_parking|vending_machine|fountain|ice_cream|grit_bin|drinking_water|give_box|parcel_locker|water_point|recycling|waste_basket|waste_disposal";
   const LEISURE_EXCLUDED = "park|picnic_table";
 
-  const WHEELCHAIR_LIMITED = '["wheelchair"~"^(yes|limited|designated)$"]';
-  const TOILETS_WHEELCHAIR_YES = '["toilets:wheelchair"="yes"]';
-
-  const queryParts = [];
-
-  const showNoPlaces = zoom < SHOW_PLACES_ZOOM;
-
-  if (showNoPlaces) {
+  if (accessibilityFilter.size === 0) {
+    // Nothing checked ⇒ show nothing
     return { type: "FeatureCollection", features: [] };
   }
 
-  if (!showNoPlaces && zoom < 17) {
-    queryParts.push(
-      `node["amenity"]["name"]${WHEELCHAIR_LIMITED}["amenity"!~"${AMENITY_EXCLUDED}"](${boundingBox})`
-    );
-    queryParts.push(
-      `node["shop"]["name"]${WHEELCHAIR_LIMITED}(${boundingBox})`
-    );
-    queryParts.push(
-      `node["tourism"]["name"]${WHEELCHAIR_LIMITED}(${boundingBox})`
-    );
-    queryParts.push(
-      `node["leisure"]["name"]${WHEELCHAIR_LIMITED}["leisure"!~"${LEISURE_EXCLUDED}"](${boundingBox})`
-    );
-    queryParts.push(
-      `node["healthcare"]["name"]${WHEELCHAIR_LIMITED}(${boundingBox})`
-    );
-    queryParts.push(
-      `node["building"]["name"]${WHEELCHAIR_LIMITED}(${boundingBox})`
-    );
-    queryParts.push(
-      `node["office"]["name"]${WHEELCHAIR_LIMITED}(${boundingBox})`
-    );
-    queryParts.push(
-      `node["craft"]["name"]${WHEELCHAIR_LIMITED}(${boundingBox})`
-    );
+  // Base selectors WITHOUT bbox — we’ll append bbox and the tier clauses after
+  const baseSelectors = [
+    `node["amenity"]["name"]["amenity"!~"${AMENITY_EXCLUDED}"]`,
+    `node["shop"]["name"]`,
+    `node["tourism"]["name"]`,
+    `node["leisure"]["name"]["leisure"!~"${LEISURE_EXCLUDED}"]`,
+    `node["healthcare"]["name"]`,
+    `node["building"]["name"]`,
+    `node["office"]["name"]`,
+    `node["craft"]["name"]`,
+  ];
 
-    queryParts.push(
-      `node["amenity"]["name"]${TOILETS_WHEELCHAIR_YES}["amenity"!~"${AMENITY_EXCLUDED}"](${boundingBox})`
-    );
-    queryParts.push(
-      `node["shop"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
-    );
-    queryParts.push(
-      `node["tourism"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
-    );
-    queryParts.push(
-      `node["leisure"]["name"]${TOILETS_WHEELCHAIR_YES}["leisure"!~"${LEISURE_EXCLUDED}"](${boundingBox})`
-    );
-    queryParts.push(
-      `node["healthcare"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
-    );
-    queryParts.push(
-      `node["building"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
-    );
-    queryParts.push(
-      `node["office"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
-    );
-    queryParts.push(
-      `node["craft"]["name"]${TOILETS_WHEELCHAIR_YES}(${boundingBox})`
-    );
-  } else if (zoom >= 17) {
-    queryParts.push(
-      `node["amenity"]["name"]["amenity"!~"${AMENITY_EXCLUDED}"](${boundingBox})`
-    );
-    queryParts.push(`node["shop"]["name"](${boundingBox})`);
-    queryParts.push(`node["tourism"]["name"](${boundingBox})`);
-    queryParts.push(
-      `node["leisure"]["name"]["leisure"!~"${LEISURE_EXCLUDED}"](${boundingBox})`
-    );
-    queryParts.push(`node["healthcare"]["name"](${boundingBox})`);
-    queryParts.push(`node["building"]["name"](${boundingBox})`);
-    queryParts.push(`node["office"]["name"](${boundingBox})`);
-    queryParts.push(`node["craft"]["name"](${boundingBox})`);
+  const accClauses = buildAccessibilityClauses(accessibilityFilter);
+
+  // If accClauses === [""] we’ll just append bbox once per base selector.
+  const queryParts = [];
+  for (const base of baseSelectors) {
+    if (accClauses.length === 1 && accClauses[0] === "") {
+      queryParts.push(`${base}(${boundingBox})`);
+    } else {
+      for (const clause of accClauses) {
+        queryParts.push(`${base}${clause}(${boundingBox})`);
+      }
+    }
   }
 
   const query = `
     [out:json][maxsize:1073741824];
     (
-      ${queryParts.join("; ")};
+      ${queryParts.join(";\n      ")};
     );
     out center tags;
   `;

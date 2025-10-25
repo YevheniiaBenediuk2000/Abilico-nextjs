@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <title>Abilico Map</title>
+    <title>Open Access Map</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <link
       rel="stylesheet"
@@ -163,48 +164,21 @@
       ></div>
     </div>
 
-    <div
-      id="draw-help-alert"
-      class="d-none alert alert-light alert-dismissible fade show shadow-sm mb-0"
-      role="alert"
-      style="min-width: 240px; max-width: 300px"
-    >
-      <div class="d-flex align-items-start gap-2">
-        <span class="mt-1" aria-hidden="true">🧱</span>
-        <div>
-          <div class="fw-semibold mb-1">Draw obstacles</div>
-          <div class="small text-body-secondary">
-            You can mark areas the route should avoid.
-          </div>
-        </div>
-        <button
-          type="button"
-          class="btn-close ms-auto"
-          data-bs-dismiss="alert"
-          aria-label="Close"
-        ></button>
-      </div>
-    </div>
-
-    <div
-      id="accessibility-legend"
-      class="alert alert-light alert-dismissible fade show shadow-sm mb-0"
-      role="alert"
-    >
+    <div id="accessibility-legend" class="alert alert-light" role="alert">
       <form>
-        <div class="fw-semibold mb-1">Place Accessibility</div>
+        <h6>Place Accessibility</h6>
+
         <div class="d-flex align-items-center gap-2">
           <input
             type="checkbox"
             class="btn-check"
-            id="btn-check"
+            id="btn-check-designated"
             autocomplete="off"
             checked
           />
           <label
-            style="width: 44px; height: 44px"
-            class="btn btn-primary"
-            for="btn-check"
+            class="btn"
+            for="btn-check-designated"
             data-bs-toggle="tooltip"
             data-bs-title="Designated"
           ></label>
@@ -212,14 +186,13 @@
           <input
             type="checkbox"
             class="btn-check"
-            id="btn-check-2"
+            id="btn-check-yes"
             autocomplete="off"
             checked
           />
           <label
-            style="width: 40px; height: 40px"
-            class="btn btn-primary"
-            for="btn-check-2"
+            class="btn"
+            for="btn-check-yes"
             data-bs-toggle="tooltip"
             data-bs-title="Yes"
           ></label>
@@ -227,14 +200,12 @@
           <input
             type="checkbox"
             class="btn-check"
-            id="btn-check-3"
+            id="btn-check-limited"
             autocomplete="off"
-            checked
           />
           <label
-            style="width: 34px; height: 34px"
-            class="btn btn-primary"
-            for="btn-check-3"
+            class="btn"
+            for="btn-check-limited"
             data-bs-toggle="tooltip"
             data-bs-title="Limited"
           ></label>
@@ -242,18 +213,47 @@
           <input
             type="checkbox"
             class="btn-check"
-            id="btn-check-4"
+            id="btn-check-unknown"
             autocomplete="off"
           />
           <label
-            style="width: 26px; height: 26px"
-            class="btn btn-primary"
-            for="btn-check-4"
+            class="btn"
+            for="btn-check-unknown"
+            data-bs-toggle="tooltip"
+            data-bs-title="Unknown"
+          ></label>
+
+          <input
+            type="checkbox"
+            class="btn-check"
+            id="btn-check-no"
+            autocomplete="off"
+          />
+          <label
+            class="btn"
+            for="btn-check-no"
             data-bs-toggle="tooltip"
             data-bs-title="No"
           ></label>
         </div>
       </form>
+    </div>
+
+    <div
+      id="draw-help-alert"
+      class="d-none alert alert-light alert-dismissible fade show shadow-sm mb-0"
+      role="alert"
+      style="max-width: 245.33px"
+    >
+      <div>
+        <h6 class="d-flex align-items-center gap-2">
+          <span class="fs-6" aria-hidden="true">🧱</span>
+          Draw obstacles
+        </h6>
+        <p class="mb-0" style="font-size: 0.9rem">
+          You can mark areas the route should avoid.
+        </p>
+      </div>
 
       <button
         type="button"

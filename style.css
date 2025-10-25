@@ -47,3 +47,29 @@ body {
 .quick-choose-popup .btn {
   margin: 2px 4px 2px 0;
 }
+
+#btn-check-designated + label {
+  background-color: #16a34a;
+}
+
+#btn-check-yes + label {
+  background-color: #6cc24a;
+}
+
+#btn-check-limited + label {
+  background-color: var(--bs-warning);
+}
+
+#btn-check-unknown + label {
+  background-color: var(--bs-tertiary-color);
+}
+
+#btn-check-no + label {
+  background-color: var(--bs-danger);
+}
+
+#accessibility-legend .btn-check:not(:checked) + label.btn {
+  opacity: 0.5;
+  transform: scale(0.95);
+  filter: grayscale(10%);
+}

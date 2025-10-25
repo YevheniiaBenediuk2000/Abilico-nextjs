@@ -6,9 +6,10 @@ export const DrawHelpAlert = L.Control.extend({
   options: { position: "topright" },
   onAdd() {
     const container = L.DomUtil.create("div", "leaflet-control");
-    const alertEl = document.getElementById("draw-help-alert");
+    const originalAlertEl = document.getElementById("draw-help-alert");
+
+    const alertEl = originalAlertEl.cloneNode(true);
     alertEl.classList.remove("d-none");
-    container.append(alertEl);
 
     // prevent the alert from panning/zooming the map when interacted with
     L.DomEvent.disableClickPropagation(container);
@@ -23,6 +24,8 @@ export const DrawHelpAlert = L.Control.extend({
     alertEl.addEventListener("closed.bs.alert", () => {
       if (this._map) this._map.removeControl(this);
     });
+
+    container.append(alertEl);
 
     return container;
   },

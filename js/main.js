@@ -14,8 +14,9 @@ import { obstacleStorage, reviewStorage } from "./api/obstacleStorage.js";
 import {
   BASE_PATH,
   DEFAULT_ZOOM,
-  SHOW_PLACES_ZOOM,
   EXCLUDED_PROPS,
+  SIZE_BY_TIER,
+  placeClusterConfig,
 } from "./constants.mjs";
 import { ICON_MANIFEST } from "./static/manifest.js";
 import { toastError, toastWarn } from "./utils/toast.mjs";
@@ -25,13 +26,12 @@ import {
   DrawHelpAlert,
 } from "./leaflet-controls/DrawHelpAlert.mjs";
 import {
-  ACCESSIBILITY_LEGEND_LS_KEY,
   AccessibilityLegend,
   getAccessibilityTier,
-  SIZE_BY_TIER,
-  Z_INDEX_BY_TIER,
 } from "./leaflet-controls/AccessibilityLegend.mjs";
 import { ls } from "./utils/localStorage.mjs";
+
+let accessibilityFilter = new Set();
 
 let clickPopup = null;
 
@@ -96,19 +96,13 @@ const directionsUi = document.getElementById("directions-ui");
 let selectedPlaceLayer = null;
 let placesPane;
 
-const placeClusterLayer = L.markerClusterGroup({
-  chunkedLoading: true,
-  maxClusterRadius: 40,
-  // disableClusteringAtZoom: 18,
-  spiderfyOnMaxZoom: true,
-});
+const placeClusterLayer = L.markerClusterGroup(placeClusterConfig);
 
 // Track when Leaflet.Draw is in editing/deleting mode
 const drawState = { editing: false, deleting: false };
 let drawControl = null;
 
 // ===== OMNIBOX STATE =====
-let userLocation = null;
 const destinationSearchBar = document.getElementById("destination-search-bar");
 const destinationSearchBarHome = destinationSearchBar.parentElement;
 const destinationSearchInput = document.getElementById(
@@ -128,7 +122,9 @@ let fromMarker = null;
 let toMarker = null;
 let routeLayer = null;
 
-let drawnItems;
+const drawnItems = new L.FeatureGroup();
+let drawHelpAlertControl = null;
+
 let obstacleFeatures = [];
 
 const detailsPanel = document.getElementById("details-panel");
@@ -285,20 +281,22 @@ function hookLayerInteractions(layer, props) {
 }
 
 function toggleObstaclesByZoom() {
-  const z = map.getZoom();
-  const allow = z >= SHOW_PLACES_ZOOM;
+  const allow = map.getZoom() >= DEFAULT_ZOOM;
 
-  // Show/hide the whole obstacle layer group
   if (allow) {
-    if (drawnItems && !map.hasLayer(drawnItems)) {
-      map.addLayer(drawnItems);
-      map.addControl(drawControl);
+    if (!drawHelpAlertControl && !ls.get(DRAW_HELP_LS_KEY)) {
+      drawHelpAlertControl = new DrawHelpAlert();
+      map.addControl(drawHelpAlertControl);
     }
+
+    map.addControl(drawControl);
   } else {
-    if (drawnItems && map.hasLayer(drawnItems)) {
-      map.removeLayer(drawnItems);
-      map.removeControl(drawControl);
+    if (drawHelpAlertControl && !ls.get(DRAW_HELP_LS_KEY)) {
+      map.removeControl(drawHelpAlertControl);
+      drawHelpAlertControl = null;
     }
+
+    map.removeControl(drawControl);
   }
 }
 
@@ -324,7 +322,9 @@ async function refreshPlaces() {
   const mySeq = ++placesReqSeq; // capture this call’s id
 
   const zoom = map.getZoom();
-  const geojson = await fetchPlaces(map.getBounds(), zoom);
+  const geojson = await fetchPlaces(map.getBounds(), zoom, {
+    accessibilityFilter,
+  });
 
   // If this response is for an old call, ignore it
   if (mySeq !== placesReqSeq) return;
@@ -336,7 +336,6 @@ async function refreshPlaces() {
       const tags = feature.properties;
       const tier = getAccessibilityTier(tags);
       const size = SIZE_BY_TIER[tier] ?? SIZE_BY_TIER.unknown;
-      const zIndexOffset = Z_INDEX_BY_TIER[tier] ?? Z_INDEX_BY_TIER.unknown;
 
       const marker = L.marker(latlng, {
         pane: "places-pane",
@@ -347,7 +346,6 @@ async function refreshPlaces() {
           popupAnchor: [0, -Math.round(size * 0.6)],
           tooltipAnchor: [0, -Math.round(size * 0.5)],
         }),
-        zIndexOffset,
       })
         .on("click", () => {
           renderDetails(tags, latlng, { keepDirectionsUi: true });
@@ -482,10 +480,7 @@ function makeCircleFeature(layer) {
   };
 }
 async function initDrawingObstacles() {
-  drawnItems = new L.FeatureGroup();
-
   obstacleFeatures = await obstacleStorage();
-
   obstacleFeatures.forEach((feature) => {
     let layer = null;
 
@@ -507,10 +502,7 @@ async function initDrawingObstacles() {
     drawnItems.addLayer(layer);
     hookLayerInteractions(layer, feature.properties); // tooltip + click-to-edit
   });
-
-  if (!ls.get(DRAW_HELP_LS_KEY)) {
-    map.addControl(new DrawHelpAlert());
-  }
+  map.addLayer(drawnItems);
 
   drawControl = new L.Control.Draw({
     position: "topright",
@@ -524,8 +516,6 @@ async function initDrawingObstacles() {
       circlemarker: false,
     },
   });
-  map.addControl(drawControl);
-
   toggleObstaclesByZoom();
 
   map.on(L.Draw.Event.CREATED, async (e) => {
@@ -644,7 +634,6 @@ if (navigator.geolocation) {
   navigator.geolocation.getCurrentPosition(
     (position) => {
       const { latitude, longitude } = position.coords;
-      userLocation = L.latLng(latitude, longitude);
       map.setView([latitude, longitude], DEFAULT_ZOOM);
       L.marker([latitude, longitude]).addTo(map);
     },
@@ -659,13 +648,13 @@ if (navigator.geolocation) {
 
       // const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
       const defaultLatLng = [51.5074, -0.1278]; // London, UK
-      map.setView(defaultLatLng, SHOW_PLACES_ZOOM);
+      map.setView(defaultLatLng, DEFAULT_ZOOM);
     }
   );
 } else {
   console.log(error);
   const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
-  map.setView(defaultLatLng, SHOW_PLACES_ZOOM);
+  map.setView(defaultLatLng, DEFAULT_ZOOM);
   toastWarn("Geolocation not supported. Using default location.");
 }
 
@@ -693,13 +682,10 @@ map.whenReady(() => {
 
   L.control.zoom({ position: "bottomright" }).addTo(map);
 
-  if (!ls.get(ACCESSIBILITY_LEGEND_LS_KEY)) {
-    map.addControl(new AccessibilityLegend());
-  }
+  map.addControl(new AccessibilityLegend());
 
   placeClusterLayer.addTo(map);
 
-  refreshPlaces();
   initDrawingObstacles();
 
   map.on("zoomend", toggleObstaclesByZoom);
@@ -948,3 +934,11 @@ const hideSuggestionsIfClickedOutside = (e) => {
   }
 };
 document.addEventListener("click", hideSuggestionsIfClickedOutside);
+
+document.addEventListener("accessibilityFilterChanged", (e) => {
+  accessibilityFilter = new Set(e.detail);
+  if (!accessibilityFilter) {
+    return;
+  }
+  refreshPlaces();
+});
