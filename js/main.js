@@ -381,8 +381,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   Object.entries(tags).forEach(([key, value]) => {
     if (!EXCLUDED_PROPS.has(key)) {
-      const div = document.createElement("div");
-      div.className = "detail-item";
+      const item = document.createElement("div");
 
       // Format the key for display
       let displayKey = null;
@@ -395,8 +394,8 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
           .replace(/\b\w/g, (c) => c.toUpperCase());
       }
 
-      div.innerHTML = `<strong>${displayKey}:</strong> ${value}`;
-      detailsPanel.appendChild(div);
+      item.innerHTML = `<strong>${displayKey}:</strong> ${value}`;
+      detailsPanel.appendChild(item);
     }
   });
 

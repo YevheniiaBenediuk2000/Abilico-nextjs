@@ -13,7 +13,6 @@ body {
   top: 12px;
   left: 12px;
   width: clamp(240px, 60vw, 420px);
-  max-width: 90vw;
 }
 
 .search-input,
@@ -75,6 +74,10 @@ body {
 }
 
 @media (max-width: 768px) {
+  .map-overlay {
+    width: calc(100% - 24px);
+  }
+
   #accessibility-legend {
     position: fixed;
     bottom: 12px;
