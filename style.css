@@ -73,3 +73,11 @@ body {
   transform: scale(0.95);
   filter: grayscale(10%);
 }
+
+@media (max-width: 768px) {
+  #accessibility-legend {
+    position: fixed;
+    bottom: 12px;
+    left: 12px;
+  }
+}
