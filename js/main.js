@@ -403,7 +403,6 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   // Add Directions button
   const dirBtn = document.createElement("button");
   dirBtn.textContent = "Directions";
-  dirBtn.id = "btn-directions";
   dirBtn.addEventListener("click", async () => {
     directionsUi.classList.remove("d-none");
     await setTo(latlng);
@@ -414,16 +413,16 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   // Add Reviews Section
 
+  const hrEl = document.createElement("hr");
+  detailsPanel.appendChild(hrEl);
+
   const reviewsContainer = document.createElement("div");
-  reviewsContainer.id = "reviews-container";
   reviewsContainer.innerHTML = "<h3>Reviews</h3>";
   detailsPanel.appendChild(reviewsContainer);
 
   const placeId = tags.id ?? tags.osm_id ?? tags.place_id;
 
   const list = document.createElement("ul");
-
-  reviewsContainer.appendChild(list);
 
   if (!keepDirectionsUi) {
     directionsUi.classList.add("d-none");
@@ -441,7 +440,6 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     <textarea id="review-text" placeholder="Write your review..." required></textarea><br>
     <button type="submit">Submit Review</button>
   `;
-  reviewsContainer.appendChild(form);
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -460,6 +458,8 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     textarea.value = "";
   });
 
+  reviewsContainer.appendChild(form);
+
   const reviews = await reviewStorage();
   reviews.forEach((r) => {
     if (placeId && placeId === r.placeId) {
@@ -468,6 +468,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       list.appendChild(li);
     }
   });
+  reviewsContainer.appendChild(list);
 };
 
 function makeCircleFeature(layer) {
