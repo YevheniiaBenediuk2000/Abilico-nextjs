@@ -18,7 +18,6 @@ import {
   SIZE_BY_TIER,
   placeClusterConfig,
 } from "./constants.mjs";
-import { ICON_MANIFEST } from "./static/manifest.js";
 import { toastError, toastWarn } from "./utils/toast.mjs";
 import { waypointDivIcon, WP_COLORS } from "./utils/wayPoints.mjs";
 import {
@@ -44,6 +43,70 @@ import {
   BasemapGallery,
   osm,
 } from "./leaflet-controls/BasemapGallery.mjs";
+import { ICON_FALLBACKS, ICON_INDEX } from "./static/manifest.js";
+
+const TAG_PRIORITY = [
+  "amenity",
+  "shop",
+  "tourism",
+  "leisure",
+  "healthcare",
+  "office",
+  "craft",
+  "historic",
+  "man_made",
+  "military",
+  "sport",
+  "place",
+];
+
+function variants(v) {
+  const x = String(v).toLowerCase().trim();
+  const out = new Set([
+    x,
+    x.replace(/-/g, "_"),
+    x.replace(/_/g, "-"),
+    x.replace(/[-_ ]/g, ""),
+  ]);
+  if (x === "fast_food") out.add("fastfood");
+  if (x === "ice_cream") out.add("icecream");
+  if (x.endsWith("_shop")) out.add(x.replace(/_shop$/, ""));
+  return [...out];
+}
+
+function iconFor(tags) {
+  for (const key of TAG_PRIORITY) {
+    const v = tags?.[key];
+    if (!v) continue;
+
+    // try exact/variant matches first
+    for (const cand of variants(v)) {
+      const hit = ICON_INDEX[cand];
+      if (hit) return `${BASE_PATH}/${hit}`;
+    }
+
+    // category-level fallback (pick something reasonable)
+    const catFallback =
+      key === "shop"
+        ? ICON_FALLBACKS.shopping
+        : key === "tourism"
+        ? ICON_FALLBACKS.sightseeing
+        : key === "leisure"
+        ? ICON_FALLBACKS.recreation
+        : key === "healthcare"
+        ? ICON_FALLBACKS.health
+        : key === "sport"
+        ? ICON_FALLBACKS.sports
+        : ICON_FALLBACKS.information;
+
+    if (catFallback) return `${BASE_PATH}/${catFallback}`;
+  }
+
+  // last resorts
+  return ICON_FALLBACKS.unknown
+    ? `${BASE_PATH}/${ICON_FALLBACKS.unknown}`
+    : `${BASE_PATH}/${ICON_FALLBACKS.no_icon || "svg/misc/no_icon.svg"}`;
+}
 
 const detailsCtx = { latlng: null, placeId: null };
 
@@ -323,18 +386,6 @@ const geocoder = L.Control.Geocoder.photon({
   serviceUrl: "https://photon.komoot.io/api/",
   reverseUrl: "https://photon.komoot.io/reverse/",
 });
-
-function iconFor(tags) {
-  const candidates = ICON_MANIFEST.filter((p) =>
-    p.endsWith(`/${tags.amenity}.svg`)
-  );
-
-  const url = candidates.length
-    ? `${BASE_PATH}/${candidates[0]}`
-    : `${BASE_PATH}/svg/misc/no_icon.svg`;
-
-  return url;
-}
 
 let placesReqSeq = 0;
 async function refreshPlaces() {

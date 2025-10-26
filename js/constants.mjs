@@ -43,6 +43,6 @@ export const placeClusterConfig = {
     }
     return 40;
   },
-  // disableClusteringAtZoom: 18,
+  disableClusteringAtZoom: 14,
   spiderfyOnMaxZoom: true,
 };
