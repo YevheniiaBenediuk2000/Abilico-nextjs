@@ -387,12 +387,14 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     const containsLocalizedVariants =
       /^(name|alt_name|short_name|display_name):/.test(key.toLowerCase());
     const isNameKey = /^name$/i.test(key);
+    const isCountryKey = /^country$/i.test(key);
 
     const isExcluded =
       EXCLUDED_PROPS.has(key) ||
       containsAltName ||
       containsLocalizedVariants ||
-      isNameKey;
+      isNameKey ||
+      isCountryKey;
 
     if (!isExcluded) {
       const item = document.createElement("div");
@@ -430,7 +432,6 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     .querySelector("#btn-start-here")
     .addEventListener("click", async () => {
       directionsUi.classList.remove("d-none");
-      moveDepartureSearchBarUnderTo();
       mountInOffcanvas("Directions");
       await setFrom(latlng);
       destinationSearchInput.focus();
@@ -440,7 +441,6 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     .querySelector("#btn-go-here")
     .addEventListener("click", async () => {
       directionsUi.classList.remove("d-none");
-      moveDepartureSearchBarUnderTo();
       mountInOffcanvas("Directions");
       await setTo(latlng);
       departureSearchInput.focus();
