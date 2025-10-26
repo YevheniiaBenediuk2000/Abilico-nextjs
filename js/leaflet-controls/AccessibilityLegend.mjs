@@ -38,18 +38,24 @@ export const AccessibilityLegend = L.Control.extend({
 
     const inputs = accessibilityLegendEl.querySelectorAll("input.btn-check");
     const persisted = JSON.parse(ls.get(ACCESSIBILITY_FILTER_LS_KEY)) ?? "";
-    inputs.forEach((inp) => {
-      const tier = idToTier.get(inp.id);
-      inp.checked = persisted.includes(tier);
-    });
+
+    if (Array.isArray(persisted)) {
+      inputs.forEach((inp) => {
+        const tier = idToTier.get(inp.id);
+        inp.checked = persisted.includes(tier);
+      });
+    } else {
+      // Seed storage from whatever the HTML currently marks as checked
+      const seed = Array.from(inputs)
+        .filter((i) => i.checked)
+        .map((i) => idToTier.get(i.id));
+      ls.set(ACCESSIBILITY_FILTER_LS_KEY, JSON.stringify(seed));
+    }
 
     const emitChange = () => {
-      const tiers = [];
-
-      idToTier.forEach((tier, id) => {
-        const inp = accessibilityLegendEl.querySelector(`#${id}`);
-        if (inp.checked) tiers.push(tier);
-      });
+      const tiers = Array.from(inputs)
+        .filter((i) => i.checked)
+        .map((i) => idToTier.get(i.id));
 
       ls.set(ACCESSIBILITY_FILTER_LS_KEY, JSON.stringify(tiers));
 

@@ -399,14 +399,12 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     const containsAltName = /alt\s*name/i.test(key);
     const containsLocalizedVariants =
       /^(name|alt_name|short_name|display_name):/.test(key.toLowerCase());
-    const isNameKey = /^name$/i.test(key);
     const isCountryKey = /^country$/i.test(key);
 
     const isExcluded =
       EXCLUDED_PROPS.has(key) ||
       containsAltName ||
       containsLocalizedVariants ||
-      isNameKey ||
       isCountryKey;
 
     if (!isExcluded) {
