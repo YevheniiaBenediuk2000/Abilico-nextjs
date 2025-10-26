@@ -414,8 +414,8 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
       item.innerHTML = `
         <div class="me-2">
-          <div class="fw-semibold">${displayKey}</div>
-          <div class="small text-body-secondary">${displayValue}</div>
+          <h6 class="mb-1 fw-semibold">${displayKey}</h6>
+          <p class="small mb-1">${displayValue}</p>
         </div>
       `;
       list.appendChild(item);
