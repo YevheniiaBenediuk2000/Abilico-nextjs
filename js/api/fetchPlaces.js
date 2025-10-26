@@ -213,7 +213,6 @@ function selectorsForZoom(
     `node["man_made"]["name"]["man_made"!~"${MAN_MADE_EXCLUDED}"]`,
     `node["military"]["name"]["military"!~"${MILITARY_EXCLUDED}"]`,
     `node["sport"]["name"]`,
-    `node["place"]["name"]`,
   ];
 
   // Medium zoom: most categories, but no super-noisy tails
@@ -226,7 +225,6 @@ function selectorsForZoom(
     `node["office"]["name"]`,
     `node["historic"]["name"]`,
     `node["sport"]["name"]`,
-    `node["place"]["name"]`,
     // (omit building/craft/man_made/military at this level)
   ];
 
@@ -238,7 +236,6 @@ function selectorsForZoom(
     `node["healthcare"]["name"]["healthcare"~"^(hospital|clinic)$"]`,
     `node["shop"]["name"]["shop"~"^(${SHOP_FOCUS_LOW.join("|")})$"]`,
     `node["historic"]["name"]`,
-    `node["place"]["name"]["place"~"^(city|town|village)$"]`,
   ];
 
   // Heuristic bands — tweak to taste
@@ -251,8 +248,8 @@ function selectorsForZoom(
 // 0 = no cap
 function limitForZoom(zoom) {
   if (zoom >= 17) return 0;
-  if (zoom >= 15) return 700; // mid zoom
-  return 300; // far zoom
+  if (zoom >= 15) return 500; // mid zoom
+  return 200; // far zoom
 }
 
 let placesAbortController = null;
