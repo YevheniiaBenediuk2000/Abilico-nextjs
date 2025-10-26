@@ -31,6 +31,8 @@ import {
 } from "./leaflet-controls/AccessibilityLegend.mjs";
 import { ls } from "./utils/localStorage.mjs";
 
+const detailsCtx = { latlng: null, placeId: null };
+
 let accessibilityFilter = new Set();
 
 let clickPopup = null;
@@ -126,8 +128,12 @@ const drawnItems = new L.FeatureGroup();
 let drawHelpAlertControl = null;
 
 let obstacleFeatures = [];
+let reviews = [];
 
 const detailsPanel = document.getElementById("details-panel");
+const reviewForm = detailsPanel.querySelector("#review-form");
+const reviewsListEl = detailsPanel.querySelector("#reviews-list");
+const submitReviewBtn = detailsPanel.querySelector("#submit-review-btn");
 
 // ----- Offcanvas integration -----
 const offcanvasEl = document.getElementById("placeOffcanvas");
@@ -375,6 +381,13 @@ function moveDepartureSearchBarUnderTo() {
   toLabel.insertAdjacentElement("afterend", destinationSearchBar);
 }
 
+const renderOneReview = (text) => {
+  const li = document.createElement("li");
+  li.className = "list-group-item text-wrap";
+  li.innerHTML = text;
+  reviewsListEl.appendChild(li);
+};
+
 const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   const titleText = tags.name || tags.amenity || "Details";
 
@@ -427,52 +440,13 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     }
   });
 
-  // Quick actions (start/go)
-  detailsPanel
-    .querySelector("#btn-start-here")
-    .addEventListener("click", async () => {
-      directionsUi.classList.remove("d-none");
-      mountInOffcanvas("Directions");
-      await setFrom(latlng);
-      destinationSearchInput.focus();
-    });
+  detailsCtx.latlng = latlng;
+  detailsCtx.placeId = tags.id ?? tags.osm_id ?? tags.place_id;
 
-  detailsPanel
-    .querySelector("#btn-go-here")
-    .addEventListener("click", async () => {
-      directionsUi.classList.remove("d-none");
-      mountInOffcanvas("Directions");
-      await setTo(latlng);
-      departureSearchInput.focus();
-    });
+  const placeId = detailsCtx.placeId;
 
   // Add Reviews Section
-  const placeId = tags.id ?? tags.osm_id ?? tags.place_id;
-  const form = detailsPanel.querySelector("#review-form");
-  const reviewsList = detailsPanel.querySelector("#reviews-list");
-  reviewsList.innerHTML = "";
-
-  const renderOneReview = (text) => {
-    const li = document.createElement("li");
-    li.className = "list-group-item text-wrap";
-    li.innerHTML = text;
-    reviewsList.appendChild(li);
-  };
-
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const textarea = form.querySelector("#review-text");
-    const text = textarea.value.trim();
-    if (!text) return;
-
-    const newReview = { text, placeId };
-    reviews.push(newReview);
-
-    const record = await reviewStorage("PUT", reviews);
-
-    renderOneReview(record[record.length - 1].text);
-    textarea.value = "";
-  });
+  reviewsListEl.innerHTML = "";
 
   if (!keepDirectionsUi) {
     directionsUi.classList.add("d-none");
@@ -481,7 +455,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   moveDepartureSearchBarUnderTo();
   mountInOffcanvas(titleText);
 
-  const reviews = await reviewStorage();
+  reviews = await reviewStorage();
   reviews.forEach((r) => {
     if (placeId && placeId === r.placeId) {
       renderOneReview(r.text);
@@ -973,4 +947,47 @@ document.addEventListener("accessibilityFilterChanged", (e) => {
     return;
   }
   refreshPlaces();
+});
+
+detailsPanel
+  .querySelector("#btn-start-here")
+  .addEventListener("click", async () => {
+    directionsUi.classList.remove("d-none");
+    mountInOffcanvas("Directions");
+    await setFrom(detailsCtx.latlng);
+    destinationSearchInput.focus();
+  });
+
+detailsPanel
+  .querySelector("#btn-go-here")
+  .addEventListener("click", async () => {
+    directionsUi.classList.remove("d-none");
+    mountInOffcanvas("Directions");
+    await setTo(detailsCtx.latlng);
+    departureSearchInput.focus();
+  });
+
+reviewForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const textarea = reviewForm.querySelector("#review-text");
+  const text = textarea.value.trim();
+  if (!text) return;
+
+  if (!detailsCtx.placeId) {
+    debugger;
+  }
+
+  const newReview = { text, placeId: detailsCtx.placeId };
+  reviews.push(newReview);
+
+  try {
+    submitReviewBtn.disabled = true;
+    const record = await reviewStorage("PUT", reviews);
+    renderOneReview(record[record.length - 1].text);
+    textarea.value = "";
+  } catch {
+    toastError("Could not save your review. Please try again.");
+  } finally {
+    submitReviewBtn.disabled = false;
+  }
 });

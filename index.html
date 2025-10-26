@@ -153,31 +153,6 @@
         </div>
 
         <div id="details-panel" class="d-none">
-          <div class="d-grid gap-2">
-            <div
-              class="btn-group"
-              role="group"
-              aria-label="Quick route actions"
-            >
-              <button
-                id="btn-start-here"
-                type="button"
-                class="btn btn-outline-primary"
-              >
-                Start here
-              </button>
-              <button
-                id="btn-go-here"
-                type="button"
-                class="btn btn-outline-danger"
-              >
-                Go here
-              </button>
-            </div>
-          </div>
-
-          <hr />
-
           <ul class="nav nav-tabs" id="detailsTabs" role="tablist">
             <li class="nav-item" role="presentation">
               <button
@@ -216,6 +191,29 @@
               role="tabpanel"
               aria-labelledby="overview-tab"
             >
+              <div class="d-grid gap-2 mb-3">
+                <div
+                  class="btn-group"
+                  role="group"
+                  aria-label="Quick route actions"
+                >
+                  <button
+                    id="btn-start-here"
+                    type="button"
+                    class="btn btn-outline-primary"
+                  >
+                    Start here
+                  </button>
+                  <button
+                    id="btn-go-here"
+                    type="button"
+                    class="btn btn-outline-danger"
+                  >
+                    Go here
+                  </button>
+                </div>
+              </div>
+
               <div class="card shadow-sm">
                 <div
                   class="list-group list-group-flush"
@@ -240,7 +238,11 @@
                       placeholder="Write your review…"
                       required
                     ></textarea>
-                    <button type="submit" class="btn btn-outline-secondary">
+                    <button
+                      id="submit-review-btn"
+                      type="submit"
+                      class="btn btn-outline-secondary"
+                    >
                       Submit Review
                     </button>
                   </form>
