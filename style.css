@@ -118,6 +118,10 @@ body {
   border-radius: 0.75rem;
 }
 
+.map-list-button {
+  border-radius: 0;
+}
+
 .bm-head-label {
   position: absolute;
   left: 50%;
@@ -164,10 +168,11 @@ body {
   text-wrap: wrap;
 }
 
-/* Show currently active base with an outline */
-.bm-item.active {
-  outline: 2px solid var(--bs-primary);
-  outline-offset: 2px;
+.leaflet-control.basemap-gallery .bm-item.active,
+.leaflet-control.basemap-gallery .bm-item.active:focus,
+.leaflet-control.basemap-gallery .bm-item.active:focus-visible {
+  border-color: var(--bs-primary);
+  box-shadow: 0 0 0 2px var(--bs-primary); /* visible “active border” */
 }
 
 /* Touch fallback: toggle 'expanded' class via JS */

@@ -176,7 +176,7 @@ export const BasemapGallery = L.Control.extend({
 
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "btn bm-item bg-dark";
+      btn.className = "btn bm-item bg-dark map-list-button";
       btn.setAttribute("aria-label", `Switch to ${name} basemap`);
       btn.dataset.name = name;
 

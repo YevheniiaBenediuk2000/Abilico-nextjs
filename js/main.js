@@ -691,7 +691,6 @@ if (navigator.geolocation) {
     }
   );
 } else {
-  console.log(error);
   const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
   map.setView(defaultLatLng, DEFAULT_ZOOM);
   toastWarn("Geolocation not supported. Using default location.");
@@ -700,6 +699,17 @@ if (navigator.geolocation) {
 // ============= EVENT LISTENERS ================
 
 map.whenReady(async () => {
+  placesPane = map.createPane("places-pane");
+  placesPane.style.zIndex = 450; // below selected
+
+  const selectedPane = map.createPane("selected-pane");
+  selectedPane.style.zIndex = 650; // above normal markers
+
+  L.control.zoom({ position: "bottomright" }).addTo(map);
+  placeClusterLayer.addTo(map);
+
+  map.addControl(new AccessibilityLegend());
+
   map.on("draw:editstart", () => {
     drawState.editing = true;
   });
@@ -713,19 +723,7 @@ map.whenReady(async () => {
     drawState.deleting = false;
   });
 
-  placesPane = map.createPane("places-pane");
-  placesPane.style.zIndex = 450; // below selected
-
-  const selectedPane = map.createPane("selected-pane");
-  selectedPane.style.zIndex = 650; // above normal markers
-
-  L.control.zoom({ position: "bottomright" }).addTo(map);
-
-  placeClusterLayer.addTo(map);
-
-  map.addControl(new AccessibilityLegend());
-
-  map.on("moveend", debounce(refreshPlaces, 1));
+  map.on("moveend", debounce(refreshPlaces, 200));
 
   await initDrawingObstacles();
 
@@ -979,7 +977,7 @@ destinationSearchInput.addEventListener(
         destinationSuggestionsEl.classList.remove("d-none");
       }
     });
-  }, 1)
+  }, 200)
 );
 
 let departureGeocodeReqSeq = 0;
@@ -1002,7 +1000,7 @@ departureSearchInput.addEventListener(
         departureSuggestionsEl.classList.remove("d-none");
       }
     });
-  }, 1)
+  }, 200)
 );
 
 const hideSuggestionsIfClickedOutside = (e) => {
