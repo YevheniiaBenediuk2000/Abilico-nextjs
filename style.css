@@ -67,6 +67,10 @@ body {
   background-color: var(--bs-danger);
 }
 
+#accessibility-legend {
+  margin-bottom: 0;
+}
+
 #accessibility-legend .btn-check:not(:checked) + label.btn {
   opacity: 0.5;
   transform: scale(0.95);
@@ -174,5 +178,8 @@ body {
   display: none;
 }
 
+#draw-help-alert {
+  max-width: 245.08px;
+}
+
 /* add my email for feedback */
-/* layers */

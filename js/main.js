@@ -699,7 +699,7 @@ if (navigator.geolocation) {
 
 // ============= EVENT LISTENERS ================
 
-map.whenReady(() => {
+map.whenReady(async () => {
   map.on("draw:editstart", () => {
     drawState.editing = true;
   });
@@ -723,19 +723,18 @@ map.whenReady(() => {
 
   placeClusterLayer.addTo(map);
 
-  map.addControl(new BasemapGallery({ initial: initialName }));
+  map.addControl(new AccessibilityLegend());
 
+  map.on("moveend", debounce(refreshPlaces, 1));
+
+  await initDrawingObstacles();
+
+  map.addControl(new BasemapGallery({ initial: initialName }));
   map.on("baselayerchange", (e) => {
     ls.set(BASEMAP_LS_KEY, e.name);
   });
 
-  map.addControl(new AccessibilityLegend());
-
-  initDrawingObstacles();
-
   map.on("zoomend", toggleObstaclesByZoom);
-
-  map.on("moveend", debounce(refreshPlaces, 1));
 
   map.on("click", async (e) => {
     if (drawState.editing || drawState.deleting) return;
