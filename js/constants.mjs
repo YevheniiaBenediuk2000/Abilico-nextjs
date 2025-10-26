@@ -1,8 +1,8 @@
 export const ORS_API_KEY =
   "5b3ce3597851110001cf624808521bae358447e592780fc0039f7235";
 
-export const DEFAULT_ZOOM = 18;
-export const SHOW_PLACES_ZOOM = 10;
+export const DEFAULT_ZOOM = 14;
+export const SHOW_PLACES_ZOOM = 13;
 
 export const EXCLUDED_PROPS = new Set([
   "boundingbox",
@@ -43,6 +43,6 @@ export const placeClusterConfig = {
     }
     return 40;
   },
-  disableClusteringAtZoom: 14,
+  // disableClusteringAtZoom: 14,
   spiderfyOnMaxZoom: true,
 };

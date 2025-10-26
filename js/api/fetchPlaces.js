@@ -149,6 +149,112 @@ function buildAccessibilityClauses(allowed) {
   return Array.from(clauses);
 }
 
+const AMENITY_FOCUS_LOW = [
+  // bigger / civic / fewer items
+  "bank",
+  "atm",
+  "pharmacy",
+  "hospital",
+  "clinic",
+  "library",
+  "university",
+  "college",
+  "school",
+  "theatre",
+  "cinema",
+  "place_of_worship",
+  "police",
+  "post_office",
+  "townhall",
+];
+
+const TOURISM_FOCUS_LOW = [
+  "attraction",
+  "museum",
+  "gallery",
+  "zoo",
+  "theme_park",
+  "aquarium",
+  "viewpoint",
+  "hotel",
+];
+
+const LEISURE_FOCUS_LOW = [
+  "stadium",
+  "sports_centre",
+  "swimming_pool",
+  "fitness_centre",
+];
+
+const SHOP_FOCUS_LOW = [
+  "mall",
+  "department_store",
+  "supermarket",
+  "convenience",
+  "bakery",
+];
+
+// Build the base selectors depending on zoom
+function selectorsForZoom(
+  zoom,
+  { AMENITY_EXCLUDED, LEISURE_EXCLUDED, MAN_MADE_EXCLUDED, MILITARY_EXCLUDED }
+) {
+  // Full fat (your previous set) at close zoom
+  const FULL = [
+    `node["amenity"]["name"]["amenity"!~"${AMENITY_EXCLUDED}"]`,
+    `node["shop"]["name"]`,
+    `node["tourism"]["name"]`,
+    `node["leisure"]["name"]["leisure"!~"${LEISURE_EXCLUDED}"]`,
+    `node["healthcare"]["name"]`,
+    `node["building"]["name"]`,
+    `node["office"]["name"]`,
+    `node["craft"]["name"]`,
+    `node["historic"]["name"]`,
+    `node["man_made"]["name"]["man_made"!~"${MAN_MADE_EXCLUDED}"]`,
+    `node["military"]["name"]["military"!~"${MILITARY_EXCLUDED}"]`,
+    `node["sport"]["name"]`,
+    `node["place"]["name"]`,
+  ];
+
+  // Medium zoom: most categories, but no super-noisy tails
+  const MID = [
+    `node["amenity"]["name"]["amenity"!~"${AMENITY_EXCLUDED}"]`,
+    `node["shop"]["name"]["shop"~"^(${SHOP_FOCUS_LOW.join("|")})$"]`,
+    `node["tourism"]["name"]`,
+    `node["leisure"]["name"]["leisure"!~"${LEISURE_EXCLUDED}"]`,
+    `node["healthcare"]["name"]`,
+    `node["office"]["name"]`,
+    `node["historic"]["name"]`,
+    `node["sport"]["name"]`,
+    `node["place"]["name"]`,
+    // (omit building/craft/man_made/military at this level)
+  ];
+
+  // Far zoom: only “important” types to keep counts small
+  const LOW = [
+    `node["amenity"]["name"]["amenity"~"^(${AMENITY_FOCUS_LOW.join("|")})$"]`,
+    `node["tourism"]["name"]["tourism"~"^(${TOURISM_FOCUS_LOW.join("|")})$"]`,
+    `node["leisure"]["name"]["leisure"~"^(${LEISURE_FOCUS_LOW.join("|")})$"]`,
+    `node["healthcare"]["name"]["healthcare"~"^(hospital|clinic)$"]`,
+    `node["shop"]["name"]["shop"~"^(${SHOP_FOCUS_LOW.join("|")})$"]`,
+    `node["historic"]["name"]`,
+    `node["place"]["name"]["place"~"^(city|town|village)$"]`,
+  ];
+
+  // Heuristic bands — tweak to taste
+  if (zoom >= 17) return FULL;
+  if (zoom >= 15) return MID;
+  return LOW; // zoom < 15
+}
+
+// Optional: cap results at lower zooms (Overpass supports a numeric limit on `out`)
+// 0 = no cap
+function limitForZoom(zoom) {
+  if (zoom >= 17) return 0;
+  if (zoom >= 15) return 700; // mid zoom
+  return 300; // far zoom
+}
+
 let placesAbortController = null;
 export async function fetchPlaces(bounds, zoom, options) {
   const { accessibilityFilter } = options;
@@ -182,20 +288,12 @@ export async function fetchPlaces(bounds, zoom, options) {
     return { type: "FeatureCollection", features: [] };
   }
 
-  // Base selectors WITHOUT bbox — we’ll append bbox and the tier clauses after
-  const baseSelectors = [
-    `node["amenity"]["name"]["amenity"!~"${AMENITY_EXCLUDED}"]`,
-    `node["shop"]["name"]`,
-    `node["tourism"]["name"]`,
-    `node["leisure"]["name"]["leisure"!~"${LEISURE_EXCLUDED}"]`,
-    `node["healthcare"]["name"]`,
-    `node["building"]["name"]`,
-    `node["office"]["name"]`,
-    `node["craft"]["name"]`,
-    `node["historic"]["name"]`,
-    `node["man_made"]["name"]["man_made"!~"${MAN_MADE_EXCLUDED}"]`,
-    `node["military"]["name"]["military"!~"${MILITARY_EXCLUDED}"]`,
-  ];
+  const baseSelectors = selectorsForZoom(zoom, {
+    AMENITY_EXCLUDED,
+    LEISURE_EXCLUDED,
+    MAN_MADE_EXCLUDED,
+    MILITARY_EXCLUDED,
+  });
 
   const accClauses = buildAccessibilityClauses(accessibilityFilter);
 
@@ -211,12 +309,15 @@ export async function fetchPlaces(bounds, zoom, options) {
     }
   }
 
+  const outLimit = limitForZoom(zoom);
+  const outLine = outLimit ? `out center ${outLimit};` : `out center;`;
+
   const query = `
-    [out:json][maxsize:1073741824];
+    [out:json][timeout:180];
     (
       ${queryParts.join(";\n      ")};
     );
-    out center tags;
+    ${outLine}
   `;
 
   let lastError = null;
