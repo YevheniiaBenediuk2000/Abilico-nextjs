@@ -30,6 +30,14 @@ import {
   getAccessibilityTier,
 } from "./leaflet-controls/AccessibilityLegend.mjs";
 import { ls } from "./utils/localStorage.mjs";
+import {
+  duringLoading,
+  hideLoading,
+  showDetailsLoading,
+  showListSpinner,
+  showLoading,
+  withButtonLoading,
+} from "./utils/loading.mjs";
 
 const detailsCtx = { latlng: null, placeId: null };
 
@@ -327,51 +335,55 @@ async function refreshPlaces() {
   const mySeq = ++placesReqSeq; // capture this call’s id
 
   const zoom = map.getZoom();
-  const geojson = await fetchPlaces(map.getBounds(), zoom, {
-    accessibilityFilter,
-  });
+  const key = showLoading("places");
 
-  // If this response is for an old call, ignore it
-  if (mySeq !== placesReqSeq) return;
+  try {
+    const geojson = await fetchPlaces(map.getBounds(), zoom, {
+      accessibilityFilter,
+    });
+    // If this response is for an old call, ignore it
+    if (mySeq !== placesReqSeq) return;
 
-  placeClusterLayer.clearLayers();
+    placeClusterLayer.clearLayers();
 
-  const placesLayer = L.geoJSON(geojson, {
-    pointToLayer: (feature, latlng) => {
-      const tags = feature.properties;
-      const tier = getAccessibilityTier(tags);
-      const size = SIZE_BY_TIER[tier] ?? SIZE_BY_TIER.unknown;
+    const placesLayer = L.geoJSON(geojson, {
+      pointToLayer: (feature, latlng) => {
+        const tags = feature.properties;
+        const tier = getAccessibilityTier(tags);
+        const size = SIZE_BY_TIER[tier] ?? SIZE_BY_TIER.unknown;
 
-      const marker = L.marker(latlng, {
-        pane: "places-pane",
-        icon: L.icon({
-          iconUrl: iconFor(tags),
-          iconSize: [size, size],
-          iconAnchor: [Math.round(size / 2), Math.round(size * 0.9)],
-          popupAnchor: [0, -Math.round(size * 0.6)],
-          tooltipAnchor: [0, -Math.round(size * 0.5)],
-        }),
-      })
-        .on("click", () => {
-          renderDetails(tags, latlng, { keepDirectionsUi: true });
+        const marker = L.marker(latlng, {
+          pane: "places-pane",
+          icon: L.icon({
+            iconUrl: iconFor(tags),
+            iconSize: [size, size],
+            iconAnchor: [Math.round(size / 2), Math.round(size * 0.9)],
+            popupAnchor: [0, -Math.round(size * 0.6)],
+            tooltipAnchor: [0, -Math.round(size * 0.5)],
+          }),
         })
-        .on("add", () => {
-          const title = tags.name ?? tags.amenity ?? "Unnamed place";
+          .on("click", () => {
+            renderDetails(tags, latlng, { keepDirectionsUi: true });
+          })
+          .on("add", () => {
+            const title = tags.name ?? tags.amenity ?? "Unnamed place";
 
-          attachBootstrapTooltip(marker, title);
-        })
-        .on("remove", () => {
-          if (marker._bsTooltip) {
-            marker._bsTooltip.dispose();
-            marker._bsTooltip = null;
-          }
-        });
+            attachBootstrapTooltip(marker, title);
+          })
+          .on("remove", () => {
+            if (marker._bsTooltip) {
+              marker._bsTooltip.dispose();
+              marker._bsTooltip = null;
+            }
+          });
 
-      return marker;
-    },
-  });
-
-  placeClusterLayer.addLayer(placesLayer);
+        return marker;
+      },
+    });
+    placeClusterLayer.addLayer(placesLayer);
+  } finally {
+    hideLoading(key);
+  }
 }
 
 function moveDepartureSearchBarUnderTo() {
@@ -451,7 +463,14 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   moveDepartureSearchBarUnderTo();
   mountInOffcanvas(titleText);
 
-  reviews = await reviewStorage();
+  const key = showLoading("reviews-load");
+
+  try {
+    reviews = await reviewStorage();
+  } finally {
+    hideLoading(key);
+  }
+
   reviews.forEach((r) => {
     if (detailsCtx.placeId && detailsCtx.placeId === r.placeId) {
       renderOneReview(r.text);
@@ -469,6 +488,13 @@ function makeCircleFeature(layer) {
   };
 }
 async function initDrawingObstacles() {
+  const key = showLoading("obstacles-load");
+  try {
+    obstacleFeatures = await obstacleStorage();
+  } finally {
+    hideLoading(key);
+  }
+
   obstacleFeatures = await obstacleStorage();
   obstacleFeatures.forEach((feature) => {
     let layer = null;
@@ -551,6 +577,8 @@ async function initDrawingObstacles() {
       tooltipTextFromProps(featureToStore.properties)
     );
 
+    const key = showLoading("obstacles-put");
+
     try {
       obstacleFeatures = await obstacleStorage("PUT", [
         ...obstacleFeatures,
@@ -559,6 +587,8 @@ async function initDrawingObstacles() {
     } catch {
       drawnItems.removeLayer(layerToAdd);
       toastError("Could not save obstacle. Please try again.");
+    } finally {
+      hideLoading(key);
     }
   });
 
@@ -588,6 +618,8 @@ async function initDrawingObstacles() {
             obstacleFeatures[i].properties?.radius,
         };
 
+        const key = showLoading("obstacles-put");
+
         try {
           const updatedObstacleFeatures = [...obstacleFeatures];
           updatedObstacleFeatures[i] = updated;
@@ -597,12 +629,14 @@ async function initDrawingObstacles() {
           hookLayerInteractions(layer, updated.properties);
         } catch {
           toastError("Could not save edited obstacle. Please try again.");
+        } finally {
+          hideLoading(key);
         }
       }
     });
   });
 
-  map.on(L.Draw.Event.DELETED, (e) => {
+  map.on(L.Draw.Event.DELETED, async (e) => {
     e.layers.eachLayer((layer) => {
       // Clean up tooltip instance if present
       if (layer._bsTooltip) {
@@ -614,7 +648,10 @@ async function initDrawingObstacles() {
         (f) => f.properties.obstacleId !== layer.options.obstacleId
       );
     });
-    obstacleStorage("PUT", obstacleFeatures);
+    await duringLoading(
+      "obstacles-put",
+      obstacleStorage("PUT", obstacleFeatures)
+    );
   });
 }
 
@@ -765,28 +802,38 @@ async function updateRoute({ fit = true } = {}) {
   clearRoute();
   if (!fromLatLng || !toLatLng) return;
 
-  const geojson = await fetchRoute(
-    [
-      [fromLatLng.lng, fromLatLng.lat],
-      [toLatLng.lng, toLatLng.lat],
-    ],
-    obstacleFeatures
-  );
+  const key = showLoading("route");
 
-  routeLayer = L.geoJSON(geojson, {
-    style: { color: "var(--bs-indigo)", weight: 5, opacity: 0.9 },
-    interactive: false,
-  }).addTo(map);
+  try {
+    const geojson = await fetchRoute(
+      [
+        [fromLatLng.lng, fromLatLng.lat],
+        [toLatLng.lng, toLatLng.lat],
+      ],
+      obstacleFeatures
+    );
 
-  const bounds = routeLayer.getBounds();
-  if (fit && bounds.isValid()) {
-    map.fitBounds(bounds, { padding: [120, 120] });
+    routeLayer = L.geoJSON(geojson, {
+      style: { color: "var(--bs-indigo)", weight: 5, opacity: 0.9 },
+      interactive: false,
+    }).addTo(map);
+
+    const bounds = routeLayer.getBounds();
+    if (fit && bounds.isValid()) {
+      map.fitBounds(bounds, { padding: [120, 120] });
+    }
+  } finally {
+    hideLoading(key);
   }
 }
 
 function reverseAddressAt(latlng) {
+  const key = showLoading("reverse");
+
   return new Promise((resolve) => {
     geocoder.reverse(latlng, map.options.crs.scale(18), (items) => {
+      hideLoading(key);
+
       const best = items?.[0]?.name;
       resolve(best || `${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`);
     });
@@ -841,43 +888,58 @@ async function selectDestinationSuggestion(res) {
     map.removeLayer(selectedPlaceLayer);
   }
 
-  const osmType = res.properties.osm_type;
-  const osmId = res.properties.osm_id;
+  showDetailsLoading(
+    detailsPanel,
+    res.name ?? "Details",
+    moveDepartureSearchBarUnderTo,
+    mountInOffcanvas
+  );
+  const key = showLoading("place-select");
 
-  const geojsonGeometry = await fetchPlaceGeometry(osmType, osmId);
+  try {
+    const osmType = res.properties.osm_type;
+    const osmId = res.properties.osm_id;
 
-  const polyLike =
-    geojsonGeometry.features.find(
-      (f) => f.geometry && f.geometry.type !== "Point"
-    ) || null;
+    const geojsonGeometry = await fetchPlaceGeometry(osmType, osmId);
 
-  if (polyLike) {
-    selectedPlaceLayer = L.geoJSON(geojsonGeometry, {
-      style: {
-        color: "#d33",
-        weight: 2,
-        opacity: 0.8,
-        fillColor: "#f03",
-        fillOpacity: 0.1,
-        dashArray: "6,4",
-      },
-    });
-    map.fitBounds(selectedPlaceLayer.getBounds());
-  } else {
-    const icon = waypointDivIcon("", WP_COLORS.end);
-    selectedPlaceLayer = L.marker(res.center, {
-      icon,
-      keyboard: false,
-      interactive: false,
-    });
-    map.setView(selectedPlaceLayer.getLatLng(), 18);
+    const polyLike =
+      geojsonGeometry.features.find(
+        (f) => f.geometry && f.geometry.type !== "Point"
+      ) || null;
+
+    if (polyLike) {
+      selectedPlaceLayer = L.geoJSON(geojsonGeometry, {
+        style: {
+          color: "#d33",
+          weight: 2,
+          opacity: 0.8,
+          fillColor: "#f03",
+          fillOpacity: 0.1,
+          dashArray: "6,4",
+        },
+      });
+      map.fitBounds(selectedPlaceLayer.getBounds());
+    } else {
+      const icon = waypointDivIcon("", WP_COLORS.end);
+      selectedPlaceLayer = L.marker(res.center, {
+        icon,
+        keyboard: false,
+        interactive: false,
+      });
+      map.setView(selectedPlaceLayer.getLatLng(), 18);
+    }
+
+    selectedPlaceLayer.addTo(map);
+    await setTo(res.center, res.name);
+
+    const tags = await fetchPlace(
+      res.properties.osm_type,
+      res.properties.osm_id
+    );
+    renderDetails(tags, res.center);
+  } finally {
+    hideLoading(key);
   }
-
-  selectedPlaceLayer.addTo(map);
-  await setTo(res.center, res.name);
-
-  const tags = await fetchPlace(res.properties.osm_type, res.properties.osm_id);
-  renderDetails(tags, res.center);
 }
 
 // Also hide on Escape
@@ -900,11 +962,17 @@ destinationSearchInput.addEventListener(
     }
 
     const mySeq = ++destinationGeocodeReqSeq;
+    showListSpinner(destinationSuggestionsEl, "Searching…");
 
     geocoder.geocode(searchQuery, (items) => {
       if (mySeq !== destinationGeocodeReqSeq) return;
 
       renderDestinationSuggestions(items);
+
+      if (!items?.length) {
+        destinationSuggestionsEl.innerHTML = `<li class="list-group-item text-muted">No results</li>`;
+        destinationSuggestionsEl.classList.remove("d-none");
+      }
     });
   }, 1)
 );
@@ -919,9 +987,15 @@ departureSearchInput.addEventListener(
       return;
     }
     const mySeq = ++departureGeocodeReqSeq;
+    showListSpinner(departureSuggestionsEl, "Searching…");
+
     geocoder.geocode(searchQuery, (items) => {
       if (mySeq !== departureGeocodeReqSeq) return;
       renderDepartureSuggestions(items);
+      if (!items?.length) {
+        departureSuggestionsEl.innerHTML = `<li class="list-group-item text-muted">No results</li>`;
+        departureSuggestionsEl.classList.remove("d-none");
+      }
     });
   }, 1)
 );
@@ -973,13 +1047,16 @@ reviewForm.addEventListener("submit", async (e) => {
   reviews.push(newReview);
 
   try {
-    submitReviewBtn.disabled = true;
-    const record = await reviewStorage("PUT", reviews);
-    renderOneReview(record[record.length - 1].text);
+    await withButtonLoading(
+      submitReviewBtn,
+      reviewStorage("PUT", reviews),
+      "Saving…"
+    );
+
+    renderOneReview(reviews[reviews.length - 1].text);
     textarea.value = "";
-  } catch {
+  } catch (error) {
+    console.error(error);
     toastError("Could not save your review. Please try again.");
-  } finally {
-    submitReviewBtn.disabled = false;
   }
 });
