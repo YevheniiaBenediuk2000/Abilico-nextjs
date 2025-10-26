@@ -376,11 +376,25 @@ function moveDepartureSearchBarUnderTo() {
 }
 
 const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
-  detailsPanel.innerHTML = "<h3>Details</h3>";
+  const titleText = tags.name || tags.amenity || "Details";
+
+  detailsPanel.classList.remove("d-none");
+  const list = detailsPanel.querySelector("#details-list");
+
+  console.log(tags);
 
   Object.entries(tags).forEach(([key, value]) => {
-    if (!EXCLUDED_PROPS.has(key)) {
+    const containsAltName = /alt\s*name/i.test(key);
+    const containsLocalizedVariants =
+      /^(name|alt_name|short_name|display_name):/.test(key.toLowerCase());
+
+    const isExcluded =
+      EXCLUDED_PROPS.has(key) || containsAltName || containsLocalizedVariants;
+
+    if (!isExcluded) {
       const item = document.createElement("div");
+      item.className =
+        "list-group-item d-flex justify-content-between align-items-start";
 
       // Format the key for display
       let displayKey = null;
@@ -389,55 +403,51 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       } else {
         // Replace underscores with spaces and capitalize first letters
         displayKey = key
-          .replace(/_/g, " ")
+          .replace(/^Addr_?/i, "")
+          .replace(/[_:]/g, " ")
           .replace(/\b\w/g, (c) => c.toUpperCase());
       }
 
-      item.innerHTML = `<strong>${displayKey}:</strong> ${value}`;
-      detailsPanel.appendChild(item);
+      const displayValue = value
+        .replace(/[_:]/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+
+      item.innerHTML = `
+        <div class="me-2">
+          <div class="fw-semibold">${displayKey}</div>
+          <div class="small text-body-secondary">${displayValue}</div>
+        </div>
+      `;
+      list.appendChild(item);
     }
   });
 
-  // Add Directions button
-  const dirBtn = document.createElement("button");
-  dirBtn.textContent = "Directions";
-  dirBtn.addEventListener("click", async () => {
-    directionsUi.classList.remove("d-none");
-    await setTo(latlng);
-    departureSearchInput.focus();
-    detailsPanel.innerHTML = "";
-  });
-  detailsPanel.appendChild(dirBtn);
+  // Quick actions (start/go)
+  detailsPanel
+    .querySelector("#btn-start-here")
+    .addEventListener("click", async () => {
+      directionsUi.classList.remove("d-none");
+      moveDepartureSearchBarUnderTo();
+      mountInOffcanvas("Directions");
+      await setFrom(latlng);
+      destinationSearchInput.focus();
+    });
+
+  detailsPanel
+    .querySelector("#btn-go-here")
+    .addEventListener("click", async () => {
+      directionsUi.classList.remove("d-none");
+      moveDepartureSearchBarUnderTo();
+      mountInOffcanvas("Directions");
+      await setTo(latlng);
+      departureSearchInput.focus();
+    });
 
   // Add Reviews Section
 
-  const hrEl = document.createElement("hr");
-  detailsPanel.appendChild(hrEl);
-
-  const reviewsContainer = document.createElement("div");
-  reviewsContainer.innerHTML = "<h3>Reviews</h3>";
-  detailsPanel.appendChild(reviewsContainer);
-
   const placeId = tags.id ?? tags.osm_id ?? tags.place_id;
-
-  const list = document.createElement("ul");
-
-  if (!keepDirectionsUi) {
-    directionsUi.classList.add("d-none");
-  }
-
-  moveDepartureSearchBarUnderTo();
-
-  const titleText = tags.name || tags.amenity || "Details";
-  mountInOffcanvas(titleText);
-
-  // Add review form
-  const form = document.createElement("form");
-  form.id = "review-form";
-  form.innerHTML = `
-    <textarea id="review-text" placeholder="Write your review..." required></textarea><br>
-    <button type="submit">Submit Review</button>
-  `;
+  const form = detailsPanel.querySelector("#review-form");
+  const reviewsList = detailsPanel.querySelector("#reviews-list");
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -451,22 +461,30 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     const record = await reviewStorage("PUT", reviews);
 
     const li = document.createElement("li");
-    li.innerHTML = record[record.length - 1].text;
-    list.appendChild(li);
+    li.className = "mb-2";
+    li.innerHTML = `<span class="badge text-bg-light text-wrap">${
+      record[record.length - 1].text
+    }</span>`;
+    reviewsList.appendChild(li);
     textarea.value = "";
   });
 
-  reviewsContainer.appendChild(form);
+  if (!keepDirectionsUi) {
+    directionsUi.classList.add("d-none");
+  }
+
+  moveDepartureSearchBarUnderTo();
+  mountInOffcanvas(titleText);
 
   const reviews = await reviewStorage();
   reviews.forEach((r) => {
     if (placeId && placeId === r.placeId) {
       const li = document.createElement("li");
-      li.innerHTML = r.text;
-      list.appendChild(li);
+      li.className = "mb-2";
+      li.innerHTML = `<span class="badge text-bg-light text-wrap">${r.text}</span>`;
+      reviewsList.appendChild(li);
     }
   });
-  reviewsContainer.appendChild(list);
 };
 
 function makeCircleFeature(layer) {

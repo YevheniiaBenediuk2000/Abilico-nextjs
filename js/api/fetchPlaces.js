@@ -254,5 +254,3 @@ export async function fetchPlaces(bounds, zoom, options) {
 
   console.error("Places fetch failed on all Overpass endpoints:", lastError);
 }
-
-// add my email for feedback
