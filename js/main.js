@@ -268,14 +268,13 @@ function hookLayerInteractions(layer, props) {
   // Ensure the element exists in the DOM before creating tooltip
   // (safe if we call after the layer is added to the map/featureGroup).
   // Re-attach tooltip whenever the layer is re-added to the map
+  layer.once("add", () =>
+    attachBootstrapTooltip(layer, tooltipTextFromProps(props))
+  );
 
-  layer.on("add", () => {
-    attachBootstrapTooltip(layer, tooltipTextFromProps(props));
-  });
-
+  layer.off("click");
   layer.on("click", () => {
     if (drawState.deleting || drawState.editing) return;
-
     openEditModalForLayer(layer);
   });
 }
@@ -557,15 +556,24 @@ async function initDrawingObstacles() {
 
     // Attach tooltip + click-to-edit
     hookLayerInteractions(layerToAdd, featureToStore.properties);
+    attachBootstrapTooltip(
+      layerToAdd,
+      tooltipTextFromProps(featureToStore.properties)
+    );
 
-    obstacleFeatures = await obstacleStorage("PUT", [
-      ...obstacleFeatures,
-      featureToStore,
-    ]);
+    try {
+      obstacleFeatures = await obstacleStorage("PUT", [
+        ...obstacleFeatures,
+        featureToStore,
+      ]);
+    } catch {
+      drawnItems.removeLayer(layerToAdd);
+      toastError("Could not save obstacle. Please try again.");
+    }
   });
 
   map.on(L.Draw.Event.EDITED, (e) => {
-    e.layers.eachLayer((layer) => {
+    e.layers.eachLayer(async (layer) => {
       const id = layer.options.obstacleId;
 
       let updated;
@@ -590,14 +598,18 @@ async function initDrawingObstacles() {
             obstacleFeatures[i].properties?.radius,
         };
 
-        obstacleFeatures[i] = updated;
-
-        // Refresh tooltip (in case geometry change affected element)
-        hookLayerInteractions(layer, updated.properties);
+        try {
+          const updatedObstacleFeatures = [...obstacleFeatures];
+          updatedObstacleFeatures[i] = updated;
+          await obstacleStorage("PUT", updatedObstacleFeatures);
+          obstacleFeatures[i] = updated;
+          // Refresh tooltip (in case geometry change affected element)
+          hookLayerInteractions(layer, updated.properties);
+        } catch {
+          toastError("Could not save edited obstacle. Please try again.");
+        }
       }
     });
-
-    obstacleStorage("PUT", obstacleFeatures);
   });
 
   map.on(L.Draw.Event.DELETED, (e) => {
