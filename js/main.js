@@ -443,8 +443,6 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   detailsCtx.latlng = latlng;
   detailsCtx.placeId = tags.id ?? tags.osm_id ?? tags.place_id;
 
-  const placeId = detailsCtx.placeId;
-
   // Add Reviews Section
   reviewsListEl.innerHTML = "";
 
@@ -457,7 +455,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   reviews = await reviewStorage();
   reviews.forEach((r) => {
-    if (placeId && placeId === r.placeId) {
+    if (detailsCtx.placeId && detailsCtx.placeId === r.placeId) {
       renderOneReview(r.text);
     }
   });
@@ -972,10 +970,6 @@ reviewForm.addEventListener("submit", async (e) => {
   const textarea = reviewForm.querySelector("#review-text");
   const text = textarea.value.trim();
   if (!text) return;
-
-  if (!detailsCtx.placeId) {
-    debugger;
-  }
 
   const newReview = { text, placeId: detailsCtx.placeId };
   reviews.push(newReview);
