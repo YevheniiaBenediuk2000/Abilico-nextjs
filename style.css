@@ -85,5 +85,94 @@ body {
   }
 }
 
+/* === Basemap Gallery (Leaflet control) === */
+.leaflet-control.basemap-gallery {
+  --bm-thumb-w: 96px;
+  --bm-thumb-h: 64px;
+
+  background: var(--bs-body-bg);
+  border-radius: 0.75rem;
+}
+
+.basemap-gallery__head {
+  display: flex;
+  padding: 0.5rem 0.6rem;
+}
+
+.bm-head-btn {
+  position: relative;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.bm-head-img {
+  width: var(--bm-thumb-w);
+  height: var(--bm-thumb-h);
+  object-fit: cover;
+  display: block;
+  border-radius: 0.75rem;
+}
+
+.bm-head-label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0.15rem 0.5rem;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 0.5rem;
+  backdrop-filter: blur(2px);
+}
+
+.basemap-gallery__grid {
+  display: none; /* collapsed by default */
+  grid-template-columns: repeat(2, var(--bm-thumb-w));
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+.leaflet-control.basemap-gallery:hover .basemap-gallery__grid {
+  display: grid; /* expand on hover */
+}
+.leaflet-control.basemap-gallery:hover .basemap-gallery__head {
+  display: none;
+}
+
+/* Thumb buttons */
+.bm-item.btn {
+  padding: 0;
+  border: 1px solid var(--bs-border-color);
+}
+
+.bm-item__img {
+  width: var(--bm-thumb-w);
+  height: var(--bm-thumb-h);
+  object-fit: cover;
+  display: block;
+}
+
+.bm-item__label {
+  position: absolute;
+  font-size: 0.75rem;
+  text-wrap: wrap;
+}
+
+/* Show currently active base with an outline */
+.bm-item.active {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 2px;
+}
+
+/* Touch fallback: toggle 'expanded' class via JS */
+.leaflet-control.basemap-gallery.expanded .basemap-gallery__grid {
+  display: grid;
+}
+.leaflet-control.basemap-gallery.expanded .basemap-gallery__head {
+  display: none;
+}
+
 /* add my email for feedback */
 /* layers */

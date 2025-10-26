@@ -38,6 +38,12 @@ import {
   showLoading,
   withButtonLoading,
 } from "./utils/loading.mjs";
+import {
+  baseLayers,
+  BASEMAP_LS_KEY,
+  BasemapGallery,
+  osm,
+} from "./leaflet-controls/BasemapGallery.mjs";
 
 const detailsCtx = { latlng: null, placeId: null };
 
@@ -655,105 +661,13 @@ async function initDrawingObstacles() {
   });
 }
 
-function createButton(label, container) {
-  const btn = L.DomUtil.create("button", "", container);
-  btn.setAttribute("type", "button");
-  btn.innerHTML = label;
-  return btn;
-}
-
 // ============= INIT ================
 
 const map = L.map("map", { zoomControl: false });
-const BASEMAP_LS_KEY = "ui.basemap.choice";
 
-const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19,
-  attribution: "© OpenStreetMap contributors",
-});
-
-const osmGray = L.tileLayer(
-  "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-  {
-    maxZoom: 20,
-    attribution: "© OpenStreetMap contributors, © CARTO",
-  }
-);
-
-const worldImagery = L.tileLayer(
-  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-  {
-    maxZoom: 19,
-    attribution:
-      "Tiles © Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and others",
-  }
-);
-
-const cyclOSM = L.tileLayer(
-  "https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png",
-  {
-    maxZoom: 20,
-    attribution: "© OpenStreetMap contributors, style © CyclOSM (cyclosm.org)",
-  }
-);
-
-const THUNDERFOREST_KEY = "2b4c36450a944ef6876df29861a37103";
-const tfSuffix = `?apikey=${THUNDERFOREST_KEY}`;
-
-const openCycleMap = L.tileLayer(
-  `https://tile.thunderforest.com/cycle/{z}/{x}/{y}.png${tfSuffix}`,
-  {
-    maxZoom: 22,
-    attribution: "© OpenStreetMap contributors, © Thunderforest",
-  }
-);
-
-const transportDark = L.tileLayer(
-  `https://tile.thunderforest.com/transport-dark/{z}/{x}/{y}.png${tfSuffix}`,
-  {
-    maxZoom: 22,
-    attribution: "© OpenStreetMap contributors, © Thunderforest",
-  }
-);
-
-const outdoors = L.tileLayer(
-  `https://tile.thunderforest.com/outdoors/{z}/{x}/{y}.png${tfSuffix}`,
-  {
-    maxZoom: 22,
-    attribution: "© OpenStreetMap contributors, © Thunderforest",
-  }
-);
-
-const transport = L.tileLayer(
-  `https://tile.thunderforest.com/transport/{z}/{x}/{y}.png${tfSuffix}`,
-  {
-    maxZoom: 22,
-    attribution: "© OpenStreetMap contributors, © Thunderforest",
-  }
-);
-
-const landScape = L.tileLayer(
-  `https://tile.thunderforest.com/landscape/{z}/{x}/{y}.png${tfSuffix}`,
-  {
-    maxZoom: 22,
-    attribution: "© OpenStreetMap contributors, © Thunderforest",
-  }
-);
-
-const baseLayers = {
-  OpenStreetMap: osm,
-  "OpenStreetMap Greyscale": osmGray,
-  "World Imagery": worldImagery,
-  CycleOSM: cyclOSM,
-
-  OpenCycleMap: openCycleMap,
-  Transport: transport,
-  "Transport Dark": transportDark,
-  Landscape: landScape,
-  Outdoors: outdoors,
-};
-const initialName = ls.get(BASEMAP_LS_KEY) || "OpenStreetMap";
-(baseLayers[initialName] || osm).addTo(map);
+const initialName = ls.get(BASEMAP_LS_KEY) || "OSM";
+let currentBasemapLayer = baseLayers[initialName] || osm;
+currentBasemapLayer.addTo(map);
 
 if (navigator.geolocation) {
   navigator.geolocation.getCurrentPosition(
@@ -809,16 +723,8 @@ map.whenReady(() => {
 
   placeClusterLayer.addTo(map);
 
-  const overlays = {
-    Places: placeClusterLayer,
-    Obstacles: drawnItems,
-  };
-  const layersControl = L.control
-    .layers(baseLayers, overlays, {
-      position: "topright",
-      collapsed: false, // keep it open
-    })
-    .addTo(map);
+  map.addControl(new BasemapGallery({ initial: initialName }));
+
   map.on("baselayerchange", (e) => {
     ls.set(BASEMAP_LS_KEY, e.name);
   });
