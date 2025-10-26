@@ -444,10 +444,16 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     });
 
   // Add Reviews Section
-
   const placeId = tags.id ?? tags.osm_id ?? tags.place_id;
   const form = detailsPanel.querySelector("#review-form");
   const reviewsList = detailsPanel.querySelector("#reviews-list");
+
+  const renderOneReview = (text) => {
+    const li = document.createElement("li");
+    li.className = "list-group-item text-wrap";
+    li.innerHTML = text;
+    reviewsList.appendChild(li);
+  };
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -460,12 +466,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
     const record = await reviewStorage("PUT", reviews);
 
-    const li = document.createElement("li");
-    li.className = "mb-2";
-    li.innerHTML = `<span class="badge text-bg-light text-wrap">${
-      record[record.length - 1].text
-    }</span>`;
-    reviewsList.appendChild(li);
+    renderOneReview(record[record.length - 1].text);
     textarea.value = "";
   });
 
@@ -479,10 +480,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   const reviews = await reviewStorage();
   reviews.forEach((r) => {
     if (placeId && placeId === r.placeId) {
-      const li = document.createElement("li");
-      li.className = "mb-2";
-      li.innerHTML = `<span class="badge text-bg-light text-wrap">${r.text}</span>`;
-      reviewsList.appendChild(li);
+      renderOneReview(r.text);
     }
   });
 };

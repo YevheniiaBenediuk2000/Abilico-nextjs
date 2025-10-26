@@ -152,48 +152,103 @@
           </div>
         </div>
 
-        <div id="details-panel" class="d-none card shadow-sm">
-          <div class="card-body">
-            <div class="d-grid gap-2">
-              <div
-                class="btn-group"
-                role="group"
-                aria-label="Quick route actions"
+        <div id="details-panel" class="d-none">
+          <div class="d-grid gap-2">
+            <div
+              class="btn-group"
+              role="group"
+              aria-label="Quick route actions"
+            >
+              <button
+                id="btn-start-here"
+                type="button"
+                class="btn btn-outline-primary"
               >
-                <button
-                  id="btn-start-here"
-                  type="button"
-                  class="btn btn-outline-primary"
-                >
-                  Start here
-                </button>
-                <button
-                  id="btn-go-here"
-                  type="button"
-                  class="btn btn-outline-danger"
-                >
-                  Go here
-                </button>
-              </div>
+                Start here
+              </button>
+              <button
+                id="btn-go-here"
+                type="button"
+                class="btn btn-outline-danger"
+              >
+                Go here
+              </button>
             </div>
           </div>
 
-          <div class="list-group list-group-flush" id="details-list"></div>
+          <hr />
 
-          <div class="card-body pt-0">
-            <h6 class="mt-3">Reviews</h6>
-            <form id="review-form" class="d-grid gap-2">
-              <textarea
-                id="review-text"
-                class="form-control"
-                placeholder="Write your review…"
-                required
-              ></textarea>
-              <button type="submit" class="btn btn-outline-secondary btn-sm">
-                Submit Review
+          <ul class="nav nav-tabs" id="detailsTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link active"
+                id="overview-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#tab-overview"
+                type="button"
+                role="tab"
+                aria-controls="tab-overview"
+                aria-selected="true"
+              >
+                Overview
               </button>
-            </form>
-            <ul id="reviews-list" class="list-unstyled mb-2"></ul>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link"
+                id="form-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#tab-form"
+                type="button"
+                role="tab"
+                aria-controls="tab-form"
+                aria-selected="false"
+              >
+                Form
+              </button>
+            </li>
+          </ul>
+
+          <div class="tab-content pt-3" id="detailsTabsContent">
+            <div
+              class="tab-pane fade show active"
+              id="tab-overview"
+              role="tabpanel"
+              aria-labelledby="overview-tab"
+            >
+              <div class="card shadow-sm">
+                <div
+                  class="list-group list-group-flush"
+                  id="details-list"
+                ></div>
+              </div>
+            </div>
+
+            <div
+              class="tab-pane fade"
+              id="tab-form"
+              role="tabpanel"
+              aria-labelledby="form-tab"
+            >
+              <div class="card shadow-sm">
+                <div class="card-body">
+                  <h6 class="mb-3">Reviews</h6>
+                  <form id="review-form" class="d-grid gap-2 mb-3">
+                    <textarea
+                      id="review-text"
+                      class="form-control"
+                      placeholder="Write your review…"
+                      required
+                    ></textarea>
+                    <button type="submit" class="btn btn-outline-secondary">
+                      Submit Review
+                    </button>
+                  </form>
+
+                  <ul id="reviews-list" class="list-group"></ul>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
