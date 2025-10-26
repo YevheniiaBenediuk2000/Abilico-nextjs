@@ -56,7 +56,7 @@ export async function reviewStorage(method = "GET", reviews) {
     const data = await response.json();
     return data.record;
   } catch (e) {
-    console.error("Loading obstacles failed:", e);
+    console.error("Loading reviews failed:", e);
     return [];
   }
 }

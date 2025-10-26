@@ -380,16 +380,19 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   detailsPanel.classList.remove("d-none");
   const list = detailsPanel.querySelector("#details-list");
-
-  console.log(tags);
+  list.innerHTML = "";
 
   Object.entries(tags).forEach(([key, value]) => {
     const containsAltName = /alt\s*name/i.test(key);
     const containsLocalizedVariants =
       /^(name|alt_name|short_name|display_name):/.test(key.toLowerCase());
+    const isNameKey = /^name$/i.test(key);
 
     const isExcluded =
-      EXCLUDED_PROPS.has(key) || containsAltName || containsLocalizedVariants;
+      EXCLUDED_PROPS.has(key) ||
+      containsAltName ||
+      containsLocalizedVariants ||
+      isNameKey;
 
     if (!isExcluded) {
       const item = document.createElement("div");
@@ -447,6 +450,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   const placeId = tags.id ?? tags.osm_id ?? tags.place_id;
   const form = detailsPanel.querySelector("#review-form");
   const reviewsList = detailsPanel.querySelector("#reviews-list");
+  reviewsList.innerHTML = "";
 
   const renderOneReview = (text) => {
     const li = document.createElement("li");
