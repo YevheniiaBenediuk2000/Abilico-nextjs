@@ -10,7 +10,8 @@ import {
   fetchPlaces,
 } from "./api/fetchPlaces.js";
 import { fetchRoute } from "./api/fetchRoute.js";
-import { obstacleStorage, reviewStorage } from "./api/obstacleStorage.js";
+import { reviewStorage } from "./api/reviewStorage.js";
+import { obstacleStorage } from "./api/obstacleStorage.js";
 import {
   BASE_PATH,
   DEFAULT_ZOOM,
@@ -44,6 +45,7 @@ import {
   osm,
 } from "./leaflet-controls/BasemapGallery.mjs";
 import { ICON_FALLBACKS, ICON_INDEX } from "./static/manifest.js";
+import { detailsPanel } from "./utils/commonVariables.mjs";
 
 const TAG_PRIORITY = [
   "amenity",
@@ -207,7 +209,6 @@ let drawHelpAlertControl = null;
 let obstacleFeatures = [];
 let reviews = [];
 
-const detailsPanel = document.getElementById("details-panel");
 const reviewForm = detailsPanel.querySelector("#review-form");
 const reviewsListEl = detailsPanel.querySelector("#reviews-list");
 const submitReviewBtn = detailsPanel.querySelector("#submit-review-btn");
@@ -552,7 +553,6 @@ async function initDrawingObstacles() {
     hideLoading(key);
   }
 
-  obstacleFeatures = await obstacleStorage();
   obstacleFeatures.forEach((feature) => {
     let layer = null;
 
