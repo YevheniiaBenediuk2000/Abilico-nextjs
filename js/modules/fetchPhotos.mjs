@@ -6,6 +6,24 @@ const photosEmpty = document.getElementById("photos-empty");
 
 const COMMONS_API = "https://commons.wikimedia.org/w/api.php?origin=*";
 
+const WIKI_MEDIA_LIST = (lang, title) =>
+  `https://${lang}.wikipedia.org/w/api.php?origin=*&action=query&prop=images&imlimit=max&titles=${encodeURIComponent(
+    title
+  )}&format=json`;
+
+async function fetchWikipediaImagesList(lang, title) {
+  const res = await fetch(WIKI_MEDIA_LIST(lang, title));
+  if (!res.ok) return [];
+  const data = await res.json();
+  const pages = data?.query?.pages || {};
+  const fileTitles = Object.values(pages)
+    .flatMap((p) => p.images || [])
+    .map((im) => im.title)
+    .filter((t) => /^File:/i.test(t));
+  // Reuse your existing Commons fetcher, which adds credits, sizes, licenses:
+  return fetchCommonsFileInfos(fileTitles);
+}
+
 export function showMainPhoto(photo) {
   if (!photo) {
     mainPhotoWrapper.classList.add("d-none");
@@ -255,6 +273,9 @@ async function resolveFromWikipediaTag(value) {
       )}`,
     });
   }
+
+  const listPhotos = await fetchWikipediaImagesList(lang, title);
+  photos.push(...listPhotos);
 
   // As a bonus, try pageimages via MediaWiki API for more sizes (optional)
   return photos;
