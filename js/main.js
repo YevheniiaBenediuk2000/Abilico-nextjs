@@ -46,6 +46,11 @@ import {
 } from "./leaflet-controls/BasemapGallery.mjs";
 import { ICON_FALLBACKS, ICON_INDEX } from "./static/manifest.js";
 import { detailsPanel } from "./utils/commonVariables.mjs";
+import {
+  renderPhotosGrid,
+  resolvePlacePhotos,
+  showMainPhoto,
+} from "./modules/fetchPhotos.mjs";
 
 const TAG_PRIORITY = [
   "amenity",
@@ -520,6 +525,22 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   moveDepartureSearchBarUnderTo();
   mountInOffcanvas(titleText);
+
+  // --- Photos ---
+  try {
+    const keyPhotos = showLoading("photos-load");
+    const photos = await resolvePlacePhotos(tags);
+
+    // Main + rest
+    showMainPhoto(photos[0]);
+    renderPhotosGrid(photos);
+
+    hideLoading(keyPhotos);
+  } catch (err) {
+    console.warn("Photo resolution failed", err);
+    showMainPhoto(null);
+    renderPhotosGrid([]);
+  }
 
   const key = showLoading("reviews-load");
 

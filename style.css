@@ -186,3 +186,15 @@ body {
 #draw-help-alert {
   max-width: 245.08px;
 }
+
+#main-photo-wrapper {
+  cursor: pointer;
+}
+
+#main-photo-caption {
+  font-size: 0.7rem;
+}
+
+#photos-grid .figure-caption {
+  font-size: 0.6rem;
+}

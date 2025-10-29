@@ -152,6 +152,18 @@
           </div>
         </div>
 
+        <figure class="figure d-none" id="main-photo-wrapper">
+          <img
+            id="main-photo"
+            class="figure-img img-fluid shadow-sm mb-1"
+            alt=""
+          />
+          <figcaption
+            id="main-photo-caption"
+            class="figure-caption"
+          ></figcaption>
+        </figure>
+
         <div id="details-panel" class="d-none">
           <ul class="nav nav-tabs" id="detailsTabs" role="tablist">
             <li class="nav-item" role="presentation">
@@ -180,6 +192,21 @@
                 aria-selected="false"
               >
                 Reviews
+              </button>
+            </li>
+
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link"
+                id="photos-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#tab-photos"
+                type="button"
+                role="tab"
+                aria-controls="tab-photos"
+                aria-selected="false"
+              >
+                Photos
               </button>
             </li>
           </ul>
@@ -250,6 +277,18 @@
                   <ul id="reviews-list" class="list-group"></ul>
                 </div>
               </div>
+            </div>
+
+            <div
+              class="tab-pane fade"
+              id="tab-photos"
+              role="tabpanel"
+              aria-labelledby="photos-tab"
+            >
+              <div id="photos-empty" class="text-muted small d-none">
+                No photos found for this place.
+              </div>
+              <div id="photos-grid" class="row g-2"></div>
             </div>
           </div>
         </div>
