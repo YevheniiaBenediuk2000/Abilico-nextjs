@@ -65,7 +65,7 @@ export function renderPhotosGrid(photos) {
   for (const p of photos) {
     console.log("Rendering photo:", p);
     const col = document.createElement("div");
-    col.className = "col-6";
+    // col.className = "col-6";
 
     const a = document.createElement("a");
     a.href = p.pageUrl || p.src;
