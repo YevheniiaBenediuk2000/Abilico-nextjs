@@ -253,7 +253,7 @@ async function resolveFromWikipediaTag(value) {
   // REST Summary often provides originalimage + thumbnail
   const rest = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(
     title
-  )}`;
+  )}?redirect=true`;
   const res = await fetch(rest);
   if (!res.ok) return [];
   const data = await res.json();
@@ -303,8 +303,33 @@ async function resolveFromWikidataTag(qid) {
   return fetchCommonsFileInfos(fileNames);
 }
 
+async function commonsGeoSearch({ lat, lng }, radiusM = 20, limit = 100) {
+  const url = `${COMMONS_API}&action=query&generator=geosearch&ggsnamespace=6&ggslimit=${limit}&ggscoord=${lat}|${lng}&ggsradius=${radiusM}&prop=imageinfo|coordinates&iiurlwidth=1280&iiprop=url|extmetadata&format=json`;
+  const res = await fetch(url);
+  if (!res.ok) return [];
+  const data = await res.json();
+  const pages = data?.query?.pages || {};
+  return Object.values(pages)
+    .map((p) => {
+      const ii = p.imageinfo?.[0];
+      if (!ii?.url) return null;
+      const author =
+        ii.extmetadata?.Artist?.value?.replace(/<[^>]*>/g, "") || "";
+      const license = ii.extmetadata?.LicenseShortName?.value || "";
+      return {
+        src: ii.url,
+        thumb: ii.thumburl || ii.url,
+        title: p.title?.replace(/^File:/, "") || "Photo",
+        credit: [author, license].filter(Boolean).join(" • "),
+        source: "Wikimedia Commons (nearby)",
+        pageUrl: ii.descriptionurl || ii.url,
+      };
+    })
+    .filter(Boolean);
+}
+
 /* ---------- Public: resolve photos from all tags ---------- */
-export async function resolvePlacePhotos(tags) {
+export async function resolvePlacePhotos(tags, latlng) {
   const tasks = [];
 
   // image= (direct URLs)
@@ -327,13 +352,18 @@ export async function resolvePlacePhotos(tags) {
     tasks.push(resolveFromWikidataTag(tags.wikidata));
   }
 
+  // Add nearby sources if we have coords
+  if (latlng) {
+    tasks.push(commonsGeoSearch(latlng).catch(() => []));
+  }
+
   const chunks = await Promise.allSettled(tasks);
   const flat = chunks
     .flatMap((c) => (c.status === "fulfilled" ? c.value : []))
     .filter(Boolean);
 
   // Dedup by src URL
-  const unique = uniqBy(flat, (x) => x.src);
+  const unique = uniqBy(flat, (x) => x.src || x.thumb || x.pageUrl);
 
   // Lightweight ranking: prefer P18/Commons/Wikipedia over “direct image” if present
   const score = (p) =>

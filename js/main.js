@@ -529,7 +529,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   // --- Photos ---
   try {
     const keyPhotos = showLoading("photos-load");
-    const photos = await resolvePlacePhotos(tags);
+    const photos = await resolvePlacePhotos(tags, latlng);
 
     // Main + rest
     showMainPhoto(photos[0]);
