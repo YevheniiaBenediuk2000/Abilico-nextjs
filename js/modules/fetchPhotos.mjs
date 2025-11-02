@@ -633,7 +633,7 @@ async function resolveFromWikidataTag(qid) {
   return fetchCommonsFileInfos(fileNames);
 }
 
-async function commonsGeoSearch({ lat, lng }, radiusM = 20, limit = 100) {
+async function commonsGeoSearch({ lat, lng }, radiusM = 10, limit = 100) {
   const url = `${COMMONS_API}&action=query&generator=geosearch&ggsnamespace=6&ggslimit=${limit}&ggscoord=${lat}|${lng}&ggsradius=${radiusM}&prop=imageinfo|coordinates&iiurlwidth=1280&iiprop=url|extmetadata|mime&format=json`;
   const res = await fetch(url);
   if (!res.ok) return [];

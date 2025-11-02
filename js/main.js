@@ -509,12 +509,14 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     const containsLocalizedVariants =
       /^(name|alt_name|short_name|display_name):/i.test(key);
     const isCountryKey = /^country$/i.test(key);
+    const isWikiDataKey = /^wikidata(?::[a-z-]+)?$/i.test(key);
 
     const isExcluded =
       EXCLUDED_PROPS.has(key) ||
       containsAltName ||
       containsLocalizedVariants ||
-      isCountryKey;
+      isCountryKey ||
+      isWikiDataKey;
 
     if (isExcluded) return;
 
@@ -589,19 +591,6 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       </div>`;
       list.appendChild(item);
       return;
-    }
-
-    if (lk === "wikidata") {
-      const q = String(value).trim().toUpperCase(); // e.g., Q11802770
-      if (/^Q\d+$/.test(q)) {
-        item.innerHTML = `
-      <div class="me-2">
-        <h6 class="mb-1 fw-semibold">Wikidata</h6>
-        <p class="small mb-1"><a href="https://www.wikidata.org/wiki/${q}" target="_blank" rel="noopener">${q}</a></p>
-      </div>`;
-        list.appendChild(item);
-        return;
-      }
     }
 
     if (lk === "wikipedia" || /^wikipedia:[a-z-]+$/i.test(lk)) {
