@@ -136,6 +136,26 @@ function photoFromDirectUrl(url) {
   };
 }
 
+// --- heuristics to weed out non-photographic files ---
+const BAD_TITLE_RE =
+  /(logo|icon|pictogram|symbol|seal|coat[_ -]?of[_ -]?arms|flag|map|diagram)/i;
+
+function looksLikeIcon(meta = {}) {
+  const title = meta.title || "";
+  const mime = (meta.mime || "").toLowerCase(); // we'll populate this below
+  const w = meta.width || 0;
+  const h = meta.height || 0;
+  const tooSmall = w && h ? Math.max(w, h) <= 300 : false; // tiny usually = icon
+
+  return mime === "image/svg+xml" || BAD_TITLE_RE.test(title) || tooSmall;
+}
+
+// Keep photos if we have them; otherwise fall back to original list
+function dropIconsPreferPhotos(items = []) {
+  const photos = items.filter((x) => !looksLikeIcon(x));
+  return photos.length ? photos : items;
+}
+
 /* ---------- Wikimedia Commons helpers ---------- */
 async function fetchCommonsFileInfos(fileTitles) {
   if (!fileTitles.length) return [];
@@ -145,7 +165,7 @@ async function fetchCommonsFileInfos(fileTitles) {
 
   const url = `${COMMONS_API}&action=query&prop=imageinfo&format=json&titles=${encodeURIComponent(
     titles
-  )}&iiprop=url|extmetadata|size&iiurlwidth=1024`;
+  )}&iiprop=url|extmetadata|size|mime&iiurlwidth=1024`;
   const res = await fetch(url);
   if (!res.ok) return [];
 
@@ -168,6 +188,7 @@ async function fetchCommonsFileInfos(fileTitles) {
       src: ii.url,
       thumb: ii.thumburl || ii.url,
       width: ii.width,
+      mime: ii.mime || "",
       height: ii.height,
       title: p.title?.replace(/^File:/, "") || "",
       credit: creditPieces.join(" "),
@@ -177,7 +198,7 @@ async function fetchCommonsFileInfos(fileTitles) {
       )}`,
     });
   }
-  return out;
+  return dropIconsPreferPhotos(out);
 }
 
 function stripHtml(s) {
@@ -244,7 +265,9 @@ async function fetchWikipediaMediaList(lang, title) {
     title
   )}/links/media`;
   const rsp = await fetch(url, {
-    headers: { "Api-User-Agent": "OpenAccessMap" },
+    headers: {
+      "Api-User-Agent": "OpenAccessMap (viktor.shevchuk.dev@gmail.com)",
+    },
   });
 
   // If the page is huge (>100 media), fall back to your existing Action API path
@@ -330,12 +353,12 @@ async function resolveFromWikidataTag(qid) {
 }
 
 async function commonsGeoSearch({ lat, lng }, radiusM = 20, limit = 100) {
-  const url = `${COMMONS_API}&action=query&generator=geosearch&ggsnamespace=6&ggslimit=${limit}&ggscoord=${lat}|${lng}&ggsradius=${radiusM}&prop=imageinfo|coordinates&iiurlwidth=1280&iiprop=url|extmetadata&format=json`;
+  const url = `${COMMONS_API}&action=query&generator=geosearch&ggsnamespace=6&ggslimit=${limit}&ggscoord=${lat}|${lng}&ggsradius=${radiusM}&prop=imageinfo|coordinates&iiurlwidth=1280&iiprop=url|extmetadata|mime&format=json`;
   const res = await fetch(url);
   if (!res.ok) return [];
   const data = await res.json();
   const pages = data?.query?.pages || {};
-  return Object.values(pages)
+  const items = Object.values(pages)
     .map((p) => {
       const ii = p.imageinfo?.[0];
       if (!ii?.url) return null;
@@ -343,6 +366,9 @@ async function commonsGeoSearch({ lat, lng }, radiusM = 20, limit = 100) {
         ii.extmetadata?.Artist?.value?.replace(/<[^>]*>/g, "") || "";
       const license = ii.extmetadata?.LicenseShortName?.value || "";
       return {
+        mime: ii.mime || "",
+        width: ii.width,
+        height: ii.height,
         src: ii.url,
         thumb: ii.thumburl || ii.url,
         title: p.title?.replace(/^File:/, "") || "Photo",
@@ -352,6 +378,7 @@ async function commonsGeoSearch({ lat, lng }, radiusM = 20, limit = 100) {
       };
     })
     .filter(Boolean);
+  return dropIconsPreferPhotos(items);
 }
 
 function commonsTitleFromValue(v) {
