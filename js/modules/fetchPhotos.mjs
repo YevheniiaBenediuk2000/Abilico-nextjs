@@ -1,3 +1,5 @@
+window.MAPILLARY_TOKEN =
+  "MLY|24766821062971694|cfb50a09b3025b6a564a6dd60d177c8a";
 const mainPhotoWrapper = document.getElementById("main-photo-wrapper");
 const mainPhotoImg = document.getElementById("main-photo");
 const photosGrid = document.getElementById("photos-grid");
@@ -5,10 +7,253 @@ const photosEmpty = document.getElementById("photos-empty");
 
 const COMMONS_API = "https://commons.wikimedia.org/w/api.php?origin=*";
 
+/* ---------- Mapillary (mapillary= image key) ---------- */
+
+const MAPILLARY_GRAPH = "https://graph.mapillary.com";
+
+function getMapillaryToken() {
+  return (
+    (typeof window !== "undefined" && window.MAPILLARY_TOKEN) ||
+    (typeof localStorage !== "undefined" &&
+      localStorage.getItem("MAPILLARY_TOKEN")) ||
+    null
+  );
+}
+
+/** Accepts:
+ *  - raw key (v4 numeric like "277755748254846" OR legacy v3 key like "Xo3D..."),
+ *  - full Mapillary URL (we'll extract pKey),
+ *  - keys with extra viewport params (x,y,zoom).
+ *  Returns {key, viewerUrl}
+ */
+function parseMapillaryValue(value) {
+  if (!value) return null;
+  let v = String(value).trim();
+
+  // If a full URL is stored, try to pull pKey= param or last segment
+  if (/^https?:\/\//i.test(v)) {
+    try {
+      const u = new URL(v);
+      const pKey =
+        u.searchParams.get("pKey") || u.searchParams.get("image_key");
+      if (pKey) {
+        return {
+          key: pKey,
+          viewerUrl: `https://www.mapillary.com/app/?pKey=${encodeURIComponent(
+            pKey
+          )}`,
+        };
+      }
+      // fallback: support older /map/im/<key> style
+      const parts = u.pathname.split("/").filter(Boolean);
+      const last = parts[parts.length - 1];
+      if (last) {
+        return {
+          key: last,
+          viewerUrl: `https://www.mapillary.com/app/?pKey=${encodeURIComponent(
+            last
+          )}`,
+        };
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // Extract just the key if someone stored "key&x=..&y=..&zoom=.."
+  const keyOnly = v.split("&")[0];
+
+  return {
+    key: keyOnly,
+    viewerUrl: `https://www.mapillary.com/app/?pKey=${encodeURIComponent(
+      keyOnly
+    )}`,
+  };
+}
+
+/** Fetch the best thumbnail URL for a Mapillary image key (v4 “image_id” or v3 key).
+ *  - If key is already a v4 image_id (often 15 digits), we can query directly.
+ *  - If it’s a legacy v3 key, Mapillary still resolves it on the web, but v4 API
+ *    doesn’t provide a documented “by key” lookup. We’ll try it directly; if the
+ *    API rejects it, we just fall back to showing a link (no thumb).
+ */
+async function fetchMapillaryThumb(key) {
+  const token = getMapillaryToken();
+  if (!token) return null;
+
+  const fields = [
+    "thumb_2048_url",
+    "thumb_1024_url",
+    "thumb_original_url",
+    "captured_at",
+  ].join(",");
+
+  // Try querying the Graph API node directly. Works when `key` is a v4 image_id.
+  // (If it’s a legacy key, API may error; we handle below.)
+  const url = `${MAPILLARY_GRAPH}/${encodeURIComponent(
+    key
+  )}?fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(
+    token
+  )}`;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Mapillary ${res.status}`);
+    const data = await res.json();
+
+    // Many fields are optional; pick the first available thumbnail
+    const src =
+      data.thumb_1024_url || data.thumb_2048_url || data.thumb_original_url;
+    if (!src) return null;
+
+    return { src, captured_at: data.captured_at };
+  } catch {
+    // No thumbnail (likely a legacy v3 key or invalid id). We’ll just link to viewer.
+    return null;
+  }
+}
+
+async function resolveFromMapillaryTag(value) {
+  const parsed = parseMapillaryValue(value);
+  if (!parsed) return [];
+  const { key, viewerUrl } = parsed;
+
+  // Try to get a thumb via API (requires token). If it fails or token missing,
+  // we still return a clickable tile that opens Mapillary.
+  let thumb = null;
+  try {
+    thumb = await fetchMapillaryThumb(key);
+  } catch {
+    /* ignore */
+  }
+
+  const title = `Mapillary ${key}`;
+  const photo = {
+    src: thumb?.src || "", // empty -> we'll fall back to using pageUrl as link only
+    thumb: thumb?.src || "",
+    width: undefined,
+    height: undefined,
+    title,
+    credit: "Mapillary contributors (CC BY-SA 4.0)",
+    source: "Mapillary",
+    pageUrl: viewerUrl,
+  };
+
+  // If we couldn't get a thumbnail, still surface a link-card-ish item by pointing
+  // the image to the viewer (it will open in a new tab from your grid).
+  if (!photo.thumb) {
+    photo.thumb = photo.pageUrl;
+    photo.src = photo.pageUrl;
+  }
+
+  return [photo];
+}
+
 const WIKI_MEDIA_LIST = (lang, title) =>
   `https://${lang}.wikipedia.org/w/api.php?origin=*&action=query&prop=images&imlimit=max&titles=${encodeURIComponent(
     title
   )}&format=json`;
+
+const PANORAMAX_API = "https://api.panoramax.xyz";
+const PANORAMAX_IMG = (id, size = "sd") =>
+  `${PANORAMAX_API}/api/pictures/${encodeURIComponent(id)}/${size}.jpg`;
+const PANORAMAX_VIEWER = (id, extra = "") =>
+  `${PANORAMAX_API}/#focus=pic&pic=${encodeURIComponent(id)}${
+    extra ? `&${extra}` : ""
+  }`;
+const PANORAMAX_SEARCH = (ids) =>
+  `${PANORAMAX_API}/api/search?ids=${ids.map(encodeURIComponent).join(",")}`;
+
+/** Accepts:
+ *  "cafb0ec8-51dd-43ac-836c-8cd1f7cb8725"
+ *  "cafb0ec8-...&xyz=250.10/7.54/75"
+ */
+function parsePanoramaxValue(v) {
+  if (!v) return null;
+  const s = String(v).trim();
+  const firstAmp = s.indexOf("&");
+  const id = firstAmp === -1 ? s : s.slice(0, firstAmp);
+  const extra = firstAmp === -1 ? "" : s.slice(firstAmp + 1); // e.g. xyz=...
+  // UUID v4-ish pattern (lenient enough for safety)
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+  )
+    return null;
+  return { id, extra };
+}
+
+function collectPanoramaxIds(tags = {}) {
+  const out = [];
+  for (const k of Object.keys(tags)) {
+    if (!/^panoramax(?::\d+)?$/i.test(k)) continue;
+    const p = parsePanoramaxValue(tags[k]);
+    if (p) out.push(p);
+  }
+  return out;
+}
+
+async function fetchPanoramaxByIds(items) {
+  if (!items.length) return [];
+  // Try metadata first (credits, exact thumbnails). If that fails, fall back to direct JPG URLs.
+  try {
+    const res = await fetch(PANORAMAX_SEARCH(items.map((i) => i.id)));
+    if (!res.ok) throw new Error("Panoramax search failed");
+    const data = await res.json();
+    const feats = data?.features || data?.results || []; // meta-catalog variants
+    const byId = new Map();
+    for (const f of feats) {
+      const fid = String(
+        f?.id ?? f?.properties?.id ?? f?.properties?.uuid ?? ""
+      );
+      if (fid) byId.set(fid, f);
+    }
+
+    return items.map(({ id, extra }) => {
+      const f = byId.get(id) || {};
+      const assets = f?.assets || {};
+      const pick = (a) => (typeof a === "string" ? a : a?.href || a?.url);
+      const sd = pick(assets.sd) || PANORAMAX_IMG(id, "sd");
+      const hd = pick(assets.hd) || PANORAMAX_IMG(id, "hd");
+      const thumb = pick(assets.thumb) || PANORAMAX_IMG(id, "thumb");
+      const author =
+        f?.properties?.author ||
+        f?.properties?.user ||
+        f?.properties?.username ||
+        "";
+      const license = f?.properties?.license || f?.properties?.licence || "";
+      const credit = [author, license].filter(Boolean).join(" • ");
+
+      return {
+        src: sd,
+        thumb: thumb || sd,
+        title: f?.properties?.title || "",
+        credit: credit || "Panoramax",
+        width: f?.properties?.width,
+        height: f?.properties?.height,
+        source: "Panoramax",
+        pageUrl: PANORAMAX_VIEWER(id, extra),
+        // If you want the HD in your lightbox later:
+        hd,
+      };
+    });
+  } catch {
+    // CORS/temporary outage fallback: build direct image URLs
+    return items.map(({ id, extra }) => ({
+      src: PANORAMAX_IMG(id, "sd"),
+      thumb: PANORAMAX_IMG(id, "thumb"),
+      title: "",
+      credit: "Panoramax",
+      source: "Panoramax",
+      pageUrl: PANORAMAX_VIEWER(id, extra),
+    }));
+  }
+}
+
+async function resolveFromPanoramaxTags(tags) {
+  const items = collectPanoramaxIds(tags);
+  if (!items.length) return [];
+  return fetchPanoramaxByIds(items);
+}
 
 async function fetchWikipediaImagesList(lang, title) {
   const res = await fetch(WIKI_MEDIA_LIST(lang, title));
@@ -445,6 +690,17 @@ export async function resolvePlacePhotos(tags, latlng) {
   // Add nearby sources if we have coords
   if (latlng) {
     tasks.push(commonsGeoSearch(latlng).catch(() => []));
+  }
+
+  if (
+    tags?.panoramax ||
+    Object.keys(tags || {}).some((k) => /^panoramax(?::\d+)?$/i.test(k))
+  ) {
+    tasks.push(resolveFromPanoramaxTags(tags));
+  }
+
+  if (tags?.mapillary) {
+    tasks.push(resolveFromMapillaryTag(tags.mapillary));
   }
 
   const chunks = await Promise.allSettled(tasks);
