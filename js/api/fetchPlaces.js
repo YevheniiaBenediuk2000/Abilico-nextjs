@@ -201,41 +201,41 @@ function selectorsForZoom(
 ) {
   // Full fat (your previous set) at close zoom
   const FULL = [
-    `node["amenity"]["name"]["amenity"!~"${AMENITY_EXCLUDED}"]`,
-    `node["shop"]["name"]`,
-    `node["tourism"]["name"]`,
-    `node["leisure"]["name"]["leisure"!~"${LEISURE_EXCLUDED}"]`,
-    `node["healthcare"]["name"]`,
-    `node["building"]["name"]`,
-    `node["office"]["name"]`,
-    `node["craft"]["name"]`,
-    `node["historic"]["name"]`,
-    `node["man_made"]["name"]["man_made"!~"${MAN_MADE_EXCLUDED}"]`,
-    `node["military"]["name"]["military"!~"${MILITARY_EXCLUDED}"]`,
-    `node["sport"]["name"]`,
+    `node["amenity"]["amenity"!~"${AMENITY_EXCLUDED}"]`,
+    `node["shop"]`,
+    `node["tourism"]`,
+    `node["leisure"]["leisure"!~"${LEISURE_EXCLUDED}"]`,
+    `node["healthcare"]`,
+    `node["building"]`,
+    `node["office"]`,
+    `node["craft"]`,
+    `node["historic"]`,
+    `node["man_made"]["man_made"!~"${MAN_MADE_EXCLUDED}"]`,
+    `node["military"]["military"!~"${MILITARY_EXCLUDED}"]`,
+    `node["sport"]`,
   ];
 
   // Medium zoom: most categories, but no super-noisy tails
   const MID = [
-    `node["amenity"]["name"]["amenity"!~"${AMENITY_EXCLUDED}"]`,
-    `node["shop"]["name"]["shop"~"^(${SHOP_FOCUS_LOW.join("|")})$"]`,
-    `node["tourism"]["name"]`,
-    `node["leisure"]["name"]["leisure"!~"${LEISURE_EXCLUDED}"]`,
-    `node["healthcare"]["name"]`,
-    `node["office"]["name"]`,
-    `node["historic"]["name"]`,
-    `node["sport"]["name"]`,
+    `node["amenity"]["amenity"!~"${AMENITY_EXCLUDED}"]`,
+    `node["shop"]["shop"~"^(${SHOP_FOCUS_LOW.join("|")})$"]`,
+    `node["tourism"]`,
+    `node["leisure"]["leisure"!~"${LEISURE_EXCLUDED}"]`,
+    `node["healthcare"]`,
+    `node["office"]`,
+    `node["historic"]`,
+    `node["sport"]`,
     // (omit building/craft/man_made/military at this level)
   ];
 
   // Far zoom: only “important” types to keep counts small
   const LOW = [
-    `node["amenity"]["name"]["amenity"~"^(${AMENITY_FOCUS_LOW.join("|")})$"]`,
-    `node["tourism"]["name"]["tourism"~"^(${TOURISM_FOCUS_LOW.join("|")})$"]`,
-    `node["leisure"]["name"]["leisure"~"^(${LEISURE_FOCUS_LOW.join("|")})$"]`,
-    `node["healthcare"]["name"]["healthcare"~"^(hospital|clinic)$"]`,
-    `node["shop"]["name"]["shop"~"^(${SHOP_FOCUS_LOW.join("|")})$"]`,
-    `node["historic"]["name"]`,
+    `node["amenity"]["amenity"~"^(${AMENITY_FOCUS_LOW.join("|")})$"]`,
+    `node["tourism"]["tourism"~"^(${TOURISM_FOCUS_LOW.join("|")})$"]`,
+    `node["leisure"]["leisure"~"^(${LEISURE_FOCUS_LOW.join("|")})$"]`,
+    `node["healthcare"]["healthcare"~"^(hospital|clinic)$"]`,
+    `node["shop"]["shop"~"^(${SHOP_FOCUS_LOW.join("|")})$"]`,
+    `node["historic"]`,
   ];
 
   // Heuristic bands — tweak to taste

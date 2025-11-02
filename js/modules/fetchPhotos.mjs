@@ -658,8 +658,36 @@ function collectOsmImageCandidates(tags = {}) {
   return { urls, commonsTitles };
 }
 
+function firstWikipediaTag(tags = {}) {
+  if (tags.wikipedia) return tags.wikipedia;
+  // pick the first wikipedia:xx present
+  const k = Object.keys(tags).find((k) => /^wikipedia:[a-z-]+$/i.test(k));
+  return k ? `${k.split(":")[1]}:${tags[k]}` : null;
+}
+
+function commonsFromTags(tags = {}) {
+  if (tags.wikimedia_commons) return tags.wikimedia_commons;
+  if (tags["wikimedia_commons:category"]) {
+    return `Category:${tags["wikimedia_commons:category"]}`;
+  }
+  return null;
+}
+
+function subjectWikipedia(tags = {}) {
+  const k = Object.keys(tags).find((k) => /^subject:wikipedia$/i.test(k));
+  return k ? tags[k] : null;
+}
+function subjectWikidata(tags = {}) {
+  const k = Object.keys(tags).find((k) => /^subject:wikidata$/i.test(k));
+  return k ? tags[k] : null;
+}
+
 /* ---------- Public: resolve photos from all tags ---------- */
 export async function resolvePlacePhotos(tags, latlng) {
+  const maybeWikipedia = firstWikipediaTag(tags) || subjectWikipedia(tags);
+  const maybeCommons = commonsFromTags(tags);
+  const maybeWikidata = tags.wikidata || subjectWikidata(tags);
+
   const tasks = [];
 
   // image= (direct URLs)
@@ -668,18 +696,18 @@ export async function resolvePlacePhotos(tags, latlng) {
   });
 
   // wikimedia_commons=
-  if (tags?.wikimedia_commons) {
-    tasks.push(resolveFromWikimediaCommonsTag(tags.wikimedia_commons));
+  if (maybeCommons) {
+    tasks.push(resolveFromWikimediaCommonsTag(maybeCommons));
   }
 
   // wikipedia=
-  if (tags?.wikipedia) {
-    tasks.push(resolveFromWikipediaTag(tags.wikipedia));
+  if (maybeWikipedia) {
+    tasks.push(resolveFromWikipediaTag(maybeWikipedia));
   }
 
   // wikidata=
-  if (tags?.wikidata) {
-    tasks.push(resolveFromWikidataTag(tags.wikidata));
+  if (maybeWikidata) {
+    tasks.push(resolveFromWikidataTag(maybeWikidata));
   }
 
   const cands = collectOsmImageCandidates(tags);
