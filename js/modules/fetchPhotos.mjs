@@ -1,6 +1,5 @@
 const mainPhotoWrapper = document.getElementById("main-photo-wrapper");
 const mainPhotoImg = document.getElementById("main-photo");
-const mainPhotoCaption = document.getElementById("main-photo-caption");
 const photosGrid = document.getElementById("photos-grid");
 const photosEmpty = document.getElementById("photos-empty");
 
@@ -29,17 +28,11 @@ export function showMainPhoto(photo) {
     mainPhotoWrapper.classList.add("d-none");
     mainPhotoImg.removeAttribute("src");
     mainPhotoImg.removeAttribute("alt");
-    mainPhotoCaption.textContent = "";
     return;
   }
 
   mainPhotoImg.src = photo.src || photo.thumb;
   mainPhotoImg.alt = photo.title || "Place photo";
-  mainPhotoCaption.innerHTML = [
-    photo.credit ? `<span>${photo.credit}</span>` : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
 
   // Clicking main photo opens Photos tab and scrolls into view
   mainPhotoImg.onclick = () => {
@@ -63,7 +56,7 @@ export function renderPhotosGrid(photos) {
   photosEmpty.classList.add("d-none");
 
   for (const p of photos) {
-    console.log("Rendering photo:", p);
+    // console.log("Rendering photo:", p);
     const col = document.createElement("div");
     // col.className = "col-6";
 
@@ -328,6 +321,38 @@ async function commonsGeoSearch({ lat, lng }, radiusM = 20, limit = 100) {
     .filter(Boolean);
 }
 
+function commonsTitleFromValue(v) {
+  if (!v) return null;
+  let t = String(v).trim();
+  if (!t || /^https?:\/\//i.test(t)) return null; // URLs handled elsewhere
+  if (!/^File:/i.test(t)) t = `File:${t}`;
+  return t.replace(/ /g, "_");
+}
+
+function collectOsmImageCandidates(tags = {}) {
+  const urls = [];
+  const commonsTitles = [];
+
+  for (const k of Object.keys(tags)) {
+    if (!/^image(?::\d+)?$/i.test(k)) continue; // image, image:0..9
+    const v = String(tags[k]).trim();
+    if (!v) continue;
+    if (isHttpUrl(v)) {
+      urls.push(v);
+    } else {
+      const t = commonsTitleFromValue(v);
+      if (t) commonsTitles.push(t);
+    }
+  }
+
+  // normalize wikimedia_commons if present (file name variants)
+  if (tags.wikimedia_commons) {
+    const t = commonsTitleFromValue(tags.wikimedia_commons);
+    if (t) commonsTitles.push(t);
+  }
+  return { urls, commonsTitles };
+}
+
 /* ---------- Public: resolve photos from all tags ---------- */
 export async function resolvePlacePhotos(tags, latlng) {
   const tasks = [];
@@ -350,6 +375,11 @@ export async function resolvePlacePhotos(tags, latlng) {
   // wikidata=
   if (tags?.wikidata) {
     tasks.push(resolveFromWikidataTag(tags.wikidata));
+  }
+
+  const cands = collectOsmImageCandidates(tags);
+  if (cands.commonsTitles.length) {
+    baseTasks.push(fetchCommonsFileInfos(cands.commonsTitles));
   }
 
   // Add nearby sources if we have coords
