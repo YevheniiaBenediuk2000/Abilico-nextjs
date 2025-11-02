@@ -51,6 +51,14 @@ import {
   resolvePlacePhotos,
   showMainPhoto,
 } from "./modules/fetchPhotos.mjs";
+import {
+  cleanUrl,
+  hostLabel,
+  linkLabel,
+  normalizeTagsCase,
+  splitMulti,
+  toMapillaryViewerUrl,
+} from "./modules/beautifyDetaillinks.mjs";
 
 const TAG_PRIORITY = [
   "amenity",
@@ -470,10 +478,36 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   const list = detailsPanel.querySelector("#details-list");
   list.innerHTML = "";
 
-  Object.entries(tags).forEach(([key, value]) => {
+  const nTags = normalizeTagsCase(tags);
+
+  // WEBSITE (single merged block)
+  const websiteLinks = splitMulti(nTags.website || "")
+    .map(cleanUrl)
+    .filter(Boolean);
+  if (websiteLinks.length) {
+    const item = document.createElement("div");
+    item.className =
+      "list-group-item d-flex justify-content-between align-items-start";
+    const links = websiteLinks
+      .map(
+        (u) =>
+          `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${linkLabel(
+            u
+          )}</a>`
+      )
+      .join(" · ");
+    item.innerHTML = `<div class="me-2"><h6 class="mb-1 fw-semibold">Website</h6><p class="small mb-1">${links}</p></div>`;
+    list.appendChild(item);
+  }
+
+  Object.entries(nTags).forEach(([key, value]) => {
+    const isWebsiteVariant =
+      /^(website|url)(?::\d+)?$/i.test(key) || /^contact:website$/i.test(key);
+    if (isWebsiteVariant) return;
+
     const containsAltName = /alt\s*name/i.test(key);
     const containsLocalizedVariants =
-      /^(name|alt_name|short_name|display_name):/.test(key.toLowerCase());
+      /^(name|alt_name|short_name|display_name):/i.test(key);
     const isCountryKey = /^country$/i.test(key);
 
     const isExcluded =
@@ -482,35 +516,134 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       containsLocalizedVariants ||
       isCountryKey;
 
-    if (!isExcluded) {
-      const item = document.createElement("div");
-      item.className =
-        "list-group-item d-flex justify-content-between align-items-start";
+    if (isExcluded) return;
 
-      // Format the key for display
-      let displayKey = null;
-      if (key === "display_name") {
-        displayKey = "Address";
-      } else {
-        // Replace underscores with spaces and capitalize first letters
-        displayKey = key
-          .replace(/^Addr_?/i, "")
-          .replace(/[_:]/g, " ")
-          .replace(/\b\w/g, (c) => c.toUpperCase());
-      }
+    const lk = key.toLowerCase();
+    const item = document.createElement("div");
+    item.className =
+      "list-group-item d-flex justify-content-between align-items-start";
 
-      const displayValue = value
-        .replace(/[_:]/g, " ")
-        .replace(/\b\w/g, (c) => c.toUpperCase());
+    // Special cases: linkify
+    if (lk === "website" || lk === "url") {
+      const urls = splitMulti(value).map(cleanUrl).filter(Boolean);
+      if (!urls.length) return;
+
+      const links = urls
+        .map(
+          (u) =>
+            `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${hostLabel(
+              u
+            )}</a>`
+        )
+        .join(" · ");
 
       item.innerHTML = `
-        <div class="me-2">
-          <h6 class="mb-1 fw-semibold">${displayKey}</h6>
-          <p class="small mb-1">${displayValue}</p>
-        </div>
-      `;
+      <div class="me-2">
+        <h6 class="mb-1 fw-semibold">Website</h6>
+        <p class="small mb-1">${links}</p>
+      </div>`;
       list.appendChild(item);
+      return;
     }
+
+    if (lk === "image") {
+      const urls = splitMulti(value).map(cleanUrl).filter(Boolean);
+      if (!urls.length) return;
+
+      const links = urls
+        .map((u) => {
+          // If someone put a Mapillary URL in image=, route it to the viewer
+          if (/mapillary\.com/i.test(u)) {
+            const viewer = toMapillaryViewerUrl(u);
+            return `<a href="${viewer}" target="_blank" rel="noopener nofollow ugc">Mapillary</a>`;
+          }
+          // Google Photos shares are pages, not direct images; still useful
+          if (/photos\.app\.goo\.gl|photos\.google\.com/i.test(u)) {
+            return `<a href="${u}" target="_blank" rel="noopener nofollow ugc">Google Photos</a>`;
+          }
+          // Fallback: show host
+          return `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${hostLabel(
+            u
+          )}</a>`;
+        })
+        .join(" · ");
+
+      item.innerHTML = `
+      <div class="me-2">
+        <h6 class="mb-1 fw-semibold">Photo Link(s)</h6>
+        <p class="small mb-1">${links}</p>
+      </div>`;
+      list.appendChild(item);
+      return;
+    }
+
+    if (lk === "mapillary") {
+      const viewer = toMapillaryViewerUrl(value);
+      if (!viewer) return;
+      item.innerHTML = `
+      <div class="me-2">
+        <h6 class="mb-1 fw-semibold">Street Imagery</h6>
+        <p class="small mb-1">
+          <a href="${viewer}" target="_blank" rel="noopener nofollow ugc">Open in Mapillary</a>
+        </p>
+      </div>`;
+      list.appendChild(item);
+      return;
+    }
+
+    if (lk === "wikidata") {
+      const q = String(value).trim().toUpperCase(); // e.g., Q11802770
+      if (/^Q\d+$/.test(q)) {
+        item.innerHTML = `
+      <div class="me-2">
+        <h6 class="mb-1 fw-semibold">Wikidata</h6>
+        <p class="small mb-1"><a href="https://www.wikidata.org/wiki/${q}" target="_blank" rel="noopener">${q}</a></p>
+      </div>`;
+        list.appendChild(item);
+        return;
+      }
+    }
+
+    if (lk === "wikipedia" || /^wikipedia:[a-z-]+$/i.test(lk)) {
+      const spec = lk === "wikipedia" ? value : `${lk.split(":")[1]}:${value}`;
+      const m = String(spec).match(/^([a-z-]+)\s*:\s*(.+)$/i);
+      if (m) {
+        const lang = m[1];
+        const title = m[2].replace(/\s/g, "_");
+        const href = `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(
+          title
+        )}`;
+        item.innerHTML = `
+      <div class="me-2">
+        <h6 class="mb-1 fw-semibold">Wikipedia</h6>
+        <p class="small mb-1"><a href="${href}" target="_blank" rel="noopener">Wikipedia (${lang})</a></p>
+      </div>`;
+        list.appendChild(item);
+        return;
+      }
+    }
+
+    // Default rendering (your original behavior)
+    let displayKey = null;
+    if (key === "display_name") {
+      displayKey = "Address";
+    } else {
+      displayKey = key
+        .replace(/^Addr_?/i, "")
+        .replace(/[_:]/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+
+    const displayValue = String(value)
+      .replace(/[_:]/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+
+    item.innerHTML = `
+    <div class="me-2">
+      <h6 class="mb-1 fw-semibold">${displayKey}</h6>
+      <p class="small mb-1">${displayValue}</p>
+    </div>`;
+    list.appendChild(item);
   });
 
   detailsCtx.latlng = latlng;

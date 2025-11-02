@@ -368,16 +368,52 @@ function parseImageTag(imageValue) {
   return parts.filter(isHttpUrl);
 }
 
+const NON_IMAGE_HOST_RE =
+  /(^|\.)photos\.app\.goo\.gl$|(^|\.)photos\.google\.com$|(^|\.)drive\.google\.com$/i;
+const IMAGE_EXT_RE = /\.(jpe?g|png|gif|webp|avif|bmp|tiff?)$/i;
+
 function photoFromDirectUrl(url) {
+  let href = url;
+  try {
+    href = new URL(url).toString();
+  } catch {
+    // leave as is
+  }
+
+  const host = (() => {
+    try {
+      return new URL(href).hostname;
+    } catch {
+      return "";
+    }
+  })();
+
+  const looksLikeImage = IMAGE_EXT_RE.test(href);
+
+  // If it's a share page (Google Photos/Drive) or not a direct image file, make it link-only
+  if (NON_IMAGE_HOST_RE.test(host) || !looksLikeImage) {
+    return {
+      src: "", // no <img> source
+      thumb: "", // no thumbnail
+      title: "",
+      credit: "",
+      source: "Link",
+      width: undefined,
+      height: undefined,
+      pageUrl: href, // clickable card opens the share page
+    };
+  }
+
+  // Direct image file: show it
   return {
-    src: url,
-    thumb: url, // best effort; most hosts do not offer thumb endpoints
+    src: href,
+    thumb: href,
     title: "",
     credit: "",
     source: "Direct",
     width: undefined,
     height: undefined,
-    pageUrl: url,
+    pageUrl: href,
   };
 }
 
