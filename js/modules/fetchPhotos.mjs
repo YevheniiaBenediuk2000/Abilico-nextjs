@@ -238,6 +238,39 @@ function parseWikipediaTag(value) {
   return null;
 }
 
+// Wikipedia REST: list all media used on the page, then hydrate via Commons
+async function fetchWikipediaMediaList(lang, title) {
+  const url = `https://${lang}.wikipedia.org/w/rest.php/v1/page/${encodeURIComponent(
+    title
+  )}/links/media`;
+  const rsp = await fetch(url, {
+    headers: { "Api-User-Agent": "OpenAccessMap" },
+  });
+
+  // If the page is huge (>100 media), fall back to your existing Action API path
+  // (prop=images -> fetchCommonsFileInfos)
+  if (rsp.status === 500) {
+    return fetchWikipediaImagesList(lang, title); // you already have this
+  }
+  if (!rsp.ok) return [];
+
+  const data = await rsp.json();
+  const files = data?.files || [];
+
+  // Titles sometimes come back without "File:"; normalize.
+  const titles = files
+    .map((f) =>
+      f?.title
+        ? f.title.startsWith("File:")
+          ? f.title
+          : `File:${f.title}`
+        : null
+    )
+    .filter(Boolean);
+
+  return fetchCommonsFileInfos(titles); // you already have this (adds credit/license/thumbs)
+}
+
 async function resolveFromWikipediaTag(value) {
   const spec = parseWikipediaTag(value);
   if (!spec) return [];
@@ -267,7 +300,7 @@ async function resolveFromWikipediaTag(value) {
     });
   }
 
-  const listPhotos = await fetchWikipediaImagesList(lang, title);
+  const listPhotos = await fetchWikipediaMediaList(lang, title);
   photos.push(...listPhotos);
 
   // As a bonus, try pageimages via MediaWiki API for more sizes (optional)
@@ -379,7 +412,7 @@ export async function resolvePlacePhotos(tags, latlng) {
 
   const cands = collectOsmImageCandidates(tags);
   if (cands.commonsTitles.length) {
-    baseTasks.push(fetchCommonsFileInfos(cands.commonsTitles));
+    tasks.push(fetchCommonsFileInfos(cands.commonsTitles));
   }
 
   // Add nearby sources if we have coords
