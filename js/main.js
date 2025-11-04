@@ -13,7 +13,6 @@ import { fetchRoute } from "./api/fetchRoute.js";
 import { reviewStorage } from "./api/reviewStorage.js";
 import { obstacleStorage } from "./api/obstacleStorage.js";
 import {
-  BASE_PATH,
   DEFAULT_ZOOM,
   EXCLUDED_PROPS,
   SIZE_BY_TIER,
@@ -101,7 +100,7 @@ function iconFor(tags) {
     // try exact/variant matches first
     for (const cand of variants(v)) {
       const hit = ICON_INDEX[cand];
-      if (hit) return `${BASE_PATH}/${hit}`;
+      if (hit) return `${globals.basePath}/${hit}`;
     }
 
     // category-level fallback (pick something reasonable)
@@ -118,13 +117,13 @@ function iconFor(tags) {
         ? ICON_FALLBACKS.sports
         : ICON_FALLBACKS.information;
 
-    if (catFallback) return `${BASE_PATH}/${catFallback}`;
+    if (catFallback) return `${globals.basePath}/${catFallback}`;
   }
 
   // last resorts
   return ICON_FALLBACKS.unknown
-    ? `${BASE_PATH}/${ICON_FALLBACKS.unknown}`
-    : `${BASE_PATH}/${ICON_FALLBACKS.no_icon || "svg/misc/no_icon.svg"}`;
+    ? `${globals.basePath}/${ICON_FALLBACKS.unknown}`
+    : `${globals.basePath}/${ICON_FALLBACKS.no_icon || "svg/misc/no_icon.svg"}`;
 }
 
 let accessibilityFilter = new Set();

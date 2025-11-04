@@ -45,7 +45,7 @@ function ensureAccKeywordsBlock() {
     block.id = "acc-keywords-block";
     block.className = "mb-3 d-none";
     block.innerHTML = `
-      <h6 class="mb-2">Accessibility mentions (all reviews)</h6>
+      <h6 class="mb-2">Accessibility mentions in reviews</h6>
       <div id="acc-keywords-summary" class="d-flex flex-wrap gap-2"></div>
     `;
     // Insert before the review form
@@ -136,6 +136,7 @@ export async function recomputePlaceAccessibilityKeywords() {
           (x) => x.score >= ACCESSIBILITY_KEYWORDS_CLASSIFICATION_THRESHOLD
         )
     );
+    console.log(outs);
     renderPerReviewBadges(hitsPerReview);
     const agg = aggregateHits(hitsPerReview, texts.length);
     renderAccSummary(agg);

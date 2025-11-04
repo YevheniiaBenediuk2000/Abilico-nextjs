@@ -20,11 +20,6 @@ export const EXCLUDED_PROPS = new Set([
   "created_by",
 ]);
 
-const isLocal = window.location.protocol === "http:";
-export const BASE_PATH = isLocal
-  ? "../map-icons-osm"
-  : "https://yevheniiabenediuk2000.github.io/Abilico/map-icons-osm";
-
 export const pRetryConfig = { retries: 3, factor: 2, minTimeout: 400 };
 
 export const SIZE_BY_TIER = {
@@ -47,4 +42,15 @@ export const PLACE_CLUSTER_CONFIG = {
   spiderfyOnMaxZoom: true,
 };
 
-export const ACCESSIBILITY_KEYWORDS_CLASSIFICATION_THRESHOLD = 0.9;
+export const ACCESSIBILITY_KEYWORDS_CLASSIFICATION_THRESHOLD = 0.96;
+
+export const ACCESSIBILITY_LABELS_IN_REVIEWS = [
+  "wheelchair access",
+  "ramp",
+  "accessible toilet",
+  "elevator",
+  "accessible parking",
+  "stairs",
+  "wide door",
+  "automatic door",
+];

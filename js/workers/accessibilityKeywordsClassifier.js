@@ -2,6 +2,7 @@ import {
   pipeline,
   env,
 } from "https://cdn.jsdelivr.net/npm/@xenova/transformers";
+import { ACCESSIBILITY_LABELS_IN_REVIEWS } from "../constants/configs.mjs";
 
 // Configure transformers inside the worker
 env.allowRemoteModels = true;
@@ -12,17 +13,6 @@ try {
 } catch {
   env.backends.onnx.wasm.numThreads = 1;
 }
-
-const ACCESSIBILITY_LABELS = [
-  "wheelchair access",
-  "ramp",
-  "accessible toilet",
-  "elevator",
-  "accessible parking",
-  "stairs",
-  "wide door",
-  "automatic door",
-];
 
 let classifier = null;
 async function getClassifier() {
@@ -57,7 +47,7 @@ self.addEventListener("message", async (e) => {
       const t = norm(text);
       if (!RAW_CACHE.has(t)) {
         const clf = await getClassifier();
-        const out = await clf(t, ACCESSIBILITY_LABELS, {
+        const out = await clf(t, ACCESSIBILITY_LABELS_IN_REVIEWS, {
           multi_label: true,
           hypothesis_template: "This review mentions {}.",
           ...options,
@@ -91,7 +81,7 @@ self.addEventListener("message", async (e) => {
         const CHUNK = 8;
         for (let i = 0; i < toRunTexts.length; i += CHUNK) {
           const chunkTexts = toRunTexts.slice(i, i + CHUNK);
-          const outs = await clf(chunkTexts, ACCESSIBILITY_LABELS, {
+          const outs = await clf(chunkTexts, ACCESSIBILITY_LABELS_IN_REVIEWS, {
             multi_label: true,
             hypothesis_template: "This review mentions {}.",
             ...options,
