@@ -2,18 +2,7 @@
 //   pipeline,
 //   env,
 // } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers";
-// import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers";
 import debounce from "https://cdn.jsdelivr.net/npm/lodash.debounce@4.0.8/+esm";
-
-import {
-  pipeline,
-  env,
-} from "https://cdn.jsdelivr.net/npm/@xenova/transformers";
-// - allow remote models (auto-cached in IndexedDB)
-// - use quantized weights
-env.allowRemoteModels = true;
-env.useBrowserCache = true; // cache models in IndexedDB
-env.backends.onnx.wasm.numThreads = navigator.hardwareConcurrency;
 
 import {
   fetchPlace,
@@ -70,6 +59,11 @@ import {
   splitMulti,
   toMapillaryViewerUrl,
 } from "./modules/beautifyDetaillinks.mjs";
+
+const classifierWorker = new Worker(
+  new URL("./workers/classifier.worker.js", import.meta.url),
+  { type: "module" }
+);
 
 const TAG_PRIORITY = [
   "amenity",
@@ -945,46 +939,45 @@ map.whenReady(async () => {
     showQuickRoutePopup(e.latlng);
   });
 
-  const classifier = await pipeline(
-    "zero-shot-classification",
-    "Xenova/distilbert-base-uncased-mnli",
-    { quantized: true }
-  );
-  const ACCESSIBILITY_LABELS = [
-    "wheelchair access",
-    "ramp",
-    "accessible toilet",
-    "elevator",
-    "parking",
-    "hearing assistance",
-    "braille signs",
-    "stairs",
-    "wide door",
-    "automatic door",
-  ];
-  async function extractAccessibilityKeywords(review, threshold = 0.3) {
-    console.log("Classifying review for accessibility keywords...");
-    const out = await classifier(review, ACCESSIBILITY_LABELS, {
-      multi_label: true,
-      hypothesis_template: "This review mentions {}.",
-    });
-    console.log(out);
+  // ======= WORKER INTERFACE =======
+  let _reqId = 0;
+  const _pending = new Map();
 
-    const hits = [];
-    for (let i = 0; i < out.labels.length; i++) {
-      const label = out.labels[i];
-      const score = out.scores[i];
-      if (score >= threshold) {
-        hits.push({ label, score });
-      }
+  classifierWorker.onmessage = (e) => {
+    const { id, type, ...rest } = e.data || {};
+    const p = _pending.get(id);
+    if (!p) return;
+
+    if (type === "error") {
+      p.reject(new Error(rest.error || "Worker error"));
+    } else {
+      p.resolve({ type, ...rest });
     }
+    _pending.delete(id);
+  };
 
-    return hits;
+  function callWorker(msg) {
+    const id = ++_reqId;
+    return new Promise((resolve, reject) => {
+      _pending.set(id, { resolve, reject });
+      classifierWorker.postMessage({ id, ...msg });
+    });
+  }
+
+  async function extractAccessibilityKeywords(review) {
+    const { type, hits } = await callWorker({ type: "classify", text: review });
+    if (type !== "result") throw new Error("Classification failed");
+
+    return hits; // [{ label, score }, ...]
   }
 
   const reviewText =
     "I was so relieved to find that 'The Gilded Spoon' has a truly accessible restroom and a ramp.";
-  extractAccessibilityKeywords(reviewText).then(console.log);
+
+  console.log("Extracting accessibility keywords from review:");
+  extractAccessibilityKeywords(reviewText)
+    .then(console.log)
+    .catch(console.error);
 });
 
 function renderDepartureSuggestions(items) {
