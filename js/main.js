@@ -17,8 +17,8 @@ import {
   DEFAULT_ZOOM,
   EXCLUDED_PROPS,
   SIZE_BY_TIER,
-  placeClusterConfig,
-} from "./constants.mjs";
+  PLACE_CLUSTER_CONFIG,
+} from "./constants/configs.mjs";
 import { toastError, toastWarn } from "./utils/toast.mjs";
 import { waypointDivIcon, WP_COLORS } from "./utils/wayPoints.mjs";
 import {
@@ -45,7 +45,7 @@ import {
   osm,
 } from "./leaflet-controls/BasemapGallery.mjs";
 import { ICON_FALLBACKS, ICON_INDEX } from "./static/manifest.js";
-import { detailsPanel } from "./utils/commonVariables.mjs";
+import elements from "./constants/domElements.mjs";
 import {
   renderPhotosGrid,
   resolvePlacePhotos,
@@ -59,144 +59,10 @@ import {
   splitMulti,
   toMapillaryViewerUrl,
 } from "./modules/beautifyDetaillinks.mjs";
+import { recomputePlaceAccessibilityKeywords } from "./modules/accessibilityKeywordsExtraction.mjs";
+import globals from "./constants/globalVariables.mjs";
 
-const classifierWorker = new Worker(
-  new URL("./workers/classifier.worker.js", import.meta.url),
-  { type: "module" }
-);
-
-let _reqId = 0;
-const _pending = new Map();
-classifierWorker.onmessage = (e) => {
-  const { id, type, ...rest } = e.data || {};
-  const p = _pending.get(id);
-  if (!p) return;
-
-  if (type === "error") {
-    p.reject(new Error(rest.error || "Worker error"));
-  } else {
-    p.resolve({ type, ...rest });
-  }
-  _pending.delete(id);
-};
-
-function callWorker(msg) {
-  const id = ++_reqId;
-  return new Promise((resolve, reject) => {
-    _pending.set(id, { resolve, reject });
-    classifierWorker.postMessage({ id, ...msg });
-  });
-}
-
-// Filter on main thread so we can change threshold without re-running the model
-const THRESHOLD = 0.9;
-
-async function extractAccessibilityKeywordsMany(texts, options = {}) {
-  const res = await callWorker({ type: "classify-many", texts, options });
-  if (res.type !== "result-many") throw new Error("Bulk classification failed");
-  return res.items; // array of raw outs: { labels:[], scores:[] }
-}
-
-function ensureAccKeywordsBlock() {
-  const reviewsPane = document.getElementById("tab-reviews");
-  let block = reviewsPane.querySelector("#acc-keywords-block");
-  if (!block) {
-    block = document.createElement("div");
-    block.id = "acc-keywords-block";
-    block.className = "mb-3 d-none";
-    block.innerHTML = `
-      <h6 class="mb-2">Accessibility mentions (all reviews)</h6>
-      <div id="acc-keywords-summary" class="d-flex flex-wrap gap-2"></div>
-    `;
-    // Insert before the review form
-    const form = reviewsPane.querySelector("#review-form");
-    form.parentElement.insertBefore(block, form.nextSibling);
-  }
-  return {
-    block,
-    summaryEl: block.querySelector("#acc-keywords-summary"),
-  };
-}
-
-function aggregateHits(hitsPerReview, total) {
-  const m = new Map();
-  hitsPerReview.forEach((hits) => {
-    const seen = new Set();
-    hits.forEach(({ label, score }) => {
-      if (seen.has(label)) return;
-      const cur = m.get(label) || { count: 0, scoreSum: 0 };
-      cur.count += 1;
-      cur.scoreSum += score;
-      m.set(label, cur);
-      seen.add(label);
-    });
-  });
-  return [...m.entries()]
-    .map(([label, { count, scoreSum }]) => ({
-      label,
-      count,
-      pct: (count / total) * 100,
-      scoreAvg: scoreSum / count,
-    }))
-    .sort((a, b) => b.count - a.count || b.scoreAvg - a.scoreAvg);
-}
-
-function renderAccSummary(agg) {
-  const { block, summaryEl } = ensureAccKeywordsBlock();
-  summaryEl.innerHTML = "";
-  agg.forEach(({ label, count, pct }) => {
-    const chip = document.createElement("span");
-    chip.className = "badge text-bg-secondary";
-    chip.textContent = `${label} · ${count} (${Math.round(pct)}%)`;
-    summaryEl.appendChild(chip);
-  });
-  block.classList.toggle("d-none", agg.length === 0);
-}
-
-function renderPerReviewBadges(hitsPerReview) {
-  const items = Array.from(reviewsListEl.children);
-  items.forEach((li, i) => {
-    let wrap = li.querySelector(".review-badges");
-    if (!wrap) {
-      wrap = document.createElement("div");
-      wrap.className = "mt-1 d-flex flex-wrap gap-1 review-badges";
-      wrap.setAttribute("aria-label", "Detected accessibility mentions");
-      li.appendChild(wrap);
-    }
-    wrap.innerHTML = "";
-    (hitsPerReview[i] || []).forEach(({ label }) => {
-      const b = document.createElement("span");
-      b.className = "badge text-bg-light border";
-      b.textContent = label;
-      wrap.appendChild(b);
-    });
-  });
-}
-
-async function recomputePlaceAccessibilityKeywords() {
-  const placeId = detailsCtx.placeId;
-  const texts = reviews.filter((r) => r.placeId === placeId).map((r) => r.text);
-  if (!texts.length) {
-    renderAccSummary([]);
-    renderPerReviewBadges([]);
-    return;
-  }
-
-  const key = showLoading("reviews-analyze");
-  try {
-    const outs = await extractAccessibilityKeywordsMany(texts);
-    const hitsPerReview = outs.map((out) =>
-      out.labels
-        .map((label, i) => ({ label, score: out.scores[i] }))
-        .filter((x) => x.score >= THRESHOLD)
-    );
-    renderPerReviewBadges(hitsPerReview);
-    const agg = aggregateHits(hitsPerReview, texts.length);
-    renderAccSummary(agg);
-  } finally {
-    hideLoading(key);
-  }
-}
+const offcanvasInstance = new bootstrap.Offcanvas(elements.offcanvasEl);
 
 const TAG_PRIORITY = [
   "amenity",
@@ -261,8 +127,6 @@ function iconFor(tags) {
     : `${BASE_PATH}/${ICON_FALLBACKS.no_icon || "svg/misc/no_icon.svg"}`;
 }
 
-const detailsCtx = { latlng: null, placeId: null };
-
 let accessibilityFilter = new Set();
 
 let clickPopup = null;
@@ -297,12 +161,12 @@ function showQuickRoutePopup(latlng) {
   startBtn.addEventListener("click", async (ev) => {
     L.DomEvent.stop(ev);
     try {
-      directionsUi.classList.remove("d-none");
+      elements.directionsUi.classList.remove("d-none");
       moveDepartureSearchBarUnderTo();
       mountInOffcanvas("Directions");
 
       await setFrom(latlng, null, { fit: false });
-      destinationSearchInput.focus();
+      elements.destinationSearchInput.focus();
     } finally {
       map.closePopup(clickPopup);
     }
@@ -311,42 +175,26 @@ function showQuickRoutePopup(latlng) {
   goBtn.addEventListener("click", async (ev) => {
     L.DomEvent.stop(ev);
     try {
-      directionsUi.classList.remove("d-none");
+      elements.directionsUi.classList.remove("d-none");
       moveDepartureSearchBarUnderTo();
       mountInOffcanvas("Directions");
 
       await setTo(latlng, null, { fit: false });
-      departureSearchInput.focus();
+      elements.departureSearchInput.focus();
     } finally {
       map.closePopup(clickPopup);
     }
   });
 }
 
-const directionsUi = document.getElementById("directions-ui");
-
 let selectedPlaceLayer = null;
 let placesPane;
 
-const placeClusterLayer = L.markerClusterGroup(placeClusterConfig);
+const placeClusterLayer = L.markerClusterGroup(PLACE_CLUSTER_CONFIG);
 
 // Track when Leaflet.Draw is in editing/deleting mode
 const drawState = { editing: false, deleting: false };
 let drawControl = null;
-
-// ===== OMNIBOX STATE =====
-const destinationSearchBar = document.getElementById("destination-search-bar");
-const destinationSearchBarHome = destinationSearchBar.parentElement;
-const destinationSearchInput = document.getElementById(
-  "destination-search-input"
-);
-const destinationSuggestionsEl = document.getElementById(
-  "destination-suggestions"
-);
-
-const departureSearchBar = document.getElementById("departure-search-bar");
-const departureSearchInput = document.getElementById("departure-search-input");
-const departureSuggestionsEl = document.getElementById("departure-suggestions");
 
 let fromLatLng = null;
 let toLatLng = null;
@@ -358,26 +206,16 @@ const drawnItems = new L.FeatureGroup();
 let drawHelpAlertControl = null;
 
 let obstacleFeatures = [];
-let reviews = [];
-
-const reviewForm = detailsPanel.querySelector("#review-form");
-const reviewsListEl = detailsPanel.querySelector("#reviews-list");
-const submitReviewBtn = detailsPanel.querySelector("#submit-review-btn");
-
-// ----- Offcanvas integration -----
-const offcanvasEl = document.getElementById("placeOffcanvas");
-const offcanvasTitleEl = document.getElementById("placeOffcanvasLabel");
-const offcanvasInstance = new bootstrap.Offcanvas(offcanvasEl);
 
 /** Mount search bar + details panel into the Offcanvas and open it. */
 function mountInOffcanvas(titleText) {
-  offcanvasTitleEl.textContent = titleText;
+  elements.offcanvasTitle.textContent = titleText;
   offcanvasInstance.show();
 }
 
-offcanvasEl.addEventListener("hidden.bs.offcanvas", () => {
-  destinationSearchBarHome.prepend(destinationSearchBar);
-  destinationSearchBar.classList.remove("d-none");
+elements.offcanvasEl.addEventListener("hidden.bs.offcanvas", () => {
+  elements.destinationSearchBarHome.prepend(elements.destinationSearchBar);
+  elements.destinationSearchBar.classList.remove("d-none");
 });
 
 // ---------- Bootstrap Modal + Tooltip helpers ----------
@@ -385,16 +223,16 @@ let obstacleModalInstance = null;
 let obstacleForm, obstacleTitleInput;
 
 function toggleDepartureSuggestions(visible) {
-  departureSuggestionsEl.classList.toggle("d-none", !visible);
-  departureSearchInput.setAttribute(
+  elements.departureSuggestions.classList.toggle("d-none", !visible);
+  elements.departureSearchInput.setAttribute(
     "aria-expanded",
     visible ? "true" : "false"
   );
 }
 
 function toggleDestinationSuggestions(visible) {
-  destinationSuggestionsEl.classList.toggle("d-none", !visible);
-  destinationSearchInput.setAttribute(
+  elements.destinationSuggestions.classList.toggle("d-none", !visible);
+  elements.destinationSearchInput.setAttribute(
     "aria-expanded",
     visible ? "true" : "false"
   );
@@ -596,24 +434,24 @@ async function refreshPlaces() {
 }
 
 function moveDepartureSearchBarUnderTo() {
-  const toLabel = directionsUi.querySelector(
+  const toLabel = elements.directionsUi.querySelector(
     'label[for="destination-search-input"]'
   );
-  toLabel.insertAdjacentElement("afterend", destinationSearchBar);
+  toLabel.insertAdjacentElement("afterend", elements.destinationSearchBar);
 }
 
 const renderOneReview = (text) => {
   const li = document.createElement("li");
   li.className = "list-group-item text-wrap";
   li.innerHTML = `${text}<div class="mt-1 d-flex flex-wrap gap-1 review-badges"></div>`;
-  reviewsListEl.appendChild(li);
+  elements.reviewsList.appendChild(li);
 };
 
 const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   const titleText = tags.name || tags.amenity || "Details";
 
-  detailsPanel.classList.remove("d-none");
-  const list = detailsPanel.querySelector("#details-list");
+  elements.detailsPanel.classList.remove("d-none");
+  const list = elements.detailsPanel.querySelector("#details-list");
   list.innerHTML = "";
 
   const nTags = normalizeTagsCase(tags);
@@ -773,14 +611,14 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     list.appendChild(item);
   });
 
-  detailsCtx.latlng = latlng;
-  detailsCtx.placeId = tags.id ?? tags.osm_id ?? tags.place_id;
+  globals.detailsCtx.latlng = latlng;
+  globals.detailsCtx.placeId = tags.id ?? tags.osm_id ?? tags.place_id;
 
   // Add Reviews Section
-  reviewsListEl.innerHTML = "";
+  elements.reviewsList.innerHTML = "";
 
   if (!keepDirectionsUi) {
-    directionsUi.classList.add("d-none");
+    elements.directionsUi.classList.add("d-none");
   }
 
   moveDepartureSearchBarUnderTo();
@@ -805,13 +643,16 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   const key = showLoading("reviews-load");
 
   try {
-    reviews = await reviewStorage();
+    globals.reviews = await reviewStorage();
   } finally {
     hideLoading(key);
   }
 
-  reviews.forEach((r) => {
-    if (detailsCtx.placeId && detailsCtx.placeId === r.placeId) {
+  globals.reviews.forEach((r) => {
+    if (
+      globals.detailsCtx.placeId &&
+      globals.detailsCtx.placeId === r.placeId
+    ) {
       renderOneReview(r.text);
     }
   });
@@ -1073,27 +914,10 @@ map.whenReady(async () => {
 
     showQuickRoutePopup(e.latlng);
   });
-
-  // ======= WORKER INTERFACE =======
-
-  async function extractAccessibilityKeywords(review) {
-    const { type, hits } = await callWorker({ type: "classify", text: review });
-    if (type !== "result") throw new Error("Classification failed");
-
-    return hits; // [{ label, score }, ...]
-  }
-
-  const reviewText =
-    "I was so relieved to find that 'The Gilded Spoon' has a truly accessible restroom and a ramp.";
-
-  console.log("Extracting accessibility keywords from review:");
-  // extractAccessibilityKeywords(reviewText)
-  //   .then(console.log)
-  //   .catch(console.error);
 });
 
 function renderDepartureSuggestions(items) {
-  departureSuggestionsEl.innerHTML = "";
+  elements.departureSuggestions.innerHTML = "";
   if (!items || !items.length) {
     toggleDepartureSuggestions(false);
     return;
@@ -1109,13 +933,13 @@ function renderDepartureSuggestions(items) {
     btn.textContent = res.name;
     btn.addEventListener("click", () => selectDepartureSuggestion(items[idx]));
     li.appendChild(btn);
-    departureSuggestionsEl.appendChild(li);
+    elements.departureSuggestions.appendChild(li);
   });
   toggleDepartureSuggestions(true);
 }
 
 function renderDestinationSuggestions(items) {
-  destinationSuggestionsEl.innerHTML = "";
+  elements.destinationSuggestions.innerHTML = "";
   if (!items || !items.length) {
     toggleDestinationSuggestions(false);
     return;
@@ -1133,7 +957,7 @@ function renderDestinationSuggestions(items) {
       selectDestinationSuggestion(items[idx])
     );
     li.appendChild(btn);
-    destinationSuggestionsEl.appendChild(li);
+    elements.destinationSuggestions.appendChild(li);
   });
   toggleDestinationSuggestions(true);
 }
@@ -1203,16 +1027,17 @@ async function setFrom(latlng, text, opts = {}) {
   }).addTo(map);
   attachDraggable(fromMarker, async (ll) => {
     fromLatLng = ll;
-    departureSearchInput.value = await reverseAddressAt(ll);
+    elements.departureSearchInput.value = await reverseAddressAt(ll);
     updateRoute({ fit: false });
   });
-  departureSearchInput.value = text ?? (await reverseAddressAt(latlng));
+  elements.departureSearchInput.value =
+    text ?? (await reverseAddressAt(latlng));
   updateRoute(opts);
 }
 
 async function setTo(latlng, text, opts = {}) {
   toLatLng = latlng;
-  const directionsActive = !directionsUi.classList.contains("d-none");
+  const directionsActive = !elements.directionsUi.classList.contains("d-none");
   if (directionsActive) {
     if (toMarker) map.removeLayer(toMarker);
     toMarker = L.marker(latlng, {
@@ -1221,12 +1046,13 @@ async function setTo(latlng, text, opts = {}) {
     }).addTo(map);
     attachDraggable(toMarker, async (ll) => {
       toLatLng = ll;
-      destinationSearchInput.value = await reverseAddressAt(ll);
+      elements.destinationSearchInput.value = await reverseAddressAt(ll);
       updateRoute({ fit: false });
     });
   }
 
-  destinationSearchInput.value = text ?? (await reverseAddressAt(latlng));
+  elements.destinationSearchInput.value =
+    text ?? (await reverseAddressAt(latlng));
   updateRoute(opts);
 }
 
@@ -1243,7 +1069,7 @@ async function selectDestinationSuggestion(res) {
   }
 
   showDetailsLoading(
-    detailsPanel,
+    elements.detailsPanel,
     res.name ?? "Details",
     moveDepartureSearchBarUnderTo,
     mountInOffcanvas
@@ -1297,15 +1123,15 @@ async function selectDestinationSuggestion(res) {
 }
 
 // Also hide on Escape
-departureSearchInput.addEventListener("keydown", (e) => {
+elements.departureSearchInput.addEventListener("keydown", (e) => {
   if (e.key === "Escape") toggleDepartureSuggestions(false);
 });
-destinationSearchInput.addEventListener("keydown", (e) => {
+elements.destinationSearchInput.addEventListener("keydown", (e) => {
   if (e.key === "Escape") toggleDestinationSuggestions(false);
 });
 
 let destinationGeocodeReqSeq = 0;
-destinationSearchInput.addEventListener(
+elements.destinationSearchInput.addEventListener(
   "input",
   debounce((e) => {
     const searchQuery = e.target.value.trim();
@@ -1316,7 +1142,7 @@ destinationSearchInput.addEventListener(
     }
 
     const mySeq = ++destinationGeocodeReqSeq;
-    showListSpinner(destinationSuggestionsEl, "Searching…");
+    showListSpinner(elements.destinationSuggestions, "Searching…");
 
     geocoder.geocode(searchQuery, (items) => {
       if (mySeq !== destinationGeocodeReqSeq) return;
@@ -1324,15 +1150,15 @@ destinationSearchInput.addEventListener(
       renderDestinationSuggestions(items);
 
       if (!items?.length) {
-        destinationSuggestionsEl.innerHTML = `<li class="list-group-item text-muted">No results</li>`;
-        destinationSuggestionsEl.classList.remove("d-none");
+        elements.destinationSuggestions.innerHTML = `<li class="list-group-item text-muted">No results</li>`;
+        elements.destinationSuggestions.classList.remove("d-none");
       }
     });
   }, 200)
 );
 
 let departureGeocodeReqSeq = 0;
-departureSearchInput.addEventListener(
+elements.departureSearchInput.addEventListener(
   "input",
   debounce((e) => {
     const searchQuery = e.target.value.trim();
@@ -1341,25 +1167,25 @@ departureSearchInput.addEventListener(
       return;
     }
     const mySeq = ++departureGeocodeReqSeq;
-    showListSpinner(departureSuggestionsEl, "Searching…");
+    showListSpinner(elements.departureSuggestions, "Searching…");
 
     geocoder.geocode(searchQuery, (items) => {
       if (mySeq !== departureGeocodeReqSeq) return;
       renderDepartureSuggestions(items);
       if (!items?.length) {
-        departureSuggestionsEl.innerHTML = `<li class="list-group-item text-muted">No results</li>`;
-        departureSuggestionsEl.classList.remove("d-none");
+        elements.departureSuggestions.innerHTML = `<li class="list-group-item text-muted">No results</li>`;
+        elements.departureSuggestions.classList.remove("d-none");
       }
     });
   }, 200)
 );
 
 const hideSuggestionsIfClickedOutside = (e) => {
-  if (!departureSearchBar.contains(e.target)) {
+  if (!elements.departureSearchBar.contains(e.target)) {
     toggleDepartureSuggestions(false);
   }
 
-  if (!destinationSearchBar.contains(e.target)) {
+  if (!elements.destinationSearchBar.contains(e.target)) {
     toggleDestinationSuggestions(false);
   }
 };
@@ -1373,41 +1199,41 @@ document.addEventListener("accessibilityFilterChanged", (e) => {
   refreshPlaces();
 });
 
-detailsPanel
+elements.detailsPanel
   .querySelector("#btn-start-here")
   .addEventListener("click", async () => {
-    directionsUi.classList.remove("d-none");
+    elements.directionsUi.classList.remove("d-none");
     mountInOffcanvas("Directions");
-    await setFrom(detailsCtx.latlng);
-    destinationSearchInput.focus();
+    await setFrom(globals.detailsCtx.latlng);
+    elements.destinationSearchInput.focus();
   });
 
-detailsPanel
+elements.detailsPanel
   .querySelector("#btn-go-here")
   .addEventListener("click", async () => {
-    directionsUi.classList.remove("d-none");
+    elements.directionsUi.classList.remove("d-none");
     mountInOffcanvas("Directions");
-    await setTo(detailsCtx.latlng);
-    departureSearchInput.focus();
+    await setTo(globals.detailsCtx.latlng);
+    elements.departureSearchInput.focus();
   });
 
-reviewForm.addEventListener("submit", async (e) => {
+elements.reviewForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  const textarea = reviewForm.querySelector("#review-text");
+  const textarea = elements.reviewForm.querySelector("#review-text");
   const text = textarea.value.trim();
   if (!text) return;
 
-  const newReview = { text, placeId: detailsCtx.placeId };
-  reviews.push(newReview);
+  const newReview = { text, placeId: globals.detailsCtx.placeId };
+  globals.reviews.push(newReview);
 
   try {
     await withButtonLoading(
-      submitReviewBtn,
-      reviewStorage("PUT", reviews),
+      elements.submitReviewBtn,
+      reviewStorage("PUT", globals.reviews),
       "Saving…"
     );
 
-    renderOneReview(reviews[reviews.length - 1].text);
+    renderOneReview(globals.reviews[globals.reviews.length - 1].text);
     textarea.value = "";
 
     recomputePlaceAccessibilityKeywords().catch(console.error);

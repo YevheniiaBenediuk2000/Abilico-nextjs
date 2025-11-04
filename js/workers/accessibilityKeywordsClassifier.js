@@ -43,7 +43,7 @@ const norm = (t) =>
     .toLowerCase();
 
 self.addEventListener("message", async (e) => {
-  const { id, type } = e.data;
+  const { id, type } = e.data || {};
 
   try {
     if (type === "init") {

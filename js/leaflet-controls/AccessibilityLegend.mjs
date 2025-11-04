@@ -1,4 +1,4 @@
-import { SIZE_BY_TIER } from "../constants.mjs";
+import { SIZE_BY_TIER } from "../constants/configs.mjs";
 import { ls } from "../utils/localStorage.mjs";
 
 export const ACCESSIBILITY_FILTER_LS_KEY = "ui.placeAccessibility.filter";

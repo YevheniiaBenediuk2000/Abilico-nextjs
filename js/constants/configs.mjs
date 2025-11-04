@@ -35,7 +35,7 @@ export const SIZE_BY_TIER = {
   no: 26, // smallest when explicitly not accessible
 };
 
-export const placeClusterConfig = {
+export const PLACE_CLUSTER_CONFIG = {
   chunkedLoading: true,
   maxClusterRadius: (zoom) => {
     if (zoom === 18) {
@@ -46,3 +46,5 @@ export const placeClusterConfig = {
   // disableClusteringAtZoom: 14,
   spiderfyOnMaxZoom: true,
 };
+
+export const ACCESSIBILITY_KEYWORDS_CLASSIFICATION_THRESHOLD = 0.9;

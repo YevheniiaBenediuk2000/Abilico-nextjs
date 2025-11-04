@@ -1,5 +1,5 @@
 import pRetry from "https://cdn.jsdelivr.net/npm/p-retry@7.1.0/+esm";
-import { pRetryConfig, SHOW_PLACES_ZOOM } from "../constants.mjs";
+import { pRetryConfig, SHOW_PLACES_ZOOM } from "../constants/configs.mjs";
 
 const OVERPASS_ENDPOINTS = [
   "https://overpass.osm.jp/api/interpreter",
