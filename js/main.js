@@ -57,7 +57,7 @@ import {
   normalizeTagsCase,
   splitMulti,
   toMapillaryViewerUrl,
-} from "./modules/beautifyDetaillinks.mjs";
+} from "./modules/beautifyDetailLinks.mjs";
 import { recomputePlaceAccessibilityKeywords } from "./modules/accessibilityKeywordsExtraction.mjs";
 import globals from "./constants/globalVariables.mjs";
 
