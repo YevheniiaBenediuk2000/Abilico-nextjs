@@ -18,9 +18,7 @@ const ACCESSIBILITY_LABELS = [
   "ramp",
   "accessible toilet",
   "elevator",
-  "parking",
-  "hearing assistance",
-  "braille signs",
+  "accessible parking",
   "stairs",
   "wide door",
   "automatic door",
@@ -38,6 +36,12 @@ async function getClassifier() {
   return classifier;
 }
 
+const RAW_CACHE = new Map();
+const norm = (t) =>
+  String(t || "")
+    .trim()
+    .toLowerCase();
+
 self.addEventListener("message", async (e) => {
   const { id, type } = e.data;
 
@@ -49,20 +53,59 @@ self.addEventListener("message", async (e) => {
     }
 
     if (type === "classify") {
-      const { text, threshold = 0.3, options = {} } = e.data;
-      const classifier = await getClassifier();
+      const { text, options = {} } = e.data;
+      const t = norm(text);
+      if (!RAW_CACHE.has(t)) {
+        const clf = await getClassifier();
+        const out = await clf(t, ACCESSIBILITY_LABELS, {
+          multi_label: true,
+          hypothesis_template: "This review mentions {}.",
+          ...options,
+        });
+        RAW_CACHE.set(t, out);
+      }
+      const out = RAW_CACHE.get(t);
 
-      const out = await classifier(text, ACCESSIBILITY_LABELS, {
-        multi_label: true,
-        hypothesis_template: "This review mentions {}.",
-        ...options,
+      self.postMessage({ id, type: "result", raw: out });
+      return;
+    }
+
+    if (type === "classify-many") {
+      const { texts = [], options = {} } = e.data;
+      const results = new Array(texts.length);
+      const toRunIdx = [];
+      const toRunTexts = [];
+      texts.forEach((tx, i) => {
+        const k = norm(tx);
+        if (RAW_CACHE.has(k)) {
+          results[i] = RAW_CACHE.get(k);
+        } else {
+          toRunIdx.push(i);
+          toRunTexts.push(k);
+        }
       });
 
-      const hits = out.labels
-        .map((label, i) => ({ label, score: out.scores[i] }))
-        .filter((x) => x.score >= threshold);
+      if (toRunTexts.length) {
+        const clf = await getClassifier();
+        // Chunk to avoid big memory spikes
+        const CHUNK = 8;
+        for (let i = 0; i < toRunTexts.length; i += CHUNK) {
+          const chunkTexts = toRunTexts.slice(i, i + CHUNK);
+          const outs = await clf(chunkTexts, ACCESSIBILITY_LABELS, {
+            multi_label: true,
+            hypothesis_template: "This review mentions {}.",
+            ...options,
+          });
+          const arr = Array.isArray(outs) ? outs : [outs];
+          arr.forEach((out, j) => {
+            const globalIdx = toRunIdx[i + j];
+            RAW_CACHE.set(chunkTexts[j], out);
+            results[globalIdx] = out;
+          });
+        }
+      }
 
-      self.postMessage({ id, type: "result", hits, raw: out });
+      self.postMessage({ id, type: "result-many", items: results });
       return;
     }
 
