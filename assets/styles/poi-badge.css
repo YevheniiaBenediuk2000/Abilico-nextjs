@@ -1,0 +1,27 @@
+/* Fixed-size outer circle */
+.poi-badge{
+    width:33px;
+    height:33px;
+    border-radius:9999px;
+    background: var(--badge, #3b82f6); /* <-- leave var so JS can override */
+    box-shadow:
+            0 6px 16px rgba(0,0,0,.25),
+            inset 0 0 0 2px rgba(255,255,255,.65);
+    display:grid;
+    place-items:center;
+}
+
+/* Fixed-size glyph mask */
+.poi-badge__glyph{
+    width:16px;
+    height:16px;
+    background:#fff;
+    mask: var(--glyph) center/contain no-repeat;
+    -webkit-mask: var(--glyph) center/contain no-repeat;
+}
+
+/* (nice to have) remove default Leaflet div-icon box */
+.poi-badge-wrapper.leaflet-div-icon{
+    background:transparent;
+    border:none;
+}

@@ -43,7 +43,6 @@ import {
   BasemapGallery,
   osm,
 } from "./leaflet-controls/BasemapGallery.mjs";
-import { ICON_FALLBACKS, ICON_INDEX } from "./static/manifest.js";
 import elements from "./constants/domElements.mjs";
 import {
   renderPhotosGrid,
@@ -63,68 +62,7 @@ import globals from "./constants/globalVariables.mjs";
 
 const offcanvasInstance = new bootstrap.Offcanvas(elements.offcanvasEl);
 
-const TAG_PRIORITY = [
-  "amenity",
-  "shop",
-  "tourism",
-  "leisure",
-  "healthcare",
-  "office",
-  "craft",
-  "historic",
-  "man_made",
-  "military",
-  "sport",
-  "place",
-];
-
-function variants(v) {
-  const x = String(v).toLowerCase().trim();
-  const out = new Set([
-    x,
-    x.replace(/-/g, "_"),
-    x.replace(/_/g, "-"),
-    x.replace(/[-_ ]/g, ""),
-  ]);
-  if (x === "fast_food") out.add("fastfood");
-  if (x === "ice_cream") out.add("icecream");
-  if (x.endsWith("_shop")) out.add(x.replace(/_shop$/, ""));
-  return [...out];
-}
-
-function iconFor(tags) {
-  for (const key of TAG_PRIORITY) {
-    const v = tags?.[key];
-    if (!v) continue;
-
-    // try exact/variant matches first
-    for (const cand of variants(v)) {
-      const hit = ICON_INDEX[cand];
-      if (hit) return `${globals.basePath}/${hit}`;
-    }
-
-    // category-level fallback (pick something reasonable)
-    const catFallback =
-      key === "shop"
-        ? ICON_FALLBACKS.shopping
-        : key === "tourism"
-        ? ICON_FALLBACKS.sightseeing
-        : key === "leisure"
-        ? ICON_FALLBACKS.recreation
-        : key === "healthcare"
-        ? ICON_FALLBACKS.health
-        : key === "sport"
-        ? ICON_FALLBACKS.sports
-        : ICON_FALLBACKS.information;
-
-    if (catFallback) return `${globals.basePath}/${catFallback}`;
-  }
-
-  // last resorts
-  return ICON_FALLBACKS.unknown
-    ? `${globals.basePath}/${ICON_FALLBACKS.unknown}`
-    : `${globals.basePath}/${ICON_FALLBACKS.no_icon || "svg/misc/no_icon.svg"}`;
-}
+import { makePoiIcon } from "./icons/makePoiIcon.mjs";
 
 let accessibilityFilter = new Set();
 
@@ -395,25 +333,16 @@ async function refreshPlaces() {
     const placesLayer = L.geoJSON(geojson, {
       pointToLayer: (feature, latlng) => {
         const tags = feature.properties;
-        const tier = getAccessibilityTier(tags);
-        const size = SIZE_BY_TIER[tier] ?? SIZE_BY_TIER.unknown;
 
         const marker = L.marker(latlng, {
           pane: "places-pane",
-          icon: L.icon({
-            iconUrl: iconFor(tags),
-            iconSize: [size, size],
-            iconAnchor: [Math.round(size / 2), Math.round(size * 0.9)],
-            popupAnchor: [0, -Math.round(size * 0.6)],
-            tooltipAnchor: [0, -Math.round(size * 0.5)],
-          }),
+          icon: makePoiIcon(tags), // <-- fixed 33px badge
         })
           .on("click", () => {
             renderDetails(tags, latlng, { keepDirectionsUi: true });
           })
           .on("add", () => {
             const title = tags.name ?? tags.amenity ?? "Unnamed place";
-
             attachBootstrapTooltip(marker, title);
           })
           .on("remove", () => {
@@ -859,8 +788,8 @@ if (navigator.geolocation) {
         });
       }
 
-      // const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
-      const defaultLatLng = [51.5074, -0.1278]; // London, UK
+      const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
+      // const defaultLatLng = [51.5074, -0.1278]; // London, UK
       map.setView(defaultLatLng, DEFAULT_ZOOM);
     }
   );

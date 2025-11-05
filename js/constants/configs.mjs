@@ -42,6 +42,14 @@ export const PLACE_CLUSTER_CONFIG = {
   spiderfyOnMaxZoom: true,
 };
 
+export const BADGE_COLOR_BY_TIER = {
+  designated: "#16a34a", // green
+  yes: "#6cc24a", // green (darker)
+  limited: "var(--bs-warning)", // amber
+  unknown: "var(--bs-tertiary-color)", // slate
+  no: "var(--bs-danger)", // red
+};
+
 export const ACCESSIBILITY_KEYWORDS_CLASSIFICATION_THRESHOLD = 0.96;
 
 export const ACCESSIBILITY_LABELS_IN_REVIEWS = [

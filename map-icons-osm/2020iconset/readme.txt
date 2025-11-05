@@ -1,1 +1,0 @@
-The 2020 iconset is made by sergio sevillano <sergiosevillano.mail@gmail.com>.
