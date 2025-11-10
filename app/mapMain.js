@@ -1,5 +1,3 @@
-// your old Leaflet app logic
-
 // will now just render a wrapper
 import debounce from "lodash.debounce";
 

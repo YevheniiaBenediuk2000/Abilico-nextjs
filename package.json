@@ -10,7 +10,10 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.79.0",
+    "@huggingface/transformers": "^3.7.6",
+    "@supabase/auth-ui-react": "^0.4.7",
+    "@supabase/auth-ui-shared": "^0.1.8",
+    "@supabase/supabase-js": "^2.80.0",
     "@turf/buffer": "^7.2.0",
     "@turf/circle": "^7.2.0",
     "@turf/turf": "^7.2.0",
