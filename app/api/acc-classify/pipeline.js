@@ -7,6 +7,7 @@ env.allowRemoteModels = true; // allow downloading models on first run
 const P = () =>
   class PipelineSingleton {
     static task = "zero-shot-classification";
+    // "Xenova/distilbert-base-uncased-mnli"
     static model = "MoritzLaurer/mDeBERTa-v3-base-mnli-xnli";
     static instance = null;
 
