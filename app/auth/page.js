@@ -81,6 +81,7 @@ export default function AuthPage() {
                     supabaseClient={supabase}
                     appearance={{ theme: ThemeSupa }}
                     providers={['google']}
+                    redirectTo={`${window.location.origin}/dashboard`}
                 />
             ) : (
                 <div className="card p-3" style={{ maxWidth: 400 }}>
