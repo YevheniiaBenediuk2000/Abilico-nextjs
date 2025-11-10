@@ -4,7 +4,6 @@ import { getLeaflet } from '@/lib/leaflet'
 import { useBasemapGallery } from './MapControls/useBasemapGallery'
 import { useAccessibilityLegend } from './MapControls/useAccessibilityLegend'
 import { useDrawHelpAlert } from './MapControls/useDrawHelpAlert'  // ✅ add this
-
 // ✅ Leaflet icons fix — must be loaded BEFORE map init
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";

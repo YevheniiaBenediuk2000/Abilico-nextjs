@@ -1,8 +1,8 @@
 // 🧭 DEBUG: verify file loads
-console.log(
-  "🧩 fetchPhotos.mjs loaded (top of file)",
-  typeof window !== "undefined" ? "in browser" : "on server"
-);
+// console.log(
+//   "🧩 fetchPhotos.mjs loaded (top of file)",
+//   typeof window !== "undefined" ? "in browser" : "on server"
+// );
 
 window.MAPILLARY_TOKEN = process.env.MAPILLARY_TOKEN;
 const mainPhotoWrapper = document.getElementById("main-photo-wrapper");
@@ -308,7 +308,7 @@ export function showMainPhoto(photo) {
 export function renderPhotosGrid(photos) {
   photosGrid.innerHTML = "";
   if (!photos?.length) {
-    console.log("📸 No photos found, showing message");
+    // console.log("📸 No photos found, showing message");
     photosEmpty.classList.remove("d-none");
     return;
   }

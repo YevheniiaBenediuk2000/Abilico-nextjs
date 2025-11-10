@@ -22,14 +22,6 @@ export const EXCLUDED_PROPS = new Set([
 
 export const pRetryConfig = { retries: 3, factor: 2, minTimeout: 400 };
 
-export const SIZE_BY_TIER = {
-  designated: 46, // biggest: fully designated accessible
-  yes: 41,
-  limited: 36,
-  unknown: 31,
-  no: 26, // smallest when explicitly not accessible
-};
-
 export const placeClusterConfig = {
   chunkedLoading: true,
   maxClusterRadius: (zoom) => {

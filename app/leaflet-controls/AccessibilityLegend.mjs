@@ -1,4 +1,3 @@
-import { SIZE_BY_TIER } from "../constants/constants.mjs";
 import { ls } from "../utils/localStorage.mjs";
 import { BADGE_COLOR_BY_TIER } from "../constants/constants.mjs";
 
@@ -44,8 +43,7 @@ export const AccessibilityLegend = L.Control.extend({
 
     labels.forEach((labelEl) => {
       const tier = idToTier.get(labelEl.htmlFor);
-      const px = SIZE_BY_TIER[tier];
-
+      const px = 32;
       labelEl.style.width = `${px}px`;
       labelEl.style.height = `${px}px`;
       labelEl.style.backgroundColor =

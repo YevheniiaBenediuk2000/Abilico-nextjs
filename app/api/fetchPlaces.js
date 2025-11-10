@@ -28,7 +28,7 @@ export async function fetchPlaceGeometry(osmType, osmId) {
   let lastError = null;
 
   for (const endpoint of OVERPASS_ENDPOINTS) {
-    // console.log(`🌍 Trying Overpass endpoint: ${endpoint}`);
+    console.log(`🌍 Trying Overpass endpoint: ${endpoint}`);
     try {
       return await pRetry(async () => {
         try {
@@ -342,7 +342,7 @@ export async function fetchPlaces(bounds, zoom, options) {
   let lastError = null;
 
   for (const endpoint of OVERPASS_ENDPOINTS) {
-    // console.log(`🌍 Trying Overpass endpoint: ${endpoint}`);
+    console.log(`🌍 Trying Overpass endpoint: ${endpoint}`);
     try {
       return await pRetry(async () => {
         try {
