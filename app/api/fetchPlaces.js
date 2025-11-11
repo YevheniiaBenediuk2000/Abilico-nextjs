@@ -28,7 +28,7 @@ export async function fetchPlaceGeometry(osmType, osmId) {
   let lastError = null;
 
   for (const endpoint of OVERPASS_ENDPOINTS) {
-    console.log(`🌍 Trying Overpass endpoint: ${endpoint}`);
+    // console.log(`🌍 Trying Overpass endpoint: ${endpoint}`);
     try {
       return await pRetry(async () => {
         try {
@@ -70,7 +70,6 @@ export async function fetchPlaceGeometry(osmType, osmId) {
 }
 
 let placeAbortController = null;
-
 export async function fetchPlace(osmType, osmId) {
   if (placeAbortController) {
     placeAbortController.abort();
@@ -217,7 +216,7 @@ function selectorsForZoom(
   zoom,
   { AMENITY_EXCLUDED, LEISURE_EXCLUDED, MAN_MADE_EXCLUDED, MILITARY_EXCLUDED }
 ) {
-  // Full fat (your previous set) at close zoom
+  // Full fat at close zoom
   const FULL = [
     `node["amenity"]["amenity"!~"${AMENITY_EXCLUDED}"]`,
     `node["shop"]`,
@@ -342,7 +341,7 @@ export async function fetchPlaces(bounds, zoom, options) {
   let lastError = null;
 
   for (const endpoint of OVERPASS_ENDPOINTS) {
-    console.log(`🌍 Trying Overpass endpoint: ${endpoint}`);
+    // console.log(`🌍 Trying Overpass endpoint: ${endpoint}`);
     try {
       return await pRetry(async () => {
         try {

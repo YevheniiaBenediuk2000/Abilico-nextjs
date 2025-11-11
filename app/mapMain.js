@@ -262,9 +262,7 @@ function attachBootstrapTooltip(layer, text) {
 
 async function openEditModalForLayer(layer) {
   const id = layer.options.obstacleId;
-  const idx = obstacleFeatures.findIndex(
-    (f) => f.properties?.obstacleId === id
-  );
+  const idx = obstacleFeatures.findIndex((f) => f.id === id);
   if (idx === -1) return;
 
   const props = obstacleFeatures[idx].properties || {};
@@ -274,10 +272,9 @@ async function openEditModalForLayer(layer) {
   // Update in-memory + storage
   obstacleFeatures[idx].properties = {
     ...props,
-    obstacleId: id,
     title: result.title,
   };
-  await obstacleStorage("PUT", obstacleFeatures);
+  await obstacleStorage("PUT", obstacleFeatures[idx]);
 
   // Update tooltip
   attachBootstrapTooltip(
@@ -651,28 +648,17 @@ async function initDrawingObstacles() {
   }
 
   // 🧩 Log all obstacle IDs for debugging
-  console.group("🧱 Obstacles loaded from Supabase");
-  obstacleFeatures.forEach((row, idx) => {
-    console.log(
-      `${idx + 1}. id: ${row.id}, type: ${row.type}, description: ${
-        row.description
-      }`
-    );
-  });
-  console.groupEnd();
+  // console.group("🧱 Obstacles loaded from Supabase");
+  // obstacleFeatures.forEach((row, idx) => {
+  //   console.log(
+  //     `${idx + 1}. id: ${row.id}, type: ${row.type}, description: ${
+  //       row.description
+  //     }`
+  //   );
+  // });
+  // console.groupEnd();
 
-  obstacleFeatures.forEach((row) => {
-    const feature = {
-      type: "Feature",
-      properties: {
-        obstacleId: row.id,
-        shape: row.type,
-        title: row.description,
-        radius: row.radius,
-      },
-      geometry: row.geometry,
-    };
-
+  obstacleFeatures.forEach((feature) => {
     let layer = null;
     if (feature.properties.shape === "circle") {
       const [lng, lat] = feature.geometry.coordinates;
@@ -687,7 +673,7 @@ async function initDrawingObstacles() {
       layer = L.geoJSON(feature, { style: { color: "red" } }).getLayers()[0];
     }
 
-    layer.options.obstacleId = feature.properties.obstacleId;
+    layer.options.obstacleId = feature.id;
     drawnItems.addLayer(layer);
     hookLayerInteractions(layer, feature.properties);
   });
@@ -699,10 +685,10 @@ async function initDrawingObstacles() {
     edit: { featureGroup: drawnItems },
     draw: {
       polyline: { shapeOptions: { color: "red" } },
+      marker: false,
       polygon: { allowIntersection: false, shapeOptions: { color: "red" } },
       rectangle: { shapeOptions: { color: "red" } },
       circle: { shapeOptions: { color: "red" } },
-      marker: false,
       circlemarker: false,
     },
   });
@@ -724,6 +710,7 @@ async function initDrawingObstacles() {
     }
 
     drawnItems.addLayer(layerToAdd);
+
     const result = await showObstacleModal();
 
     if (!result) {
@@ -747,31 +734,16 @@ async function initDrawingObstacles() {
     try {
       const { data, error } = await supabase
         .from("obstacles")
-        .insert([
-          {
-            type: featureToStore.properties.shape,
-            description: featureToStore.properties.title,
-            geometry: featureToStore.geometry,
-            radius:
-              featureToStore.properties.radius ??
-              (e.layer.getRadius?.() || null),
-          },
-        ])
+        .insert([featureToStore])
         .select();
 
       if (error) throw error;
 
       const newObstacle = data[0];
+
       layerToAdd.options.obstacleId = newObstacle.id;
-      obstacleFeatures.push({
-        type: "Feature",
-        properties: {
-          obstacleId: newObstacle.id,
-          shape: newObstacle.type,
-          title: newObstacle.description,
-        },
-        geometry: newObstacle.geometry,
-      });
+
+      obstacleFeatures.push(newObstacle);
       console.log("✅ Inserted new obstacle:", newObstacle.id);
     } catch (err) {
       console.error("❌ Failed to save obstacle:", err);
@@ -786,33 +758,43 @@ async function initDrawingObstacles() {
   map.on(L.Draw.Event.EDITED, async (e) => {
     e.layers.eachLayer(async (layer) => {
       const id = layer.options.obstacleId;
-      const updated =
-        layer instanceof L.Circle
-          ? makeCircleFeature(layer)
-          : layer.toGeoJSON();
-      const existing = obstacleFeatures.find(
-        (f) => f.properties.obstacleId === id
-      );
-      if (!existing) return;
 
-      existing.geometry = updated.geometry;
-      const key = showLoading("obstacles-put");
+      let updated;
 
-      try {
-        await obstacleStorage("PUT", {
+      if (layer instanceof L.Circle) {
+        updated = makeCircleFeature(layer);
+      } else {
+        updated = layer.toGeoJSON();
+      }
+
+      const i = obstacleFeatures.findIndex((f) => f.id === id);
+
+      if (i !== -1) {
+        updated = {
+          ...updated,
           id,
-          type: existing.properties.shape,
-          description: existing.properties.title,
-          geometry: updated.geometry,
-          radius: updated.properties?.radius || layer.getRadius?.() || null,
-        });
-        hookLayerInteractions(layer, updated.properties);
-        console.log("✅ Updated obstacle:", id);
-      } catch (err) {
-        console.error("❌ Failed to update:", err);
-        toastError("Could not update obstacle.");
-      } finally {
-        hideLoading(key);
+          properties: {
+            ...(obstacleFeatures[i].properties || {}),
+            radius:
+              (updated.properties && updated.properties.radius) ||
+              obstacleFeatures[i].properties?.radius,
+          },
+        };
+
+        const key = showLoading("obstacles-put");
+        try {
+          const updatedObstacleFeatures = [...obstacleFeatures];
+          updatedObstacleFeatures[i] = updated;
+          await obstacleStorage("PUT", updated);
+          obstacleFeatures[i] = updated;
+          hookLayerInteractions(layer, updated.properties);
+          console.log("✅ Updated obstacle:", id);
+        } catch (err) {
+          console.error("❌ Failed to update:", err);
+          toastError("Could not update obstacle.");
+        } finally {
+          hideLoading(key);
+        }
       }
     });
   });
@@ -826,30 +808,16 @@ async function initDrawingObstacles() {
         layer._bsTooltip = null;
       }
 
-      const id =
-        layer?.options?.obstacleId ||
-        layer?.feature?.properties?.obstacleId ||
-        layer?.feature?.id ||
-        null;
-
-      if (!id) {
-        console.warn("⚠️ Skipping layer without obstacleId:", layer);
-        return;
-      }
+      const id = layer.options.obstacleId;
 
       // Safely filter local list
       obstacleFeatures = obstacleFeatures.filter(
-        (f) => f?.properties?.obstacleId !== id
+        (f) => f.id !== layer.options.obstacleId
       );
 
-      try {
-        console.log("🚀 Deleting from Supabase with ID:", id);
-        await duringLoading("obstacles-put", obstacleStorage("DELETE", { id }));
-        console.log("🗑️ Deleted obstacle:", id);
-      } catch (err) {
-        console.error("❌ Failed to delete obstacle:", err);
-        toastError("Could not delete obstacle.");
-      }
+      console.log("🚀 Deleting from Supabase with ID:", id);
+      await duringLoading("obstacles-put", obstacleStorage("DELETE", { id }));
+      console.log("🗑️ Deleted obstacle:", id);
     });
   });
 }
