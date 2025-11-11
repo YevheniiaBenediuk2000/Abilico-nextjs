@@ -4,7 +4,7 @@ import { ACCESSIBILITY_LABELS_IN_REVIEWS as DEFAULT_LABELS } from "../../constan
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 321232757578710; // allow long first-load on dev/hosting
+export const maxDuration = 300; // allow long first-load on dev/hosting, 5 minutes
 
 function normalizeTexts(input) {
   if (Array.isArray(input)) return input.map((t) => String(t ?? ""));
