@@ -565,6 +565,11 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   globals.detailsCtx.latlng = latlng;
   globals.detailsCtx.placeId = tags.id ?? tags.osm_id ?? tags.place_id;
 
+  // ✅ Handle layout and offcanvas
+  if (!keepDirectionsUi) elements.directionsUi.classList.add("d-none");
+  moveDepartureSearchBarUnderTo();
+  mountInOffcanvas(titleText);
+
   // ✅ Ensure the place exists before fetching reviews
   let uuid = null;
   try {
@@ -577,9 +582,6 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   }
   globals.detailsCtx.placeId = uuid;
   console.log("✅ globals.detailsCtx.placeId (UUID):", uuid);
-
-  // ✅ Give Supabase a short delay to confirm record visibility (important for free tier)
-  await new Promise((r) => setTimeout(r, 10));
 
   // ✅ Fetch reviews ONCE (with small retry for consistency)
   const key = showLoading("reviews-load");
@@ -594,7 +596,6 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
         globals.reviews = data;
         break;
       }
-      await new Promise((r) => setTimeout(r, 10));
     }
   } finally {
     hideLoading(key);
@@ -610,11 +611,6 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   } else {
     globals.reviews.forEach((r) => renderOneReview(r.comment));
   }
-
-  // ✅ Handle layout and offcanvas
-  if (!keepDirectionsUi) elements.directionsUi.classList.add("d-none");
-  moveDepartureSearchBarUnderTo();
-  mountInOffcanvas(titleText);
 
   // --- Photos ---
   try {

@@ -6,7 +6,6 @@ import { supabase } from "./supabaseClient.js";
  * @param {Object} latlng - { lat, lng } of the place
  */
 export async function ensurePlaceExists(tags, latlng) {
-
   if (!latlng?.lat || !latlng?.lng) {
     console.warn("⚠️ ensurePlaceExists called without valid lat/lng:", latlng);
     throw new Error("Missing lat/lng for place");
@@ -15,19 +14,19 @@ export async function ensurePlaceExists(tags, latlng) {
   // 🧠 Safely extract OSM identity
   const osmType = tags.osm_type || tags.type || tags.source_type || "unknown";
   const osmId =
-      tags.osm_id ||
-      tags.id ||
-      tags.place_id ||
-      `${latlng.lat.toFixed(5)},${latlng.lng.toFixed(5)}`;
+    tags.osm_id ||
+    tags.id ||
+    tags.place_id ||
+    `${latlng.lat.toFixed(5)},${latlng.lng.toFixed(5)}`;
 
   const osmKey = `${osmType}/${osmId}`;
   // console.log("🧩 ensurePlaceExists for", osmKey);
 
   const { data: existing, error: selectErr } = await supabase
-      .from("places")
-      .select("id")
-      .eq("osm_id", osmKey)
-      .maybeSingle();
+    .from("places")
+    .select("id")
+    .eq("osm_id", osmKey)
+    .maybeSingle();
 
   if (selectErr) throw selectErr;
   if (existing) {
@@ -36,19 +35,19 @@ export async function ensurePlaceExists(tags, latlng) {
   }
 
   const { data, error } = await supabase
-      .from("places")
-      .insert([
-        {
-          osm_id: osmKey,
-          name: tags.name ?? tags.amenity ?? "Unnamed",
-          country: tags["addr:country"] ?? null,
-          city: tags["addr:city"] ?? null,
-          lat: latlng.lat,
-          lon: latlng.lng,
-        },
-      ])
-      .select("id")
-      .single();
+    .from("places")
+    .insert([
+      {
+        osm_id: osmKey,
+        name: tags.name ?? tags.amenity ?? "Unnamed",
+        country: tags["addr:country"] ?? null,
+        city: tags["addr:city"] ?? null,
+        lat: latlng.lat,
+        lon: latlng.lng,
+      },
+    ])
+    .select("id")
+    .single();
 
   if (error) throw error;
   // console.log("✅ Inserted new place:", data.id);
@@ -71,10 +70,10 @@ export async function reviewStorage(method = "GET", reviewData) {
       }
 
       const { data, error } = await supabase
-          .from("reviews")
-          .select("*")
-          .eq("place_id", reviewData.place_id)
-          .order("created_at", { ascending: false });
+        .from("reviews")
+        .select("*")
+        .eq("place_id", reviewData.place_id)
+        .order("created_at", { ascending: false });
 
       if (error) {
         console.error("❌ Supabase error:", error);
@@ -97,7 +96,10 @@ export async function reviewStorage(method = "GET", reviewData) {
 
       console.log("📦 Payload sent to Supabase:", payload);
 
-      const { data, error } = await supabase.from("reviews").insert([payload]).select();
+      const { data, error } = await supabase
+        .from("reviews")
+        .insert([payload])
+        .select();
 
       if (error) throw error;
       console.log("✅ Review inserted:", data);
