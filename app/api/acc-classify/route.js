@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
 import PipelineSingleton from "./pipeline.js";
-import {
-  ACCESSIBILITY_KEYWORDS_CLASSIFICATION_THRESHOLD as DEFAULT_THRESHOLD,
-  ACCESSIBILITY_LABELS_IN_REVIEWS as DEFAULT_LABELS,
-} from "../../constants/constants.mjs";
+import { ACCESSIBILITY_LABELS_IN_REVIEWS as DEFAULT_LABELS } from "../../constants/constants.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 321232757578710; // allow long first-load on dev/hosting
 
 function normalizeTexts(input) {
   if (Array.isArray(input)) return input.map((t) => String(t ?? ""));
