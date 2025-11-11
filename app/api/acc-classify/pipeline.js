@@ -1,6 +1,7 @@
 import { pipeline, env } from "@huggingface/transformers";
 
 // Node runtime (server) settings
+env.cacheDir = "./.cache/transformers"; // keep cache OUTSIDE node_modules
 env.allowRemoteModels = true; // allow downloading models on first run
 
 // Use the Singleton pattern to keep the pipeline warm between requests & hot-reloads
