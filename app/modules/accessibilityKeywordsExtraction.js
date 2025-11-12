@@ -4,7 +4,6 @@ import {
 } from "../constants/constants.mjs";
 import elements from "../constants/domElements.js";
 import globals from "../constants/globalVariables.js";
-import { hideLoading, showLoading } from "../utils/loading.mjs";
 
 async function extractAccessibilityKeywordsMany(texts, options = {}) {
   const res = await fetch("/api/acc-classify", {
@@ -113,7 +112,6 @@ export async function recomputePlaceAccessibilityKeywords() {
     return;
   }
 
-  const key = showLoading("reviews-analyze");
   try {
     const outs = await extractAccessibilityKeywordsMany(texts);
     const hitsPerReview = outs.map((out) =>
@@ -127,7 +125,7 @@ export async function recomputePlaceAccessibilityKeywords() {
     renderPerReviewBadges(hitsPerReview);
     const agg = aggregateHits(hitsPerReview, texts.length);
     renderAccSummary(agg);
-  } finally {
-    hideLoading(key);
+  } catch (err) {
+    console.error("Failed to extract accessibility keywords:", err);
   }
 }
