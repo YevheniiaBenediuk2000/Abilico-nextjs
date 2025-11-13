@@ -29,6 +29,8 @@ export default function MapLayout({ isDashboard = false }) {
   const router = useRouter();
   const [user, setUser] = useState(null);
 
+  const [has2FA, setHas2FA] = useState(false);
+
   // ✅ Track user session
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null));
@@ -41,6 +43,19 @@ export default function MapLayout({ isDashboard = false }) {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // ✅ Check if user already has verified TOTP 2FA
+  useEffect(() => {
+    async function checkMFA() {
+      if (!user) return;
+      const { data: factors } = await supabase.auth.mfa.listFactors();
+      const verified = factors?.all?.some(
+          (f) => f.factor_type === "totp" && f.status === "verified"
+      );
+      setHas2FA(!!verified);
+    }
+    checkMFA();
+  }, [user]);
 
   useEffect(() => {
     if (isDashboard && user === null) {
@@ -94,13 +109,13 @@ export default function MapLayout({ isDashboard = false }) {
                 {user.email}
               </span>
 
-              {isDashboard && (
-                <button
-                  className="btn btn-outline-success btn-sm"
-                  onClick={handleSetupMFA}
-                >
-                  Enable 2FA
-                </button>
+              {isDashboard && !has2FA && (
+                  <button
+                      className="btn btn-outline-success btn-sm"
+                      onClick={handleSetupMFA}
+                  >
+                    Enable 2FA
+                  </button>
               )}
 
               <button
@@ -177,3 +192,5 @@ export default function MapLayout({ isDashboard = false }) {
     </div>
   );
 }
+
+
