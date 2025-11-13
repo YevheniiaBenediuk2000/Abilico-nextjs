@@ -1110,18 +1110,32 @@ export async function initMap({ canManage = false } = {}) {
     map.addControl(new BasemapGallery({ initial: initialName }));
 
     // ✅ Initialize obstacles only if the user can manage them
-    if (canManage) {
-      await initDrawingObstacles();
-      console.log("✅ Obstacle management enabled");
+    // ✅ Always load obstacles (guests see, users can edit)
+    await initDrawingObstacles();
+
+    if (!canManage) {
+      console.log("🔒 Guest mode: obstacles visible, editing disabled");
+
+      // Disable draw controls for guests
+      if (drawControl) {
+        map.removeControl(drawControl);
+      }
+
+      // Remove event listeners that allow creating or editing obstacles
+      map.off(L.Draw.Event.CREATED);
+      map.off(L.Draw.Event.EDITED);
+      map.off(L.Draw.Event.DELETED);
     } else {
-      console.log("🔒 Guest mode: skipping obstacle tools");
+      console.log("✅ Obstacle management enabled");
     }
 
     map.on("moveend", debounce(refreshPlaces, 200));
     map.on("zoomend", toggleObstaclesByZoom);
+    toggleObstaclesByZoom(); // 👈 force run once on startup
     map.on("click", (e) => {
       if (drawState.editing || drawState.deleting) return;
       showQuickRoutePopup(e.latlng);
     });
   });
+
 }
