@@ -172,7 +172,7 @@ export default function MapLayout({ isDashboard = false }) {
 
       {/* === Map === */}
       <main className="flex-grow-1 position-relative">
-        <MapContainer />
+        <MapContainer user={user}/> {/* ✅ Pass user prop */}
       </main>
     </div>
   );

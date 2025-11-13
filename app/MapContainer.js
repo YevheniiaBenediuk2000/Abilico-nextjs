@@ -6,13 +6,10 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import "leaflet/dist/leaflet.css";
 import "./styles/poi-badge.css";
 
-export default function MapContainer() {
+export default function MapContainer({ user }) {
   useEffect(() => {
     (async () => {
-      // ✅ Wait until React finishes rendering the DOM
       await new Promise((r) => setTimeout(r, 0));
-
-      // ✅ Dynamically import Leaflet + plugins
       const L = (await import("leaflet")).default;
       await import("leaflet.markercluster");
       await import("leaflet.markercluster/dist/MarkerCluster.css");
@@ -21,16 +18,13 @@ export default function MapContainer() {
       await import("leaflet-draw/dist/leaflet.draw.css");
       await import("leaflet-control-geocoder");
       await import("leaflet-control-geocoder/dist/Control.Geocoder.css");
-
-      // ✅ Bootstrap JS
       await import("bootstrap/dist/js/bootstrap.bundle.min.js");
       window.bootstrap = await import("bootstrap");
 
-      // ✅ Now that everything is rendered and loaded, run your main logic
       const { initMap } = await import("./mapMain.js");
-      initMap(); // <— call exported function
+      initMap({ canManage: !!user }); // 👈 pass flag here
     })();
-  }, []);
+  }, [user]);
 
   return (
     <div>
@@ -45,6 +39,32 @@ export default function MapContainer() {
           bottom: 0,
         }}
       ></div>
+
+      {user && (
+          <div
+              id="obstacle-overlay"
+              className="position-absolute top-2 end-2 p-2 rounded-3 bg-dark bg-opacity-75 text-white shadow-sm"
+              style={{
+                zIndex: 2000,
+                width: "220px",
+                pointerEvents: "auto",
+              }}
+          >
+            <div className="text-center small">
+              <div className="mb-2">
+                🔒 {/* you can replace with icon later */}
+              </div>
+              <strong>Log in to manage obstacles</strong>
+              <p className="small mb-2">Sign in to add, edit, or delete obstacles.</p>
+              <button
+                  className="btn btn-primary btn-sm w-100"
+                  onClick={() => (window.location.href = "/auth")}
+              >
+                Log in / Register
+              </button>
+            </div>
+          </div>
+      )}
 
       {/* === Offcanvas (Details + Directions) === */}
       <div
