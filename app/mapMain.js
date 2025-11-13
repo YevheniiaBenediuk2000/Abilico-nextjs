@@ -1073,318 +1073,55 @@ const hideSuggestionsIfClickedOutside = (e) => {
   }
 };
 
-export async function initMap() {
-  // ✅ Create a Photon-based geocoder instance from Leaflet-Control-Geocoder.
-  // This object normally has `geocode()` (search by name) and `reverse()` (get name from coordinates),
-  // but the default implementation uses XHR, which often fails in modern frameworks (Next.js, Vite, Turbopack).
-  geocoder = L.Control.Geocoder.photon({
-    serviceUrl: "https://photon.komoot.io/api/",
-    reverseUrl: "https://photon.komoot.io/reverse/",
-  });
+export async function initMap({ canManage = false } = {}) {
+  // 🔧 Clean up any existing map
+  if (map && map.remove) {
+    map.off();
+    map.remove();
+  }
 
-  // ------------------------------------------------------------
-  // Utility helper for making safe JSON requests
-  // ------------------------------------------------------------
+  console.log("🗺️ initMap starting, canManage =", canManage);
 
-  // Instead of repeating fetch + error handling in both functions,
-  // we define a helper that guarantees consistent error messages.
-  const safeFetch = async (url) => {
-    const res = await fetch(url);
-
-    // If Photon responds with non-2xx (e.g., 403 or 500), throw a descriptive error.
-    if (!res.ok) throw new Error(`Photon HTTP ${res.status}`);
-
-    // Parse JSON — Photon always returns valid GeoJSON FeatureCollection.
-    return res.json();
-  };
-
-  // ------------------------------------------------------------
-  // Override the default forward geocoding behavior (Search bar)
-  // ------------------------------------------------------------
-
-  // This replaces Leaflet’s internal geocode() implementation
-  // with our own version that uses fetch() and always calls the callback (`cb`)
-  // — even if the request fails or returns no results.
-  geocoder.geocode = async function (query, cb) {
-    try {
-      // Compose the Photon API endpoint with a properly encoded search string.
-      const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(
-        query
-      )}`;
-
-      // Fetch the GeoJSON response safely.
-      const json = await safeFetch(url);
-
-      // Map each GeoJSON feature into Leaflet-friendly result objects.
-      const results = (json.features || []).map((f) => ({
-        name:
-          f.properties.name || // normal place name
-          f.properties.osm_value || // fallback: OSM tag (like "restaurant")
-          f.properties.street || // or street name
-          "Unnamed", // fallback if no name at all
-        center: [
-          // convert [lon, lat] → [lat, lon] for Leaflet
-          f.geometry.coordinates[1],
-          f.geometry.coordinates[0],
-        ],
-        properties: f.properties, // keep all Photon metadata for later (e.g. OSM ID)
-      }));
-
-      // Log to help debug and confirm search → callback path.
-      console.log("🌍 Photon geocode callback fired:", query, results);
-
-      // ✅ Always call the callback with results — this updates the search suggestions.
-      cb(results);
-    } catch (err) {
-      // In case of fetch/network/parse errors, print clearly in console.
-      console.error("❌ Photon geocode failed:", err);
-
-      // ✅ Important: still call `cb([])` so the UI spinner stops instead of hanging forever.
-      cb([]);
-    }
-  };
-
-  // ------------------------------------------------------------
-  // 📍 Override reverse geocoding behavior (Route start/end naming)
-  // ------------------------------------------------------------
-
-  // Similar to above, but goes the other way around: lat/lng → nearest place name.
-  geocoder.reverse = async function (latlng, scale, cb) {
-    console.log(
-      "🔎 geocoder.reverse input:",
-      latlng,
-      "array?",
-      Array.isArray(latlng)
-    );
-
-    try {
-      // Build the reverse geocoding URL with coordinates.
-      const url = `https://photon.komoot.io/reverse?lat=${latlng.lat}&lon=${latlng.lng}`;
-
-      // Fetch and parse JSON safely.
-      const json = await safeFetch(url);
-
-      // Convert GeoJSON features to Leaflet-friendly results.
-      const results = (json.features || []).map((f) => ({
-        name:
-          f.properties.name || // best available name
-          f.properties.osm_value || // fallback (e.g., "building" or "bus_stop")
-          f.properties.street || // or nearby street
-          "Unnamed", // last-resort fallback
-        center: [f.geometry.coordinates[1], f.geometry.coordinates[0]],
-        properties: f.properties,
-      }));
-
-      // Log to confirm reverse geocode happened and data returned.
-      console.log("📍 Photon reverse callback fired:", latlng, results);
-
-      // ✅ Pass results to the callback so map labels and inputs update.
-      cb(results);
-    } catch (err) {
-      // Handle network, JSON, or HTTP failures.
-      console.error("❌ Photon reverse failed:", err);
-
-      // ✅ Always call cb([]) — never leave routing promises hanging.
-      cb([]);
-    }
-  };
-
-  // ============= MAP INIT =============
+  // ✅ Initialize the map itself first
   map = L.map("map", { zoomControl: false });
 
   const initialName = ls.get(BASEMAP_LS_KEY) || "OSM Greyscale";
   let currentBasemapLayer = baseLayers[initialName] || osm;
   currentBasemapLayer.addTo(map);
 
+  // ✅ Set up geolocation or default position
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        map.setView([latitude, longitude], DEFAULT_ZOOM);
-        L.marker([latitude, longitude]).addTo(map);
-      },
-      (error) => {
-        const userDeniedGeolocation = error.code === 1;
-        if (!userDeniedGeolocation) {
-          console.log(error);
-          toastError("Could not get your location. Using default location.", {
-            important: true,
-          });
-        }
-
-        const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
-        // const defaultLatLng = [51.5074, -0.1278]; // London, UK
-        map.setView(defaultLatLng, DEFAULT_ZOOM);
-      }
+        (pos) => map.setView([pos.coords.latitude, pos.coords.longitude], DEFAULT_ZOOM),
+        () => map.setView([50.45, 30.5234], DEFAULT_ZOOM) // fallback: Kyiv
     );
   } else {
-    const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
-    map.setView(defaultLatLng, DEFAULT_ZOOM);
-    toastWarn("Geolocation not supported. Using default location.");
+    map.setView([50.45, 30.5234], DEFAULT_ZOOM);
   }
 
-  // ============= EVENT LISTENERS =============
+  // ✅ Now safe to attach logic that depends on the map
   map.whenReady(async () => {
-    // console.log("✅ Leaflet map ready, initializing places...");
     placesPane = map.createPane("places-pane");
     placesPane.style.zIndex = 450;
 
     L.control.zoom({ position: "bottomright" }).addTo(map);
     placeClusterLayer.addTo(map);
-
     map.addControl(new AccessibilityLegend());
-
-    // console.log("🧩 AccessibilityLegend added to map");
-
-    map.on("draw:editstart", () => (drawState.editing = true));
-    map.on("draw:editstop", () => (drawState.editing = false));
-    map.on("draw:deletestart", () => (drawState.deleting = true));
-    map.on("draw:deletestop", () => (drawState.deleting = false));
-
-    map.on("moveend", debounce(refreshPlaces, 200));
-    await initDrawingObstacles();
-
     map.addControl(new BasemapGallery({ initial: initialName }));
 
-    map.on("baselayerchange", (e) => ls.set(BASEMAP_LS_KEY, e.name));
+    // ✅ Initialize obstacles only if the user can manage them
+    if (canManage) {
+      await initDrawingObstacles();
+      console.log("✅ Obstacle management enabled");
+    } else {
+      console.log("🔒 Guest mode: skipping obstacle tools");
+    }
+
+    map.on("moveend", debounce(refreshPlaces, 200));
     map.on("zoomend", toggleObstaclesByZoom);
     map.on("click", (e) => {
       if (drawState.editing || drawState.deleting) return;
       showQuickRoutePopup(e.latlng);
     });
-  });
-
-  // Also hide on Escape
-  elements.departureSearchInput.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") toggleDepartureSuggestions(false);
-  });
-  elements.destinationSearchInput.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") toggleDestinationSuggestions(false);
-  });
-
-  let destinationGeocodeReqSeq = 0;
-  elements.destinationSearchInput.addEventListener(
-    "input",
-    debounce((e) => {
-      console.log("🎯 debounce triggered for query:", e.target.value);
-      const searchQuery = e.target.value.trim();
-
-      if (!searchQuery) {
-        toggleDestinationSuggestions(false);
-        return;
-      }
-
-      const mySeq = ++destinationGeocodeReqSeq;
-      showListSpinner(elements.destinationSuggestions, "Searching…");
-
-      geocoder.geocode(searchQuery, (items) => {
-        if (mySeq !== destinationGeocodeReqSeq) return;
-
-        renderDestinationSuggestions(items);
-
-        if (!items?.length) {
-          elements.destinationSuggestions.innerHTML = `<li class="list-group-item text-muted">No results</li>`;
-          elements.destinationSuggestions.classList.remove("d-none");
-        }
-      });
-    }, 200)
-  );
-
-  let departureGeocodeReqSeq = 0;
-  elements.departureSearchInput.addEventListener(
-    "input",
-    debounce((e) => {
-      const searchQuery = e.target.value.trim();
-      if (!searchQuery) {
-        toggleDepartureSuggestions(false);
-        return;
-      }
-      const mySeq = ++departureGeocodeReqSeq;
-      showListSpinner(elements.departureSuggestions, "Searching…");
-
-      geocoder.geocode(searchQuery, (items) => {
-        if (mySeq !== departureGeocodeReqSeq) return;
-        renderDepartureSuggestions(items);
-        if (!items?.length) {
-          elements.departureSuggestions.innerHTML = `<li class="list-group-item text-muted">No results</li>`;
-          elements.departureSuggestions.classList.remove("d-none");
-        }
-      });
-    }, 200)
-  );
-
-  document.addEventListener("click", hideSuggestionsIfClickedOutside);
-
-  elements.detailsPanel
-    .querySelector("#btn-start-here")
-    .addEventListener("click", async () => {
-      elements.directionsUi.classList.remove("d-none");
-      mountInOffcanvas("Directions");
-      await setFrom(globals.detailsCtx.latlng);
-      elements.departureSearchInput.focus();
-    });
-
-  elements.detailsPanel
-    .querySelector("#btn-go-here")
-    .addEventListener("click", async () => {
-      elements.directionsUi.classList.remove("d-none");
-      mountInOffcanvas("Directions");
-      await setTo(globals.detailsCtx.latlng);
-      elements.departureSearchInput.focus();
-    });
-
-  elements.reviewForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const textarea = elements.reviewForm.querySelector("#review-text");
-    const text = textarea.value.trim();
-    if (!text) return;
-
-    try {
-      console.log("🧭 Review submit ctx:", globals.detailsCtx);
-      const placeId =
-        globals.detailsCtx.placeId ??
-        (await ensurePlaceExists(
-          globals.detailsCtx.tags,
-          globals.detailsCtx.latlng
-        ));
-      const newReview = { text, place_id: placeId };
-
-      await withButtonLoading(
-        elements.submitReviewBtn,
-        reviewStorage("POST", newReview),
-        "Saving…"
-      );
-
-      // ✅ Reload and render updated reviews list
-      globals.reviews = await reviewStorage("GET", { place_id: placeId });
-      elements.reviewsList.innerHTML = "";
-      globals.reviews.forEach((r) => renderOneReview(r.comment));
-
-      textarea.value = "";
-
-      recomputePlaceAccessibilityKeywords().catch(console.error);
-    } catch (error) {
-      console.error("❌ Failed to save review:", error);
-      toastError("Could not save your review. Please try again.");
-    }
-  });
-
-  // ✅ Global — must be OUTSIDE the submit handler
-  document.addEventListener("accessibilityFilterChanged", (e) => {
-    const incoming = e.detail;
-
-    if (!incoming || !incoming.length) {
-      accessibilityFilter = new Set([
-        "designated",
-        "yes",
-        "limited",
-        "unknown",
-        "no",
-      ]);
-    } else {
-      accessibilityFilter = new Set(incoming);
-    }
-
-    refreshPlaces();
   });
 }
