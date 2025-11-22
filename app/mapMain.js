@@ -121,9 +121,9 @@ function showQuickRoutePopup(latlng) {
     closeOnClick: true,
     closeButton: true,
   })
-    .setLatLng(latlng)
-    .setContent(html)
-    .openOn(map);
+      .setLatLng(latlng)
+      .setContent(html)
+      .openOn(map);
 
   const startBtn = document.getElementById("qp-start");
   const goBtn = document.getElementById("qp-go");
@@ -174,16 +174,16 @@ elements.offcanvas.addEventListener("hidden.bs.offcanvas", () => {
 function toggleDepartureSuggestions(visible) {
   elements.departureSuggestions.classList.toggle("d-none", !visible);
   elements.departureSearchInput.setAttribute(
-    "aria-expanded",
-    visible ? "true" : "false"
+      "aria-expanded",
+      visible ? "true" : "false"
   );
 }
 
 function toggleDestinationSuggestions(visible) {
   elements.destinationSuggestions.classList.toggle("d-none", !visible);
   elements.destinationSearchInput.setAttribute(
-    "aria-expanded",
-    visible ? "true" : "false"
+      "aria-expanded",
+      visible ? "true" : "false"
   );
 }
 
@@ -278,8 +278,8 @@ async function openEditModalForLayer(layer) {
 
   // Update tooltip
   attachBootstrapTooltip(
-    layer,
-    tooltipTextFromProps(obstacleFeatures[idx].properties)
+      layer,
+      tooltipTextFromProps(obstacleFeatures[idx].properties)
   );
 }
 
@@ -288,17 +288,47 @@ function hookLayerInteractions(layer, props) {
   // (safe if we call after the layer is added to the map/featureGroup).
   // Re-attach tooltip whenever the layer is re-added to the map
   layer.once("add", () =>
-    attachBootstrapTooltip(layer, tooltipTextFromProps(props))
+      attachBootstrapTooltip(layer, tooltipTextFromProps(props))
   );
 
   layer.off("click");
   layer.on("click", () => {
     if (drawState.deleting || drawState.editing) return;
+    
+    // ✅ Only allow editing if user is logged in
+    if (!currentUser) {
+      // For non-logged-in users, show a read-only popup with obstacle info
+      const title = tooltipTextFromProps(props);
+      const popupContent = L.DomUtil.create("div", "p-2");
+      popupContent.innerHTML = `
+        <h6 class="mb-2">${title}</h6>
+        <p class="small text-muted mb-2">🔒 Log in to edit or delete obstacles</p>
+        <a href="/auth" class="btn btn-sm btn-primary w-100 text-decoration-none">
+          Log in
+        </a>
+      `;
+      
+      L.popup({
+        className: "obstacle-readonly-popup",
+        closeButton: true,
+        autoClose: true,
+        closeOnClick: true,
+      })
+        .setLatLng(layer.getLatLng ? layer.getLatLng() : layer.getBounds().getCenter())
+        .setContent(popupContent)
+        .openOn(map);
+      return;
+    }
+    
+    // Logged-in users can edit
     openEditModalForLayer(layer);
   });
 }
 
 function toggleObstaclesByZoom() {
+  // ✅ Only show controls if user is logged in
+  if (!currentUser || !drawControl) return;
+
   const allow = map.getZoom() >= DEFAULT_ZOOM;
 
   if (allow) {
@@ -343,19 +373,19 @@ async function refreshPlaces() {
           pane: "places-pane",
           icon: makePoiIcon(tags), // <-- fixed 33px badge
         })
-          .on("click", () => {
-            renderDetails(tags, L.latLng(latlng), { keepDirectionsUi: true });
-          })
-          .on("add", () => {
-            const title = tags.name ?? tags.amenity ?? "Unnamed place";
-            attachBootstrapTooltip(marker, title);
-          })
-          .on("remove", () => {
-            if (marker._bsTooltip) {
-              marker._bsTooltip.dispose();
-              marker._bsTooltip = null;
-            }
-          });
+            .on("click", () => {
+              renderDetails(tags, L.latLng(latlng), { keepDirectionsUi: true });
+            })
+            .on("add", () => {
+              const title = tags.name ?? tags.amenity ?? "Unnamed place";
+              attachBootstrapTooltip(marker, title);
+            })
+            .on("remove", () => {
+              if (marker._bsTooltip) {
+                marker._bsTooltip.dispose();
+                marker._bsTooltip = null;
+              }
+            });
 
         return marker;
       },
@@ -368,7 +398,7 @@ async function refreshPlaces() {
 
 function moveDepartureSearchBarUnderTo() {
   const toLabel = elements.directionsUi?.querySelector?.(
-    'label[for="destination-search-input"]'
+      'label[for="destination-search-input"]'
   );
 
   if (!toLabel) {
@@ -408,20 +438,20 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   // WEBSITE (single merged block)
   const websiteLinks = splitMulti(nTags.website || "")
-    .map(cleanUrl)
-    .filter(Boolean);
+      .map(cleanUrl)
+      .filter(Boolean);
   if (websiteLinks.length) {
     const item = document.createElement("div");
     item.className =
-      "list-group-item d-flex justify-content-between align-items-start";
+        "list-group-item d-flex justify-content-between align-items-start";
     const links = websiteLinks
-      .map(
-        (u) =>
-          `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${linkLabel(
-            u
-          )}</a>`
-      )
-      .join(" · ");
+        .map(
+            (u) =>
+                `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${linkLabel(
+                    u
+                )}</a>`
+        )
+        .join(" · ");
     item.innerHTML = `<div class="me-2"><h6 class="mb-1 fw-semibold">Website</h6><p class="small mb-1">${links}</p></div>`;
     list.appendChild(item);
   }
@@ -429,28 +459,28 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   // --- Render basic tags (address, amenity, etc.) ---
   Object.entries(nTags).forEach(([key, value]) => {
     const isWebsiteVariant =
-      /^(website|url)(?::\d+)?$/i.test(key) || /^contact:website$/i.test(key);
+        /^(website|url)(?::\d+)?$/i.test(key) || /^contact:website$/i.test(key);
     if (isWebsiteVariant) return;
 
     const containsAltName = /alt\s*name/i.test(key);
     const containsLocalizedVariants =
-      /^(name|alt_name|short_name|display_name):/i.test(key);
+        /^(name|alt_name|short_name|display_name):/i.test(key);
     const isCountryKey = /^country$/i.test(key);
     const isWikiDataKey = /^wikidata(?::[a-z-]+)?$/i.test(key);
 
     const isExcluded =
-      EXCLUDED_PROPS.has(key) ||
-      containsAltName ||
-      containsLocalizedVariants ||
-      isCountryKey ||
-      isWikiDataKey;
+        EXCLUDED_PROPS.has(key) ||
+        containsAltName ||
+        containsLocalizedVariants ||
+        isCountryKey ||
+        isWikiDataKey;
 
     if (isExcluded) return;
 
     const lk = key.toLowerCase();
     const item = document.createElement("div");
     item.className =
-      "list-group-item d-flex justify-content-between align-items-start";
+        "list-group-item d-flex justify-content-between align-items-start";
 
     // Special cases: linkify
     if (lk === "website" || lk === "url") {
@@ -458,13 +488,13 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       if (!urls.length) return;
 
       const links = urls
-        .map(
-          (u) =>
-            `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${hostLabel(
-              u
-            )}</a>`
-        )
-        .join(" · ");
+          .map(
+              (u) =>
+                  `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${hostLabel(
+                      u
+                  )}</a>`
+          )
+          .join(" · ");
 
       item.innerHTML = `
       <div class="me-2">
@@ -480,22 +510,22 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       if (!urls.length) return;
 
       const links = urls
-        .map((u) => {
-          // If someone put a Mapillary URL in image=, route it to the viewer
-          if (/mapillary\.com/i.test(u)) {
-            const viewer = toMapillaryViewerUrl(u);
-            return `<a href="${viewer}" target="_blank" rel="noopener nofollow ugc">Mapillary</a>`;
-          }
-          // Google Photos shares are pages, not direct images; still useful
-          if (/photos\.app\.goo\.gl|photos\.google\.com/i.test(u)) {
-            return `<a href="${u}" target="_blank" rel="noopener nofollow ugc">Google Photos</a>`;
-          }
-          // Fallback: show host
-          return `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${hostLabel(
-            u
-          )}</a>`;
-        })
-        .join(" · ");
+          .map((u) => {
+            // If someone put a Mapillary URL in image=, route it to the viewer
+            if (/mapillary\.com/i.test(u)) {
+              const viewer = toMapillaryViewerUrl(u);
+              return `<a href="${viewer}" target="_blank" rel="noopener nofollow ugc">Mapillary</a>`;
+            }
+            // Google Photos shares are pages, not direct images; still useful
+            if (/photos\.app\.goo\.gl|photos\.google\.com/i.test(u)) {
+              return `<a href="${u}" target="_blank" rel="noopener nofollow ugc">Google Photos</a>`;
+            }
+            // Fallback: show host
+            return `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${hostLabel(
+                u
+            )}</a>`;
+          })
+          .join(" · ");
 
       item.innerHTML = `
       <div class="me-2">
@@ -527,7 +557,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
         const lang = m[1];
         const title = m[2].replace(/\s/g, "_");
         const href = `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(
-          title
+            title
         )}`;
         item.innerHTML = `
       <div class="me-2">
@@ -545,14 +575,14 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       displayKey = "Address";
     } else {
       displayKey = key
-        .replace(/^Addr_?/i, "")
-        .replace(/[_:]/g, " ")
-        .replace(/\b\w/g, (c) => c.toUpperCase());
+          .replace(/^Addr_?/i, "")
+          .replace(/[_:]/g, " ")
+          .replace(/\b\w/g, (c) => c.toUpperCase());
     }
 
     const displayValue = String(value)
-      .replace(/[_:]/g, " ")
-      .replace(/\b\w/g, (c) => c.toUpperCase());
+        .replace(/[_:]/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
 
     item.innerHTML = `
     <div class="me-2">
@@ -618,10 +648,10 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     const photos = await resolvePlacePhotos(tags, latlng);
 
     console.log(
-      "📷 resolvePlacePhotos returned",
-      photos.length,
-      "items:",
-      photos
+        "📷 resolvePlacePhotos returned",
+        photos.length,
+        "items:",
+        photos
     );
     showMainPhoto(photos[0]);
     renderPhotosGrid(photos);
@@ -676,6 +706,9 @@ async function initDrawingObstacles() {
 
   map.addLayer(drawnItems);
 
+  // ✅ Only initialize draw controls and event handlers if user is logged in
+  if (currentUser) {
+    if (!drawControl) {
   drawControl = new L.Control.Draw({
     position: "topright",
     edit: { featureGroup: drawnItems },
@@ -688,134 +721,15 @@ async function initDrawingObstacles() {
       circlemarker: false,
     },
   });
-  toggleObstaclesByZoom();
-
-  // CREATE
-  map.on(L.Draw.Event.CREATED, async (e) => {
-    let layerToAdd, featureToStore;
-
-    if (e.layer instanceof L.Circle) {
-      featureToStore = makeCircleFeature(e.layer);
-      layerToAdd = L.circle(e.layer.getLatLng(), {
-        radius: e.layer.getRadius(),
-        color: "red",
-      });
-    } else {
-      featureToStore = e.layer.toGeoJSON();
-      layerToAdd = e.layer;
     }
-
-    drawnItems.addLayer(layerToAdd);
-
-    const result = await showObstacleModal();
-
-    if (!result) {
-      drawnItems.removeLayer(layerToAdd);
-      return;
+    
+    // Set up event handlers if not already done
+    if (!obstacleEventHandlersSetup) {
+      setupObstacleEventHandlers();
     }
-
-    featureToStore.properties = {
-      ...(featureToStore.properties || {}),
-      title: result.title,
-      shape: e.layerType,
-    };
-
-    hookLayerInteractions(layerToAdd, featureToStore.properties);
-    attachBootstrapTooltip(
-      layerToAdd,
-      tooltipTextFromProps(featureToStore.properties)
-    );
-
-    const key = showLoading("obstacles-put");
-    try {
-      const { data, error } = await supabase
-        .from("obstacles")
-        .insert([featureToStore])
-        .select();
-
-      if (error) throw error;
-
-      const newObstacle = data[0];
-
-      layerToAdd.options.obstacleId = newObstacle.id;
-
-      obstacleFeatures.push(newObstacle);
-      console.log("✅ Inserted new obstacle:", newObstacle.id);
-    } catch (err) {
-      console.error("❌ Failed to save obstacle:", err);
-      drawnItems.removeLayer(layerToAdd);
-      toastError("Could not save obstacle.");
-    } finally {
-      hideLoading(key);
-    }
-  });
-
-  // EDIT
-  map.on(L.Draw.Event.EDITED, async (e) => {
-    e.layers.eachLayer(async (layer) => {
-      const id = layer.options.obstacleId;
-
-      let updated;
-
-      if (layer instanceof L.Circle) {
-        updated = makeCircleFeature(layer);
-      } else {
-        updated = layer.toGeoJSON();
-      }
-
-      const i = obstacleFeatures.findIndex((f) => f.id === id);
-
-      if (i !== -1) {
-        updated = {
-          ...updated,
-          id,
-          properties: {
-            ...(obstacleFeatures[i].properties || {}),
-            radius:
-              (updated.properties && updated.properties.radius) ||
-              obstacleFeatures[i].properties?.radius,
-          },
-        };
-
-        const key = showLoading("obstacles-put");
-        try {
-          const updatedObstacleFeatures = [...obstacleFeatures];
-          updatedObstacleFeatures[i] = updated;
-          await obstacleStorage("PUT", updated);
-          obstacleFeatures[i] = updated;
-          hookLayerInteractions(layer, updated.properties);
-          console.log("✅ Updated obstacle:", id);
-        } catch (err) {
-          console.error("❌ Failed to update:", err);
-          toastError("Could not update obstacle.");
-        } finally {
-          hideLoading(key);
-        }
-      }
-    });
-  });
-
-  // DELETE
-  map.on(L.Draw.Event.DELETED, async (e) => {
-    e.layers.eachLayer(async (layer) => {
-      // Clean up tooltip instance if present
-      if (layer._bsTooltip) {
-        layer._bsTooltip.dispose();
-        layer._bsTooltip = null;
-      }
-
-      const id = layer.options.obstacleId;
-
-      // Safely filter local list
-      obstacleFeatures = obstacleFeatures.filter(
-        (f) => f.id !== layer.options.obstacleId
-      );
-
-      console.log("🚀 Deleting from Supabase with ID:", id);
-      await duringLoading("obstacles-put", obstacleStorage("DELETE", { id }));
-      console.log("🗑️ Deleted obstacle:", id);
-    });
-  });
+    
+    toggleObstaclesByZoom();
+  }
 }
 
 function renderDepartureSuggestions(items) {
@@ -829,7 +743,7 @@ function renderDepartureSuggestions(items) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className =
-      "list-group-item list-group-item-action list-group-item-light";
+        "list-group-item list-group-item-action list-group-item-light";
     btn.role = "option";
     btn.dataset.index = String(idx);
     btn.textContent = res.name;
@@ -851,12 +765,12 @@ function renderDestinationSuggestions(items) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className =
-      "list-group-item list-group-item-action list-group-item-light";
+        "list-group-item list-group-item-action list-group-item-light";
     btn.role = "option";
     btn.dataset.index = String(idx);
     btn.textContent = res.name;
     btn.addEventListener("click", () =>
-      selectDestinationSuggestion(items[idx])
+        selectDestinationSuggestion(items[idx])
     );
     li.appendChild(btn);
     elements.destinationSuggestions.appendChild(li);
@@ -883,12 +797,12 @@ async function updateRoute({ fit = true } = {}) {
 
   // 🧩 Defensive guard
   if (
-    !fromLatLng ||
-    !toLatLng ||
-    !fromLatLng.lat ||
-    !fromLatLng.lng ||
-    !toLatLng.lat ||
-    !toLatLng.lng
+      !fromLatLng ||
+      !toLatLng ||
+      !fromLatLng.lat ||
+      !fromLatLng.lng ||
+      !toLatLng.lat ||
+      !toLatLng.lng
   ) {
     console.warn("⚠️ updateRoute aborted: invalid from/to coords", {
       fromLatLng,
@@ -903,11 +817,11 @@ async function updateRoute({ fit = true } = {}) {
 
   try {
     const geojson = await fetchRoute(
-      [
-        [fromLatLng.lng, fromLatLng.lat],
-        [toLatLng.lng, toLatLng.lat],
-      ],
-      obstacleFeatures
+        [
+          [fromLatLng.lng, fromLatLng.lat],
+          [toLatLng.lng, toLatLng.lat],
+        ],
+        obstacleFeatures
     );
     console.log("📦 fetchRoute() returned:", geojson);
 
@@ -959,7 +873,7 @@ async function setFrom(latlng, text, opts = {}) {
   });
 
   elements.departureSearchInput.value =
-    text ?? (await reverseAddressAt(latlng));
+      text ?? (await reverseAddressAt(latlng));
 
   await updateRoute(opts);
 }
@@ -967,8 +881,8 @@ async function setFrom(latlng, text, opts = {}) {
 async function setTo(latlng, text, opts = {}) {
   console.log("➡️ setTo() called with:", { latlng, text, opts });
   console.log(
-    "ℹ️ directionsUi visible?",
-    !elements.directionsUi.classList.contains("d-none")
+      "ℹ️ directionsUi visible?",
+      !elements.directionsUi.classList.contains("d-none")
   );
   toLatLng = latlng;
   const directionsActive = !elements.directionsUi.classList.contains("d-none");
@@ -986,7 +900,7 @@ async function setTo(latlng, text, opts = {}) {
   }
 
   elements.destinationSearchInput.value =
-    text ?? (await reverseAddressAt(latlng));
+      text ?? (await reverseAddressAt(latlng));
   updateRoute(opts);
 }
 
@@ -1001,10 +915,10 @@ async function selectDestinationSuggestion(res) {
   if (selectedPlaceLayer) map.removeLayer(selectedPlaceLayer);
 
   showDetailsLoading(
-    elements.detailsPanel,
-    res.name ?? "Details",
-    moveDepartureSearchBarUnderTo,
-    mountInOffcanvas
+      elements.detailsPanel,
+      res.name ?? "Details",
+      moveDepartureSearchBarUnderTo,
+      mountInOffcanvas
   );
 
   const key = showLoading("place-select");
@@ -1016,9 +930,9 @@ async function selectDestinationSuggestion(res) {
     // 🗺️ Draw outline or marker
     const geojsonGeometry = await fetchPlaceGeometry(osmType, osmId);
     const polyLike =
-      geojsonGeometry.features.find(
-        (f) => f.geometry && f.geometry.type !== "Point"
-      ) || null;
+        geojsonGeometry.features.find(
+            (f) => f.geometry && f.geometry.type !== "Point"
+        ) || null;
 
     if (polyLike) {
       selectedPlaceLayer = L.geoJSON(geojsonGeometry, {
@@ -1073,7 +987,187 @@ const hideSuggestionsIfClickedOutside = (e) => {
   }
 };
 
-export async function initMap() {
+let currentUser = null;
+let obstacleEventHandlersSetup = false;
+
+export function updateUser(user) {
+  currentUser = user;
+  
+  // If user logged in, initialize draw controls if not already done
+  if (user && !drawControl && map) {
+    drawControl = new L.Control.Draw({
+      position: "topright",
+      edit: { featureGroup: drawnItems },
+      draw: {
+        polyline: { shapeOptions: { color: "red" } },
+        marker: false,
+        polygon: { allowIntersection: false, shapeOptions: { color: "red" } },
+        rectangle: { shapeOptions: { color: "red" } },
+        circle: { shapeOptions: { color: "red" } },
+        circlemarker: false,
+      },
+    });
+    
+    // Set up event handlers for create/edit/delete if not already done
+    if (!obstacleEventHandlersSetup) {
+      setupObstacleEventHandlers();
+    }
+    toggleObstaclesByZoom();
+  } else if (!user && drawControl && map) {
+    // If user logged out, remove draw controls
+    // removeControl is safe to call even if control doesn't exist
+    try {
+      map.removeControl(drawControl);
+    } catch (e) {
+      // Control might not be on map, ignore error
+    }
+    if (drawHelpAlertControl) {
+      try {
+        map.removeControl(drawHelpAlertControl);
+      } catch (e) {
+        // Control might not be on map, ignore error
+      }
+      drawHelpAlertControl = null;
+    }
+  }
+}
+
+function setupObstacleEventHandlers() {
+  if (obstacleEventHandlersSetup) return;
+  obstacleEventHandlersSetup = true;
+
+  // CREATE
+  map.on(L.Draw.Event.CREATED, async (e) => {
+    let layerToAdd, featureToStore;
+
+    if (e.layer instanceof L.Circle) {
+      featureToStore = makeCircleFeature(e.layer);
+      layerToAdd = L.circle(e.layer.getLatLng(), {
+        radius: e.layer.getRadius(),
+        color: "red",
+      });
+    } else {
+      featureToStore = e.layer.toGeoJSON();
+      layerToAdd = e.layer;
+    }
+
+    drawnItems.addLayer(layerToAdd);
+
+    const result = await showObstacleModal();
+
+    if (!result) {
+      drawnItems.removeLayer(layerToAdd);
+      return;
+    }
+
+    featureToStore.properties = {
+      ...(featureToStore.properties || {}),
+      title: result.title,
+      shape: e.layerType,
+    };
+
+    hookLayerInteractions(layerToAdd, featureToStore.properties);
+    attachBootstrapTooltip(
+        layerToAdd,
+        tooltipTextFromProps(featureToStore.properties)
+    );
+
+    const key = showLoading("obstacles-put");
+    try {
+      const { data, error } = await supabase
+          .from("obstacles")
+          .insert([featureToStore])
+          .select();
+
+      if (error) throw error;
+
+      const newObstacle = data[0];
+
+      layerToAdd.options.obstacleId = newObstacle.id;
+
+      obstacleFeatures.push(newObstacle);
+      console.log("✅ Inserted new obstacle:", newObstacle.id);
+    } catch (err) {
+      console.error("❌ Failed to save obstacle:", err);
+      drawnItems.removeLayer(layerToAdd);
+      toastError("Could not save obstacle.");
+    } finally {
+      hideLoading(key);
+    }
+  });
+
+  // EDIT
+  map.on(L.Draw.Event.EDITED, async (e) => {
+    e.layers.eachLayer(async (layer) => {
+      const id = layer.options.obstacleId;
+
+      let updated;
+
+      if (layer instanceof L.Circle) {
+        updated = makeCircleFeature(layer);
+      } else {
+        updated = layer.toGeoJSON();
+      }
+
+      const i = obstacleFeatures.findIndex((f) => f.id === id);
+
+      if (i !== -1) {
+        updated = {
+          ...updated,
+          id,
+          properties: {
+            ...(obstacleFeatures[i].properties || {}),
+            radius:
+                (updated.properties && updated.properties.radius) ||
+                obstacleFeatures[i].properties?.radius,
+          },
+        };
+
+        const key = showLoading("obstacles-put");
+        try {
+          const updatedObstacleFeatures = [...obstacleFeatures];
+          updatedObstacleFeatures[i] = updated;
+          await obstacleStorage("PUT", updated);
+          obstacleFeatures[i] = updated;
+          hookLayerInteractions(layer, updated.properties);
+          console.log("✅ Updated obstacle:", id);
+        } catch (err) {
+          console.error("❌ Failed to update:", err);
+          toastError("Could not update obstacle.");
+        } finally {
+          hideLoading(key);
+        }
+      }
+    });
+  });
+
+  // DELETE
+  map.on(L.Draw.Event.DELETED, async (e) => {
+    e.layers.eachLayer(async (layer) => {
+      // Clean up tooltip instance if present
+      if (layer._bsTooltip) {
+        layer._bsTooltip.dispose();
+        layer._bsTooltip = null;
+      }
+
+      const id = layer.options.obstacleId;
+
+      // Safely filter local list
+      obstacleFeatures = obstacleFeatures.filter(
+          (f) => f.id !== layer.options.obstacleId
+      );
+
+      console.log("🚀 Deleting from Supabase with ID:", id);
+      await duringLoading("obstacles-put", obstacleStorage("DELETE", { id }));
+      console.log("🗑️ Deleted obstacle:", id);
+    });
+  });
+}
+
+export async function initMap(user = null) {
+  currentUser = user;
+  obstacleEventHandlersSetup = false; // Reset on map init
+
   // ✅ Create a Photon-based geocoder instance from Leaflet-Control-Geocoder.
   // This object normally has `geocode()` (search by name) and `reverse()` (get name from coordinates),
   // but the default implementation uses XHR, which often fails in modern frameworks (Next.js, Vite, Turbopack).
@@ -1109,7 +1203,7 @@ export async function initMap() {
     try {
       // Compose the Photon API endpoint with a properly encoded search string.
       const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(
-        query
+          query
       )}`;
 
       // Fetch the GeoJSON response safely.
@@ -1118,10 +1212,10 @@ export async function initMap() {
       // Map each GeoJSON feature into Leaflet-friendly result objects.
       const results = (json.features || []).map((f) => ({
         name:
-          f.properties.name || // normal place name
-          f.properties.osm_value || // fallback: OSM tag (like "restaurant")
-          f.properties.street || // or street name
-          "Unnamed", // fallback if no name at all
+            f.properties.name || // normal place name
+            f.properties.osm_value || // fallback: OSM tag (like "restaurant")
+            f.properties.street || // or street name
+            "Unnamed", // fallback if no name at all
         center: [
           // convert [lon, lat] → [lat, lon] for Leaflet
           f.geometry.coordinates[1],
@@ -1151,10 +1245,10 @@ export async function initMap() {
   // Similar to above, but goes the other way around: lat/lng → nearest place name.
   geocoder.reverse = async function (latlng, scale, cb) {
     console.log(
-      "🔎 geocoder.reverse input:",
-      latlng,
-      "array?",
-      Array.isArray(latlng)
+        "🔎 geocoder.reverse input:",
+        latlng,
+        "array?",
+        Array.isArray(latlng)
     );
 
     try {
@@ -1167,10 +1261,10 @@ export async function initMap() {
       // Convert GeoJSON features to Leaflet-friendly results.
       const results = (json.features || []).map((f) => ({
         name:
-          f.properties.name || // best available name
-          f.properties.osm_value || // fallback (e.g., "building" or "bus_stop")
-          f.properties.street || // or nearby street
-          "Unnamed", // last-resort fallback
+            f.properties.name || // best available name
+            f.properties.osm_value || // fallback (e.g., "building" or "bus_stop")
+            f.properties.street || // or nearby street
+            "Unnamed", // last-resort fallback
         center: [f.geometry.coordinates[1], f.geometry.coordinates[0]],
         properties: f.properties,
       }));
@@ -1198,24 +1292,24 @@ export async function initMap() {
 
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        map.setView([latitude, longitude], DEFAULT_ZOOM);
-        L.marker([latitude, longitude]).addTo(map);
-      },
-      (error) => {
-        const userDeniedGeolocation = error.code === 1;
-        if (!userDeniedGeolocation) {
-          console.log(error);
-          toastError("Could not get your location. Using default location.", {
-            important: true,
-          });
-        }
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          map.setView([latitude, longitude], DEFAULT_ZOOM);
+          L.marker([latitude, longitude]).addTo(map);
+        },
+        (error) => {
+          const userDeniedGeolocation = error.code === 1;
+          if (!userDeniedGeolocation) {
+            console.log(error);
+            toastError("Could not get your location. Using default location.", {
+              important: true,
+            });
+          }
 
-        const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
-        // const defaultLatLng = [51.5074, -0.1278]; // London, UK
-        map.setView(defaultLatLng, DEFAULT_ZOOM);
-      }
+          const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
+          // const defaultLatLng = [51.5074, -0.1278]; // London, UK
+          map.setView(defaultLatLng, DEFAULT_ZOOM);
+        }
     );
   } else {
     const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
@@ -1264,74 +1358,74 @@ export async function initMap() {
 
   let destinationGeocodeReqSeq = 0;
   elements.destinationSearchInput.addEventListener(
-    "input",
-    debounce((e) => {
-      console.log("🎯 debounce triggered for query:", e.target.value);
-      const searchQuery = e.target.value.trim();
+      "input",
+      debounce((e) => {
+        console.log("🎯 debounce triggered for query:", e.target.value);
+        const searchQuery = e.target.value.trim();
 
-      if (!searchQuery) {
-        toggleDestinationSuggestions(false);
-        return;
-      }
-
-      const mySeq = ++destinationGeocodeReqSeq;
-      showListSpinner(elements.destinationSuggestions, "Searching…");
-
-      geocoder.geocode(searchQuery, (items) => {
-        if (mySeq !== destinationGeocodeReqSeq) return;
-
-        renderDestinationSuggestions(items);
-
-        if (!items?.length) {
-          elements.destinationSuggestions.innerHTML = `<li class="list-group-item text-muted">No results</li>`;
-          elements.destinationSuggestions.classList.remove("d-none");
+        if (!searchQuery) {
+          toggleDestinationSuggestions(false);
+          return;
         }
-      });
-    }, 200)
+
+        const mySeq = ++destinationGeocodeReqSeq;
+        showListSpinner(elements.destinationSuggestions, "Searching…");
+
+        geocoder.geocode(searchQuery, (items) => {
+          if (mySeq !== destinationGeocodeReqSeq) return;
+
+          renderDestinationSuggestions(items);
+
+          if (!items?.length) {
+            elements.destinationSuggestions.innerHTML = `<li class="list-group-item text-muted">No results</li>`;
+            elements.destinationSuggestions.classList.remove("d-none");
+          }
+        });
+      }, 200)
   );
 
   let departureGeocodeReqSeq = 0;
   elements.departureSearchInput.addEventListener(
-    "input",
-    debounce((e) => {
-      const searchQuery = e.target.value.trim();
-      if (!searchQuery) {
-        toggleDepartureSuggestions(false);
-        return;
-      }
-      const mySeq = ++departureGeocodeReqSeq;
-      showListSpinner(elements.departureSuggestions, "Searching…");
-
-      geocoder.geocode(searchQuery, (items) => {
-        if (mySeq !== departureGeocodeReqSeq) return;
-        renderDepartureSuggestions(items);
-        if (!items?.length) {
-          elements.departureSuggestions.innerHTML = `<li class="list-group-item text-muted">No results</li>`;
-          elements.departureSuggestions.classList.remove("d-none");
+      "input",
+      debounce((e) => {
+        const searchQuery = e.target.value.trim();
+        if (!searchQuery) {
+          toggleDepartureSuggestions(false);
+          return;
         }
-      });
-    }, 200)
+        const mySeq = ++departureGeocodeReqSeq;
+        showListSpinner(elements.departureSuggestions, "Searching…");
+
+        geocoder.geocode(searchQuery, (items) => {
+          if (mySeq !== departureGeocodeReqSeq) return;
+          renderDepartureSuggestions(items);
+          if (!items?.length) {
+            elements.departureSuggestions.innerHTML = `<li class="list-group-item text-muted">No results</li>`;
+            elements.departureSuggestions.classList.remove("d-none");
+          }
+        });
+      }, 200)
   );
 
   document.addEventListener("click", hideSuggestionsIfClickedOutside);
 
   elements.detailsPanel
-    .querySelector("#btn-start-here")
-    .addEventListener("click", async () => {
-      elements.directionsUi.classList.remove("d-none");
-      mountInOffcanvas("Directions");
-      await setFrom(globals.detailsCtx.latlng);
-      elements.departureSearchInput.focus();
-    });
+      .querySelector("#btn-start-here")
+      .addEventListener("click", async () => {
+        elements.directionsUi.classList.remove("d-none");
+        mountInOffcanvas("Directions");
+        await setFrom(globals.detailsCtx.latlng);
+        elements.departureSearchInput.focus();
+      });
 
   elements.detailsPanel
-    .querySelector("#btn-go-here")
-    .addEventListener("click", async () => {
-      elements.directionsUi.classList.remove("d-none");
-      mountInOffcanvas("Directions");
-      await setTo(globals.detailsCtx.latlng);
-      elements.departureSearchInput.focus();
-    });
+      .querySelector("#btn-go-here")
+      .addEventListener("click", async () => {
+        elements.directionsUi.classList.remove("d-none");
+        mountInOffcanvas("Directions");
+        await setTo(globals.detailsCtx.latlng);
+        elements.departureSearchInput.focus();
+      });
 
   elements.reviewForm.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -1342,17 +1436,17 @@ export async function initMap() {
     try {
       console.log("🧭 Review submit ctx:", globals.detailsCtx);
       const placeId =
-        globals.detailsCtx.placeId ??
-        (await ensurePlaceExists(
-          globals.detailsCtx.tags,
-          globals.detailsCtx.latlng
-        ));
+          globals.detailsCtx.placeId ??
+          (await ensurePlaceExists(
+              globals.detailsCtx.tags,
+              globals.detailsCtx.latlng
+          ));
       const newReview = { text, place_id: placeId };
 
       await withButtonLoading(
-        elements.submitReviewBtn,
-        reviewStorage("POST", newReview),
-        "Saving…"
+          elements.submitReviewBtn,
+          reviewStorage("POST", newReview),
+          "Saving…"
       );
 
       // ✅ Reload and render updated reviews list
