@@ -13,9 +13,9 @@ const departureSearchBar = document.getElementById("departure-search-bar");
 const departureSearchInput = document.getElementById("departure-search-input");
 const departureSuggestions = document.getElementById("departure-suggestions");
 
-const reviewForm = detailsPanel.querySelector("#review-form");
+const reviewForm = detailsPanel?.querySelector("#review-form") || null;
 const reviewsList = detailsPanel.querySelector("#reviews-list");
-const submitReviewBtn = detailsPanel.querySelector("#submit-review-btn");
+const submitReviewBtn = detailsPanel?.querySelector("#submit-review-btn") || null;
 
 const offcanvas = document.getElementById("placeOffcanvas");
 const offcanvasTitle = document.getElementById("placeOffcanvasLabel");

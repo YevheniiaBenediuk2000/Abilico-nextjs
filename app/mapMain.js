@@ -72,6 +72,7 @@ let accessibilityFilter = new Set([
 
 let map = null;
 let geocoder = null;
+let currentBasemapLayer = null; // Store basemap layer reference globally
 
 const offcanvasInstance = new bootstrap.Offcanvas(elements.offcanvas);
 
@@ -1030,6 +1031,93 @@ export function updateUser(user) {
       drawHelpAlertControl = null;
     }
   }
+  
+  // ✅ Fix gray map issue: ensure basemap layer is still present and refresh map
+  if (map) {
+    setTimeout(() => {
+      if (!map || !map._container) {
+        console.warn("⚠️ Map container lost, page reload may be needed");
+        return;
+      }
+      
+      // Check if map has any tile layers (basemap) that are actually rendering
+      let hasWorkingTileLayer = false;
+      try {
+        map.eachLayer((layer) => {
+          // Check if it's a tile layer and if it has a container (is actually rendered)
+          if ((layer instanceof L.TileLayer || layer._url) && layer._container) {
+            hasWorkingTileLayer = true;
+          }
+        });
+      } catch (e) {
+        console.error("Error checking map layers:", e);
+      }
+      
+      // If no working basemap found, create a fresh one
+      if (!hasWorkingTileLayer) {
+        console.log("🔄 No working basemap layer found, creating fresh layer...");
+        
+        // Remove any broken layers first
+        const layersToRemove = [];
+        try {
+          map.eachLayer((layer) => {
+            if (layer instanceof L.TileLayer || layer._url) {
+              layersToRemove.push(layer);
+            }
+          });
+          layersToRemove.forEach(layer => {
+            try {
+              map.removeLayer(layer);
+            } catch (e) {
+              // Ignore errors
+            }
+          });
+        } catch (e) {
+          console.warn("Error removing old layers:", e);
+        }
+        
+        // Create a fresh basemap layer instance (can't reuse removed layers)
+        const initialName = ls.get(BASEMAP_LS_KEY) || "OSM Greyscale";
+        const referenceLayer = baseLayers[initialName] || baseLayers["OSM Greyscale"];
+        
+        // Get the URL and options from the reference layer
+        const url = referenceLayer._url || referenceLayer.options.url;
+        const options = {
+          maxZoom: referenceLayer.options.maxZoom,
+          attribution: referenceLayer.options.attribution,
+        };
+        
+        // Create a completely new tile layer instance
+        const freshLayer = L.tileLayer(url, options);
+        freshLayer.addTo(map);
+        currentBasemapLayer = freshLayer;
+        
+        console.log("✅ Fresh basemap layer added:", initialName);
+      }
+      
+      // Invalidate size to fix any layout issues and force tile reload
+      try {
+        map.invalidateSize();
+        // Force map to redraw tiles
+        if (map._onResize) {
+          map._onResize();
+        }
+        // Trigger a view reset to reload tiles (only if map has been initialized)
+        try {
+          const center = map.getCenter();
+          const zoom = map.getZoom();
+          if (center && center.lat !== undefined && center.lng !== undefined && zoom !== undefined) {
+            map.setView(center, zoom);
+          }
+        } catch (viewError) {
+          // Map might not have center/zoom set yet, that's okay
+          console.log("Map view not yet initialized, skipping view reset");
+        }
+      } catch (e) {
+        console.error("Error refreshing map:", e);
+      }
+    }, 250);
+  }
 }
 
 function setupObstacleEventHandlers() {
@@ -1287,7 +1375,7 @@ export async function initMap(user = null) {
   map = L.map("map", { zoomControl: false });
 
   const initialName = ls.get(BASEMAP_LS_KEY) || "OSM Greyscale";
-  let currentBasemapLayer = baseLayers[initialName] || osm;
+  currentBasemapLayer = baseLayers[initialName] || osm;
   currentBasemapLayer.addTo(map);
 
   if (navigator.geolocation) {
@@ -1427,12 +1515,28 @@ export async function initMap(user = null) {
         elements.departureSearchInput.focus();
       });
 
-  elements.reviewForm.addEventListener("submit", async (e) => {
+  // ✅ Set up review form handler using event delegation
+  // This works even if the form is created dynamically after login
+  elements.detailsPanel.addEventListener("submit", async (e) => {
+    // Only handle review form submissions
+    if (e.target.id !== "review-form") return;
+    
     e.preventDefault();
-    const textarea = elements.reviewForm.querySelector("#review-text");
+    
+    // ✅ Check authentication before allowing review submission
+    if (!currentUser) {
+      toastError("Please log in to submit a review.");
+      return;
+    }
+    
+    const textarea = e.target.querySelector("#review-text");
+    if (!textarea) return;
+    
     const text = textarea.value.trim();
     if (!text) return;
 
+    const submitBtn = e.target.querySelector("#submit-review-btn");
+    
     try {
       console.log("🧭 Review submit ctx:", globals.detailsCtx);
       const placeId =
@@ -1444,7 +1548,7 @@ export async function initMap(user = null) {
       const newReview = { text, place_id: placeId };
 
       await withButtonLoading(
-          elements.submitReviewBtn,
+          submitBtn,
           reviewStorage("POST", newReview),
           "Saving…"
       );
