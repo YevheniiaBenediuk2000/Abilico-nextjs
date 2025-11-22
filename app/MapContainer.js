@@ -1,24 +1,38 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import "./styles/ui.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "leaflet/dist/leaflet.css";
 import "./styles/poi-badge.css";
+import { supabase } from "./api/supabaseClient.js";
 
-export default function MapContainer({ user }) {
-  // 🧩 Keep a flag to ensure initMap() runs only once
-  const initialized = useRef(false);
+export default function MapContainer({ user: initialUser }) {
+  const [user, setUser] = useState(initialUser);
+  const router = useRouter();
+
+  // Track user session changes
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null));
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
-    // If map already initialized, don't run again
-    if (initialized.current) return;
-
+    let isMounted = true;
+    
     (async () => {
-      // ✅ Wait until DOM is ready
+      // ✅ Wait until React finishes rendering the DOM
       await new Promise((r) => setTimeout(r, 0));
 
-      // ✅ Dynamically import Leaflet & plugins
+      // ✅ Dynamically import Leaflet + plugins
       const L = (await import("leaflet")).default;
       await import("leaflet.markercluster");
       await import("leaflet.markercluster/dist/MarkerCluster.css");
@@ -27,18 +41,31 @@ export default function MapContainer({ user }) {
       await import("leaflet-draw/dist/leaflet.draw.css");
       await import("leaflet-control-geocoder");
       await import("leaflet-control-geocoder/dist/Control.Geocoder.css");
+
+      // ✅ Bootstrap JS
       await import("bootstrap/dist/js/bootstrap.bundle.min.js");
       window.bootstrap = await import("bootstrap");
 
-      // ✅ Import your map logic
-      const { initMap } = await import("./mapMain.js");
-
-      // ✅ Initialize map ONCE
-      initMap({ canManage: !!user });
-
-      initialized.current = true;
+      // ✅ Now that everything is rendered and loaded, run your main logic
+      const { initMap, updateUser } = await import("./mapMain.js");
+      if (isMounted) {
+        await initMap(user); // <— pass user to initMap
+        // Store updateUser function globally so we can call it when user changes
+        window.updateMapUser = updateUser;
+      }
     })();
-  }, []); // 👈 Run only once (no dependency on user)
+
+    return () => {
+      isMounted = false;
+    };
+  }, []); // Only run once on mount
+
+  // Update user state in mapMain when user changes
+  useEffect(() => {
+    if (window.updateMapUser) {
+      window.updateMapUser(user);
+    }
+  }, [user]);
 
   return (
       <div>
@@ -53,31 +80,6 @@ export default function MapContainer({ user }) {
               bottom: 0,
             }}
         ></div>
-
-        {/* === Overlay for guests (shows once session known) === */}
-        {user !== null && !user && (
-            <div
-                id="obstacle-overlay"
-                className="position-absolute top-2 end-2 p-2 rounded-3 bg-dark bg-opacity-75 text-white shadow-sm"
-                style={{
-                  zIndex: 2000,
-                  width: "220px",
-                  pointerEvents: "auto",
-                }}
-            >
-              <div className="text-center small">
-                <div className="mb-2">🔒</div>
-                <strong>Log in to manage obstacles</strong>
-                <p className="small mb-2">Sign in to add, edit, or delete obstacles.</p>
-                <button
-                    className="btn btn-primary btn-sm w-100"
-                    onClick={() => (window.location.href = "/auth")}
-                >
-                  Log in / Register
-                </button>
-              </div>
-            </div>
-        )}
 
         {/* === Offcanvas (Details + Directions) === */}
         <div
@@ -203,6 +205,7 @@ export default function MapContainer({ user }) {
 
               {/* Tabs content */}
               <div className="tab-content pt-3" id="detailsTabsContent">
+                {/* --- Overview tab --- */}
                 <div
                     className="tab-pane fade show active"
                     id="tab-overview"
@@ -239,6 +242,7 @@ export default function MapContainer({ user }) {
                   </div>
                 </div>
 
+                {/* --- Reviews tab --- */}
                 <div
                     className="tab-pane fade"
                     id="tab-reviews"
@@ -268,6 +272,7 @@ export default function MapContainer({ user }) {
                   </div>
                 </div>
 
+                {/* --- Photos tab --- */}
                 <div
                     className="tab-pane fade"
                     id="tab-photos"
@@ -284,10 +289,53 @@ export default function MapContainer({ user }) {
           </div>
         </div>
 
+        {/* === Obstacle Modal === */}
+        <div
+            className="modal fade"
+            id="obstacleModal"
+            tabIndex="-1"
+            aria-hidden="true"
+            aria-labelledby="obstacleModalLabel"
+        >
+          <div className="modal-dialog">
+            <form className="modal-content" id="obstacle-form">
+              <div className="modal-header">
+                <h5 className="modal-title">Obstacle details</h5>
+                <button
+                    type="button"
+                    className="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="Close"
+                ></button>
+              </div>
+              <div className="modal-body">
+                <input
+                    id="obstacle-title"
+                    className="form-control"
+                    placeholder="e.g., Damaged curb ramp"
+                    required
+                />
+              </div>
+              <div className="modal-footer">
+                <button
+                    type="button"
+                    className="btn btn-outline-secondary"
+                    data-bs-dismiss="modal"
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Save
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
         {/* === Accessibility Legend === */}
         <div id="accessibility-legend" className="alert alert-light"></div>
 
-        {/* === Draw Help Alert === */}
+        {/* === Draw Help Alert (template for DrawHelpAlert control) === */}
         <div
             id="draw-help-alert"
             className="d-none alert alert-light alert-dismissible fade show shadow-sm mb-0"
@@ -312,6 +360,64 @@ export default function MapContainer({ user }) {
               aria-label="Close"
           ></button>
         </div>
+
+        {/* === Global Loading Bar === */}
+        <div
+            id="global-loading"
+            className="position-fixed top-0 start-0 w-100 d-none"
+            style={{ zIndex: 2000 }}
+        >
+          <div className="progress rounded-0" style={{ height: "0.24rem" }}>
+            <div
+                className="progress-bar progress-bar-striped progress-bar-animated"
+                style={{ width: "100%" }}
+            ></div>
+          </div>
+        </div>
+
+        {/* === Toast Stack === */}
+        <div aria-live="polite" aria-atomic="true" className="position-relative">
+          <div
+              id="toast-stack"
+              className="toast-container position-fixed top-0 end-0 p-3"
+          ></div>
+        </div>
+
+        {/* === Obstacle Management Overlay (for non-logged-in users) === */}
+        {!user && (
+          <div
+              id="obstacle-management-overlay"
+              className="position-absolute"
+              style={{
+                top: "12px",
+                right: "12px",
+                zIndex: 2000,
+                pointerEvents: "auto",
+              }}
+          >
+            <div
+                className="bg-dark text-white p-3 rounded shadow-lg"
+                style={{
+                  minWidth: "200px",
+                  maxWidth: "300px",
+                }}
+            >
+              <div className="d-flex align-items-center gap-2 mb-2">
+                <span className="fs-5">🔒</span>
+                <h6 className="mb-0">Log in to manage obstacles</h6>
+              </div>
+              <p className="small mb-2 text-muted">
+                You need to be logged in to add, edit, or delete obstacles.
+              </p>
+              <button
+                  className="btn btn-primary btn-sm w-100"
+                  onClick={() => router.push("/auth")}
+              >
+                Log in
+              </button>
+            </div>
+          </div>
+        )}
       </div>
   );
 }
