@@ -32,11 +32,15 @@ function ensureAccKeywordsBlock() {
       <h6 class="mb-2">Accessibility mentions in reviews</h6>
       <div id="acc-keywords-summary" class="d-flex flex-wrap gap-2"></div>
     `;
-    // Insert before the review form
-    elements.reviewForm.parentElement.insertBefore(
-      block,
-      elements.reviewForm.nextSibling
-    );
+    // Insert before the reviews list (which always exists)
+    // Find the card-body container
+    const cardBody = reviewsPane.querySelector(".card-body");
+    if (cardBody && elements.reviewsList) {
+      cardBody.insertBefore(block, elements.reviewsList);
+    } else if (cardBody) {
+      // Fallback: append to card-body if reviews list not found
+      cardBody.appendChild(block);
+    }
   }
   return {
     block,
