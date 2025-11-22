@@ -1515,12 +1515,28 @@ export async function initMap(user = null) {
         elements.departureSearchInput.focus();
       });
 
-  elements.reviewForm.addEventListener("submit", async (e) => {
+  // ✅ Set up review form handler using event delegation
+  // This works even if the form is created dynamically after login
+  elements.detailsPanel.addEventListener("submit", async (e) => {
+    // Only handle review form submissions
+    if (e.target.id !== "review-form") return;
+    
     e.preventDefault();
-    const textarea = elements.reviewForm.querySelector("#review-text");
+    
+    // ✅ Check authentication before allowing review submission
+    if (!currentUser) {
+      toastError("Please log in to submit a review.");
+      return;
+    }
+    
+    const textarea = e.target.querySelector("#review-text");
+    if (!textarea) return;
+    
     const text = textarea.value.trim();
     if (!text) return;
 
+    const submitBtn = e.target.querySelector("#submit-review-btn");
+    
     try {
       console.log("🧭 Review submit ctx:", globals.detailsCtx);
       const placeId =
@@ -1532,7 +1548,7 @@ export async function initMap(user = null) {
       const newReview = { text, place_id: placeId };
 
       await withButtonLoading(
-          elements.submitReviewBtn,
+          submitBtn,
           reviewStorage("POST", newReview),
           "Saving…"
       );
