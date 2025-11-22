@@ -389,9 +389,9 @@ export default function MapContainer({ user: initialUser }) {
               id="obstacle-management-overlay"
               className="position-absolute"
               style={{
-                top: "12px",
+                top: "80px", // Position below the accessibility legend (which is ~60-70px tall)
                 right: "12px",
-                zIndex: 2000,
+                zIndex: 400, // Lower than Leaflet controls (which are ~1000) but above map
                 pointerEvents: "auto",
               }}
           >

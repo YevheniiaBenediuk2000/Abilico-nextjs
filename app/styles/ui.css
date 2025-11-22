@@ -209,10 +209,23 @@
 /* === Obstacle Management Overlay === */
 #obstacle-management-overlay {
   pointer-events: auto;
+  /* Position it to match Leaflet control positioning in top-right */
+  /* It should appear below the accessibility legend */
 }
 
 #obstacle-management-overlay .bg-dark {
   backdrop-filter: blur(4px);
   background-color: rgba(33, 37, 41, 0.95) !important;
   border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Ensure Leaflet controls appear above the overlay and are always clickable */
+.leaflet-top.leaflet-right .leaflet-control {
+  z-index: 1000 !important;
+  position: relative;
+}
+
+/* Make sure the overlay doesn't block controls */
+#obstacle-management-overlay {
+  z-index: 400 !important;
 }
