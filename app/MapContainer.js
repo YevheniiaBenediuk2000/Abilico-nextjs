@@ -252,21 +252,42 @@ export default function MapContainer({ user: initialUser }) {
                   <div className="card shadow-sm">
                     <div className="card-body">
                       <h6 className="mb-3">Reviews</h6>
-                      <form id="review-form" className="d-grid gap-2 mb-3">
-                      <textarea
-                          id="review-text"
-                          className="form-control"
-                          placeholder="Write your review…"
-                          required
-                      ></textarea>
-                        <button
-                            id="submit-review-btn"
-                            type="submit"
-                            className="btn btn-outline-secondary"
-                        >
-                          Submit Review
-                        </button>
-                      </form>
+                      
+                      {/* Review form - only shown for logged-in users */}
+                      {user ? (
+                        <form id="review-form" className="d-grid gap-2 mb-3">
+                          <textarea
+                              id="review-text"
+                              className="form-control"
+                              placeholder="Write your review…"
+                              required
+                          ></textarea>
+                          <button
+                              id="submit-review-btn"
+                              type="submit"
+                              className="btn btn-outline-secondary"
+                          >
+                            Submit Review
+                          </button>
+                        </form>
+                      ) : (
+                        /* CTA card for non-logged-in users */
+                        <div className="card bg-light border mb-3">
+                          <div className="card-body text-center py-4">
+                            <h6 className="mb-2">Want to leave a review?</h6>
+                            <p className="small text-muted mb-3">
+                              Log in or create an account to share your experience.
+                            </p>
+                            <button
+                                className="btn btn-primary"
+                                onClick={() => router.push("/auth")}
+                            >
+                              Log in / Sign up
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      
                       <ul id="reviews-list" className="list-group"></ul>
                     </div>
                   </div>
