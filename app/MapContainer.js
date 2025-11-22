@@ -29,9 +29,6 @@ export default function MapContainer({ user: initialUser }) {
     let isMounted = true;
 
     (async () => {
-      // ✅ Wait until React finishes rendering the DOM
-      await new Promise((r) => setTimeout(r, 0));
-
       // ✅ Dynamically import Leaflet + plugins
       const L = (await import("leaflet")).default;
       await import("leaflet.markercluster");
@@ -58,7 +55,7 @@ export default function MapContainer({ user: initialUser }) {
     return () => {
       isMounted = false;
     };
-  }, []); // Only run once on mount
+  }, [user]); // Only run once on mount
 
   // Update user state in mapMain when user changes
   useEffect(() => {
