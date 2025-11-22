@@ -294,6 +294,33 @@ function hookLayerInteractions(layer, props) {
   layer.off("click");
   layer.on("click", () => {
     if (drawState.deleting || drawState.editing) return;
+    
+    // ✅ Only allow editing if user is logged in
+    if (!currentUser) {
+      // For non-logged-in users, show a read-only popup with obstacle info
+      const title = tooltipTextFromProps(props);
+      const popupContent = L.DomUtil.create("div", "p-2");
+      popupContent.innerHTML = `
+        <h6 class="mb-2">${title}</h6>
+        <p class="small text-muted mb-2">🔒 Log in to edit or delete obstacles</p>
+        <a href="/auth" class="btn btn-sm btn-primary w-100 text-decoration-none">
+          Log in
+        </a>
+      `;
+      
+      L.popup({
+        className: "obstacle-readonly-popup",
+        closeButton: true,
+        autoClose: true,
+        closeOnClick: true,
+      })
+        .setLatLng(layer.getLatLng ? layer.getLatLng() : layer.getBounds().getCenter())
+        .setContent(popupContent)
+        .openOn(map);
+      return;
+    }
+    
+    // Logged-in users can edit
     openEditModalForLayer(layer);
   });
 }
@@ -682,18 +709,18 @@ async function initDrawingObstacles() {
   // ✅ Only initialize draw controls and event handlers if user is logged in
   if (currentUser) {
     if (!drawControl) {
-      drawControl = new L.Control.Draw({
-        position: "topright",
-        edit: { featureGroup: drawnItems },
-        draw: {
-          polyline: { shapeOptions: { color: "red" } },
-          marker: false,
-          polygon: { allowIntersection: false, shapeOptions: { color: "red" } },
-          rectangle: { shapeOptions: { color: "red" } },
-          circle: { shapeOptions: { color: "red" } },
-          circlemarker: false,
-        },
-      });
+  drawControl = new L.Control.Draw({
+    position: "topright",
+    edit: { featureGroup: drawnItems },
+    draw: {
+      polyline: { shapeOptions: { color: "red" } },
+      marker: false,
+      polygon: { allowIntersection: false, shapeOptions: { color: "red" } },
+      rectangle: { shapeOptions: { color: "red" } },
+      circle: { shapeOptions: { color: "red" } },
+      circlemarker: false,
+    },
+  });
     }
     
     // Set up event handlers if not already done
