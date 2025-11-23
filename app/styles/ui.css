@@ -6,7 +6,6 @@
   width: clamp(240px, 60vw, 420px);
 }
 
-.search-input,
 .search-suggestions button {
   padding-top: 10px;
   padding-bottom: 10px;

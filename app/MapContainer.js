@@ -7,6 +7,7 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import "leaflet/dist/leaflet.css";
 import "./styles/poi-badge.css";
 import { supabase } from "./api/supabaseClient.js";
+import TextField from "@mui/material/TextField";
 
 export default function MapContainer({ user: initialUser }) {
   const [user, setUser] = useState(initialUser);
@@ -109,13 +110,19 @@ export default function MapContainer({ user: initialUser }) {
                   From
                 </label>
                 <div id="departure-search-bar" className="position-relative">
-                  <input
+                  <TextField
                     id="departure-search-input"
                     type="search"
-                    className="form-control form-control-lg search-input"
+                    variant="outlined"
+                    fullWidth
+                    className="form-control form-control-lg"
                     placeholder="Search place or click on the map…"
-                    aria-label="Search places"
-                    aria-controls="departure-suggestions"
+                    slotProps={{
+                      input: {
+                        "aria-label": "Search places",
+                        "aria-controls": "destination-suggestions",
+                      },
+                    }}
                   />
 
                   <ul
