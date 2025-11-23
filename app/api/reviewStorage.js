@@ -56,7 +56,7 @@ export async function ensurePlaceExists(tags, latlng) {
 
 /**
  * Handles CRUD operations for reviews in Supabase.
- * @param {"GET"|"POST"} method
+ * @param {"GET"|"POST"|"PUT"|"DELETE"} method
  * @param {Object} reviewData
  */
 export async function reviewStorage(method = "GET", reviewData) {
@@ -105,8 +105,52 @@ export async function reviewStorage(method = "GET", reviewData) {
       console.log("✅ Review inserted:", data);
       return data;
     }
+
+    if (method === "PUT") {
+      // 🛠 Update an existing review by ID
+      const { id, text, rating, image_url } = reviewData || {};
+      if (!id) {
+        console.warn("⚠️ reviewStorage(PUT) called without id");
+        return [];
+      }
+
+      const updateFields = {};
+      if (typeof text === "string") updateFields.comment = text;
+      if (rating !== undefined) updateFields.rating = rating;
+      if (image_url !== undefined) updateFields.image_url = image_url;
+
+      const { data, error } = await supabase
+        .from("reviews")
+        .update(updateFields)
+        .eq("id", id)
+        .select();
+
+      if (error) throw error;
+      console.log("✏️ Updated review:", data);
+      return data;
+    }
+
+    if (method === "DELETE") {
+      if (!reviewData?.id) {
+        console.warn("⚠️ reviewStorage(DELETE) called without id");
+        return false;
+      }
+
+      const { error } = await supabase
+        .from("reviews")
+        .delete()
+        .eq("id", reviewData.id);
+
+      if (error) throw error;
+      console.log("🗑️ Deleted review:", reviewData.id);
+      return true;
+    }
+
+    console.warn("⚠️ reviewStorage called with unknown method:", method);
+    return [];
   } catch (e) {
     console.error("❌ Review storage failed:", e.message || e);
+    if (method === "DELETE") return false;
     return [];
   }
 }

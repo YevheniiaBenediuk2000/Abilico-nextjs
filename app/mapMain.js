@@ -415,13 +415,163 @@ function moveDepartureSearchBarUnderTo() {
   toLabel.insertAdjacentElement("afterend", elements.destinationSearchBar);
 }
 
-const renderOneReview = (text) => {
-  const li = document.createElement("li");
-  li.className = "list-group-item text-wrap";
-  li.innerHTML = `${text}<div class="mt-1 d-flex flex-wrap gap-1 review-badges"></div>`;
-  elements.reviewsList.appendChild(li);
-};
+function renderReviewsList() {
+  const listEl = elements.reviewsList;
+  if (!listEl) return;
 
+  listEl.innerHTML = "";
+
+  if (!globals.reviews || globals.reviews.length === 0) {
+    const emptyMsg = document.createElement("li");
+    emptyMsg.className = "list-group-item text-muted";
+    emptyMsg.textContent = "No reviews yet.";
+    listEl.appendChild(emptyMsg);
+    return;
+  }
+
+  globals.reviews.forEach((review) => {
+    const li = document.createElement("li");
+    li.className = "list-group-item text-wrap";
+
+    // Main text
+    const textP = document.createElement("p");
+    textP.className = "mb-1";
+    textP.textContent = review.comment || "";
+    li.appendChild(textP);
+
+    // Meta + actions row
+    const footer = document.createElement("div");
+    footer.className =
+      "d-flex justify-content-between align-items-center mt-1 gap-2";
+
+    const meta = document.createElement("small");
+    meta.className = "text-muted";
+
+    if (review.created_at) {
+      const dt = new Date(review.created_at);
+      if (!Number.isNaN(dt.getTime())) {
+        meta.textContent = dt.toLocaleString(undefined, {
+          year: "numeric",
+          month: "short",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
+    }
+
+    footer.appendChild(meta);
+
+    // Only owners (and admins) can edit/delete
+    const isOwner = !!currentUser;
+
+    const ADMIN_EMAILS = [
+      "yevheniiabenediuk@gmail.com",
+      "victor.shevchuk.96@gmail.com",
+    ];
+    const isAdmin =
+      !!currentUser &&
+      !!currentUser.email &&
+      ADMIN_EMAILS.includes(currentUser.email);
+
+    if (isOwner || isAdmin) {
+      const actions = document.createElement("div");
+      actions.className = "btn-group btn-group-sm";
+
+      const editBtn = document.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "btn btn-outline-secondary btn-sm";
+      editBtn.textContent = "Edit";
+      editBtn.addEventListener("click", () => handleEditReview(review));
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "btn btn-outline-danger btn-sm";
+      deleteBtn.textContent = "Delete";
+      deleteBtn.addEventListener("click", () => handleDeleteReview(review));
+
+      actions.appendChild(editBtn);
+      actions.appendChild(deleteBtn);
+      footer.appendChild(actions);
+    }
+
+    li.appendChild(footer);
+
+    // Placeholder for accessibility keyword badges
+    const badgesWrap = document.createElement("div");
+    badgesWrap.className = "mt-1 d-flex flex-wrap gap-1 review-badges";
+    badgesWrap.setAttribute("aria-label", "Detected accessibility mentions");
+    li.appendChild(badgesWrap);
+
+    listEl.appendChild(li);
+  });
+}
+
+async function handleEditReview(review) {
+  if (!currentUser) {
+    toastError("Please log in to edit your review.");
+    return;
+  }
+
+  const currentText = review.comment || "";
+  const next = window.prompt("Edit your review:", currentText);
+
+  if (next === null) return; // cancelled
+  const trimmed = next.trim();
+  if (!trimmed || trimmed === currentText) return;
+
+  try {
+    const updated = await reviewStorage("PUT", {
+      id: review.id,
+      text: trimmed,
+      rating: review.rating,
+      image_url: review.image_url,
+    });
+
+    if (!Array.isArray(updated) || !updated.length) {
+      toastError("Could not update review. Please try again.");
+      return;
+    }
+
+    const idx = globals.reviews.findIndex((r) => r.id === review.id);
+    if (idx !== -1) {
+      globals.reviews[idx] = {
+        ...globals.reviews[idx],
+        comment: trimmed,
+      };
+    }
+
+    renderReviewsList();
+    recomputePlaceAccessibilityKeywords().catch(console.error);
+  } catch (err) {
+    console.error("❌ Failed to update review:", err);
+    toastError("Could not update review. Please try again.");
+  }
+}
+
+async function handleDeleteReview(review) {
+  if (!currentUser) {
+    toastError("Please log in to delete your review.");
+    return;
+  }
+
+  try {
+    const ok = await reviewStorage("DELETE", { id: review.id });
+    if (ok === false) {
+      toastError("Could not delete review. Please try again.");
+      return;
+    }
+
+    globals.reviews = globals.reviews.filter((r) => r.id !== review.id);
+    renderReviewsList();
+    recomputePlaceAccessibilityKeywords().catch(console.error);
+  } catch (err) {
+    console.error("❌ Failed to delete review:", err);
+    toastError("Could not delete review. Please try again.");
+  }
+}
+
+// (keep makeCircleFeature as-is below)
 function makeCircleFeature(layer) {
   const center = layer.getLatLng();
   const radius = layer.getRadius(); // meters
@@ -638,15 +788,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   }
 
   // ✅ Render reviews
-  elements.reviewsList.innerHTML = "";
-  if (globals.reviews.length === 0) {
-    const emptyMsg = document.createElement("li");
-    emptyMsg.className = "list-group-item text-muted";
-    emptyMsg.textContent = "No reviews yet.";
-    elements.reviewsList.appendChild(emptyMsg);
-  } else {
-    globals.reviews.forEach((r) => renderOneReview(r.comment));
-  }
+  renderReviewsList();
 
   // --- Photos ---
   try {
@@ -1617,8 +1759,7 @@ export async function initMap(user = null) {
 
       // ✅ Reload and render updated reviews list
       globals.reviews = await reviewStorage("GET", { place_id: placeId });
-      elements.reviewsList.innerHTML = "";
-      globals.reviews.forEach((r) => renderOneReview(r.comment));
+      renderReviewsList();
 
       textarea.value = "";
 
