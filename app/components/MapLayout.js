@@ -83,6 +83,7 @@ export default function MapLayout({ isDashboard = false }) {
           <TextField
             id="destination-search-input"
             type="search"
+            size="small"
             variant="outlined"
             fullWidth
             placeholder="Search place or click on the map…"
