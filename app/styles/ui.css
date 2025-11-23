@@ -14,8 +14,8 @@
 /* Suggestions dropdown */
 .search-suggestions {
   position: absolute;
-  top: 56px;
-  z-index: 402;
+  top: 40px;
+  z-index: 1001;
   max-height: 320px;
 
   overflow: auto;
