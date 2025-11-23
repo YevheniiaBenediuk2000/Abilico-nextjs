@@ -40,6 +40,7 @@ import {
   resolvePlacePhotos,
   showMainPhoto,
 } from "./modules/fetchPhotos.mjs";
+import { ZoomMuiControl } from "./leaflet-controls/ZoomMuiControl.mjs";
 
 // console.log("🧭 mapMain.js imported fetchPhotos.mjs successfully");
 
@@ -1475,7 +1476,7 @@ export async function initMap(user = null) {
     placesPane = map.createPane("places-pane");
     placesPane.style.zIndex = 450;
 
-    L.control.zoom({ position: "bottomright" }).addTo(map);
+    map.addControl(new ZoomMuiControl({ position: "bottomright" }));
     placeClusterLayer.addTo(map);
 
     map.addControl(new AccessibilityLegend());
