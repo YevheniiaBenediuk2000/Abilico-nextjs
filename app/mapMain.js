@@ -105,6 +105,8 @@ let obstacleForm, obstacleTitleInput;
 
 let obstacleFeatures = [];
 
+let editingReviewId = null;
+
 function showQuickRoutePopup(latlng) {
   const html = `
     <div class="d-flex align-items-center gap-2" role="group" aria-label="Quick route actions">
@@ -432,76 +434,205 @@ function renderReviewsList() {
   globals.reviews.forEach((review) => {
     const li = document.createElement("li");
     li.className = "list-group-item text-wrap";
+    li.dataset.reviewId = review.id;
 
-    // Main text
-    const textP = document.createElement("p");
-    textP.className = "mb-1";
-    textP.textContent = review.comment || "";
-    li.appendChild(textP);
+    const isEditing = editingReviewId === review.id;
 
-    // Meta + actions row
-    const footer = document.createElement("div");
-    footer.className =
-      "d-flex justify-content-between align-items-center mt-1 gap-2";
+    if (isEditing) {
+      // === Inline edit mode ===
+      const form = document.createElement("form");
+      form.className = "d-grid gap-2";
 
-    const meta = document.createElement("small");
-    meta.className = "text-muted";
+      const textarea = document.createElement("textarea");
+      textarea.className = "form-control";
+      textarea.value = review.comment || "";
+      textarea.required = true;
+      textarea.rows = 3;
+      textarea.setAttribute("aria-label", "Edit your review");
+      form.appendChild(textarea);
 
-    if (review.created_at) {
-      const dt = new Date(review.created_at);
-      if (!Number.isNaN(dt.getTime())) {
-        meta.textContent = dt.toLocaleString(undefined, {
-          year: "numeric",
-          month: "short",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-        });
+      const footerRow = document.createElement("div");
+      footerRow.className =
+        "d-flex justify-content-between align-items-center mt-1 gap-2";
+
+      const meta = document.createElement("small");
+      meta.className = "text-muted";
+
+      if (review.created_at) {
+        const dt = new Date(review.created_at);
+        if (!Number.isNaN(dt.getTime())) {
+          meta.textContent = dt.toLocaleString(undefined, {
+            year: "numeric",
+            month: "short",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+        } else {
+          meta.textContent = "Editing your review";
+        }
+      } else {
+        meta.textContent = "Editing your review";
       }
-    }
 
-    footer.appendChild(meta);
-
-    // Only owners (and admins) can edit/delete
-    const isOwner = !!currentUser;
-
-    const ADMIN_EMAILS = [
-      "yevheniiabenediuk@gmail.com",
-      "victor.shevchuk.96@gmail.com",
-    ];
-    const isAdmin =
-      !!currentUser &&
-      !!currentUser.email &&
-      ADMIN_EMAILS.includes(currentUser.email);
-
-    if (isOwner || isAdmin) {
       const actions = document.createElement("div");
       actions.className = "btn-group btn-group-sm";
 
-      const editBtn = document.createElement("button");
-      editBtn.type = "button";
-      editBtn.className = "btn btn-outline-secondary btn-sm";
-      editBtn.textContent = "Edit";
-      editBtn.addEventListener("click", () => handleEditReview(review));
+      const cancelBtn = document.createElement("button");
+      cancelBtn.type = "button";
+      cancelBtn.className = "btn btn-outline-secondary btn-sm";
+      cancelBtn.textContent = "Cancel";
+      cancelBtn.addEventListener("click", () => {
+        editingReviewId = null;
+        renderReviewsList();
+        // Re-render badges/summary for consistency
+        recomputePlaceAccessibilityKeywords().catch(console.error);
+      });
 
-      const deleteBtn = document.createElement("button");
-      deleteBtn.type = "button";
-      deleteBtn.className = "btn btn-outline-danger btn-sm";
-      deleteBtn.textContent = "Delete";
-      deleteBtn.addEventListener("click", () => handleDeleteReview(review));
+      const saveBtn = document.createElement("button");
+      saveBtn.type = "submit";
+      saveBtn.className = "btn btn-primary btn-sm";
+      saveBtn.textContent = "Save";
 
-      actions.appendChild(editBtn);
-      actions.appendChild(deleteBtn);
-      footer.appendChild(actions);
+      actions.appendChild(cancelBtn);
+      actions.appendChild(saveBtn);
+      footerRow.appendChild(meta);
+      footerRow.appendChild(actions);
+      form.appendChild(footerRow);
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        if (!currentUser) {
+          toastError("Please log in to edit your review.");
+          return;
+        }
+
+        const currentText = review.comment || "";
+        const trimmed = textarea.value.trim();
+
+        // If unchanged or empty -> just exit edit mode
+        if (!trimmed || trimmed === currentText) {
+          editingReviewId = null;
+          renderReviewsList();
+          recomputePlaceAccessibilityKeywords().catch(console.error);
+          return;
+        }
+
+        try {
+          const updated = await withButtonLoading(
+            saveBtn,
+            reviewStorage("PUT", {
+              id: review.id,
+              text: trimmed,
+              rating: review.rating,
+              image_url: review.image_url,
+            }),
+            "Saving…"
+          );
+
+          if (!Array.isArray(updated) || !updated.length) {
+            toastError("Could not update review. Please try again.");
+            return;
+          }
+
+          const idx = globals.reviews.findIndex((r) => r.id === review.id);
+          if (idx !== -1) {
+            globals.reviews[idx] = {
+              ...globals.reviews[idx],
+              comment: trimmed,
+            };
+          }
+
+          editingReviewId = null;
+          renderReviewsList();
+          recomputePlaceAccessibilityKeywords().catch(console.error);
+        } catch (err) {
+          console.error("❌ Failed to update review:", err);
+          toastError("Could not update review. Please try again.");
+        }
+      });
+
+      li.appendChild(form);
+
+      // Placeholder for accessibility keyword badges
+      const badgesWrap = document.createElement("div");
+      badgesWrap.className = "mt-1 d-flex flex-wrap gap-1 review-badges";
+      badgesWrap.setAttribute("aria-label", "Detected accessibility mentions");
+      li.appendChild(badgesWrap);
+    } else {
+      // === Normal (read-only) mode ===
+
+      // Main text
+      const textP = document.createElement("p");
+      textP.className = "mb-1";
+      textP.textContent = review.comment || "";
+      li.appendChild(textP);
+
+      // Meta + actions row
+      const footer = document.createElement("div");
+      footer.className =
+        "d-flex justify-content-between align-items-center mt-1 gap-2";
+
+      const meta = document.createElement("small");
+      meta.className = "text-muted";
+
+      if (review.created_at) {
+        const dt = new Date(review.created_at);
+        if (!Number.isNaN(dt.getTime())) {
+          meta.textContent = dt.toLocaleString(undefined, {
+            year: "numeric",
+            month: "short",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+        }
+      }
+
+      footer.appendChild(meta);
+
+      // Only owners (and admins) can edit/delete
+      const isOwner = !!currentUser;
+
+      const ADMIN_EMAILS = [
+        "yevheniiabenediuk@gmail.com",
+        "victor.shevchuk.96@gmail.com",
+      ];
+      const isAdmin =
+        !!currentUser &&
+        !!currentUser.email &&
+        ADMIN_EMAILS.includes(currentUser.email);
+
+      if (isOwner || isAdmin) {
+        const actions = document.createElement("div");
+        actions.className = "btn-group btn-group-sm";
+
+        const editBtn = document.createElement("button");
+        editBtn.type = "button";
+        editBtn.className = "btn btn-outline-secondary btn-sm";
+        editBtn.textContent = "Edit";
+        editBtn.addEventListener("click", () => handleEditReview(review));
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.type = "button";
+        deleteBtn.className = "btn btn-outline-danger btn-sm";
+        deleteBtn.textContent = "Delete";
+        deleteBtn.addEventListener("click", () => handleDeleteReview(review));
+
+        actions.appendChild(editBtn);
+        actions.appendChild(deleteBtn);
+        footer.appendChild(actions);
+      }
+
+      li.appendChild(footer);
+
+      // Placeholder for accessibility keyword badges
+      const badgesWrap = document.createElement("div");
+      badgesWrap.className = "mt-1 d-flex flex-wrap gap-1 review-badges";
+      badgesWrap.setAttribute("aria-label", "Detected accessibility mentions");
+      li.appendChild(badgesWrap);
     }
-
-    li.appendChild(footer);
-
-    // Placeholder for accessibility keyword badges
-    const badgesWrap = document.createElement("div");
-    badgesWrap.className = "mt-1 d-flex flex-wrap gap-1 review-badges";
-    badgesWrap.setAttribute("aria-label", "Detected accessibility mentions");
-    li.appendChild(badgesWrap);
 
     listEl.appendChild(li);
   });
@@ -513,40 +644,9 @@ async function handleEditReview(review) {
     return;
   }
 
-  const currentText = review.comment || "";
-  const next = window.prompt("Edit your review:", currentText);
-
-  if (next === null) return; // cancelled
-  const trimmed = next.trim();
-  if (!trimmed || trimmed === currentText) return;
-
-  try {
-    const updated = await reviewStorage("PUT", {
-      id: review.id,
-      text: trimmed,
-      rating: review.rating,
-      image_url: review.image_url,
-    });
-
-    if (!Array.isArray(updated) || !updated.length) {
-      toastError("Could not update review. Please try again.");
-      return;
-    }
-
-    const idx = globals.reviews.findIndex((r) => r.id === review.id);
-    if (idx !== -1) {
-      globals.reviews[idx] = {
-        ...globals.reviews[idx],
-        comment: trimmed,
-      };
-    }
-
-    renderReviewsList();
-    recomputePlaceAccessibilityKeywords().catch(console.error);
-  } catch (err) {
-    console.error("❌ Failed to update review:", err);
-    toastError("Could not update review. Please try again.");
-  }
+  // Toggle inline edit mode for this review
+  editingReviewId = review.id;
+  renderReviewsList();
 }
 
 async function handleDeleteReview(review) {
