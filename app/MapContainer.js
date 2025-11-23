@@ -8,7 +8,9 @@ import "leaflet/dist/leaflet.css";
 import "./styles/poi-badge.css";
 import { supabase } from "./api/supabaseClient.js";
 import TextField from "@mui/material/TextField";
-import Card from "@mui/material/Card";
+import Button from "@mui/material/Button";
+import IconButton from "@mui/material/IconButton";
+import CloseIcon from "@mui/icons-material/Close";
 
 export default function MapContainer({ user: initialUser }) {
   const [user, setUser] = useState(initialUser);
@@ -267,13 +269,13 @@ export default function MapContainer({ user: initialUser }) {
                           placeholder="Write your review…"
                           required
                         ></textarea>
-                        <button
+                        <Button
                           id="submit-review-btn"
                           type="submit"
-                          className="btn btn-outline-secondary"
+                          variant="outlined"
                         >
                           Submit Review
-                        </button>
+                        </Button>
                       </form>
                     ) : (
                       /* CTA card for non-logged-in users */
@@ -284,12 +286,13 @@ export default function MapContainer({ user: initialUser }) {
                             Log in or create an account to share your
                             experience.
                           </p>
-                          <button
-                            className="btn btn-primary"
+                          <Button
+                            variant="contained"
+                            color="primary"
                             onClick={() => router.push("/auth")}
                           >
                             Log in / Sign up
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     )}
@@ -424,12 +427,15 @@ export default function MapContainer({ user: initialUser }) {
             <p className="small mb-2">
               You need to be logged in to add, edit, or delete obstacles.
             </p>
-            <button
-              className="btn btn-primary btn-sm w-100"
+            <Button
+              variant="contained"
+              color="primary"
+              size="small"
+              fullWidth
               onClick={() => router.push("/auth")}
             >
               Log in
-            </button>
+            </Button>
           </div>
         </div>
       )}
