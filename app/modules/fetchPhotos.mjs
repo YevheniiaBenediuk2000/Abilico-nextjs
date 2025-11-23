@@ -293,13 +293,28 @@ export function showMainPhoto(photo) {
     .join(" · ");
 
   // Clicking main photo opens Photos tab and scrolls into view
+  // Clicking main photo opens Photos tab and scrolls into view
   mainPhotoImg.onclick = () => {
-    const tabBtn = document.getElementById("photos-tab");
-    if (tabBtn) {
-      const tab = new bootstrap.Tab(tabBtn);
-      tab.show();
-      photosGrid?.scrollIntoView({ behavior: "smooth", block: "start" });
+    try {
+      if (
+        typeof window !== "undefined" &&
+        typeof window.setDetailsTab === "function"
+      ) {
+        // Switch to the MUI Photos tab
+        window.setDetailsTab("photos");
+      } else if (typeof window !== "undefined" && window.bootstrap) {
+        // Fallback: if old Bootstrap tabs are still around somewhere
+        const tabBtn = document.getElementById("photos-tab");
+        if (tabBtn) {
+          const tab = new window.bootstrap.Tab(tabBtn);
+          tab.show();
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to switch details tab:", e);
     }
+
+    photosGrid?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   mainPhotoWrapper.classList.remove("d-none");

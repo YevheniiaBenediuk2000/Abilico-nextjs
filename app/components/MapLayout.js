@@ -9,6 +9,9 @@ import "../styles/poi-badge.css";
 import MapContainer from "../MapContainer";
 import { supabase } from "../auth/page";
 
+import TextField from "@mui/material/TextField";
+import Button from "@mui/material/Button";
+
 let currentFactorId = null;
 
 async function handleSetupMFA() {
@@ -50,7 +53,7 @@ export default function MapLayout({ isDashboard = false }) {
       if (!user) return;
       const { data: factors } = await supabase.auth.mfa.listFactors();
       const verified = factors?.all?.some(
-          (f) => f.factor_type === "totp" && f.status === "verified"
+        (f) => f.factor_type === "totp" && f.status === "verified"
       );
       setHas2FA(!!verified);
     }
@@ -77,13 +80,19 @@ export default function MapLayout({ isDashboard = false }) {
           style={{ maxWidth: "600px" }}
           id="destination-search-bar"
         >
-          <input
+          <TextField
             id="destination-search-input"
             type="search"
-            className="form-control form-control-lg search-input"
+            size="small"
+            variant="outlined"
+            fullWidth
             placeholder="Search place or click on the map…"
-            aria-label="Search places"
-            aria-controls="destination-suggestions"
+            slotProps={{
+              input: {
+                "aria-label": "Search places",
+                "aria-controls": "destination-suggestions",
+              },
+            }}
           />
           <ul
             id="destination-suggestions"
@@ -96,12 +105,13 @@ export default function MapLayout({ isDashboard = false }) {
         <div>
           {!user ? (
             // 🟡 Not logged in
-            <button
-              className="btn btn-outline-primary"
+            <Button
+              variant="outlined"
+              color="primary"
               onClick={() => router.push("/auth")}
             >
               Log in
-            </button>
+            </Button>
           ) : (
             // 🟢 Logged in
             <div className="d-flex align-items-center gap-2">
@@ -110,16 +120,20 @@ export default function MapLayout({ isDashboard = false }) {
               </span>
 
               {isDashboard && !has2FA && (
-                  <button
-                      className="btn btn-outline-success btn-sm"
-                      onClick={handleSetupMFA}
-                  >
-                    Enable 2FA
-                  </button>
+                <Button
+                  variant="outlined"
+                  color="success"
+                  size="small"
+                  onClick={handleSetupMFA}
+                >
+                  Enable 2FA
+                </Button>
               )}
 
-              <button
-                className="btn btn-outline-danger btn-sm"
+              <Button
+                variant="outlined"
+                color="error"
+                size="small"
                 onClick={async () => {
                   await supabase.auth.signOut();
                   setUser(null);
@@ -127,7 +141,7 @@ export default function MapLayout({ isDashboard = false }) {
                 }}
               >
                 Log out
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -150,8 +164,9 @@ export default function MapLayout({ isDashboard = false }) {
             placeholder="123456"
             className="form-control my-2"
           />
-          <button
-            className="btn btn-success"
+          <Button
+            variant="contained"
+            color="success"
             onClick={async () => {
               const code = document.getElementById("totp-code").value;
 
@@ -181,16 +196,14 @@ export default function MapLayout({ isDashboard = false }) {
             }}
           >
             Verify Code
-          </button>
+          </Button>
         </div>
       )}
 
       {/* === Map === */}
       <main className="flex-grow-1 position-relative">
-        <MapContainer user={user}/> {/* ✅ Pass user prop */}
+        <MapContainer user={user} /> {/* ✅ Pass user prop */}
       </main>
     </div>
   );
 }
-
-
