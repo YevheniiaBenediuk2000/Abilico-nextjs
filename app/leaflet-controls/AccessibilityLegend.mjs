@@ -1,101 +1,52 @@
-import { ls } from "../utils/localStorage.mjs";
-import { BADGE_COLOR_BY_TIER } from "../constants/constants.mjs";
-
 export const ACCESSIBILITY_FILTER_LS_KEY = "ui.placeAccessibility.filter";
-
-const idToTier = new Map([
-  ["btn-check-designated", "designated"],
-  ["btn-check-yes", "yes"],
-  ["btn-check-limited", "limited"],
-  ["btn-check-unknown", "unknown"],
-  ["btn-check-no", "no"],
-]);
 
 export const AccessibilityLegend = L.Control.extend({
   options: { position: "topright" },
+
   onAdd() {
-    const div = L.DomUtil.create("div", "leaflet-control");
-    const accessibilityLegendEl = document.getElementById(
-      "accessibility-legend"
-    );
+    const container = L.DomUtil.create("div", "leaflet-control");
+    const mountNode = L.DomUtil.create("div", "", container);
 
-    // 🧩 If empty, populate the default legend HTML
-    if (!accessibilityLegendEl.innerHTML.trim()) {
-      accessibilityLegendEl.innerHTML = `
-      <form>
-        <h6>Place Accessibility</h6>
-        <div class="d-flex align-items-center gap-2">
-          ${["designated", "yes", "limited", "unknown", "no"]
-            .map(
-              (key) => `
-                <input type="checkbox" class="btn-check" id="btn-check-${key}" autocomplete="off" checked />
-                <label class="btn" for="btn-check-${key}" data-bs-toggle="tooltip" data-bs-title="${key}"></label>`
-            )
-            .join("")}
-        </div>
-      </form>
-    `;
+    L.DomEvent.disableClickPropagation(container);
+    L.DomEvent.disableScrollPropagation(container);
+
+    const self = this;
+
+    // Dynamically mount the React legend
+    Promise.all([
+      import("react"),
+      import("react-dom/client"),
+      import("../components/AccessibilityLegendReact"),
+    ])
+      .then(([ReactMod, ReactDOMMod, LegendMod]) => {
+        const React = ReactMod.default || ReactMod;
+        const { createRoot } = ReactDOMMod;
+        const Legend = LegendMod.default || LegendMod;
+
+        const root = createRoot(mountNode);
+        self._reactRoot = root;
+        root.render(React.createElement(Legend));
+      })
+      .catch((err) => {
+        console.error(
+          "Failed to mount AccessibilityLegend React component",
+          err
+        );
+      });
+
+    return container;
+  },
+
+  onRemove() {
+    if (this._reactRoot) {
+      this._reactRoot.unmount();
+      this._reactRoot = null;
     }
-
-    const labels = accessibilityLegendEl.querySelectorAll(
-      '[data-bs-toggle="tooltip"]'
-    );
-
-    labels.forEach((labelEl) => {
-      const tier = idToTier.get(labelEl.htmlFor);
-      const px = 32;
-      labelEl.style.width = `${px}px`;
-      labelEl.style.height = `${px}px`;
-      labelEl.style.backgroundColor =
-        BADGE_COLOR_BY_TIER[tier] ?? BADGE_COLOR_BY_TIER.unknown;
-
-      new bootstrap.Tooltip(labelEl);
-    });
-
-    div.append(accessibilityLegendEl);
-    L.DomEvent.disableClickPropagation(div);
-    L.DomEvent.disableScrollPropagation(div);
-
-    const inputs = accessibilityLegendEl.querySelectorAll("input.btn-check");
-    const persisted = JSON.parse(ls.get(ACCESSIBILITY_FILTER_LS_KEY)) ?? "";
-
-    // ✅ Load persisted filters, or default to all filters ON
-    let activeFilters;
-    if (Array.isArray(persisted) && persisted.length > 0) {
-      activeFilters = persisted;
-    } else {
-      // Default: all filters enabled
-      activeFilters = ["designated", "yes", "limited", "unknown", "no"];
-      ls.set(ACCESSIBILITY_FILTER_LS_KEY, JSON.stringify(activeFilters));
-    }
-
-    // Apply state to checkboxes
-    inputs.forEach((inp) => {
-      const tier = idToTier.get(inp.id);
-      inp.checked = activeFilters.includes(tier);
-    });
-
-    const emitChange = () => {
-      const tiers = Array.from(inputs)
-        .filter((i) => i.checked)
-        .map((i) => idToTier.get(i.id));
-
-      ls.set(ACCESSIBILITY_FILTER_LS_KEY, JSON.stringify(tiers));
-      document.dispatchEvent(
-        new CustomEvent("accessibilityFilterChanged", { detail: tiers })
-      );
-    };
-
-    inputs.forEach((inp) => inp.addEventListener("change", emitChange));
-    emitChange();
-
-    return div;
   },
 });
 
-// === Accessibility-driven icon sizing ===
+// === Accessibility-driven icon sizing
 export function getAccessibilityTier(tags = {}) {
-  // Prefer general wheelchair access; fall back to toilets accessibility
   const raw = (
     tags.wheelchair ??
     tags["toilets:wheelchair"] ??

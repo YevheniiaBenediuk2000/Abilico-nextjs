@@ -359,14 +359,6 @@ export default function MapContainer({ user: initialUser }) {
         </div>
       </div>
 
-      {/* === Accessibility Legend === */}
-      <Card
-        id="accessibility-legend"
-        variant="outlined"
-        elevation={3}
-        className="p-2"
-      ></Card>
-
       {/* === Draw Help Alert (template for DrawHelpAlert control) === */}
       <div
         id="draw-help-alert"
