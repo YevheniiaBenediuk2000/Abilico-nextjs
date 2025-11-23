@@ -8,6 +8,7 @@ import "leaflet/dist/leaflet.css";
 import "./styles/poi-badge.css";
 import { supabase } from "./api/supabaseClient.js";
 import TextField from "@mui/material/TextField";
+import Card from "@mui/material/Card";
 
 export default function MapContainer({ user: initialUser }) {
   const [user, setUser] = useState(initialUser);
@@ -359,7 +360,12 @@ export default function MapContainer({ user: initialUser }) {
       </div>
 
       {/* === Accessibility Legend === */}
-      <div id="accessibility-legend" className="alert alert-light"></div>
+      <Card
+        id="accessibility-legend"
+        variant="outlined"
+        elevation={3}
+        className="p-2"
+      ></Card>
 
       {/* === Draw Help Alert (template for DrawHelpAlert control) === */}
       <div
