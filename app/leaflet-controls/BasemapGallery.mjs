@@ -141,6 +141,8 @@ export const BasemapGallery = L.Control.extend({
       "div",
       "leaflet-control basemap-gallery"
     );
+    container.setAttribute("role", "group");
+    container.setAttribute("aria-label", "Basemap gallery");
 
     // Prevent map interactions while using the control
     L.DomEvent.disableClickPropagation(container);
