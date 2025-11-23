@@ -9,8 +9,10 @@ import "./styles/poi-badge.css";
 import { supabase } from "./api/supabaseClient.js";
 import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
-import IconButton from "@mui/material/IconButton";
-import CloseIcon from "@mui/icons-material/Close";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import CardActions from "@mui/material/CardActions";
+import Typography from "@mui/material/Typography";
 
 export default function MapContainer({ user: initialUser }) {
   const [user, setUser] = useState(initialUser);
@@ -413,30 +415,32 @@ export default function MapContainer({ user: initialUser }) {
       {/* === Obstacle Management Overlay (for non-logged-in users) === */}
       {!user && (
         <div id="obstacle-management-overlay" className="position-absolute">
-          <div
-            className="bg-dark text-white p-3 rounded shadow-lg"
-            style={{
-              minWidth: "200px",
-              maxWidth: "300px",
-            }}
-          >
-            <div className="d-flex align-items-center gap-2 mb-2">
-              <span className="fs-5">🔒</span>
-              <h6 className="mb-0">Log in to manage obstacles</h6>
-            </div>
-            <p className="small mb-2">
-              You need to be logged in to add, edit, or delete obstacles.
-            </p>
-            <Button
-              variant="contained"
-              color="primary"
-              size="small"
-              fullWidth
-              onClick={() => router.push("/auth")}
-            >
-              Log in
-            </Button>
-          </div>
+          <Card sx={{ maxWidth: 280 }}>
+            <CardContent>
+              <div className="d-flex align-items-center gap-2 mb-2">
+                <span className="fs-5" aria-hidden="true">
+                  🔒
+                </span>
+                <Typography variant="subtitle1" component="h6">
+                  Log in to manage obstacles
+                </Typography>
+              </div>
+              <Typography variant="body2" color="grey.600">
+                You need to be logged in to add, edit or delete obstacles.
+              </Typography>
+            </CardContent>
+            <CardActions sx={{ pt: 0 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                size="small"
+                fullWidth
+                onClick={() => router.push("/auth")}
+              >
+                Log in
+              </Button>
+            </CardActions>
+          </Card>
         </div>
       )}
     </div>

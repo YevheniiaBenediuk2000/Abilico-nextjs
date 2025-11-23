@@ -61,7 +61,7 @@ export default function AccessibilityLegendReact() {
   };
 
   return (
-    <Card id="accessibility-legend" elevation={3} sx={{ minWidth: 220 }}>
+    <Card id="accessibility-legend" sx={{ minWidth: 220 }}>
       <CardContent sx={{ "&:last-child": { pb: 2 } }}>
         <Typography variant="subtitle2" gutterBottom>
           Place Accessibility
