@@ -10,6 +10,7 @@ import MapContainer from "../MapContainer";
 import { supabase } from "../auth/page";
 
 import TextField from "@mui/material/TextField";
+import Button from "@mui/material/Button";
 
 let currentFactorId = null;
 
@@ -103,12 +104,13 @@ export default function MapLayout({ isDashboard = false }) {
         <div>
           {!user ? (
             // 🟡 Not logged in
-            <button
-              className="btn btn-outline-primary"
+            <Button
+              variant="outlined"
+              color="primary"
               onClick={() => router.push("/auth")}
             >
               Log in
-            </button>
+            </Button>
           ) : (
             // 🟢 Logged in
             <div className="d-flex align-items-center gap-2">
@@ -117,16 +119,20 @@ export default function MapLayout({ isDashboard = false }) {
               </span>
 
               {isDashboard && !has2FA && (
-                <button
-                  className="btn btn-outline-success btn-sm"
+                <Button
+                  variant="outlined"
+                  color="success"
+                  size="small"
                   onClick={handleSetupMFA}
                 >
                   Enable 2FA
-                </button>
+                </Button>
               )}
 
-              <button
-                className="btn btn-outline-danger btn-sm"
+              <Button
+                variant="outlined"
+                color="error"
+                size="small"
                 onClick={async () => {
                   await supabase.auth.signOut();
                   setUser(null);
@@ -134,7 +140,7 @@ export default function MapLayout({ isDashboard = false }) {
                 }}
               >
                 Log out
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -157,8 +163,9 @@ export default function MapLayout({ isDashboard = false }) {
             placeholder="123456"
             className="form-control my-2"
           />
-          <button
-            className="btn btn-success"
+          <Button
+            variant="contained"
+            color="success"
             onClick={async () => {
               const code = document.getElementById("totp-code").value;
 
@@ -188,7 +195,7 @@ export default function MapLayout({ isDashboard = false }) {
             }}
           >
             Verify Code
-          </button>
+          </Button>
         </div>
       )}
 
