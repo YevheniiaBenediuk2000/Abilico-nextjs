@@ -80,13 +80,22 @@
   --bm-thumb-w: 96px;
   --bm-thumb-h: 64px;
 
-  background: var(--bs-body-bg);
-  border-radius: 0.75rem;
+  background-color: #fff;
+  border-radius: 4px;
+
+  /* MUI-ish elevation (approx. Card elevation 1–2) */
+  box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),
+    0px 1px 1px 0px rgba(0, 0, 0, 0.14), 0px 1px 3px 0px rgba(0, 0, 0, 0.12);
+
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  overflow: hidden; /* keep thumbnails clipped to rounded corners */
 }
 
 .basemap-gallery__head {
   display: flex;
-  padding: 0.5rem 0.6rem;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background-color: rgba(0, 0, 0, 0.02); /* subtle header background */
 }
 
 .bm-head-btn {
@@ -101,7 +110,7 @@
   height: var(--bm-thumb-h);
   object-fit: cover;
   display: block;
-  border-radius: 0.75rem;
+  border-radius: 4px;
 }
 
 .map-list-button {
@@ -125,7 +134,7 @@
   display: none; /* collapsed by default */
   grid-template-columns: repeat(2, var(--bm-thumb-w));
   gap: 0.5rem;
-  padding: 0.5rem;
+  padding: 0.75rem;
 }
 
 .leaflet-control.basemap-gallery:hover .basemap-gallery__grid {

@@ -26,18 +26,6 @@ export async function duringLoading(key, promise) {
   }
 }
 
-export function showListSpinner(listEl, text = "Searching…") {
-  if (!listEl) return;
-  listEl.innerHTML = `
-    <li class="list-group-item">
-      <div class="d-flex align-items-center gap-2">
-        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-        <span>${text}</span>
-      </div>
-    </li>`;
-  listEl.classList.remove("d-none");
-}
-
 export function withButtonLoading(btn, promise, text = "Saving…") {
   if (!btn) return promise;
   const original = btn.innerHTML;
