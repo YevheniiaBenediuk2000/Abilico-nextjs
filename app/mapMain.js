@@ -20,10 +20,7 @@ import {
   DRAW_HELP_LS_KEY,
   DrawHelpAlert,
 } from "./leaflet-controls/DrawHelpAlert.mjs";
-import {
-  AccessibilityLegend,
-  getAccessibilityTier,
-} from "./leaflet-controls/AccessibilityLegend.mjs";
+import { AccessibilityLegend } from "./leaflet-controls/AccessibilityLegend.mjs";
 import { ls } from "./utils/localStorage.mjs";
 import {
   duringLoading,
@@ -69,6 +66,9 @@ let accessibilityFilter = new Set([
   "unknown",
   "no",
 ]);
+
+let departureSuggestionsRoot = null;
+let departureSuggestionsRenderSeq = 0;
 
 let destinationSuggestionsRoot = null;
 let destinationSuggestionsRenderSeq = 0;
@@ -738,26 +738,49 @@ async function initDrawingObstacles() {
   }
 }
 
-function renderDepartureSuggestions(items) {
-  elements.departureSuggestions.innerHTML = "";
-  if (!items || !items.length) {
-    toggleDepartureSuggestions(false);
-    return;
-  }
-  items.forEach((res, idx) => {
-    const li = document.createElement("li");
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className =
-      "list-group-item list-group-item-action list-group-item-light";
-    btn.role = "option";
-    btn.dataset.index = String(idx);
-    btn.textContent = res.name;
-    btn.addEventListener("click", () => selectDepartureSuggestion(items[idx]));
-    li.appendChild(btn);
-    elements.departureSuggestions.appendChild(li);
-  });
-  toggleDepartureSuggestions(true);
+function renderDepartureSuggestions(items, { loading = false } = {}) {
+  if (!elements.departureSuggestions) return;
+
+  const mySeq = ++departureSuggestionsRenderSeq;
+
+  (async () => {
+    try {
+      const [ReactMod, ReactDOMMod, CompMod] = await Promise.all([
+        import("react"),
+        import("react-dom/client"),
+        import("./components/DepartureSuggestionsReact"),
+      ]);
+
+      // If a newer render was requested, skip this one
+      if (mySeq !== departureSuggestionsRenderSeq) return;
+
+      const React = ReactMod.default || ReactMod;
+      const { createRoot } = ReactDOMMod;
+      const DepartureSuggestionsReact = CompMod.default || CompMod;
+
+      if (!departureSuggestionsRoot) {
+        departureSuggestionsRoot = createRoot(elements.departureSuggestions);
+      }
+
+      const handleSelect = (item) => {
+        toggleDepartureSuggestions(false);
+        selectDepartureSuggestion(item); // existing logic
+      };
+
+      departureSuggestionsRoot.render(
+        React.createElement(DepartureSuggestionsReact, {
+          items: items || [],
+          loading,
+          onSelect: handleSelect,
+        })
+      );
+
+      // Show dropdown for loading + results + “no results”
+      toggleDepartureSuggestions(true);
+    } catch (err) {
+      console.error("❌ Failed to render DepartureSuggestionsReact", err);
+    }
+  })();
 }
 
 function renderDestinationSuggestions(items, { loading = false } = {}) {
@@ -1520,16 +1543,16 @@ export async function initMap(user = null) {
         toggleDepartureSuggestions(false);
         return;
       }
+
       const mySeq = ++departureGeocodeReqSeq;
-      showListSpinner(elements.departureSuggestions, "Searching…");
+
+      // MUI "Searching…" state
+      renderDepartureSuggestions([], { loading: true });
 
       geocoder.geocode(searchQuery, (items) => {
         if (mySeq !== departureGeocodeReqSeq) return;
-        renderDepartureSuggestions(items);
-        if (!items?.length) {
-          elements.departureSuggestions.innerHTML = `<li class="list-group-item text-muted">No results</li>`;
-          elements.departureSuggestions.classList.remove("d-none");
-        }
+
+        renderDepartureSuggestions(items || [], { loading: false });
       });
     }, 200)
   );
