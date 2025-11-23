@@ -9,6 +9,8 @@ import "../styles/poi-badge.css";
 import MapContainer from "../MapContainer";
 import { supabase } from "../auth/page";
 
+import TextField from "@mui/material/TextField";
+
 let currentFactorId = null;
 
 async function handleSetupMFA() {
@@ -50,7 +52,7 @@ export default function MapLayout({ isDashboard = false }) {
       if (!user) return;
       const { data: factors } = await supabase.auth.mfa.listFactors();
       const verified = factors?.all?.some(
-          (f) => f.factor_type === "totp" && f.status === "verified"
+        (f) => f.factor_type === "totp" && f.status === "verified"
       );
       setHas2FA(!!verified);
     }
@@ -77,13 +79,18 @@ export default function MapLayout({ isDashboard = false }) {
           style={{ maxWidth: "600px" }}
           id="destination-search-bar"
         >
-          <input
+          <TextField
             id="destination-search-input"
             type="search"
-            className="form-control form-control-lg search-input"
+            variant="outlined"
+            fullWidth
             placeholder="Search place or click on the map…"
-            aria-label="Search places"
-            aria-controls="destination-suggestions"
+            slotProps={{
+              input: {
+                "aria-label": "Search places",
+                "aria-controls": "destination-suggestions",
+              },
+            }}
           />
           <ul
             id="destination-suggestions"
@@ -110,12 +117,12 @@ export default function MapLayout({ isDashboard = false }) {
               </span>
 
               {isDashboard && !has2FA && (
-                  <button
-                      className="btn btn-outline-success btn-sm"
-                      onClick={handleSetupMFA}
-                  >
-                    Enable 2FA
-                  </button>
+                <button
+                  className="btn btn-outline-success btn-sm"
+                  onClick={handleSetupMFA}
+                >
+                  Enable 2FA
+                </button>
               )}
 
               <button
@@ -187,10 +194,8 @@ export default function MapLayout({ isDashboard = false }) {
 
       {/* === Map === */}
       <main className="flex-grow-1 position-relative">
-        <MapContainer user={user}/> {/* ✅ Pass user prop */}
+        <MapContainer user={user} /> {/* ✅ Pass user prop */}
       </main>
     </div>
   );
 }
-
-
