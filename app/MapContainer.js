@@ -13,10 +13,31 @@ import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import CardActions from "@mui/material/CardActions";
 import Typography from "@mui/material/Typography";
+import Box from "@mui/material/Box";
+import Tabs from "@mui/material/Tabs";
+import Tab from "@mui/material/Tab";
+
+function DetailsTabPanel({ value, active, children }) {
+  const hidden = active !== value;
+
+  return (
+    <div
+      role="tabpanel"
+      id={`tab-${value}`} // keeps tab-overview / tab-reviews / tab-photos
+      aria-labelledby={`${value}-tab`}
+      hidden={hidden}
+      className={hidden ? "d-none" : ""}
+    >
+      {children}
+    </div>
+  );
+}
 
 export default function MapContainer({ user: initialUser }) {
   const [user, setUser] = useState(initialUser);
   const router = useRouter();
+
+  const [detailsTab, setDetailsTab] = useState("overview");
 
   // Track user session changes
   useEffect(() => {
@@ -69,6 +90,21 @@ export default function MapContainer({ user: initialUser }) {
       window.updateMapUser(user);
     }
   }, [user]);
+
+  // Allow non-React modules (fetchPhotos.mjs, etc.) to switch tabs
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    window.setDetailsTab = (tab) => {
+      setDetailsTab(tab);
+    };
+
+    return () => {
+      if (window.setDetailsTab) {
+        delete window.setDetailsTab;
+      }
+    };
+  }, []);
 
   return (
     <div>
@@ -167,61 +203,39 @@ export default function MapContainer({ user: initialUser }) {
 
           {/* === Details Panel with Tabs === */}
           <div id="details-panel" className="d-none">
-            {/* Tabs navigation */}
-            <ul className="nav nav-tabs" id="detailsTabs" role="tablist">
-              <li className="nav-item" role="presentation">
-                <button
-                  className="nav-link active"
+            {/* MUI Tabs navigation */}
+            <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
+              <Tabs
+                value={detailsTab}
+                onChange={(_, newValue) => setDetailsTab(newValue)}
+                aria-label="Place details tabs"
+                variant="fullWidth"
+              >
+                <Tab
                   id="overview-tab"
-                  data-bs-toggle="tab"
-                  data-bs-target="#tab-overview"
-                  type="button"
-                  role="tab"
+                  label="Overview"
+                  value="overview"
                   aria-controls="tab-overview"
-                  aria-selected="true"
-                >
-                  Overview
-                </button>
-              </li>
-              <li className="nav-item" role="presentation">
-                <button
-                  className="nav-link"
+                />
+                <Tab
                   id="reviews-tab"
-                  data-bs-toggle="tab"
-                  data-bs-target="#tab-reviews"
-                  type="button"
-                  role="tab"
+                  label="Reviews"
+                  value="reviews"
                   aria-controls="tab-reviews"
-                  aria-selected="false"
-                >
-                  Reviews
-                </button>
-              </li>
-              <li className="nav-item" role="presentation">
-                <button
-                  className="nav-link"
+                />
+                <Tab
                   id="photos-tab"
-                  data-bs-toggle="tab"
-                  data-bs-target="#tab-photos"
-                  type="button"
-                  role="tab"
+                  label="Photos"
+                  value="photos"
                   aria-controls="tab-photos"
-                  aria-selected="false"
-                >
-                  Photos
-                </button>
-              </li>
-            </ul>
+                />
+              </Tabs>
+            </Box>
 
             {/* Tabs content */}
-            <div className="tab-content pt-3" id="detailsTabsContent">
+            <div className="pt-3" id="detailsTabsContent">
               {/* --- Overview tab --- */}
-              <div
-                className="tab-pane fade show active"
-                id="tab-overview"
-                role="tabpanel"
-                aria-labelledby="overview-tab"
-              >
+              <DetailsTabPanel value="overview" active={detailsTab}>
                 <div className="d-grid gap-2 mb-3">
                   <div
                     className="btn-group"
@@ -250,15 +264,10 @@ export default function MapContainer({ user: initialUser }) {
                     id="details-list"
                   ></div>
                 </div>
-              </div>
+              </DetailsTabPanel>
 
               {/* --- Reviews tab --- */}
-              <div
-                className="tab-pane fade"
-                id="tab-reviews"
-                role="tabpanel"
-                aria-labelledby="reviews-tab"
-              >
+              <DetailsTabPanel value="reviews" active={detailsTab}>
                 <div className="card shadow-sm">
                   <div className="card-body">
                     <h6 className="mb-3">Reviews</h6>
@@ -303,20 +312,15 @@ export default function MapContainer({ user: initialUser }) {
                     <ul id="reviews-list" className="list-group"></ul>
                   </div>
                 </div>
-              </div>
+              </DetailsTabPanel>
 
               {/* --- Photos tab --- */}
-              <div
-                className="tab-pane fade"
-                id="tab-photos"
-                role="tabpanel"
-                aria-labelledby="photos-tab"
-              >
+              <DetailsTabPanel value="photos" active={detailsTab}>
                 <div id="photos-empty" className="text-muted small d-none">
                   No photos found for this place.
                 </div>
                 <div id="photos-grid" className="row g-2"></div>
-              </div>
+              </DetailsTabPanel>
             </div>
           </div>
         </div>
