@@ -7,6 +7,7 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import "leaflet/dist/leaflet.css";
 import "./styles/poi-badge.css";
 import { supabase } from "./api/supabaseClient.js";
+
 import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
@@ -16,6 +17,8 @@ import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
+import IconButton from "@mui/material/IconButton";
+import CloseIcon from "@mui/icons-material/Close";
 
 function DetailsTabPanel({ value, active, children }) {
   const hidden = active !== value;
@@ -370,29 +373,38 @@ export default function MapContainer({ user: initialUser }) {
       </div>
 
       {/* === Draw Help Alert (template for DrawHelpAlert control) === */}
-      <div
-        id="draw-help-alert"
-        className="d-none alert alert-light alert-dismissible fade show shadow-sm mb-0"
-        role="alert"
-      >
-        <div>
-          <h6 className="d-flex align-items-center gap-2">
-            <span className="fs-6" aria-hidden="true">
+      <div id="draw-help-alert" className="d-none">
+        <Card>
+          <CardContent
+            sx={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 1.5,
+            }}
+          >
+            <span className="fs-5" aria-hidden="true">
               🧱
             </span>
-            Draw obstacles
-          </h6>
-          <p className="mb-0" style={{ fontSize: "0.9rem" }}>
-            You can mark areas the route should avoid.
-          </p>
-        </div>
 
-        <button
-          type="button"
-          className="btn-close ms-auto"
-          data-bs-dismiss="alert"
-          aria-label="Close"
-        ></button>
+            <Box sx={{ flexGrow: 1 }}>
+              <Typography variant="subtitle1" component="h6" gutterBottom>
+                Draw obstacles
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                You can mark areas the route should avoid.
+              </Typography>
+            </Box>
+
+            <IconButton
+              size="small"
+              aria-label="Dismiss draw help"
+              data-role="draw-help-close"
+              sx={{ mt: -0.5 }}
+            >
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </CardContent>
+        </Card>
       </div>
 
       {/* === Global Loading Bar === */}
