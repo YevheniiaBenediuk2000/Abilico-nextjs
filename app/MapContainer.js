@@ -116,6 +116,7 @@ export default function MapContainer({ user: initialUser }) {
                 </label>
                 <div id="departure-search-bar" className="position-relative">
                   <TextField
+                    size="small"
                     id="departure-search-input"
                     type="search"
                     variant="outlined"
