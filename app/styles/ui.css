@@ -139,6 +139,7 @@
 .bm-item.btn {
   padding: 0;
   border: 1px solid var(--bs-border-color);
+  border-radius: 0;
 }
 
 .bm-item__img {
@@ -148,7 +149,7 @@
   display: block;
 }
 
-.bm-item__label {
+.bm-item__label.badge {
   position: absolute;
   font-size: 0.75rem;
   text-wrap: wrap;
