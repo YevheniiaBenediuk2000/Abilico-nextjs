@@ -70,6 +70,9 @@ let accessibilityFilter = new Set([
   "no",
 ]);
 
+let destinationSuggestionsRoot = null;
+let destinationSuggestionsRenderSeq = 0;
+
 let map = null;
 let geocoder = null;
 let currentBasemapLayer = null; // Store basemap layer reference globally
@@ -122,9 +125,9 @@ function showQuickRoutePopup(latlng) {
     closeOnClick: true,
     closeButton: true,
   })
-      .setLatLng(latlng)
-      .setContent(html)
-      .openOn(map);
+    .setLatLng(latlng)
+    .setContent(html)
+    .openOn(map);
 
   const startBtn = document.getElementById("qp-start");
   const goBtn = document.getElementById("qp-go");
@@ -175,16 +178,16 @@ elements.offcanvas.addEventListener("hidden.bs.offcanvas", () => {
 function toggleDepartureSuggestions(visible) {
   elements.departureSuggestions.classList.toggle("d-none", !visible);
   elements.departureSearchInput.setAttribute(
-      "aria-expanded",
-      visible ? "true" : "false"
+    "aria-expanded",
+    visible ? "true" : "false"
   );
 }
 
 function toggleDestinationSuggestions(visible) {
   elements.destinationSuggestions.classList.toggle("d-none", !visible);
   elements.destinationSearchInput.setAttribute(
-      "aria-expanded",
-      visible ? "true" : "false"
+    "aria-expanded",
+    visible ? "true" : "false"
   );
 }
 
@@ -279,8 +282,8 @@ async function openEditModalForLayer(layer) {
 
   // Update tooltip
   attachBootstrapTooltip(
-      layer,
-      tooltipTextFromProps(obstacleFeatures[idx].properties)
+    layer,
+    tooltipTextFromProps(obstacleFeatures[idx].properties)
   );
 }
 
@@ -289,13 +292,13 @@ function hookLayerInteractions(layer, props) {
   // (safe if we call after the layer is added to the map/featureGroup).
   // Re-attach tooltip whenever the layer is re-added to the map
   layer.once("add", () =>
-      attachBootstrapTooltip(layer, tooltipTextFromProps(props))
+    attachBootstrapTooltip(layer, tooltipTextFromProps(props))
   );
 
   layer.off("click");
   layer.on("click", () => {
     if (drawState.deleting || drawState.editing) return;
-    
+
     // ✅ Only allow editing if user is logged in
     if (!currentUser) {
       // For non-logged-in users, show a read-only popup with obstacle info
@@ -308,19 +311,21 @@ function hookLayerInteractions(layer, props) {
           Log in
         </a>
       `;
-      
+
       L.popup({
         className: "obstacle-readonly-popup",
         closeButton: true,
         autoClose: true,
         closeOnClick: true,
       })
-        .setLatLng(layer.getLatLng ? layer.getLatLng() : layer.getBounds().getCenter())
+        .setLatLng(
+          layer.getLatLng ? layer.getLatLng() : layer.getBounds().getCenter()
+        )
         .setContent(popupContent)
         .openOn(map);
       return;
     }
-    
+
     // Logged-in users can edit
     openEditModalForLayer(layer);
   });
@@ -374,19 +379,19 @@ async function refreshPlaces() {
           pane: "places-pane",
           icon: makePoiIcon(tags), // <-- fixed 33px badge
         })
-            .on("click", () => {
-              renderDetails(tags, L.latLng(latlng), { keepDirectionsUi: true });
-            })
-            .on("add", () => {
-              const title = tags.name ?? tags.amenity ?? "Unnamed place";
-              attachBootstrapTooltip(marker, title);
-            })
-            .on("remove", () => {
-              if (marker._bsTooltip) {
-                marker._bsTooltip.dispose();
-                marker._bsTooltip = null;
-              }
-            });
+          .on("click", () => {
+            renderDetails(tags, L.latLng(latlng), { keepDirectionsUi: true });
+          })
+          .on("add", () => {
+            const title = tags.name ?? tags.amenity ?? "Unnamed place";
+            attachBootstrapTooltip(marker, title);
+          })
+          .on("remove", () => {
+            if (marker._bsTooltip) {
+              marker._bsTooltip.dispose();
+              marker._bsTooltip = null;
+            }
+          });
 
         return marker;
       },
@@ -399,7 +404,7 @@ async function refreshPlaces() {
 
 function moveDepartureSearchBarUnderTo() {
   const toLabel = elements.directionsUi?.querySelector?.(
-      'label[for="destination-search-input"]'
+    'label[for="destination-search-input"]'
   );
 
   if (!toLabel) {
@@ -439,20 +444,20 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   // WEBSITE (single merged block)
   const websiteLinks = splitMulti(nTags.website || "")
-      .map(cleanUrl)
-      .filter(Boolean);
+    .map(cleanUrl)
+    .filter(Boolean);
   if (websiteLinks.length) {
     const item = document.createElement("div");
     item.className =
-        "list-group-item d-flex justify-content-between align-items-start";
+      "list-group-item d-flex justify-content-between align-items-start";
     const links = websiteLinks
-        .map(
-            (u) =>
-                `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${linkLabel(
-                    u
-                )}</a>`
-        )
-        .join(" · ");
+      .map(
+        (u) =>
+          `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${linkLabel(
+            u
+          )}</a>`
+      )
+      .join(" · ");
     item.innerHTML = `<div class="me-2"><h6 class="mb-1 fw-semibold">Website</h6><p class="small mb-1">${links}</p></div>`;
     list.appendChild(item);
   }
@@ -460,28 +465,28 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   // --- Render basic tags (address, amenity, etc.) ---
   Object.entries(nTags).forEach(([key, value]) => {
     const isWebsiteVariant =
-        /^(website|url)(?::\d+)?$/i.test(key) || /^contact:website$/i.test(key);
+      /^(website|url)(?::\d+)?$/i.test(key) || /^contact:website$/i.test(key);
     if (isWebsiteVariant) return;
 
     const containsAltName = /alt\s*name/i.test(key);
     const containsLocalizedVariants =
-        /^(name|alt_name|short_name|display_name):/i.test(key);
+      /^(name|alt_name|short_name|display_name):/i.test(key);
     const isCountryKey = /^country$/i.test(key);
     const isWikiDataKey = /^wikidata(?::[a-z-]+)?$/i.test(key);
 
     const isExcluded =
-        EXCLUDED_PROPS.has(key) ||
-        containsAltName ||
-        containsLocalizedVariants ||
-        isCountryKey ||
-        isWikiDataKey;
+      EXCLUDED_PROPS.has(key) ||
+      containsAltName ||
+      containsLocalizedVariants ||
+      isCountryKey ||
+      isWikiDataKey;
 
     if (isExcluded) return;
 
     const lk = key.toLowerCase();
     const item = document.createElement("div");
     item.className =
-        "list-group-item d-flex justify-content-between align-items-start";
+      "list-group-item d-flex justify-content-between align-items-start";
 
     // Special cases: linkify
     if (lk === "website" || lk === "url") {
@@ -489,13 +494,13 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       if (!urls.length) return;
 
       const links = urls
-          .map(
-              (u) =>
-                  `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${hostLabel(
-                      u
-                  )}</a>`
-          )
-          .join(" · ");
+        .map(
+          (u) =>
+            `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${hostLabel(
+              u
+            )}</a>`
+        )
+        .join(" · ");
 
       item.innerHTML = `
       <div class="me-2">
@@ -511,22 +516,22 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       if (!urls.length) return;
 
       const links = urls
-          .map((u) => {
-            // If someone put a Mapillary URL in image=, route it to the viewer
-            if (/mapillary\.com/i.test(u)) {
-              const viewer = toMapillaryViewerUrl(u);
-              return `<a href="${viewer}" target="_blank" rel="noopener nofollow ugc">Mapillary</a>`;
-            }
-            // Google Photos shares are pages, not direct images; still useful
-            if (/photos\.app\.goo\.gl|photos\.google\.com/i.test(u)) {
-              return `<a href="${u}" target="_blank" rel="noopener nofollow ugc">Google Photos</a>`;
-            }
-            // Fallback: show host
-            return `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${hostLabel(
-                u
-            )}</a>`;
-          })
-          .join(" · ");
+        .map((u) => {
+          // If someone put a Mapillary URL in image=, route it to the viewer
+          if (/mapillary\.com/i.test(u)) {
+            const viewer = toMapillaryViewerUrl(u);
+            return `<a href="${viewer}" target="_blank" rel="noopener nofollow ugc">Mapillary</a>`;
+          }
+          // Google Photos shares are pages, not direct images; still useful
+          if (/photos\.app\.goo\.gl|photos\.google\.com/i.test(u)) {
+            return `<a href="${u}" target="_blank" rel="noopener nofollow ugc">Google Photos</a>`;
+          }
+          // Fallback: show host
+          return `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${hostLabel(
+            u
+          )}</a>`;
+        })
+        .join(" · ");
 
       item.innerHTML = `
       <div class="me-2">
@@ -558,7 +563,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
         const lang = m[1];
         const title = m[2].replace(/\s/g, "_");
         const href = `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(
-            title
+          title
         )}`;
         item.innerHTML = `
       <div class="me-2">
@@ -576,14 +581,14 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       displayKey = "Address";
     } else {
       displayKey = key
-          .replace(/^Addr_?/i, "")
-          .replace(/[_:]/g, " ")
-          .replace(/\b\w/g, (c) => c.toUpperCase());
+        .replace(/^Addr_?/i, "")
+        .replace(/[_:]/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
     }
 
     const displayValue = String(value)
-        .replace(/[_:]/g, " ")
-        .replace(/\b\w/g, (c) => c.toUpperCase());
+      .replace(/[_:]/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
 
     item.innerHTML = `
     <div class="me-2">
@@ -649,10 +654,10 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     const photos = await resolvePlacePhotos(tags, latlng);
 
     console.log(
-        "📷 resolvePlacePhotos returned",
-        photos.length,
-        "items:",
-        photos
+      "📷 resolvePlacePhotos returned",
+      photos.length,
+      "items:",
+      photos
     );
     showMainPhoto(photos[0]);
     renderPhotosGrid(photos);
@@ -710,25 +715,25 @@ async function initDrawingObstacles() {
   // ✅ Only initialize draw controls and event handlers if user is logged in
   if (currentUser) {
     if (!drawControl) {
-  drawControl = new L.Control.Draw({
-    position: "topright",
-    edit: { featureGroup: drawnItems },
-    draw: {
-      polyline: { shapeOptions: { color: "red" } },
-      marker: false,
-      polygon: { allowIntersection: false, shapeOptions: { color: "red" } },
-      rectangle: { shapeOptions: { color: "red" } },
-      circle: { shapeOptions: { color: "red" } },
-      circlemarker: false,
-    },
-  });
+      drawControl = new L.Control.Draw({
+        position: "topright",
+        edit: { featureGroup: drawnItems },
+        draw: {
+          polyline: { shapeOptions: { color: "red" } },
+          marker: false,
+          polygon: { allowIntersection: false, shapeOptions: { color: "red" } },
+          rectangle: { shapeOptions: { color: "red" } },
+          circle: { shapeOptions: { color: "red" } },
+          circlemarker: false,
+        },
+      });
     }
-    
+
     // Set up event handlers if not already done
     if (!obstacleEventHandlersSetup) {
       setupObstacleEventHandlers();
     }
-    
+
     toggleObstaclesByZoom();
   }
 }
@@ -744,7 +749,7 @@ function renderDepartureSuggestions(items) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className =
-        "list-group-item list-group-item-action list-group-item-light";
+      "list-group-item list-group-item-action list-group-item-light";
     btn.role = "option";
     btn.dataset.index = String(idx);
     btn.textContent = res.name;
@@ -755,28 +760,54 @@ function renderDepartureSuggestions(items) {
   toggleDepartureSuggestions(true);
 }
 
-function renderDestinationSuggestions(items) {
-  elements.destinationSuggestions.innerHTML = "";
-  if (!items || !items.length) {
-    toggleDestinationSuggestions(false);
-    return;
-  }
-  items.forEach((res, idx) => {
-    const li = document.createElement("li");
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className =
-        "list-group-item list-group-item-action list-group-item-light";
-    btn.role = "option";
-    btn.dataset.index = String(idx);
-    btn.textContent = res.name;
-    btn.addEventListener("click", () =>
-        selectDestinationSuggestion(items[idx])
-    );
-    li.appendChild(btn);
-    elements.destinationSuggestions.appendChild(li);
-  });
-  toggleDestinationSuggestions(true);
+function renderDestinationSuggestions(items, { loading = false } = {}) {
+  if (!elements.destinationSuggestions) return;
+
+  const mySeq = ++destinationSuggestionsRenderSeq;
+
+  const doRender = async () => {
+    try {
+      const [ReactMod, ReactDOMMod, CompMod] = await Promise.all([
+        import("react"),
+        import("react-dom/client"),
+        import("./components/DestinationSuggestionsReact"),
+      ]);
+
+      // If a newer render was requested, skip this one
+      if (mySeq !== destinationSuggestionsRenderSeq) return;
+
+      const React = ReactMod.default || ReactMod;
+      const { createRoot } = ReactDOMMod;
+      const DestinationSuggestionsReact = CompMod.default || CompMod;
+
+      if (!destinationSuggestionsRoot) {
+        destinationSuggestionsRoot = createRoot(
+          elements.destinationSuggestions
+        );
+      }
+
+      const handleSelect = (item) => {
+        // hide dropdown and reuse existing selection logic
+        toggleDestinationSuggestions(false);
+        selectDestinationSuggestion(item);
+      };
+
+      destinationSuggestionsRoot.render(
+        React.createElement(DestinationSuggestionsReact, {
+          items: items || [],
+          loading,
+          onSelect: handleSelect,
+        })
+      );
+
+      // Show suggestions for both loading + results / no-results
+      toggleDestinationSuggestions(true);
+    } catch (err) {
+      console.error("❌ Failed to render DestinationSuggestionsReact", err);
+    }
+  };
+
+  doRender();
 }
 
 function attachDraggable(marker, onMove) {
@@ -798,12 +829,12 @@ async function updateRoute({ fit = true } = {}) {
 
   // 🧩 Defensive guard
   if (
-      !fromLatLng ||
-      !toLatLng ||
-      !fromLatLng.lat ||
-      !fromLatLng.lng ||
-      !toLatLng.lat ||
-      !toLatLng.lng
+    !fromLatLng ||
+    !toLatLng ||
+    !fromLatLng.lat ||
+    !fromLatLng.lng ||
+    !toLatLng.lat ||
+    !toLatLng.lng
   ) {
     console.warn("⚠️ updateRoute aborted: invalid from/to coords", {
       fromLatLng,
@@ -818,11 +849,11 @@ async function updateRoute({ fit = true } = {}) {
 
   try {
     const geojson = await fetchRoute(
-        [
-          [fromLatLng.lng, fromLatLng.lat],
-          [toLatLng.lng, toLatLng.lat],
-        ],
-        obstacleFeatures
+      [
+        [fromLatLng.lng, fromLatLng.lat],
+        [toLatLng.lng, toLatLng.lat],
+      ],
+      obstacleFeatures
     );
     console.log("📦 fetchRoute() returned:", geojson);
 
@@ -874,7 +905,7 @@ async function setFrom(latlng, text, opts = {}) {
   });
 
   elements.departureSearchInput.value =
-      text ?? (await reverseAddressAt(latlng));
+    text ?? (await reverseAddressAt(latlng));
 
   await updateRoute(opts);
 }
@@ -882,8 +913,8 @@ async function setFrom(latlng, text, opts = {}) {
 async function setTo(latlng, text, opts = {}) {
   console.log("➡️ setTo() called with:", { latlng, text, opts });
   console.log(
-      "ℹ️ directionsUi visible?",
-      !elements.directionsUi.classList.contains("d-none")
+    "ℹ️ directionsUi visible?",
+    !elements.directionsUi.classList.contains("d-none")
   );
   toLatLng = latlng;
   const directionsActive = !elements.directionsUi.classList.contains("d-none");
@@ -901,7 +932,7 @@ async function setTo(latlng, text, opts = {}) {
   }
 
   elements.destinationSearchInput.value =
-      text ?? (await reverseAddressAt(latlng));
+    text ?? (await reverseAddressAt(latlng));
   updateRoute(opts);
 }
 
@@ -916,10 +947,10 @@ async function selectDestinationSuggestion(res) {
   if (selectedPlaceLayer) map.removeLayer(selectedPlaceLayer);
 
   showDetailsLoading(
-      elements.detailsPanel,
-      res.name ?? "Details",
-      moveDepartureSearchBarUnderTo,
-      mountInOffcanvas
+    elements.detailsPanel,
+    res.name ?? "Details",
+    moveDepartureSearchBarUnderTo,
+    mountInOffcanvas
   );
 
   const key = showLoading("place-select");
@@ -931,9 +962,9 @@ async function selectDestinationSuggestion(res) {
     // 🗺️ Draw outline or marker
     const geojsonGeometry = await fetchPlaceGeometry(osmType, osmId);
     const polyLike =
-        geojsonGeometry.features.find(
-            (f) => f.geometry && f.geometry.type !== "Point"
-        ) || null;
+      geojsonGeometry.features.find(
+        (f) => f.geometry && f.geometry.type !== "Point"
+      ) || null;
 
     if (polyLike) {
       selectedPlaceLayer = L.geoJSON(geojsonGeometry, {
@@ -993,7 +1024,7 @@ let obstacleEventHandlersSetup = false;
 
 export function updateUser(user) {
   currentUser = user;
-  
+
   // If user logged in, initialize draw controls if not already done
   if (user && !drawControl && map) {
     drawControl = new L.Control.Draw({
@@ -1008,7 +1039,7 @@ export function updateUser(user) {
         circlemarker: false,
       },
     });
-    
+
     // Set up event handlers for create/edit/delete if not already done
     if (!obstacleEventHandlersSetup) {
       setupObstacleEventHandlers();
@@ -1031,7 +1062,7 @@ export function updateUser(user) {
       drawHelpAlertControl = null;
     }
   }
-  
+
   // ✅ Fix gray map issue: ensure basemap layer is still present and refresh map
   if (map) {
     setTimeout(() => {
@@ -1039,24 +1070,29 @@ export function updateUser(user) {
         console.warn("⚠️ Map container lost, page reload may be needed");
         return;
       }
-      
+
       // Check if map has any tile layers (basemap) that are actually rendering
       let hasWorkingTileLayer = false;
       try {
         map.eachLayer((layer) => {
           // Check if it's a tile layer and if it has a container (is actually rendered)
-          if ((layer instanceof L.TileLayer || layer._url) && layer._container) {
+          if (
+            (layer instanceof L.TileLayer || layer._url) &&
+            layer._container
+          ) {
             hasWorkingTileLayer = true;
           }
         });
       } catch (e) {
         console.error("Error checking map layers:", e);
       }
-      
+
       // If no working basemap found, create a fresh one
       if (!hasWorkingTileLayer) {
-        console.log("🔄 No working basemap layer found, creating fresh layer...");
-        
+        console.log(
+          "🔄 No working basemap layer found, creating fresh layer..."
+        );
+
         // Remove any broken layers first
         const layersToRemove = [];
         try {
@@ -1065,7 +1101,7 @@ export function updateUser(user) {
               layersToRemove.push(layer);
             }
           });
-          layersToRemove.forEach(layer => {
+          layersToRemove.forEach((layer) => {
             try {
               map.removeLayer(layer);
             } catch (e) {
@@ -1075,26 +1111,27 @@ export function updateUser(user) {
         } catch (e) {
           console.warn("Error removing old layers:", e);
         }
-        
+
         // Create a fresh basemap layer instance (can't reuse removed layers)
         const initialName = ls.get(BASEMAP_LS_KEY) || "OSM Greyscale";
-        const referenceLayer = baseLayers[initialName] || baseLayers["OSM Greyscale"];
-        
+        const referenceLayer =
+          baseLayers[initialName] || baseLayers["OSM Greyscale"];
+
         // Get the URL and options from the reference layer
         const url = referenceLayer._url || referenceLayer.options.url;
         const options = {
           maxZoom: referenceLayer.options.maxZoom,
           attribution: referenceLayer.options.attribution,
         };
-        
+
         // Create a completely new tile layer instance
         const freshLayer = L.tileLayer(url, options);
         freshLayer.addTo(map);
         currentBasemapLayer = freshLayer;
-        
+
         console.log("✅ Fresh basemap layer added:", initialName);
       }
-      
+
       // Invalidate size to fix any layout issues and force tile reload
       try {
         map.invalidateSize();
@@ -1106,7 +1143,12 @@ export function updateUser(user) {
         try {
           const center = map.getCenter();
           const zoom = map.getZoom();
-          if (center && center.lat !== undefined && center.lng !== undefined && zoom !== undefined) {
+          if (
+            center &&
+            center.lat !== undefined &&
+            center.lng !== undefined &&
+            zoom !== undefined
+          ) {
             map.setView(center, zoom);
           }
         } catch (viewError) {
@@ -1156,16 +1198,16 @@ function setupObstacleEventHandlers() {
 
     hookLayerInteractions(layerToAdd, featureToStore.properties);
     attachBootstrapTooltip(
-        layerToAdd,
-        tooltipTextFromProps(featureToStore.properties)
+      layerToAdd,
+      tooltipTextFromProps(featureToStore.properties)
     );
 
     const key = showLoading("obstacles-put");
     try {
       const { data, error } = await supabase
-          .from("obstacles")
-          .insert([featureToStore])
-          .select();
+        .from("obstacles")
+        .insert([featureToStore])
+        .select();
 
       if (error) throw error;
 
@@ -1206,8 +1248,8 @@ function setupObstacleEventHandlers() {
           properties: {
             ...(obstacleFeatures[i].properties || {}),
             radius:
-                (updated.properties && updated.properties.radius) ||
-                obstacleFeatures[i].properties?.radius,
+              (updated.properties && updated.properties.radius) ||
+              obstacleFeatures[i].properties?.radius,
           },
         };
 
@@ -1242,7 +1284,7 @@ function setupObstacleEventHandlers() {
 
       // Safely filter local list
       obstacleFeatures = obstacleFeatures.filter(
-          (f) => f.id !== layer.options.obstacleId
+        (f) => f.id !== layer.options.obstacleId
       );
 
       console.log("🚀 Deleting from Supabase with ID:", id);
@@ -1291,7 +1333,7 @@ export async function initMap(user = null) {
     try {
       // Compose the Photon API endpoint with a properly encoded search string.
       const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(
-          query
+        query
       )}`;
 
       // Fetch the GeoJSON response safely.
@@ -1300,10 +1342,10 @@ export async function initMap(user = null) {
       // Map each GeoJSON feature into Leaflet-friendly result objects.
       const results = (json.features || []).map((f) => ({
         name:
-            f.properties.name || // normal place name
-            f.properties.osm_value || // fallback: OSM tag (like "restaurant")
-            f.properties.street || // or street name
-            "Unnamed", // fallback if no name at all
+          f.properties.name || // normal place name
+          f.properties.osm_value || // fallback: OSM tag (like "restaurant")
+          f.properties.street || // or street name
+          "Unnamed", // fallback if no name at all
         center: [
           // convert [lon, lat] → [lat, lon] for Leaflet
           f.geometry.coordinates[1],
@@ -1333,10 +1375,10 @@ export async function initMap(user = null) {
   // Similar to above, but goes the other way around: lat/lng → nearest place name.
   geocoder.reverse = async function (latlng, scale, cb) {
     console.log(
-        "🔎 geocoder.reverse input:",
-        latlng,
-        "array?",
-        Array.isArray(latlng)
+      "🔎 geocoder.reverse input:",
+      latlng,
+      "array?",
+      Array.isArray(latlng)
     );
 
     try {
@@ -1349,10 +1391,10 @@ export async function initMap(user = null) {
       // Convert GeoJSON features to Leaflet-friendly results.
       const results = (json.features || []).map((f) => ({
         name:
-            f.properties.name || // best available name
-            f.properties.osm_value || // fallback (e.g., "building" or "bus_stop")
-            f.properties.street || // or nearby street
-            "Unnamed", // last-resort fallback
+          f.properties.name || // best available name
+          f.properties.osm_value || // fallback (e.g., "building" or "bus_stop")
+          f.properties.street || // or nearby street
+          "Unnamed", // last-resort fallback
         center: [f.geometry.coordinates[1], f.geometry.coordinates[0]],
         properties: f.properties,
       }));
@@ -1380,24 +1422,24 @@ export async function initMap(user = null) {
 
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          map.setView([latitude, longitude], DEFAULT_ZOOM);
-          L.marker([latitude, longitude]).addTo(map);
-        },
-        (error) => {
-          const userDeniedGeolocation = error.code === 1;
-          if (!userDeniedGeolocation) {
-            console.log(error);
-            toastError("Could not get your location. Using default location.", {
-              important: true,
-            });
-          }
-
-          const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
-          // const defaultLatLng = [51.5074, -0.1278]; // London, UK
-          map.setView(defaultLatLng, DEFAULT_ZOOM);
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        map.setView([latitude, longitude], DEFAULT_ZOOM);
+        L.marker([latitude, longitude]).addTo(map);
+      },
+      (error) => {
+        const userDeniedGeolocation = error.code === 1;
+        if (!userDeniedGeolocation) {
+          console.log(error);
+          toastError("Could not get your location. Using default location.", {
+            important: true,
+          });
         }
+
+        const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
+        // const defaultLatLng = [51.5074, -0.1278]; // London, UK
+        map.setView(defaultLatLng, DEFAULT_ZOOM);
+      }
     );
   } else {
     const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
@@ -1446,111 +1488,108 @@ export async function initMap(user = null) {
 
   let destinationGeocodeReqSeq = 0;
   elements.destinationSearchInput.addEventListener(
-      "input",
-      debounce((e) => {
-        console.log("🎯 debounce triggered for query:", e.target.value);
-        const searchQuery = e.target.value.trim();
+    "input",
+    debounce((e) => {
+      console.log("🎯 debounce triggered for query:", e.target.value);
+      const searchQuery = e.target.value.trim();
 
-        if (!searchQuery) {
-          toggleDestinationSuggestions(false);
-          return;
-        }
+      if (!searchQuery) {
+        toggleDestinationSuggestions(false);
+        return;
+      }
 
-        const mySeq = ++destinationGeocodeReqSeq;
-        showListSpinner(elements.destinationSuggestions, "Searching…");
+      const mySeq = ++destinationGeocodeReqSeq;
 
-        geocoder.geocode(searchQuery, (items) => {
-          if (mySeq !== destinationGeocodeReqSeq) return;
+      // MUI "Searching…" state
+      renderDestinationSuggestions([], { loading: true });
 
-          renderDestinationSuggestions(items);
+      geocoder.geocode(searchQuery, (items) => {
+        if (mySeq !== destinationGeocodeReqSeq) return;
 
-          if (!items?.length) {
-            elements.destinationSuggestions.innerHTML = `<li class="list-group-item text-muted">No results</li>`;
-            elements.destinationSuggestions.classList.remove("d-none");
-          }
-        });
-      }, 200)
+        renderDestinationSuggestions(items || [], { loading: false });
+      });
+    }, 200)
   );
 
   let departureGeocodeReqSeq = 0;
   elements.departureSearchInput.addEventListener(
-      "input",
-      debounce((e) => {
-        const searchQuery = e.target.value.trim();
-        if (!searchQuery) {
-          toggleDepartureSuggestions(false);
-          return;
-        }
-        const mySeq = ++departureGeocodeReqSeq;
-        showListSpinner(elements.departureSuggestions, "Searching…");
+    "input",
+    debounce((e) => {
+      const searchQuery = e.target.value.trim();
+      if (!searchQuery) {
+        toggleDepartureSuggestions(false);
+        return;
+      }
+      const mySeq = ++departureGeocodeReqSeq;
+      showListSpinner(elements.departureSuggestions, "Searching…");
 
-        geocoder.geocode(searchQuery, (items) => {
-          if (mySeq !== departureGeocodeReqSeq) return;
-          renderDepartureSuggestions(items);
-          if (!items?.length) {
-            elements.departureSuggestions.innerHTML = `<li class="list-group-item text-muted">No results</li>`;
-            elements.departureSuggestions.classList.remove("d-none");
-          }
-        });
-      }, 200)
+      geocoder.geocode(searchQuery, (items) => {
+        if (mySeq !== departureGeocodeReqSeq) return;
+        renderDepartureSuggestions(items);
+        if (!items?.length) {
+          elements.departureSuggestions.innerHTML = `<li class="list-group-item text-muted">No results</li>`;
+          elements.departureSuggestions.classList.remove("d-none");
+        }
+      });
+    }, 200)
   );
 
   document.addEventListener("click", hideSuggestionsIfClickedOutside);
 
   elements.detailsPanel
-      .querySelector("#btn-start-here")
-      .addEventListener("click", async () => {
-        elements.directionsUi.classList.remove("d-none");
-        mountInOffcanvas("Directions");
-        await setFrom(globals.detailsCtx.latlng);
-        elements.departureSearchInput.focus();
-      });
+    .querySelector("#btn-start-here")
+    .addEventListener("click", async () => {
+      elements.directionsUi.classList.remove("d-none");
+      mountInOffcanvas("Directions");
+      await setFrom(globals.detailsCtx.latlng);
+      elements.departureSearchInput.focus();
+    });
 
   elements.detailsPanel
-      .querySelector("#btn-go-here")
-      .addEventListener("click", async () => {
-        elements.directionsUi.classList.remove("d-none");
-        mountInOffcanvas("Directions");
-        await setTo(globals.detailsCtx.latlng);
-        elements.departureSearchInput.focus();
-      });
+    .querySelector("#btn-go-here")
+    .addEventListener("click", async () => {
+      elements.directionsUi.classList.remove("d-none");
+      mountInOffcanvas("Directions");
+      await setTo(globals.detailsCtx.latlng);
+      elements.departureSearchInput.focus();
+    });
 
   // ✅ Set up review form handler using event delegation
   // This works even if the form is created dynamically after login
   elements.detailsPanel.addEventListener("submit", async (e) => {
     // Only handle review form submissions
     if (e.target.id !== "review-form") return;
-    
+
     e.preventDefault();
-    
+
     // ✅ Check authentication before allowing review submission
     if (!currentUser) {
       toastError("Please log in to submit a review.");
       return;
     }
-    
+
     const textarea = e.target.querySelector("#review-text");
     if (!textarea) return;
-    
+
     const text = textarea.value.trim();
     if (!text) return;
 
     const submitBtn = e.target.querySelector("#submit-review-btn");
-    
+
     try {
       console.log("🧭 Review submit ctx:", globals.detailsCtx);
       const placeId =
-          globals.detailsCtx.placeId ??
-          (await ensurePlaceExists(
-              globals.detailsCtx.tags,
-              globals.detailsCtx.latlng
-          ));
+        globals.detailsCtx.placeId ??
+        (await ensurePlaceExists(
+          globals.detailsCtx.tags,
+          globals.detailsCtx.latlng
+        ));
       const newReview = { text, place_id: placeId };
 
       await withButtonLoading(
-          submitBtn,
-          reviewStorage("POST", newReview),
-          "Saving…"
+        submitBtn,
+        reviewStorage("POST", newReview),
+        "Saving…"
       );
 
       // ✅ Reload and render updated reviews list
