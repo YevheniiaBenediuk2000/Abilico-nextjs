@@ -85,7 +85,7 @@ export default function MapContainer({ user: initialUser }) {
     return () => {
       isMounted = false;
     };
-  }, [user]); // Only run once on mount
+  }, []); // Only run once on mount
 
   // Update user state in mapMain when user changes
   useEffect(() => {
