@@ -376,11 +376,7 @@ export default function MapContainer({ user: initialUser }) {
       <div id="draw-help-alert" className="d-none">
         <Card>
           <CardContent
-            sx={{
-              display: "flex",
-              alignItems: "flex-start",
-              gap: 1.5,
-            }}
+            sx={{ display: "flex", alignItems: "flex-start", gap: 1.5 }}
           >
             <span className="fs-5" aria-hidden="true">
               🧱
