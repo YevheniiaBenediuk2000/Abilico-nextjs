@@ -239,7 +239,6 @@ function selectorsForZoom(
     `node["tourism"]`,
     `node["leisure"]["leisure"!~"${LEISURE_EXCLUDED}"]`,
     `node["healthcare"]`,
-    `node["office"]`,
     `node["historic"]`,
     // (omit building/craft/man_made/military at this level)
   ];

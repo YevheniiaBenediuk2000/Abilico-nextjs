@@ -4,12 +4,29 @@
 //   typeof window !== "undefined" ? "in browser" : "on server"
 // );
 
-const MAPILLARY_TOKEN = process.env.MAPILLARY_TOKEN;
-const mainPhotoWrapper = document.getElementById("main-photo-wrapper");
-const mainPhotoImg = document.getElementById("main-photo");
-const photosGrid = document.getElementById("photos-grid");
-const photosEmpty = document.getElementById("photos-empty");
-const mainPhotoCaption = document.getElementById("main-photo-caption");
+const isBrowser =
+  typeof window !== "undefined" && typeof document !== "undefined";
+
+if (isBrowser) {
+  window.MAPILLARY_TOKEN = process.env.MAPILLARY_TOKEN;
+}
+
+let mainPhotoWrapper = null;
+let mainPhotoImg = null;
+let photosGrid = null;
+let photosEmpty = null;
+let mainPhotoCaption = null;
+
+function ensureDomRefs() {
+  if (!isBrowser) return;
+  if (mainPhotoWrapper) return; // already initialized
+
+  mainPhotoWrapper = document.getElementById("main-photo-wrapper");
+  mainPhotoImg = document.getElementById("main-photo");
+  photosGrid = document.getElementById("photos-grid");
+  photosEmpty = document.getElementById("photos-empty");
+  mainPhotoCaption = document.getElementById("main-photo-caption");
+}
 
 const COMMONS_API = "https://commons.wikimedia.org/w/api.php?origin=*";
 
@@ -275,12 +292,15 @@ async function fetchWikipediaImagesList(lang, title) {
 }
 
 export function showMainPhoto(photo) {
+  if (!isBrowser) return;
+  ensureDomRefs();
+  if (!mainPhotoWrapper || !mainPhotoImg || !mainPhotoCaption) return;
+
   if (!photo) {
     mainPhotoWrapper.classList.add("d-none");
     mainPhotoImg.removeAttribute("src");
     mainPhotoImg.removeAttribute("alt");
     mainPhotoCaption.textContent = "";
-
     return;
   }
 
@@ -292,18 +312,14 @@ export function showMainPhoto(photo) {
     .filter(Boolean)
     .join(" · ");
 
-  // Clicking main photo opens Photos tab and scrolls into view
-  // Clicking main photo opens Photos tab and scrolls into view
   mainPhotoImg.onclick = () => {
     try {
       if (
         typeof window !== "undefined" &&
         typeof window.setDetailsTab === "function"
       ) {
-        // Switch to the MUI Photos tab
         window.setDetailsTab("photos");
       } else if (typeof window !== "undefined" && window.bootstrap) {
-        // Fallback: if old Bootstrap tabs are still around somewhere
         const tabBtn = document.getElementById("photos-tab");
         if (tabBtn) {
           const tab = new window.bootstrap.Tab(tabBtn);
@@ -321,18 +337,19 @@ export function showMainPhoto(photo) {
 }
 
 export function renderPhotosGrid(photos) {
+  if (!isBrowser) return;
+  ensureDomRefs();
+  if (!photosGrid || !photosEmpty) return;
+
   photosGrid.innerHTML = "";
   if (!photos?.length) {
-    // console.log("📸 No photos found, showing message");
     photosEmpty.classList.remove("d-none");
     return;
   }
   photosEmpty.classList.add("d-none");
 
   for (const p of photos) {
-    // console.log("Rendering photo:", p);
     const col = document.createElement("div");
-    // col.className = "col-6";
 
     const a = document.createElement("a");
     a.href = p.pageUrl || p.src;
