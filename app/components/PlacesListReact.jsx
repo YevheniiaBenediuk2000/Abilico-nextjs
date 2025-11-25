@@ -191,6 +191,7 @@ function buildTypeTree(items) {
 
 // localStorage key for place-type filter
 const PLACE_TYPE_FILTER_LS_KEY = "ui.placeType.filter";
+const PHOTOS_ONLY_LS_KEY = "ui.placeList.photosOnly";
 
 function loadInitialTypeFilter() {
   if (typeof window === "undefined") return null;
@@ -402,6 +403,28 @@ export default function PlacesListReact({ data, onSelect }) {
     photoCacheRef.current = photoByKey;
   }, [photoByKey]);
 
+  const [photosOnly, setPhotosOnly] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem(PHOTOS_ONLY_LS_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (photosOnly) {
+        window.localStorage.setItem(PHOTOS_ONLY_LS_KEY, "1");
+      } else {
+        window.localStorage.removeItem(PHOTOS_ONLY_LS_KEY);
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [photosOnly]);
+
   // raw items (with type metadata)
   const rawItems = useMemo(() => {
     const base = (features || []).map((f) => derivePlaceInfo(f, center));
@@ -491,43 +514,58 @@ export default function PlacesListReact({ data, onSelect }) {
   const items = useMemo(() => {
     if (!rawItems.length) return [];
 
-    if (!activeTypeFilters) return rawItems; // all on
+    let filtered = rawItems;
 
-    // Build an easy lookup of selected sublabels by group
-    const selected = new Map();
-    Object.entries(activeTypeFilters).forEach(([groupLabel, subs]) => {
-      const activeSubLabels = Object.entries(subs || {})
-        .filter(([, isOn]) => !!isOn)
-        .map(([subLabel]) => subLabel);
-      if (activeSubLabels.length) selected.set(groupLabel, activeSubLabels);
-    });
+    if (activeTypeFilters) {
+      // Build an easy lookup of selected sublabels by group
+      const selected = new Map();
+      Object.entries(activeTypeFilters).forEach(([groupLabel, subs]) => {
+        const activeSubLabels = Object.entries(subs || {})
+          .filter(([, isOn]) => !!isOn)
+          .map(([subLabel]) => subLabel);
+        if (activeSubLabels.length) selected.set(groupLabel, activeSubLabels);
+      });
 
-    // if nothing is selected at all -> show nothing
-    if (selected.size === 0) return [];
+      // if nothing is selected at all -> show nothing
+      if (selected.size === 0) {
+        filtered = [];
+      } else {
+        const labelForMajor = {
+          amenity: "Amenities",
+          shop: "Shops",
+          tourism: "Tourism",
+          leisure: "Leisure",
+          healthcare: "Healthcare",
+          office: "Office",
+          historic: "Historic",
+          natural: "Natural",
+          sport: "Sport",
+          other: "Other",
+        };
 
-    const labelForMajor = {
-      amenity: "Amenities",
-      shop: "Shops",
-      tourism: "Tourism",
-      leisure: "Leisure",
-      healthcare: "Healthcare",
-      office: "Office",
-      historic: "Historic",
-      natural: "Natural",
-      sport: "Sport",
-      other: "Other",
-    };
+        filtered = rawItems.filter((item) => {
+          const majorLabel = labelForMajor[item.typeMajor] || "Other";
+          const subLabel = (item.typeSub || "other")
+            .toString()
+            .replace(/[_-]/g, " ");
+          const allowedSubs = selected.get(majorLabel);
+          if (!allowedSubs) return false;
+          return allowedSubs.includes(subLabel);
+        });
+      }
+    }
 
-    return rawItems.filter((item) => {
-      const majorLabel = labelForMajor[item.typeMajor] || "Other";
-      const subLabel = (item.typeSub || "other")
-        .toString()
-        .replace(/[_-]/g, " ");
-      const allowedSubs = selected.get(majorLabel);
-      if (!allowedSubs) return false;
-      return allowedSubs.includes(subLabel);
-    });
-  }, [rawItems, activeTypeFilters]);
+    // 👇 NEW: keep only places where we already found at least one photo
+    if (photosOnly) {
+      filtered = filtered.filter((item) => {
+        if (!item.placeKey) return false;
+        const photo = photoByKey[item.placeKey];
+        return !!(photo && (photo.thumb || photo.src || photo.pageUrl));
+      });
+    }
+
+    return filtered;
+  }, [rawItems, activeTypeFilters, photosOnly, photoByKey]);
 
   const hasPlaces = items.length > 0;
 
@@ -556,24 +594,43 @@ export default function PlacesListReact({ data, onSelect }) {
         </Box>
 
         {rawItems.length > 0 && (
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Typography variant="caption" color="text.secondary">
-              Sort by
-            </Typography>
-            <Stack direction="row" spacing={0.5}>
-              <Chip
-                size="small"
-                label="Distance"
-                variant={sortBy === "distance" ? "filled" : "outlined"}
-                onClick={() => setSortBy("distance")}
-              />
-              <Chip
-                size="small"
-                label="Name"
-                variant={sortBy === "name" ? "filled" : "outlined"}
-                onClick={() => setSortBy("name")}
-              />
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <Stack direction="row" spacing={0.5} alignItems="center">
+              <Typography variant="caption" color="text.secondary">
+                Sort by
+              </Typography>
+              <Stack direction="row" spacing={0.5}>
+                <Chip
+                  size="small"
+                  label="Distance"
+                  variant={sortBy === "distance" ? "filled" : "outlined"}
+                  onClick={() => setSortBy("distance")}
+                />
+                <Chip
+                  size="small"
+                  label="Name"
+                  variant={sortBy === "name" ? "filled" : "outlined"}
+                  onClick={() => setSortBy("name")}
+                />
+              </Stack>
             </Stack>
+
+            {/* "Only with photos" toggle */}
+            <FormControlLabel
+              sx={{ ml: 0 }}
+              control={
+                <Checkbox
+                  size="small"
+                  checked={photosOnly}
+                  onChange={(e) => setPhotosOnly(e.target.checked)}
+                />
+              }
+              label={
+                <Typography variant="caption" color="text.secondary">
+                  Only with photos
+                </Typography>
+              }
+            />
           </Stack>
         )}
       </Box>
@@ -592,6 +649,8 @@ export default function PlacesListReact({ data, onSelect }) {
             <Typography variant="body2" color="text.secondary">
               {zoom && zoom < SHOW_PLACES_ZOOM
                 ? "Zoom in on the map to load accessible points of interest."
+                : photosOnly
+                ? 'No places with photos here yet. Try moving the map, zooming in, or turning off "Only with photos".'
                 : "Try moving the map or adjusting the accessibility / type filters."}
             </Typography>
           </Box>
