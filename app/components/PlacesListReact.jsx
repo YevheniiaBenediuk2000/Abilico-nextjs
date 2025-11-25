@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import List from "@mui/material/List";
@@ -21,6 +21,7 @@ import {
   BADGE_COLOR_BY_TIER,
   SHOW_PLACES_ZOOM,
 } from "../constants/constants.mjs";
+import { resolvePlacePhotos } from "../modules/fetchPhotos.mjs";
 
 /** Local copy of the accessibility tier logic to avoid importing Leaflet code */
 function getAccessibilityTier(tags = {}) {
@@ -90,7 +91,6 @@ function derivePlaceInfo(feature, center) {
     tags.historic ||
     "Unnamed place";
 
-  // we’ll also return a “category key” to use in type filters
   const majorKey =
     (tags.amenity && "amenity") ||
     (tags.shop && "shop") ||
@@ -136,6 +136,13 @@ function derivePlaceInfo(feature, center) {
   const accTier = getAccessibilityTier(tags);
   const accColor = BADGE_COLOR_BY_TIER[accTier] || BADGE_COLOR_BY_TIER.unknown;
 
+  // Stable-ish key for caching photos per place
+  const placeKey =
+    (props.osm_type && props.osm_id && `${props.osm_type}/${props.osm_id}`) ||
+    (props.id && String(props.id)) ||
+    (feature.id && String(feature.id)) ||
+    null;
+
   return {
     feature,
     tags,
@@ -147,6 +154,8 @@ function derivePlaceInfo(feature, center) {
     accColor,
     typeMajor: majorKey,
     typeSub: subKey || "other",
+    placeKey,
+    latlng: hasCoord ? { lat, lng: lon } : null,
   };
 }
 
@@ -386,6 +395,13 @@ export default function PlacesListReact({ data, onSelect }) {
   const { features = [], center, zoom } = data || {};
   const [sortBy, setSortBy] = useState("distance"); // "distance" | "name"
 
+  const [photoByKey, setPhotoByKey] = useState({});
+  const photoCacheRef = useRef({});
+
+  useEffect(() => {
+    photoCacheRef.current = photoByKey;
+  }, [photoByKey]);
+
   // raw items (with type metadata)
   const rawItems = useMemo(() => {
     const base = (features || []).map((f) => derivePlaceInfo(f, center));
@@ -405,6 +421,53 @@ export default function PlacesListReact({ data, onSelect }) {
 
     return sorted;
   }, [features, center, sortBy]);
+
+  // Load thumbnails for the closest / first items
+  useEffect(() => {
+    if (!rawItems.length) return;
+
+    let cancelled = false;
+    const MAX_PLACES_WITH_PHOTOS = 24;
+
+    (async () => {
+      const candidates = rawItems
+        .filter((item) => item.placeKey && item.latlng)
+        .slice(0, MAX_PLACES_WITH_PHOTOS);
+
+      for (const item of candidates) {
+        const key = item.placeKey;
+        if (!key) continue;
+
+        // Skip if we already attempted this place
+        if (photoCacheRef.current[key] !== undefined) continue;
+
+        try {
+          const photos = await resolvePlacePhotos(item.tags, item.latlng);
+          if (cancelled) return;
+
+          const first =
+            Array.isArray(photos) && photos.length ? photos[0] : null;
+
+          setPhotoByKey((prev) => {
+            if (prev[key] !== undefined) return prev;
+            return { ...prev, [key]: first };
+          });
+        } catch (err) {
+          console.error("Failed to resolve photos for place", key, err);
+          if (cancelled) return;
+
+          setPhotoByKey((prev) => {
+            if (prev[key] !== undefined) return prev;
+            return { ...prev, [key]: null };
+          });
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rawItems]);
 
   // Place-type filter state for *list* (mirrors NestedPlaceTypeFilter localStorage)
   const [activeTypeFilters, setActiveTypeFilters] = useState(() => {
@@ -534,86 +597,133 @@ export default function PlacesListReact({ data, onSelect }) {
           </Box>
         ) : (
           <List disablePadding dense>
-            {items.map((item, idx) => (
-              <Box key={idx}>
-                <Divider component="li" />
-                <ListItem disablePadding sx={{ alignItems: "stretch" }}>
-                  <ListItemButton
-                    alignItems="flex-start"
-                    onClick={() => onSelect?.(item.feature)}
-                    sx={{ py: 1.5 }}
-                  >
-                    <ListItemText
-                      primary={
-                        <Box
-                          display="flex"
-                          alignItems="center"
-                          justifyContent="space-between"
-                          gap={1}
-                        >
-                          <Typography
-                            variant="subtitle2"
-                            fontWeight={600}
-                            noWrap
+            <Box sx={{ flexGrow: 1, pt: 0.5 }}>
+              {!hasPlaces ? (
+                <Box px={2} py={2}>
+                  <Typography variant="body2" color="text.secondary">
+                    {zoom && zoom < SHOW_PLACES_ZOOM
+                      ? "Zoom in on the map to load accessible points of interest."
+                      : "Try moving the map or adjusting the accessibility / type filters."}
+                  </Typography>
+                </Box>
+              ) : (
+                <List disablePadding dense>
+                  {items.map((item, idx) => {
+                    const photo = item.placeKey
+                      ? photoByKey[item.placeKey]
+                      : undefined;
+                    const thumbSrc = photo && (photo.thumb || photo.src || "");
+
+                    if (!thumbSrc) return null;
+
+                    return (
+                      <Box key={item.placeKey || idx}>
+                        <Divider component="li" />
+                        <ListItem disablePadding sx={{ alignItems: "stretch" }}>
+                          <ListItemButton
+                            alignItems="flex-start"
+                            onClick={() => onSelect?.(item.feature)}
+                            sx={{ py: 1.5 }}
                           >
-                            {item.name}
-                          </Typography>
-                          {item.distKm != null && (
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                              sx={{ whiteSpace: "nowrap" }}
+                            <Box
+                              display="flex"
+                              gap={1.5}
+                              alignItems="flex-start"
+                              width="100%"
                             >
-                              {formatDistance(item.distKm)}
-                            </Typography>
-                          )}
-                        </Box>
-                      }
-                      secondary={
-                        <Box mt={0.5}>
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                            display="block"
-                            noWrap
-                          >
-                            {item.category || "Point of interest"}
-                          </Typography>
-                          {item.address && (
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                              display="block"
-                              noWrap
-                            >
-                              {item.address}
-                            </Typography>
-                          )}
-                          <Box mt={0.75}>
-                            <Chip
-                              size="small"
-                              label={
-                                item.accTier === "unknown"
-                                  ? "Accessibility: unknown"
-                                  : `Accessibility: ${item.accTier}`
-                              }
-                              sx={{
-                                bgcolor: item.accColor,
-                                color: "#fff",
-                                fontSize: "0.7rem",
-                                height: 22,
-                              }}
-                            />
-                          </Box>
-                        </Box>
-                      }
-                      primaryTypographyProps={{ component: "div" }}
-                      secondaryTypographyProps={{ component: "div" }}
-                    />
-                  </ListItemButton>
-                </ListItem>
-              </Box>
-            ))}
+                              {thumbSrc && (
+                                <Box
+                                  component="img"
+                                  src={thumbSrc}
+                                  alt={photo?.title || item.name}
+                                  loading="lazy"
+                                  sx={{
+                                    width: 64,
+                                    height: 64,
+                                    borderRadius: 1,
+                                    objectFit: "cover",
+                                    flexShrink: 0,
+                                    bgcolor: "grey.200",
+                                  }}
+                                />
+                              )}
+
+                              <ListItemText
+                                primary={
+                                  <Box
+                                    display="flex"
+                                    alignItems="center"
+                                    justifyContent="space-between"
+                                    gap={1}
+                                  >
+                                    <Typography
+                                      variant="subtitle2"
+                                      fontWeight={600}
+                                      noWrap
+                                    >
+                                      {item.name}
+                                    </Typography>
+                                    {item.distKm != null && (
+                                      <Typography
+                                        variant="caption"
+                                        color="text.secondary"
+                                        sx={{ whiteSpace: "nowrap" }}
+                                      >
+                                        {formatDistance(item.distKm)}
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                }
+                                secondary={
+                                  <Box mt={0.5}>
+                                    <Typography
+                                      variant="caption"
+                                      color="text.secondary"
+                                      display="block"
+                                      noWrap
+                                    >
+                                      {item.category || "Point of interest"}
+                                    </Typography>
+                                    {item.address && (
+                                      <Typography
+                                        variant="caption"
+                                        color="text.secondary"
+                                        display="block"
+                                        noWrap
+                                      >
+                                        {item.address}
+                                      </Typography>
+                                    )}
+                                    <Box mt={0.75}>
+                                      <Chip
+                                        size="small"
+                                        label={
+                                          item.accTier === "unknown"
+                                            ? "Accessibility: unknown"
+                                            : `Accessibility: ${item.accTier}`
+                                        }
+                                        sx={{
+                                          bgcolor: item.accColor,
+                                          color: "#fff",
+                                          fontSize: "0.7rem",
+                                          height: 22,
+                                        }}
+                                      />
+                                    </Box>
+                                  </Box>
+                                }
+                                primaryTypographyProps={{ component: "div" }}
+                                secondaryTypographyProps={{ component: "div" }}
+                              />
+                            </Box>
+                          </ListItemButton>
+                        </ListItem>
+                      </Box>
+                    );
+                  })}
+                </List>
+              )}
+            </Box>
           </List>
         )}
       </Box>
