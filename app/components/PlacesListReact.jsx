@@ -241,12 +241,13 @@ function NestedPlaceTypeFilter({ items }) {
 
   const [selection, setSelection] = useState(() => {
     const fromLs = loadInitialTypeFilter();
-    if (!fromLs) return defaultState;
+    if (!fromLs || typeof fromLs !== "object") return defaultState;
     // merge with default (so new categories get added)
     const merged = { ...defaultState };
     Object.entries(fromLs).forEach(([group, subs]) => {
       if (!merged[group]) merged[group] = {};
-      Object.entries(subs || {}).forEach(([sub, val]) => {
+      if (!subs || typeof subs !== "object") return;
+      Object.entries(subs).forEach(([sub, val]) => {
         if (merged[group].hasOwnProperty(sub)) {
           merged[group][sub] = !!val;
         } else {
@@ -263,7 +264,8 @@ function NestedPlaceTypeFilter({ items }) {
 
     // Build payload for non-React consumers
     const active = [];
-    Object.entries(selection).forEach(([groupLabel, subs]) => {
+    Object.entries(selection || {}).forEach(([groupLabel, subs]) => {
+      if (!subs || typeof subs !== "object") return;
       Object.entries(subs).forEach(([subLabel, isOn]) => {
         if (!isOn) return;
         active.push({ groupLabel, subLabel });
@@ -280,14 +282,16 @@ function NestedPlaceTypeFilter({ items }) {
 
   // group-level helpers
   const isGroupAllChecked = (groupLabel) => {
-    const subs = selection[groupLabel] || {};
+    const subs = selection?.[groupLabel];
+    if (!subs || typeof subs !== "object") return false;
     const values = Object.values(subs);
     if (!values.length) return false;
     return values.every(Boolean);
   };
 
   const isGroupSomeChecked = (groupLabel) => {
-    const subs = selection[groupLabel] || {};
+    const subs = selection?.[groupLabel];
+    if (!subs || typeof subs !== "object") return false;
     const values = Object.values(subs);
     return values.some(Boolean);
   };
@@ -296,6 +300,7 @@ function NestedPlaceTypeFilter({ items }) {
     setSelection((prev) => {
       const next = { ...prev };
       const subs = next[groupLabel] || {};
+      if (!subs || typeof subs !== "object") return next;
       const allChecked = Object.values(subs).every(Boolean);
       const newSubs = {};
       Object.keys(subs).forEach((subLabel) => {
