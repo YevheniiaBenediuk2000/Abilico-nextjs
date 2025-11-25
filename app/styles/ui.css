@@ -6,7 +6,6 @@
   width: clamp(240px, 60vw, 420px);
 }
 
-.search-input,
 .search-suggestions button {
   padding-top: 10px;
   padding-bottom: 10px;
@@ -15,12 +14,15 @@
 /* Suggestions dropdown */
 .search-suggestions {
   position: absolute;
-  top: 56px;
-  z-index: 402;
+  top: 40px;
+  z-index: 1001;
   max-height: 320px;
 
   overflow: auto;
-  background-color: var(--bs-list-group-bg);
+}
+
+#destination-search-bar div {
+  margin-left: 0;
 }
 
 /* When the destination-search-bar lives inside the Offcanvas, make it full-width & non-absolute */
@@ -58,10 +60,6 @@
   background-color: var(--bs-danger);
 }
 
-#accessibility-legend {
-  margin-bottom: 0;
-}
-
 #accessibility-legend .btn-check:not(:checked) + label.btn {
   opacity: 0.5;
   transform: scale(0.95);
@@ -85,13 +83,22 @@
   --bm-thumb-w: 96px;
   --bm-thumb-h: 64px;
 
-  background: var(--bs-body-bg);
-  border-radius: 0.75rem;
+  background-color: #fff;
+  border-radius: 4px;
+
+  /* MUI-ish elevation (approx. Card elevation 1–2) */
+  box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),
+    0px 1px 1px 0px rgba(0, 0, 0, 0.14), 0px 1px 3px 0px rgba(0, 0, 0, 0.12);
+
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  overflow: hidden; /* keep thumbnails clipped to rounded corners */
 }
 
 .basemap-gallery__head {
   display: flex;
-  padding: 0.5rem 0.6rem;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background-color: rgba(0, 0, 0, 0.02); /* subtle header background */
 }
 
 .bm-head-btn {
@@ -106,31 +113,18 @@
   height: var(--bm-thumb-h);
   object-fit: cover;
   display: block;
-  border-radius: 0.75rem;
+  border-radius: 4px;
 }
 
 .map-list-button {
   border-radius: 0;
 }
 
-.bm-head-label {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  padding: 0.15rem 0.5rem;
-  font-weight: 600;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.45);
-  border-radius: 0.5rem;
-  backdrop-filter: blur(2px);
-}
-
 .basemap-gallery__grid {
   display: none; /* collapsed by default */
   grid-template-columns: repeat(2, var(--bm-thumb-w));
   gap: 0.5rem;
-  padding: 0.5rem;
+  padding: 0.75rem;
 }
 
 .leaflet-control.basemap-gallery:hover .basemap-gallery__grid {
@@ -141,22 +135,12 @@
 }
 
 /* Thumb buttons */
-.bm-item.btn {
-  padding: 0;
-  border: 1px solid var(--bs-border-color);
-}
 
 .bm-item__img {
   width: var(--bm-thumb-w);
   height: var(--bm-thumb-h);
   object-fit: cover;
   display: block;
-}
-
-.bm-item__label {
-  position: absolute;
-  font-size: 0.75rem;
-  text-wrap: wrap;
 }
 
 .leaflet-control.basemap-gallery .bm-item.active,
@@ -202,30 +186,78 @@
 
 #map {
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   width: 100%;
 }
 
 /* === Obstacle Management Overlay === */
 #obstacle-management-overlay {
   pointer-events: auto;
-  /* Position it to match Leaflet control positioning in top-right */
-  /* It should appear below the accessibility legend */
+  right: 12px;
+  z-index: 400;
+  top: 200px;
 }
 
-#obstacle-management-overlay .bg-dark {
-  backdrop-filter: blur(4px);
-  background-color: rgba(33, 37, 41, 0.95) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+/* === Leaflet.draw toolbar – MUI-like card === */
+
+.leaflet-control.leaflet-draw {
+  /* MUI Card-ish container */
+  background-color: #fff;
+  border-radius: 4px;
+  box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),
+    0px 1px 1px 0px rgba(0, 0, 0, 0.14), 0px 1px 3px 0px rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-/* Ensure Leaflet controls appear above the overlay and are always clickable */
-.leaflet-top.leaflet-right .leaflet-control {
-  z-index: 1000 !important;
-  position: relative;
+/* Remove default Leaflet bar styling inside draw control */
+.leaflet-control.leaflet-draw .leaflet-bar {
+  box-shadow: none;
+  border-radius: 0;
+  border: 0;
+  background-color: transparent;
+  margin: 0;
 }
 
-/* Make sure the overlay doesn't block controls */
-#obstacle-management-overlay {
-  z-index: 400 !important;
+/* Separate draw / edit sections with a subtle divider */
+.leaflet-control.leaflet-draw .leaflet-draw-section + .leaflet-draw-section {
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* Toolbar buttons (polyline, polygon, rectangle, circle, edit, delete) */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a {
+  border-radius: 0;
+  border: 0;
+  background-color: transparent;
+  display: block;
+}
+
+/* Hover / focus states similar to MUI icon buttons */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a:hover,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a:focus {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+/* Active mode (button enabled) – primary-tinted background */
+.leaflet-control.leaflet-draw
+  .leaflet-draw-toolbar
+  a.leaflet-draw-toolbar-button-enabled {
+  background-color: rgba(25, 118, 210, 0.12);
+}
+
+/* Action row (Finish / Cancel / Delete last point, etc.) */
+.leaflet-control.leaflet-draw .leaflet-draw-actions {
+  border-radius: 0;
+  background-color: #fafafa;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.leaflet-control.leaflet-draw .leaflet-draw-actions li {
+  border: 0;
+}
+
+.leaflet-control.leaflet-draw .leaflet-draw-actions a {
+  letter-spacing: 0.04em;
 }

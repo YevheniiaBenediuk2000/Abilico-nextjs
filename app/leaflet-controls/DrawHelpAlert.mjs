@@ -1,33 +1,46 @@
 import { ls } from "../utils/localStorage.mjs";
-import L from "leaflet"
+import L from "leaflet";
 
 export const DRAW_HELP_LS_KEY = "ui.drawHelp.dismissed";
 
 export const DrawHelpAlert = L.Control.extend({
   options: { position: "topright" },
+
   onAdd() {
     const container = L.DomUtil.create("div", "leaflet-control");
-    const originalAlertEl = document.getElementById("draw-help-alert");
+    const template = document.getElementById("draw-help-alert");
 
-    const alertEl = originalAlertEl.cloneNode(true);
+    if (!template) {
+      return container;
+    }
+
+    // Clone the React-rendered template (MUI Card) and show it
+    const alertEl = template.cloneNode(true);
     alertEl.classList.remove("d-none");
 
-    // prevent the alert from panning/zooming the map when interacted with
+    // Prevent interaction from affecting the map
     L.DomEvent.disableClickPropagation(container);
     L.DomEvent.disableScrollPropagation(container);
 
-    // Persist dismissal before the element is removed
-    alertEl.addEventListener("close.bs.alert", () => {
-      ls.set(DRAW_HELP_LS_KEY, "1");
-    });
+    const control = this;
 
-    // After it's closed, remove the Leaflet control so no empty box remains
-    alertEl.addEventListener("closed.bs.alert", () => {
-      if (this._map) this._map.removeControl(this);
-    });
+    // Custom close handler instead of Bootstrap's alert events
+    const closeBtn = alertEl.querySelector("[data-role='draw-help-close']");
+    if (closeBtn) {
+      closeBtn.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+
+        // Remember dismissal so we don't show it again
+        ls.set(DRAW_HELP_LS_KEY, "1");
+
+        if (control._map) {
+          control._map.removeControl(control);
+        }
+      });
+    }
 
     container.append(alertEl);
-
     return container;
   },
 });

@@ -20,16 +20,12 @@ import {
   DRAW_HELP_LS_KEY,
   DrawHelpAlert,
 } from "./leaflet-controls/DrawHelpAlert.mjs";
-import {
-  AccessibilityLegend,
-  getAccessibilityTier,
-} from "./leaflet-controls/AccessibilityLegend.mjs";
+import { AccessibilityLegend } from "./leaflet-controls/AccessibilityLegend.mjs";
 import { ls } from "./utils/localStorage.mjs";
 import {
   duringLoading,
   hideLoading,
   showDetailsLoading,
-  showListSpinner,
   showLoading,
   withButtonLoading,
 } from "./utils/loading.mjs";
@@ -44,6 +40,8 @@ import {
   resolvePlacePhotos,
   showMainPhoto,
 } from "./modules/fetchPhotos.mjs";
+import { ZoomMuiControl } from "./leaflet-controls/ZoomMuiControl.mjs";
+import { queryClient } from "./queryClient.js";
 
 // console.log("🧭 mapMain.js imported fetchPhotos.mjs successfully");
 
@@ -69,6 +67,17 @@ let accessibilityFilter = new Set([
   "unknown",
   "no",
 ]);
+
+// Map-wide cache of places by stable OSM key (N/123, W/456, R/789)
+const placesCacheById = new Map();
+// Optional: also track a simple array of all known features for quick reuse
+let allPlacesFeatures = [];
+
+let departureSuggestionsRoot = null;
+let departureSuggestionsRenderSeq = 0;
+
+let destinationSuggestionsRoot = null;
+let destinationSuggestionsRenderSeq = 0;
 
 let map = null;
 let geocoder = null;
@@ -101,6 +110,93 @@ let obstacleModalInstance = null;
 let obstacleForm, obstacleTitleInput;
 
 let obstacleFeatures = [];
+
+let editingReviewId = null;
+
+// place-type filter state used on the map side
+let placeTypeFilterState = null; // { [groupLabel]: { [subLabel]: boolean } } or null = all on
+
+// helper to load from localStorage (same key as React)
+const PLACE_TYPE_FILTER_LS_KEY = "ui.placeType.filter";
+
+function loadPlaceTypeFilterFromLS() {
+  try {
+    const raw = localStorage.getItem(PLACE_TYPE_FILTER_LS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") return parsed;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+// used when building markers to decide if a feature is visible
+function isFeatureAllowedByTypeFilter(feature) {
+  if (!placeTypeFilterState) return true; // no filter -> all allowed
+
+  const props = feature.properties || {};
+  const tags = props.tags || props;
+
+  const major =
+    (tags.amenity && "amenity") ||
+    (tags.shop && "shop") ||
+    (tags.tourism && "tourism") ||
+    (tags.leisure && "leisure") ||
+    (tags.healthcare && "healthcare") ||
+    (tags.office && "office") ||
+    (tags.historic && "historic") ||
+    (tags.natural && "natural") ||
+    (tags.sport && "sport") ||
+    "other";
+
+  const labelForMajor = {
+    amenity: "Amenities",
+    shop: "Shops",
+    tourism: "Tourism",
+    leisure: "Leisure",
+    healthcare: "Healthcare",
+    office: "Office",
+    historic: "Historic",
+    natural: "Natural",
+    sport: "Sport",
+    other: "Other",
+  };
+
+  const groupLabel = labelForMajor[major] || "Other";
+
+  // build subLabel exactly like in PlacesListReact
+  const subRaw =
+    tags[major] ||
+    tags.amenity ||
+    tags.shop ||
+    tags.tourism ||
+    tags.leisure ||
+    tags.healthcare ||
+    tags.office ||
+    tags.historic ||
+    tags.natural ||
+    tags.sport ||
+    "other";
+
+  const subLabel = subRaw.toString().replace(/[_-]/g, " ");
+
+  const group = placeTypeFilterState[groupLabel];
+  if (!group) return false;
+
+  const val = group[subLabel];
+  // if subLabel never existed in this group, treat as off
+  return !!val;
+}
+
+function placeKeyFromFeature(feature) {
+  const p = feature.properties || {};
+  const osmType = p.osm_type || p.type;
+  const osmId = p.osm_id || p.id;
+
+  if (!osmType || !osmId) return null;
+  return `${osmType}/${osmId}`; // e.g. "N/123456789"
+}
 
 function showQuickRoutePopup(latlng) {
   const html = `
@@ -295,7 +391,6 @@ function hookLayerInteractions(layer, props) {
   layer.off("click");
   layer.on("click", () => {
     if (drawState.deleting || drawState.editing) return;
-    
     // ✅ Only allow editing if user is logged in
     if (!currentUser) {
       // For non-logged-in users, show a read-only popup with obstacle info
@@ -308,19 +403,19 @@ function hookLayerInteractions(layer, props) {
           Log in
         </a>
       `;
-      
       L.popup({
         className: "obstacle-readonly-popup",
         closeButton: true,
         autoClose: true,
         closeOnClick: true,
       })
-        .setLatLng(layer.getLatLng ? layer.getLatLng() : layer.getBounds().getCenter())
+        .setLatLng(
+          layer.getLatLng ? layer.getLatLng() : layer.getBounds().getCenter()
+        )
         .setContent(popupContent)
         .openOn(map);
       return;
     }
-    
     // Logged-in users can edit
     openEditModalForLayer(layer);
   });
@@ -349,30 +444,87 @@ function toggleObstaclesByZoom() {
   }
 }
 
+function serializeBounds(bounds) {
+  const s = bounds.getSouth();
+  const w = bounds.getWest();
+  const n = bounds.getNorth();
+  const e = bounds.getEast();
+  const round = (v) => Number(v.toFixed(4)); // ~10m precision
+  return [round(s), round(w), round(n), round(e)];
+}
+
+function accessibilityKey() {
+  return Array.from(accessibilityFilter).sort().join(",");
+}
+
 let placesReqSeq = 0;
 async function refreshPlaces() {
   const mySeq = ++placesReqSeq; // capture this call’s id
 
+  const bounds = map.getBounds();
   const zoom = map.getZoom();
   const key = showLoading("places");
 
   try {
-    const geojson = await fetchPlaces(map.getBounds(), zoom, {
-      accessibilityFilter,
-    });
+    const queryKey = [
+      "places",
+      serializeBounds(bounds),
+      zoom,
+      accessibilityKey(),
+    ];
+
+    // ✅ 1. Try to reuse from cache (no network at all if present)
+    let geojson = queryClient.getQueryData(queryKey);
+
+    // ✅ 2. If not cached yet, fetch & cache via react-query
+    if (!geojson) {
+      geojson = await queryClient.fetchQuery({
+        queryKey,
+        queryFn: () => fetchPlaces(bounds, zoom, { accessibilityFilter }),
+      });
+    }
+
     // If this response is for an old call, ignore it
     if (mySeq !== placesReqSeq) return;
+
+    // ✅ 1) Merge fresh features into global cache
+    const freshFeatures = geojson.features || [];
+    freshFeatures.forEach((f) => {
+      const k = placeKeyFromFeature(f);
+      if (!k) return;
+      placesCacheById.set(k, f);
+    });
+
+    // Optional: keep a flat array for convenience
+    allPlacesFeatures = Array.from(placesCacheById.values());
+
+    // ✅ 2) Compute which cached features are inside current bounds
+    const featuresInView = allPlacesFeatures.filter((f) => {
+      const g = f.geometry;
+      if (!g) return false;
+      if (g.type !== "Point" || !Array.isArray(g.coordinates)) return false;
+
+      const [lng, lat] = g.coordinates;
+      return bounds.contains(L.latLng(lat, lng));
+    });
+
+    const geojsonForView = {
+      type: "FeatureCollection",
+      features: featuresInView,
+    };
 
     placeClusterLayer.clearLayers();
 
     const placesLayer = L.geoJSON(geojson, {
+      filter: (feature) => {
+        // called for each feature; return true to keep it
+        return isFeatureAllowedByTypeFilter(feature);
+      },
       pointToLayer: (feature, latlng) => {
         const tags = feature.properties.tags || feature.properties;
-        // console.log("POI tags sample:", tags);
-
         const marker = L.marker(latlng, {
           pane: "places-pane",
-          icon: makePoiIcon(tags), // <-- fixed 33px badge
+          icon: makePoiIcon(tags),
         })
             .on("click", () => {
               renderDetails(tags, L.latLng(latlng), { keepDirectionsUi: true });
@@ -391,7 +543,28 @@ async function refreshPlaces() {
         return marker;
       },
     });
+
     placeClusterLayer.addLayer(placesLayer);
+
+    // 🔗 Notify React list overlay about places in the current viewport
+    try {
+      if (
+        typeof window !== "undefined" &&
+        typeof window.setPlacesListData === "function"
+      ) {
+        const center = map.getCenter();
+        const features =
+          geojson && Array.isArray(geojson.features) ? geojson.features : [];
+
+        window.setPlacesListData({
+          features,
+          center: center ? { lat: center.lat, lng: center.lng } : null,
+          zoom,
+        });
+      }
+    } catch (err) {
+      console.error("❌ Failed to update places list overlay:", err);
+    }
   } finally {
     hideLoading(key);
   }
@@ -410,13 +583,261 @@ function moveDepartureSearchBarUnderTo() {
   toLabel.insertAdjacentElement("afterend", elements.destinationSearchBar);
 }
 
-const renderOneReview = (text) => {
-  const li = document.createElement("li");
-  li.className = "list-group-item text-wrap";
-  li.innerHTML = `${text}<div class="mt-1 d-flex flex-wrap gap-1 review-badges"></div>`;
-  elements.reviewsList.appendChild(li);
-};
+function renderReviewsList() {
+  const listEl = elements.reviewsList;
+  if (!listEl) return;
 
+  listEl.innerHTML = "";
+
+  if (!globals.reviews || globals.reviews.length === 0) {
+    const emptyMsg = document.createElement("li");
+    emptyMsg.className = "list-group-item text-muted";
+    emptyMsg.textContent = "No reviews yet.";
+    listEl.appendChild(emptyMsg);
+    return;
+  }
+
+  globals.reviews.forEach((review) => {
+    const li = document.createElement("li");
+    li.className = "list-group-item text-wrap";
+    li.dataset.reviewId = review.id;
+
+    const isEditing = editingReviewId === review.id;
+
+    if (isEditing) {
+      // === Inline edit mode ===
+      const form = document.createElement("form");
+      form.className = "d-grid gap-2";
+
+      const textarea = document.createElement("textarea");
+      textarea.className = "form-control";
+      textarea.value = review.comment || "";
+      textarea.required = true;
+      textarea.rows = 3;
+      textarea.setAttribute("aria-label", "Edit your review");
+      form.appendChild(textarea);
+
+      const footerRow = document.createElement("div");
+      footerRow.className =
+        "d-flex justify-content-between align-items-center mt-1 gap-2";
+
+      const meta = document.createElement("small");
+      meta.className = "text-muted";
+
+      if (review.created_at) {
+        const dt = new Date(review.created_at);
+        if (!Number.isNaN(dt.getTime())) {
+          meta.textContent = dt.toLocaleString(undefined, {
+            year: "numeric",
+            month: "short",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+        } else {
+          meta.textContent = "Editing your review";
+        }
+      } else {
+        meta.textContent = "Editing your review";
+      }
+
+      const actions = document.createElement("div");
+      actions.className = "btn-group btn-group-sm";
+
+      const cancelBtn = document.createElement("button");
+      cancelBtn.type = "button";
+      cancelBtn.className = "btn btn-outline-secondary btn-sm";
+      cancelBtn.textContent = "Cancel";
+      cancelBtn.addEventListener("click", () => {
+        editingReviewId = null;
+        renderReviewsList();
+        // Re-render badges/summary for consistency
+        recomputePlaceAccessibilityKeywords().catch(console.error);
+      });
+
+      const saveBtn = document.createElement("button");
+      saveBtn.type = "submit";
+      saveBtn.className = "btn btn-primary btn-sm";
+      saveBtn.textContent = "Save";
+
+      actions.appendChild(cancelBtn);
+      actions.appendChild(saveBtn);
+      footerRow.appendChild(meta);
+      footerRow.appendChild(actions);
+      form.appendChild(footerRow);
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        if (!currentUser) {
+          toastError("Please log in to edit your review.");
+          return;
+        }
+
+        const currentText = review.comment || "";
+        const trimmed = textarea.value.trim();
+
+        // If unchanged or empty -> just exit edit mode
+        if (!trimmed || trimmed === currentText) {
+          editingReviewId = null;
+          renderReviewsList();
+          recomputePlaceAccessibilityKeywords().catch(console.error);
+          return;
+        }
+
+        try {
+          const updated = await withButtonLoading(
+            saveBtn,
+            reviewStorage("PUT", {
+              id: review.id,
+              text: trimmed,
+              rating: review.rating,
+              image_url: review.image_url,
+            }),
+            "Saving…"
+          );
+
+          if (!Array.isArray(updated) || !updated.length) {
+            toastError("Could not update review. Please try again.");
+            return;
+          }
+
+          const idx = globals.reviews.findIndex((r) => r.id === review.id);
+          if (idx !== -1) {
+            globals.reviews[idx] = {
+              ...globals.reviews[idx],
+              comment: trimmed,
+            };
+          }
+
+          editingReviewId = null;
+          renderReviewsList();
+          recomputePlaceAccessibilityKeywords().catch(console.error);
+        } catch (err) {
+          console.error("❌ Failed to update review:", err);
+          toastError("Could not update review. Please try again.");
+        }
+      });
+
+      li.appendChild(form);
+
+      // Placeholder for accessibility keyword badges
+      const badgesWrap = document.createElement("div");
+      badgesWrap.className = "mt-1 d-flex flex-wrap gap-1 review-badges";
+      badgesWrap.setAttribute("aria-label", "Detected accessibility mentions");
+      li.appendChild(badgesWrap);
+    } else {
+      // === Normal (read-only) mode ===
+
+      // Main text
+      const textP = document.createElement("p");
+      textP.className = "mb-1";
+      textP.textContent = review.comment || "";
+      li.appendChild(textP);
+
+      // Meta + actions row
+      const footer = document.createElement("div");
+      footer.className =
+        "d-flex justify-content-between align-items-center mt-1 gap-2";
+
+      const meta = document.createElement("small");
+      meta.className = "text-muted";
+
+      if (review.created_at) {
+        const dt = new Date(review.created_at);
+        if (!Number.isNaN(dt.getTime())) {
+          meta.textContent = dt.toLocaleString(undefined, {
+            year: "numeric",
+            month: "short",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+        }
+      }
+
+      footer.appendChild(meta);
+
+      // Only owners (and admins) can edit/delete
+      const isOwner = !!currentUser;
+
+      const ADMIN_EMAILS = [
+        "yevheniiabenediuk@gmail.com",
+        "victor.shevchuk.96@gmail.com",
+      ];
+      const isAdmin =
+        !!currentUser &&
+        !!currentUser.email &&
+        ADMIN_EMAILS.includes(currentUser.email);
+
+      if (isOwner || isAdmin) {
+        const actions = document.createElement("div");
+        actions.className = "btn-group btn-group-sm";
+
+        const editBtn = document.createElement("button");
+        editBtn.type = "button";
+        editBtn.className = "btn btn-outline-secondary btn-sm";
+        editBtn.textContent = "Edit";
+        editBtn.addEventListener("click", () => handleEditReview(review));
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.type = "button";
+        deleteBtn.className = "btn btn-outline-danger btn-sm";
+        deleteBtn.textContent = "Delete";
+        deleteBtn.addEventListener("click", () => handleDeleteReview(review));
+
+        actions.appendChild(editBtn);
+        actions.appendChild(deleteBtn);
+        footer.appendChild(actions);
+      }
+
+      li.appendChild(footer);
+
+      // Placeholder for accessibility keyword badges
+      const badgesWrap = document.createElement("div");
+      badgesWrap.className = "mt-1 d-flex flex-wrap gap-1 review-badges";
+      badgesWrap.setAttribute("aria-label", "Detected accessibility mentions");
+      li.appendChild(badgesWrap);
+    }
+
+    listEl.appendChild(li);
+  });
+}
+
+async function handleEditReview(review) {
+  if (!currentUser) {
+    toastError("Please log in to edit your review.");
+    return;
+  }
+
+  // Toggle inline edit mode for this review
+  editingReviewId = review.id;
+  renderReviewsList();
+}
+
+async function handleDeleteReview(review) {
+  if (!currentUser) {
+    toastError("Please log in to delete your review.");
+    return;
+  }
+
+  try {
+    const ok = await reviewStorage("DELETE", { id: review.id });
+    if (ok === false) {
+      toastError("Could not delete review. Please try again.");
+      return;
+    }
+
+    globals.reviews = globals.reviews.filter((r) => r.id !== review.id);
+    renderReviewsList();
+    recomputePlaceAccessibilityKeywords().catch(console.error);
+  } catch (err) {
+    console.error("❌ Failed to delete review:", err);
+    toastError("Could not delete review. Please try again.");
+  }
+}
+
+// (keep makeCircleFeature as-is below)
 function makeCircleFeature(layer) {
   const center = layer.getLatLng();
   const radius = layer.getRadius(); // meters
@@ -633,15 +1054,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   }
 
   // ✅ Render reviews
-  elements.reviewsList.innerHTML = "";
-  if (globals.reviews.length === 0) {
-    const emptyMsg = document.createElement("li");
-    emptyMsg.className = "list-group-item text-muted";
-    emptyMsg.textContent = "No reviews yet.";
-    elements.reviewsList.appendChild(emptyMsg);
-  } else {
-    globals.reviews.forEach((r) => renderOneReview(r.comment));
-  }
+  renderReviewsList();
 
   // --- Photos ---
   try {
@@ -710,73 +1123,121 @@ async function initDrawingObstacles() {
   // ✅ Only initialize draw controls and event handlers if user is logged in
   if (currentUser) {
     if (!drawControl) {
-  drawControl = new L.Control.Draw({
-    position: "topright",
-    edit: { featureGroup: drawnItems },
-    draw: {
-      polyline: { shapeOptions: { color: "red" } },
-      marker: false,
-      polygon: { allowIntersection: false, shapeOptions: { color: "red" } },
-      rectangle: { shapeOptions: { color: "red" } },
-      circle: { shapeOptions: { color: "red" } },
-      circlemarker: false,
-    },
-  });
+      drawControl = new L.Control.Draw({
+        position: "topright",
+        edit: { featureGroup: drawnItems },
+        draw: {
+          polyline: { shapeOptions: { color: "red" } },
+          marker: false,
+          polygon: { allowIntersection: false, shapeOptions: { color: "red" } },
+          rectangle: { shapeOptions: { color: "red" } },
+          circle: { shapeOptions: { color: "red" } },
+          circlemarker: false,
+        },
+      });
     }
-    
+
     // Set up event handlers if not already done
     if (!obstacleEventHandlersSetup) {
       setupObstacleEventHandlers();
     }
-    
     toggleObstaclesByZoom();
   }
 }
 
-function renderDepartureSuggestions(items) {
-  elements.departureSuggestions.innerHTML = "";
-  if (!items || !items.length) {
-    toggleDepartureSuggestions(false);
-    return;
-  }
-  items.forEach((res, idx) => {
-    const li = document.createElement("li");
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className =
-        "list-group-item list-group-item-action list-group-item-light";
-    btn.role = "option";
-    btn.dataset.index = String(idx);
-    btn.textContent = res.name;
-    btn.addEventListener("click", () => selectDepartureSuggestion(items[idx]));
-    li.appendChild(btn);
-    elements.departureSuggestions.appendChild(li);
-  });
-  toggleDepartureSuggestions(true);
+function renderDepartureSuggestions(items, { loading = false } = {}) {
+  if (!elements.departureSuggestions) return;
+
+  const mySeq = ++departureSuggestionsRenderSeq;
+
+  (async () => {
+    try {
+      const [ReactMod, ReactDOMMod, CompMod] = await Promise.all([
+        import("react"),
+        import("react-dom/client"),
+        import("./components/DepartureSuggestionsReact"),
+      ]);
+
+      // If a newer render was requested, skip this one
+      if (mySeq !== departureSuggestionsRenderSeq) return;
+
+      const React = ReactMod.default || ReactMod;
+      const { createRoot } = ReactDOMMod;
+      const DepartureSuggestionsReact = CompMod.default || CompMod;
+
+      if (!departureSuggestionsRoot) {
+        departureSuggestionsRoot = createRoot(elements.departureSuggestions);
+      }
+
+      const handleSelect = (item) => {
+        toggleDepartureSuggestions(false);
+        selectDepartureSuggestion(item); // existing logic
+      };
+
+      departureSuggestionsRoot.render(
+        React.createElement(DepartureSuggestionsReact, {
+          items: items || [],
+          loading,
+          onSelect: handleSelect,
+        })
+      );
+
+      // Show dropdown for loading + results + “no results”
+      toggleDepartureSuggestions(true);
+    } catch (err) {
+      console.error("❌ Failed to render DepartureSuggestionsReact", err);
+    }
+  })();
 }
 
-function renderDestinationSuggestions(items) {
-  elements.destinationSuggestions.innerHTML = "";
-  if (!items || !items.length) {
-    toggleDestinationSuggestions(false);
-    return;
-  }
-  items.forEach((res, idx) => {
-    const li = document.createElement("li");
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className =
-        "list-group-item list-group-item-action list-group-item-light";
-    btn.role = "option";
-    btn.dataset.index = String(idx);
-    btn.textContent = res.name;
-    btn.addEventListener("click", () =>
-        selectDestinationSuggestion(items[idx])
-    );
-    li.appendChild(btn);
-    elements.destinationSuggestions.appendChild(li);
-  });
-  toggleDestinationSuggestions(true);
+function renderDestinationSuggestions(items, { loading = false } = {}) {
+  if (!elements.destinationSuggestions) return;
+
+  const mySeq = ++destinationSuggestionsRenderSeq;
+
+  const doRender = async () => {
+    try {
+      const [ReactMod, ReactDOMMod, CompMod] = await Promise.all([
+        import("react"),
+        import("react-dom/client"),
+        import("./components/DestinationSuggestionsReact"),
+      ]);
+
+      // If a newer render was requested, skip this one
+      if (mySeq !== destinationSuggestionsRenderSeq) return;
+
+      const React = ReactMod.default || ReactMod;
+      const { createRoot } = ReactDOMMod;
+      const DestinationSuggestionsReact = CompMod.default || CompMod;
+
+      if (!destinationSuggestionsRoot) {
+        destinationSuggestionsRoot = createRoot(
+          elements.destinationSuggestions
+        );
+      }
+
+      const handleSelect = (item) => {
+        // hide dropdown and reuse existing selection logic
+        toggleDestinationSuggestions(false);
+        selectDestinationSuggestion(item);
+      };
+
+      destinationSuggestionsRoot.render(
+        React.createElement(DestinationSuggestionsReact, {
+          items: items || [],
+          loading,
+          onSelect: handleSelect,
+        })
+      );
+
+      // Show suggestions for both loading + results / no-results
+      toggleDestinationSuggestions(true);
+    } catch (err) {
+      console.error("❌ Failed to render DestinationSuggestionsReact", err);
+    }
+  };
+
+  doRender();
 }
 
 function attachDraggable(marker, onMove) {
@@ -927,9 +1388,17 @@ async function selectDestinationSuggestion(res) {
   try {
     const osmType = res.properties.osm_type;
     const osmId = res.properties.osm_id;
+    const osmKey = `${osmType}/${osmId}`;
+
+    // 🗺️ Draw outline or marker – cached by OSM id
+    const geojsonGeometry =
+      queryClient.getQueryData(["place-geometry", osmKey]) ??
+      (await queryClient.fetchQuery({
+        queryKey: ["place-geometry", osmKey],
+        queryFn: () => fetchPlaceGeometry(osmType, osmId),
+      }));
 
     // 🗺️ Draw outline or marker
-    const geojsonGeometry = await fetchPlaceGeometry(osmType, osmId);
     const polyLike =
         geojsonGeometry.features.find(
             (f) => f.geometry && f.geometry.type !== "Point"
@@ -965,7 +1434,12 @@ async function selectDestinationSuggestion(res) {
     console.log("🔍 Photon basic tags:", tags);
 
     // 🧭 STEP 2: fetch Overpass enrichment
-    const enriched = await fetchPlace(osmType, osmId); // uses Overpass
+    const enriched =
+      queryClient.getQueryData(["place-tags", osmKey]) ??
+      (await queryClient.fetchQuery({
+        queryKey: ["place-tags", osmKey],
+        queryFn: () => fetchPlace(osmType, osmId),
+      })); // uses Overpass
     tags = { ...tags, ...enriched };
     console.log("📦 Enriched tags:", tags);
 
@@ -993,7 +1467,6 @@ let obstacleEventHandlersSetup = false;
 
 export function updateUser(user) {
   currentUser = user;
-  
   // If user logged in, initialize draw controls if not already done
   if (user && !drawControl && map) {
     drawControl = new L.Control.Draw({
@@ -1008,7 +1481,6 @@ export function updateUser(user) {
         circlemarker: false,
       },
     });
-    
     // Set up event handlers for create/edit/delete if not already done
     if (!obstacleEventHandlersSetup) {
       setupObstacleEventHandlers();
@@ -1031,7 +1503,6 @@ export function updateUser(user) {
       drawHelpAlertControl = null;
     }
   }
-  
   // ✅ Fix gray map issue: ensure basemap layer is still present and refresh map
   if (map) {
     setTimeout(() => {
@@ -1039,24 +1510,28 @@ export function updateUser(user) {
         console.warn("⚠️ Map container lost, page reload may be needed");
         return;
       }
-      
       // Check if map has any tile layers (basemap) that are actually rendering
       let hasWorkingTileLayer = false;
       try {
         map.eachLayer((layer) => {
           // Check if it's a tile layer and if it has a container (is actually rendered)
-          if ((layer instanceof L.TileLayer || layer._url) && layer._container) {
+          if (
+            (layer instanceof L.TileLayer || layer._url) &&
+            layer._container
+          ) {
             hasWorkingTileLayer = true;
           }
         });
       } catch (e) {
         console.error("Error checking map layers:", e);
       }
-      
+
       // If no working basemap found, create a fresh one
       if (!hasWorkingTileLayer) {
-        console.log("🔄 No working basemap layer found, creating fresh layer...");
-        
+        console.log(
+          "🔄 No working basemap layer found, creating fresh layer..."
+        );
+
         // Remove any broken layers first
         const layersToRemove = [];
         try {
@@ -1065,7 +1540,7 @@ export function updateUser(user) {
               layersToRemove.push(layer);
             }
           });
-          layersToRemove.forEach(layer => {
+          layersToRemove.forEach((layer) => {
             try {
               map.removeLayer(layer);
             } catch (e) {
@@ -1075,26 +1550,26 @@ export function updateUser(user) {
         } catch (e) {
           console.warn("Error removing old layers:", e);
         }
-        
+
         // Create a fresh basemap layer instance (can't reuse removed layers)
         const initialName = ls.get(BASEMAP_LS_KEY) || "OSM Greyscale";
-        const referenceLayer = baseLayers[initialName] || baseLayers["OSM Greyscale"];
-        
+        const referenceLayer =
+          baseLayers[initialName] || baseLayers["OSM Greyscale"];
+
         // Get the URL and options from the reference layer
         const url = referenceLayer._url || referenceLayer.options.url;
         const options = {
           maxZoom: referenceLayer.options.maxZoom,
           attribution: referenceLayer.options.attribution,
         };
-        
         // Create a completely new tile layer instance
         const freshLayer = L.tileLayer(url, options);
         freshLayer.addTo(map);
         currentBasemapLayer = freshLayer;
-        
+
         console.log("✅ Fresh basemap layer added:", initialName);
       }
-      
+
       // Invalidate size to fix any layout issues and force tile reload
       try {
         map.invalidateSize();
@@ -1106,7 +1581,12 @@ export function updateUser(user) {
         try {
           const center = map.getCenter();
           const zoom = map.getZoom();
-          if (center && center.lat !== undefined && center.lng !== undefined && zoom !== undefined) {
+          if (
+            center &&
+            center.lat !== undefined &&
+            center.lng !== undefined &&
+            zoom !== undefined
+          ) {
             map.setView(center, zoom);
           }
         } catch (viewError) {
@@ -1156,16 +1636,16 @@ function setupObstacleEventHandlers() {
 
     hookLayerInteractions(layerToAdd, featureToStore.properties);
     attachBootstrapTooltip(
-        layerToAdd,
-        tooltipTextFromProps(featureToStore.properties)
+      layerToAdd,
+      tooltipTextFromProps(featureToStore.properties)
     );
 
     const key = showLoading("obstacles-put");
     try {
       const { data, error } = await supabase
-          .from("obstacles")
-          .insert([featureToStore])
-          .select();
+        .from("obstacles")
+        .insert([featureToStore])
+        .select();
 
       if (error) throw error;
 
@@ -1206,8 +1686,8 @@ function setupObstacleEventHandlers() {
           properties: {
             ...(obstacleFeatures[i].properties || {}),
             radius:
-                (updated.properties && updated.properties.radius) ||
-                obstacleFeatures[i].properties?.radius,
+              (updated.properties && updated.properties.radius) ||
+              obstacleFeatures[i].properties?.radius,
           },
         };
 
@@ -1242,7 +1722,7 @@ function setupObstacleEventHandlers() {
 
       // Safely filter local list
       obstacleFeatures = obstacleFeatures.filter(
-          (f) => f.id !== layer.options.obstacleId
+        (f) => f.id !== layer.options.obstacleId
       );
 
       console.log("🚀 Deleting from Supabase with ID:", id);
@@ -1407,11 +1887,47 @@ export async function initMap(user = null) {
 
   // ============= EVENT LISTENERS =============
   map.whenReady(async () => {
+    // Allow React list items to focus a place on the map
+    if (typeof window !== "undefined") {
+      window.selectPlaceFromListFeature = async (feature) => {
+        try {
+          if (!feature || !feature.geometry) return;
+
+          const coords = feature.geometry.coordinates || [];
+          const [lon, lat] = coords;
+          if (
+            typeof lat !== "number" ||
+            Number.isNaN(lat) ||
+            typeof lon !== "number" ||
+            Number.isNaN(lon)
+          ) {
+            return;
+          }
+
+          const latlng = L.latLng(lat, lon);
+          const props = feature.properties || {};
+          const tags = props.tags || props || {};
+
+          // Show details panel (Overview/Reviews/Photos)
+          await renderDetails(tags, latlng, { keepDirectionsUi: true });
+
+          // Focus map on the selected place
+          if (map) {
+            const currentZoom = map.getZoom() || DEFAULT_ZOOM;
+            const targetZoom = Math.max(currentZoom, 17);
+            map.setView(latlng, targetZoom);
+          }
+        } catch (err) {
+          console.error("❌ selectPlaceFromListFeature failed:", err);
+        }
+      };
+    }
+
     // console.log("✅ Leaflet map ready, initializing places...");
     placesPane = map.createPane("places-pane");
     placesPane.style.zIndex = 450;
 
-    L.control.zoom({ position: "bottomright" }).addTo(map);
+    map.addControl(new ZoomMuiControl({ position: "bottomright" }));
     placeClusterLayer.addTo(map);
 
     map.addControl(new AccessibilityLegend());
@@ -1451,48 +1967,45 @@ export async function initMap(user = null) {
         console.log("🎯 debounce triggered for query:", e.target.value);
         const searchQuery = e.target.value.trim();
 
-        if (!searchQuery) {
-          toggleDestinationSuggestions(false);
-          return;
-        }
+      if (!searchQuery) {
+        toggleDestinationSuggestions(false);
+        return;
+      }
 
-        const mySeq = ++destinationGeocodeReqSeq;
-        showListSpinner(elements.destinationSuggestions, "Searching…");
+      const mySeq = ++destinationGeocodeReqSeq;
 
-        geocoder.geocode(searchQuery, (items) => {
-          if (mySeq !== destinationGeocodeReqSeq) return;
+      // MUI "Searching…" state
+      renderDestinationSuggestions([], { loading: true });
 
-          renderDestinationSuggestions(items);
+      geocoder.geocode(searchQuery, (items) => {
+        if (mySeq !== destinationGeocodeReqSeq) return;
 
-          if (!items?.length) {
-            elements.destinationSuggestions.innerHTML = `<li class="list-group-item text-muted">No results</li>`;
-            elements.destinationSuggestions.classList.remove("d-none");
-          }
-        });
-      }, 200)
+        renderDestinationSuggestions(items || [], { loading: false });
+      });
+    }, 200)
   );
 
   let departureGeocodeReqSeq = 0;
   elements.departureSearchInput.addEventListener(
-      "input",
-      debounce((e) => {
-        const searchQuery = e.target.value.trim();
-        if (!searchQuery) {
-          toggleDepartureSuggestions(false);
-          return;
-        }
-        const mySeq = ++departureGeocodeReqSeq;
-        showListSpinner(elements.departureSuggestions, "Searching…");
+    "input",
+    debounce((e) => {
+      const searchQuery = e.target.value.trim();
+      if (!searchQuery) {
+        toggleDepartureSuggestions(false);
+        return;
+      }
 
-        geocoder.geocode(searchQuery, (items) => {
-          if (mySeq !== departureGeocodeReqSeq) return;
-          renderDepartureSuggestions(items);
-          if (!items?.length) {
-            elements.departureSuggestions.innerHTML = `<li class="list-group-item text-muted">No results</li>`;
-            elements.departureSuggestions.classList.remove("d-none");
-          }
-        });
-      }, 200)
+      const mySeq = ++departureGeocodeReqSeq;
+
+      // MUI "Searching…" state
+      renderDepartureSuggestions([], { loading: true });
+
+      geocoder.geocode(searchQuery, (items) => {
+        if (mySeq !== departureGeocodeReqSeq) return;
+
+        renderDepartureSuggestions(items || [], { loading: false });
+      });
+    }, 200)
   );
 
   document.addEventListener("click", hideSuggestionsIfClickedOutside);
@@ -1520,23 +2033,22 @@ export async function initMap(user = null) {
   elements.detailsPanel.addEventListener("submit", async (e) => {
     // Only handle review form submissions
     if (e.target.id !== "review-form") return;
-    
+
     e.preventDefault();
-    
+
     // ✅ Check authentication before allowing review submission
     if (!currentUser) {
       toastError("Please log in to submit a review.");
       return;
     }
-    
+
     const textarea = e.target.querySelector("#review-text");
     if (!textarea) return;
-    
+
     const text = textarea.value.trim();
     if (!text) return;
 
     const submitBtn = e.target.querySelector("#submit-review-btn");
-    
     try {
       console.log("🧭 Review submit ctx:", globals.detailsCtx);
       const placeId =
@@ -1548,15 +2060,14 @@ export async function initMap(user = null) {
       const newReview = { text, place_id: placeId };
 
       await withButtonLoading(
-          submitBtn,
-          reviewStorage("POST", newReview),
-          "Saving…"
+        submitBtn,
+        reviewStorage("POST", newReview),
+        "Saving…"
       );
 
       // ✅ Reload and render updated reviews list
       globals.reviews = await reviewStorage("GET", { place_id: placeId });
-      elements.reviewsList.innerHTML = "";
-      globals.reviews.forEach((r) => renderOneReview(r.comment));
+      renderReviewsList();
 
       textarea.value = "";
 
@@ -1584,5 +2095,16 @@ export async function initMap(user = null) {
     }
 
     refreshPlaces();
+  });
+
+  // Listen for React nested filter updates
+  document.addEventListener("placeTypeFilterChanged", (ev) => {
+    // We re-read from LS so both sides stay in sync
+    placeTypeFilterState = loadPlaceTypeFilterFromLS();
+    // Rebuild places layer in the current viewport using cached features
+    // so markers hide/show without refetching Overpass.
+    if (map) {
+      refreshPlaces(); // refresh will respect isFeatureAllowedByTypeFilter
+    }
   });
 }

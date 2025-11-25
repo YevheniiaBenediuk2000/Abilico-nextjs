@@ -8,9 +8,62 @@ import "leaflet/dist/leaflet.css";
 import "./styles/poi-badge.css";
 import { supabase } from "./api/supabaseClient.js";
 
-export default function MapContainer({ user: initialUser }) {
+import TextField from "@mui/material/TextField";
+import Button from "@mui/material/Button";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import CardActions from "@mui/material/CardActions";
+import Typography from "@mui/material/Typography";
+import Box from "@mui/material/Box";
+import Tabs from "@mui/material/Tabs";
+import Tab from "@mui/material/Tab";
+import IconButton from "@mui/material/IconButton";
+import CloseIcon from "@mui/icons-material/Close";
+import Drawer from "@mui/material/Drawer";
+
+import PlacesListReact from "./components/PlacesListReact";
+
+function DetailsTabPanel({ value, active, children }) {
+  const hidden = active !== value;
+
+  return (
+    <div
+      role="tabpanel"
+      id={`tab-${value}`} // keeps tab-overview / tab-reviews / tab-photos
+      aria-labelledby={`${value}-tab`}
+      hidden={hidden}
+      className={hidden ? "d-none" : ""}
+    >
+      {children}
+    </div>
+  );
+}
+
+export default function MapContainer({
+  user: initialUser,
+  isPlacesListOpen = false,
+  onPlacesListClose = () => {},
+}) {
   const [user, setUser] = useState(initialUser);
   const router = useRouter();
+
+  const [detailsTab, setDetailsTab] = useState("overview");
+  const [placesListData, setPlacesListData] = useState(null);
+
+  // Receive "places in viewport" data from mapMain.js
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    window.setPlacesListData = (payload) => {
+      setPlacesListData(payload);
+    };
+
+    return () => {
+      if (window.setPlacesListData) {
+        delete window.setPlacesListData;
+      }
+    };
+  }, []);
 
   // Track user session changes
   useEffect(() => {
@@ -27,11 +80,8 @@ export default function MapContainer({ user: initialUser }) {
 
   useEffect(() => {
     let isMounted = true;
-    
-    (async () => {
-      // ✅ Wait until React finishes rendering the DOM
-      await new Promise((r) => setTimeout(r, 0));
 
+    (async () => {
       // ✅ Dynamically import Leaflet + plugins
       const L = (await import("leaflet")).default;
       await import("leaflet.markercluster");
@@ -67,378 +117,403 @@ export default function MapContainer({ user: initialUser }) {
     }
   }, [user]);
 
+  // Allow non-React modules (fetchPhotos.mjs, etc.) to switch tabs
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    window.setDetailsTab = (tab) => {
+      setDetailsTab(tab);
+    };
+
+    return () => {
+      if (window.setDetailsTab) {
+        delete window.setDetailsTab;
+      }
+    };
+  }, []);
+
+  const handlePlaceFromListSelect = (feature) => {
+    if (
+      typeof window !== "undefined" &&
+      typeof window.selectPlaceFromListFeature === "function"
+    ) {
+      window.selectPlaceFromListFeature(feature);
+    }
+    // Close the drawer after selecting a place
+    if (onPlacesListClose) {
+      onPlacesListClose();
+    }
+  };
+
   return (
-      <div>
-        {/* === Map container === */}
-        <div
-            id="map"
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-            }}
-        ></div>
+    <div>
+      {/* === Map container === */}
+      <div
+        id="map"
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+        }}
+      ></div>
 
-        {/* === Offcanvas (Details + Directions) === */}
-        <div
-            className="offcanvas offcanvas-start"
-            id="placeOffcanvas"
-            aria-labelledby="placeOffcanvasLabel"
-            data-bs-backdrop="false"
-        >
-          <div className="offcanvas-header">
-            <h2 className="offcanvas-title" id="placeOffcanvasLabel">
-              Details
-            </h2>
-            <button
-                type="button"
-                className="btn-close"
-                data-bs-dismiss="offcanvas"
-                aria-label="Close"
-            ></button>
-          </div>
+      {/* === Places list Drawer (controlled by AppBar burger) === */}
+      <Drawer
+        anchor="left"
+        open={Boolean(isPlacesListOpen && placesListData)}
+        onClose={onPlacesListClose}
+        PaperProps={{
+          sx: {
+            width: { xs: "100%", sm: 360 },
+            maxWidth: "100%",
+            pt: 2,
+            px: 1,
+          },
+        }}
+      >
+        {placesListData && (
+          <PlacesListReact
+            data={placesListData}
+            onSelect={handlePlaceFromListSelect}
+          />
+        )}
+      </Drawer>
 
-          <div className="offcanvas-body">
-            {/* === Directions UI === */}
-            <div id="directions-ui" className="mb-3 d-none">
-              <div className="row g-2 align-items-center mb-1">
-                <div className="col">
-                  <label
-                      className="form-label mb-1"
-                      htmlFor="departure-search-input"
-                  >
-                    From
-                  </label>
-                  <div id="departure-search-bar" className="position-relative">
-                    <input
-                        id="departure-search-input"
-                        type="search"
-                        className="form-control form-control-lg search-input"
-                        placeholder="Search place or click on the map…"
-                        aria-label="Search places"
-                        aria-controls="departure-suggestions"
-                    />
-
-                    <ul
-                        className="list-group w-100 shadow d-none search-suggestions"
-                        aria-label="Search suggestions"
-                        id="departure-suggestions"
-                    ></ul>
-                  </div>
-                </div>
-              </div>
-
-              <div className="row g-2 align-items-center mb-2">
-                <div className="col">
-                  <label
-                      className="form-label mb-1"
-                      htmlFor="destination-search-input"
-                  >
-                    To
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            {/* === Main photo (preview above tabs) === */}
-            <figure className="figure d-none" id="main-photo-wrapper">
-              <img
-                  id="main-photo"
-                  className="figure-img img-fluid shadow-sm mb-1"
-                  alt=""
-              />
-              <figcaption
-                  id="main-photo-caption"
-                  className="figure-caption small text-muted"
-              ></figcaption>
-            </figure>
-
-            {/* === Details Panel with Tabs === */}
-            <div id="details-panel" className="d-none">
-              {/* Tabs navigation */}
-              <ul className="nav nav-tabs" id="detailsTabs" role="tablist">
-                <li className="nav-item" role="presentation">
-                  <button
-                      className="nav-link active"
-                      id="overview-tab"
-                      data-bs-toggle="tab"
-                      data-bs-target="#tab-overview"
-                      type="button"
-                      role="tab"
-                      aria-controls="tab-overview"
-                      aria-selected="true"
-                  >
-                    Overview
-                  </button>
-                </li>
-                <li className="nav-item" role="presentation">
-                  <button
-                      className="nav-link"
-                      id="reviews-tab"
-                      data-bs-toggle="tab"
-                      data-bs-target="#tab-reviews"
-                      type="button"
-                      role="tab"
-                      aria-controls="tab-reviews"
-                      aria-selected="false"
-                  >
-                    Reviews
-                  </button>
-                </li>
-                <li className="nav-item" role="presentation">
-                  <button
-                      className="nav-link"
-                      id="photos-tab"
-                      data-bs-toggle="tab"
-                      data-bs-target="#tab-photos"
-                      type="button"
-                      role="tab"
-                      aria-controls="tab-photos"
-                      aria-selected="false"
-                  >
-                    Photos
-                  </button>
-                </li>
-              </ul>
-
-              {/* Tabs content */}
-              <div className="tab-content pt-3" id="detailsTabsContent">
-                {/* --- Overview tab --- */}
-                <div
-                    className="tab-pane fade show active"
-                    id="tab-overview"
-                    role="tabpanel"
-                    aria-labelledby="overview-tab"
-                >
-                  <div className="d-grid gap-2 mb-3">
-                    <div
-                        className="btn-group"
-                        role="group"
-                        aria-label="Quick route actions"
-                    >
-                      <button
-                          id="btn-start-here"
-                          type="button"
-                          className="btn btn-outline-primary"
-                      >
-                        Start here
-                      </button>
-                      <button
-                          id="btn-go-here"
-                          type="button"
-                          className="btn btn-outline-danger"
-                      >
-                        Go here
-                      </button>
-                    </div>
-                  </div>
-                  <div className="card shadow-sm">
-                    <div
-                        className="list-group list-group-flush"
-                        id="details-list"
-                    ></div>
-                  </div>
-                </div>
-
-                {/* --- Reviews tab --- */}
-                <div
-                    className="tab-pane fade"
-                    id="tab-reviews"
-                    role="tabpanel"
-                    aria-labelledby="reviews-tab"
-                >
-                  <div className="card shadow-sm">
-                    <div className="card-body">
-                      <h6 className="mb-3">Reviews</h6>
-                      
-                      {/* Review form - only shown for logged-in users */}
-                      {user ? (
-                        <form id="review-form" className="d-grid gap-2 mb-3">
-                          <textarea
-                              id="review-text"
-                              className="form-control"
-                              placeholder="Write your review…"
-                              required
-                          ></textarea>
-                          <button
-                              id="submit-review-btn"
-                              type="submit"
-                              className="btn btn-outline-secondary"
-                          >
-                            Submit Review
-                          </button>
-                        </form>
-                      ) : (
-                        /* CTA card for non-logged-in users */
-                        <div className="card bg-light border mb-3">
-                          <div className="card-body text-center py-4">
-                            <h6 className="mb-2">Want to leave a review?</h6>
-                            <p className="small text-muted mb-3">
-                              Log in or create an account to share your experience.
-                            </p>
-                            <button
-                                className="btn btn-primary"
-                                onClick={() => router.push("/auth")}
-                            >
-                              Log in / Sign up
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                      
-                      <ul id="reviews-list" className="list-group"></ul>
-                    </div>
-                  </div>
-                </div>
-
-                {/* --- Photos tab --- */}
-                <div
-                    className="tab-pane fade"
-                    id="tab-photos"
-                    role="tabpanel"
-                    aria-labelledby="photos-tab"
-                >
-                  <div id="photos-empty" className="text-muted small d-none">
-                    No photos found for this place.
-                  </div>
-                  <div id="photos-grid" className="row g-2"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* === Obstacle Modal === */}
-        <div
-            className="modal fade"
-            id="obstacleModal"
-            tabIndex="-1"
-            aria-hidden="true"
-            aria-labelledby="obstacleModalLabel"
-        >
-          <div className="modal-dialog">
-            <form className="modal-content" id="obstacle-form">
-              <div className="modal-header">
-                <h5 className="modal-title">Obstacle details</h5>
-                <button
-                    type="button"
-                    className="btn-close"
-                    data-bs-dismiss="modal"
-                    aria-label="Close"
-                ></button>
-              </div>
-              <div className="modal-body">
-                <input
-                    id="obstacle-title"
-                    className="form-control"
-                    placeholder="e.g., Damaged curb ramp"
-                    required
-                />
-              </div>
-              <div className="modal-footer">
-                <button
-                    type="button"
-                    className="btn btn-outline-secondary"
-                    data-bs-dismiss="modal"
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  Save
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-
-        {/* === Accessibility Legend === */}
-        <div id="accessibility-legend" className="alert alert-light"></div>
-
-        {/* === Draw Help Alert (template for DrawHelpAlert control) === */}
-        <div
-            id="draw-help-alert"
-            className="d-none alert alert-light alert-dismissible fade show shadow-sm mb-0"
-            role="alert"
-        >
-          <div>
-            <h6 className="d-flex align-items-center gap-2">
-            <span className="fs-6" aria-hidden="true">
-              🧱
-            </span>
-              Draw obstacles
-            </h6>
-            <p className="mb-0" style={{ fontSize: "0.9rem" }}>
-              You can mark areas the route should avoid.
-            </p>
-          </div>
-
+      {/* === Offcanvas (Details + Directions) === */}
+      <div
+        className="offcanvas offcanvas-start"
+        id="placeOffcanvas"
+        aria-labelledby="placeOffcanvasLabel"
+        data-bs-backdrop="false"
+      >
+        <div className="offcanvas-header">
+          <h2 className="offcanvas-title" id="placeOffcanvasLabel">
+            Details
+          </h2>
           <button
-              type="button"
-              className="btn-close ms-auto"
-              data-bs-dismiss="alert"
-              aria-label="Close"
+            type="button"
+            className="btn-close"
+            data-bs-dismiss="offcanvas"
+            aria-label="Close"
           ></button>
         </div>
 
-        {/* === Global Loading Bar === */}
-        <div
-            id="global-loading"
-            className="position-fixed top-0 start-0 w-100 d-none"
-            style={{ zIndex: 2000 }}
-        >
-          <div className="progress rounded-0" style={{ height: "0.24rem" }}>
-            <div
-                className="progress-bar progress-bar-striped progress-bar-animated"
-                style={{ width: "100%" }}
-            ></div>
-          </div>
-        </div>
+        <div className="offcanvas-body">
+          {/* === Directions UI === */}
+          <div id="directions-ui" className="mb-3 d-none">
+            <div className="row g-2 align-items-center mb-1">
+              <div className="col">
+                <label
+                  className="form-label mb-1"
+                  htmlFor="departure-search-input"
+                >
+                  From
+                </label>
+                <div id="departure-search-bar" className="position-relative">
+                  <TextField
+                    size="small"
+                    id="departure-search-input"
+                    type="search"
+                    variant="outlined"
+                    fullWidth
+                    className="form-control form-control-lg"
+                    placeholder="Search place or click on the map…"
+                    slotProps={{
+                      input: {
+                        "aria-label": "Search places",
+                        "aria-controls": "destination-suggestions",
+                      },
+                    }}
+                  />
 
-        {/* === Toast Stack === */}
-        <div aria-live="polite" aria-atomic="true" className="position-relative">
-          <div
-              id="toast-stack"
-              className="toast-container position-fixed top-0 end-0 p-3"
-          ></div>
-        </div>
-
-        {/* === Obstacle Management Overlay (for non-logged-in users) === */}
-        {!user && (
-          <div
-              id="obstacle-management-overlay"
-              className="position-absolute"
-              style={{
-                top: "80px", // Position below the accessibility legend (which is ~60-70px tall)
-                right: "12px",
-                zIndex: 400, // Lower than Leaflet controls (which are ~1000) but above map
-                pointerEvents: "auto",
-              }}
-          >
-            <div
-                className="bg-dark text-white p-3 rounded shadow-lg"
-                style={{
-                  minWidth: "200px",
-                  maxWidth: "300px",
-                }}
-            >
-              <div className="d-flex align-items-center gap-2 mb-2">
-                <span className="fs-5">🔒</span>
-                <h6 className="mb-0">Log in to manage obstacles</h6>
+                  <ul
+                    className="list-group w-100 shadow d-none search-suggestions"
+                    aria-label="Search suggestions"
+                    id="departure-suggestions"
+                  ></ul>
+                </div>
               </div>
-              <p className="small mb-2 text-muted">
-                You need to be logged in to add, edit, or delete obstacles.
-              </p>
-              <button
-                  className="btn btn-primary btn-sm w-100"
-                  onClick={() => router.push("/auth")}
-              >
-                Log in
-              </button>
+            </div>
+
+            <div className="row g-2 align-items-center mb-2">
+              <div className="col">
+                <label
+                  className="form-label mb-1"
+                  htmlFor="destination-search-input"
+                >
+                  To
+                </label>
+              </div>
             </div>
           </div>
-        )}
+
+          {/* === Main photo (preview above tabs) === */}
+          <figure className="figure d-none" id="main-photo-wrapper">
+            <img
+              id="main-photo"
+              className="figure-img img-fluid shadow-sm mb-1"
+              alt=""
+            />
+            <figcaption
+              id="main-photo-caption"
+              className="figure-caption small text-muted"
+            ></figcaption>
+          </figure>
+
+          {/* === Details Panel with Tabs === */}
+          <div id="details-panel" className="d-none">
+            {/* MUI Tabs navigation */}
+            <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
+              <Tabs
+                value={detailsTab}
+                onChange={(_, newValue) => setDetailsTab(newValue)}
+                aria-label="Place details tabs"
+                variant="fullWidth"
+              >
+                <Tab
+                  id="overview-tab"
+                  label="Overview"
+                  value="overview"
+                  aria-controls="tab-overview"
+                />
+                <Tab
+                  id="reviews-tab"
+                  label="Reviews"
+                  value="reviews"
+                  aria-controls="tab-reviews"
+                />
+                <Tab
+                  id="photos-tab"
+                  label="Photos"
+                  value="photos"
+                  aria-controls="tab-photos"
+                />
+              </Tabs>
+            </Box>
+
+            {/* Tabs content */}
+            <div className="pt-3" id="detailsTabsContent">
+              {/* --- Overview tab --- */}
+              <DetailsTabPanel value="overview" active={detailsTab}>
+                <div className="d-grid gap-2 mb-3">
+                  <div
+                    className="btn-group"
+                    role="group"
+                    aria-label="Quick route actions"
+                  >
+                    <button
+                      id="btn-start-here"
+                      type="button"
+                      className="btn btn-outline-primary"
+                    >
+                      Start here
+                    </button>
+                    <button
+                      id="btn-go-here"
+                      type="button"
+                      className="btn btn-outline-danger"
+                    >
+                      Go here
+                    </button>
+                  </div>
+                </div>
+                <div className="card shadow-sm">
+                  <div
+                    className="list-group list-group-flush"
+                    id="details-list"
+                  ></div>
+                </div>
+              </DetailsTabPanel>
+
+              {/* --- Reviews tab --- */}
+              <DetailsTabPanel value="reviews" active={detailsTab}>
+                <div className="card shadow-sm">
+                  <div className="card-body">
+                    <h6 className="mb-3">Reviews</h6>
+
+                    {/* Review form - only shown for logged-in users */}
+                    {user ? (
+                      <form id="review-form" className="d-grid gap-2 mb-3">
+                        <textarea
+                          id="review-text"
+                          className="form-control"
+                          placeholder="Write your review…"
+                          required
+                        ></textarea>
+                        <Button
+                          id="submit-review-btn"
+                          type="submit"
+                          variant="outlined"
+                        >
+                          Submit Review
+                        </Button>
+                      </form>
+                    ) : (
+                      /* CTA card for non-logged-in users */
+                      <div className="card bg-light border mb-3">
+                        <div className="card-body text-center py-4">
+                          <h6 className="mb-2">Want to leave a review?</h6>
+                          <p className="small text-muted mb-3">
+                            Log in or create an account to share your
+                            experience.
+                          </p>
+                          <Button
+                            variant="contained"
+                            color="primary"
+                            onClick={() => router.push("/auth")}
+                          >
+                            Log in / Sign up
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    <ul id="reviews-list" className="list-group"></ul>
+                  </div>
+                </div>
+              </DetailsTabPanel>
+
+              {/* --- Photos tab --- */}
+              <DetailsTabPanel value="photos" active={detailsTab}>
+                <div id="photos-empty" className="text-muted small d-none">
+                  No photos found for this place.
+                </div>
+                <div id="photos-grid" className="row g-2"></div>
+              </DetailsTabPanel>
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* === Obstacle Modal === */}
+      <div
+        className="modal fade"
+        id="obstacleModal"
+        tabIndex="-1"
+        aria-hidden="true"
+        aria-labelledby="obstacleModalLabel"
+      >
+        <div className="modal-dialog">
+          <form className="modal-content" id="obstacle-form">
+            <div className="modal-header">
+              <h5 className="modal-title">Obstacle details</h5>
+              <button
+                type="button"
+                className="btn-close"
+                data-bs-dismiss="modal"
+                aria-label="Close"
+              ></button>
+            </div>
+            <div className="modal-body">
+              <input
+                id="obstacle-title"
+                className="form-control"
+                placeholder="e.g., Damaged curb ramp"
+                required
+              />
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                data-bs-dismiss="modal"
+              >
+                Cancel
+              </button>
+              <button type="submit" className="btn btn-primary">
+                Save
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {/* === Draw Help Alert (template for DrawHelpAlert control) === */}
+      <div id="draw-help-alert" className="d-none">
+        <Card>
+          <CardContent
+            sx={{ display: "flex", alignItems: "flex-start", gap: 1.5 }}
+          >
+            <span className="fs-5" aria-hidden="true">
+              🧱
+            </span>
+
+            <Box sx={{ flexGrow: 1 }}>
+              <Typography variant="subtitle1" component="h6" gutterBottom>
+                Draw obstacles
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                You can mark areas the route should avoid.
+              </Typography>
+            </Box>
+
+            <IconButton
+              size="small"
+              aria-label="Dismiss draw help"
+              data-role="draw-help-close"
+              sx={{ mt: -0.5 }}
+            >
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* === Global Loading Bar === */}
+      <div
+        id="global-loading"
+        className="position-fixed top-0 start-0 w-100 d-none"
+        style={{ zIndex: 2000 }}
+      >
+        <div className="progress rounded-0" style={{ height: "0.24rem" }}>
+          <div
+            className="progress-bar progress-bar-striped progress-bar-animated"
+            style={{ width: "100%" }}
+          ></div>
+        </div>
+      </div>
+
+      {/* === Toast Stack === */}
+      <div aria-live="polite" aria-atomic="true" className="position-relative">
+        <div
+          id="toast-stack"
+          className="toast-container position-fixed top-0 end-0 p-3"
+        ></div>
+      </div>
+
+      {/* === Obstacle Management Overlay (for non-logged-in users) === */}
+      {!user && (
+        <div id="obstacle-management-overlay" className="position-absolute">
+          <Card sx={{ maxWidth: 280 }}>
+            <CardContent>
+              <div className="d-flex align-items-center gap-2 mb-2">
+                <span className="fs-5" aria-hidden="true">
+                  🔒
+                </span>
+                <Typography variant="subtitle1" component="h6">
+                  Log in to manage obstacles
+                </Typography>
+              </div>
+              <Typography variant="body2" color="grey.600">
+                You need to be logged in to add, edit or delete obstacles.
+              </Typography>
+            </CardContent>
+            <CardActions sx={{ pt: 0 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                size="small"
+                fullWidth
+                onClick={() => router.push("/auth")}
+              >
+                Log in
+              </Button>
+            </CardActions>
+          </Card>
+        </div>
+      )}
+    </div>
   );
 }

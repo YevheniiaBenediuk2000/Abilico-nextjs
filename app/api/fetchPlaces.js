@@ -241,7 +241,6 @@ function selectorsForZoom(
     `node["healthcare"]`,
     `node["office"]`,
     `node["historic"]`,
-    `node["sport"]`,
     // (omit building/craft/man_made/military at this level)
   ];
 
@@ -251,7 +250,6 @@ function selectorsForZoom(
     `node["tourism"]["tourism"~"^(${TOURISM_FOCUS_LOW.join("|")})$"]`,
     `node["leisure"]["leisure"~"^(${LEISURE_FOCUS_LOW.join("|")})$"]`,
     `node["healthcare"]["healthcare"~"^(hospital|clinic)$"]`,
-    `node["shop"]["shop"~"^(${SHOP_FOCUS_LOW.join("|")})$"]`,
     `node["historic"]`,
   ];
 
@@ -265,8 +263,8 @@ function selectorsForZoom(
 // 0 = no cap
 function limitForZoom(zoom) {
   if (zoom >= 17) return 0;
-  if (zoom >= 15) return 75; // mid zoom
-  return 30; // far zoom
+  if (zoom >= 15) return 300; // mid zoom
+  return 120; // far zoom
 }
 
 let placesAbortController = null;

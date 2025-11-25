@@ -141,93 +141,72 @@ export const BasemapGallery = L.Control.extend({
       "div",
       "leaflet-control basemap-gallery"
     );
+    const mountNode = L.DomUtil.create("div", "", container);
 
     // Prevent map interactions while using the control
     L.DomEvent.disableClickPropagation(container);
     L.DomEvent.disableScrollPropagation(container);
 
-    // --- Collapsed header (shows selected basemap preview) ---
-    const head = document.createElement("div");
-    head.className = "basemap-gallery__head";
-    container.appendChild(head);
+    const self = this;
 
-    // --- Expanded grid ---
-    const grid = document.createElement("div");
-    grid.className = "basemap-gallery__grid";
-    container.appendChild(grid);
+    Promise.all([
+      import("react"),
+      import("react-dom/client"),
+      import("../components/BasemapGalleryReact"),
+    ])
+      .then(([ReactMod, ReactDOMMod, CompMod]) => {
+        const React = ReactMod.default || ReactMod;
+        const { createRoot } = ReactDOMMod;
+        const BasemapGalleryReact = CompMod.default || CompMod;
 
-    // Utility: render the head based on current selection
-    const renderHead = () => {
-      const current =
-        basemapList.find((b) => b.name === this._currentName) || basemapList[0];
+        const root = createRoot(mountNode);
+        self._reactRoot = root;
 
-      head.innerHTML = `
-        <button type="button" class="bm-head-btn" aria-label="Current basemap: ${current.name}. Tap to change.">
-          <img class="bm-head-img" src="${current.preview}" alt="${current.name} preview" />
-          <span class="bm-head-label">${current.name}</span>
-        </button>
-      `;
-    };
+        const basemaps = basemapList.map((b) => ({
+          name: b.name,
+          preview: b.preview,
+        }));
 
-    // Build grid items
-    basemapList.forEach(({ name, preview }) => {
-      const wrap = document.createElement("div");
-      wrap.className = "position-relative";
+        const handleChange = (selectedName) => {
+          if (!selectedName || selectedName === self._currentName) return;
 
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "btn bm-item bg-dark map-list-button";
-      btn.setAttribute("aria-label", `Switch to ${name} basemap`);
-      btn.dataset.name = name;
+          const oldLayer = baseLayers[self._currentName] || null;
+          const newLayer = baseLayers[selectedName] || null;
 
-      if (name === this._currentName) btn.classList.add("active");
+          if (oldLayer) map.removeLayer(oldLayer);
+          if (newLayer) newLayer.addTo(map);
 
-      btn.innerHTML = `
-        <img class="bm-item__img" src="${preview}" alt="${name} preview" />
-        <span class="bm-item__label badge text-white">${name}</span>
-      `;
+          // persist choice
+          ls.set(BASEMAP_LS_KEY, selectedName);
+          self._currentName = selectedName;
 
-      btn.addEventListener("click", (e) => {
-        const selectedName = e.currentTarget.dataset.name;
-        if (selectedName === this._currentName) return;
+          render();
+        };
 
-        // Swap layers
-        const oldLayer = baseLayers[this._currentName] || null;
-        const newLayer = baseLayers[selectedName] || null;
-        if (oldLayer) map.removeLayer(oldLayer);
-        if (newLayer) newLayer.addTo(map);
+        const render = () => {
+          root.render(
+            React.createElement(BasemapGalleryReact, {
+              basemaps,
+              currentName: self._currentName,
+              onChange: handleChange,
+            })
+          );
+        };
 
-        // Persist + UI
-        ls.set(BASEMAP_LS_KEY, selectedName);
-        this._currentName = selectedName;
-
-        grid
-          .querySelectorAll(".bm-item")
-          .forEach((el) => el.classList.remove("active"));
-        e.currentTarget.classList.add("active");
-
-        // Update the collapsed head preview + label
-        renderHead();
+        self._render = render;
+        render();
+      })
+      .catch((err) => {
+        console.error("Failed to mount BasemapGalleryReact", err);
       });
 
-      wrap.appendChild(btn);
-      grid.appendChild(wrap);
-    });
-
-    // Initial head render
-    renderHead();
-
-    // Touch: tap head to toggle expand/collapse
-    head.addEventListener("click", () => {
-      container.classList.toggle("expanded");
-    });
-
-    // Close when clicking outside (for touch)
-    document.addEventListener("click", (ev) => {
-      if (!container.contains(ev.target))
-        container.classList.remove("expanded");
-    });
-
     return container;
+  },
+
+  onRemove() {
+    if (this._reactRoot) {
+      this._reactRoot.unmount();
+      this._reactRoot = null;
+    }
   },
 });
