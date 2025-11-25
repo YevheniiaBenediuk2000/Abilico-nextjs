@@ -19,7 +19,10 @@
   max-height: 320px;
 
   overflow: auto;
-  background-color: var(--bs-list-group-bg);
+}
+
+#destination-search-bar div {
+  margin-left: 0;
 }
 
 /* When the destination-search-bar lives inside the Offcanvas, make it full-width & non-absolute */
