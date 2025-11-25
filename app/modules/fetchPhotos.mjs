@@ -4,7 +4,7 @@
 //   typeof window !== "undefined" ? "in browser" : "on server"
 // );
 
-window.MAPILLARY_TOKEN = process.env.MAPILLARY_TOKEN;
+const MAPILLARY_TOKEN = process.env.MAPILLARY_TOKEN;
 const mainPhotoWrapper = document.getElementById("main-photo-wrapper");
 const mainPhotoImg = document.getElementById("main-photo");
 const photosGrid = document.getElementById("photos-grid");
@@ -19,7 +19,7 @@ const MAPILLARY_GRAPH = "https://graph.mapillary.com";
 
 function getMapillaryToken() {
   return (
-    (typeof window !== "undefined" && window.MAPILLARY_TOKEN) ||
+    MAPILLARY_TOKEN ||
     (typeof localStorage !== "undefined" &&
       localStorage.getItem("MAPILLARY_TOKEN")) ||
     null
