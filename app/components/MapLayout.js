@@ -14,12 +14,12 @@ import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
 import IconButton from "@mui/material/IconButton";
 import Typography from "@mui/material/Typography";
-import InputBase from "@mui/material/InputBase";
+import TextField from "@mui/material/TextField";
+import InputAdornment from "@mui/material/InputAdornment";
 import Button from "@mui/material/Button";
 import Box from "@mui/material/Box";
 import MenuIcon from "@mui/icons-material/Menu";
 import SearchIcon from "@mui/icons-material/Search";
-import { styled, alpha } from "@mui/material/styles";
 
 import { queryClient } from "../queryClient";
 
@@ -39,45 +39,6 @@ async function handleSetupMFA() {
   document.getElementById("setup-container").style.display = "block";
 }
 
-// === AppBar search styling (from MUI example, adapted) ===
-const Search = styled("div")(({ theme }) => ({
-  position: "relative",
-  borderRadius: theme.shape.borderRadius,
-  backgroundColor: alpha(theme.palette.common.black, 0.15),
-  "&:hover": {
-    backgroundColor: alpha(theme.palette.common.black, 0.25),
-  },
-  marginLeft: 0,
-  width: "100%",
-  [theme.breakpoints.up("sm")]: {
-    marginLeft: theme.spacing(1),
-    width: "auto",
-  },
-}));
-
-const SearchIconWrapper = styled("div")(({ theme }) => ({
-  padding: theme.spacing(0, 2),
-  height: "100%",
-  position: "absolute",
-  pointerEvents: "none",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-}));
-
-const StyledInputBase = styled(InputBase)(({ theme }) => ({
-  color: "inherit",
-  "& .MuiInputBase-input": {
-    padding: theme.spacing(1, 1, 1, 0),
-    // vertical padding + font size from searchIcon
-    paddingLeft: `calc(1em + ${theme.spacing(4)})`,
-    transition: theme.transitions.create("width"),
-    width: "100%",
-    [theme.breakpoints.up("md")]: {
-      width: "55ch",
-    },
-  },
-}));
 
 export default function MapLayout({ isDashboard = false }) {
   const router = useRouter();
@@ -136,14 +97,13 @@ export default function MapLayout({ isDashboard = false }) {
             borderBottom: "1px solid rgba(0,0,0,0.12)",
           }}
         >
-          <Toolbar>
+          <Toolbar sx={{ gap: 2 }}>
             {/* Burger: toggles places list drawer */}
             <IconButton
               size="large"
               edge="start"
               color="inherit"
               aria-label="open places list"
-              sx={{ mr: 2 }}
               onClick={() => setIsPlacesListOpen((prev) => !prev)}
             >
               <MenuIcon />
@@ -153,38 +113,68 @@ export default function MapLayout({ isDashboard = false }) {
               variant="h6"
               noWrap
               component="div"
-              sx={{ flexGrow: 1, display: { xs: "none", sm: "block" } }}
+              sx={{ display: { xs: "none", sm: "block" } }}
             >
               Abilico
             </Typography>
 
-            {/* Search (wired to existing DOM IDs expected by mapMain.js) */}
+            {/* Search - centered in header, styled like login button */}
             <Box
               id="destination-search-bar"
               sx={{
-                flexGrow: 1,
+                flex: 1,
+                display: "flex",
+                justifyContent: "center",
                 maxWidth: 600,
                 position: "relative",
-                mr: 2,
+                mx: "auto",
               }}
             >
-              <Search>
-                <SearchIconWrapper>
-                  <SearchIcon />
-                </SearchIconWrapper>
-                <StyledInputBase
-                  id="destination-search-input"
-                  placeholder="Search place or click on the map…"
-                  inputProps={{
-                    "aria-label": "Search places",
-                    "aria-controls": "destination-suggestions",
-                  }}
-                />
-              </Search>
+              <TextField
+                id="destination-search-input"
+                placeholder="Search place or click on the map…"
+                variant="outlined"
+                color="inherit"
+                fullWidth
+                size="small"
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon sx={{ color: "text.secondary" }} />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    backgroundColor: "#fff",
+                    "& fieldset": {
+                      borderColor: "rgba(0, 0, 0, 0.23)",
+                    },
+                    "&:hover fieldset": {
+                      borderColor: "rgba(0, 0, 0, 0.87)",
+                    },
+                    "&.Mui-focused fieldset": {
+                      borderColor: "rgba(0, 0, 0, 0.87)",
+                    },
+                  },
+                }}
+                inputProps={{
+                  "aria-label": "Search places",
+                  "aria-controls": "destination-suggestions",
+                }}
+              />
               <ul
                 id="destination-suggestions"
                 className="list-group w-100 shadow d-none search-suggestions"
                 aria-label="Search suggestions"
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  right: 0,
+                  zIndex: 1001,
+                  marginTop: 4,
+                }}
               ></ul>
             </Box>
 
