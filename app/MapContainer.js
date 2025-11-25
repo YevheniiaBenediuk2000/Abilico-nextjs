@@ -164,13 +164,22 @@ export default function MapContainer({
         anchor="left"
         open={Boolean(isPlacesListOpen && placesListData)}
         onClose={onPlacesListClose}
+        ModalProps={{
+          keepMounted: true, // (optional) keeps it mounted for better perf
+        }}
+        hideBackdrop
+        sx={{ pointerEvents: "none" }}
         PaperProps={{
-          sx: {
-            width: { xs: "100%", sm: 360 },
-            maxWidth: "100%",
-            pt: 2,
+          sx: (theme) => ({
+            pointerEvents: "auto",
+            width: 360,
+            maxWidth: "80vw",
+            mt: 8,
+            pt: 1,
             px: 1,
-          },
+            boxShadow: "none", // ✅ remove the right-hand shadow
+            borderRight: "1px solid rgba(0,0,0,0.12)", // optional subtle divider
+          }),
         }}
       >
         {placesListData && (
