@@ -614,8 +614,6 @@ export default function PlacesListReact({ data, onSelect }) {
                       : undefined;
                     const thumbSrc = photo && (photo.thumb || photo.src || "");
 
-                    if (!thumbSrc) return null;
-
                     return (
                       <Box key={item.placeKey || idx}>
                         <Divider component="li" />
