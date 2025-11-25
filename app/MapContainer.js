@@ -19,6 +19,9 @@ import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import IconButton from "@mui/material/IconButton";
 import CloseIcon from "@mui/icons-material/Close";
+import Drawer from "@mui/material/Drawer";
+
+import PlacesListReact from "./components/PlacesListReact";
 
 function DetailsTabPanel({ value, active, children }) {
   const hidden = active !== value;
@@ -36,11 +39,31 @@ function DetailsTabPanel({ value, active, children }) {
   );
 }
 
-export default function MapContainer({ user: initialUser }) {
+export default function MapContainer({
+  user: initialUser,
+  isPlacesListOpen = false,
+  onPlacesListClose = () => {},
+}) {
   const [user, setUser] = useState(initialUser);
   const router = useRouter();
 
   const [detailsTab, setDetailsTab] = useState("overview");
+  const [placesListData, setPlacesListData] = useState(null);
+
+  // Receive "places in viewport" data from mapMain.js
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    window.setPlacesListData = (payload) => {
+      setPlacesListData(payload);
+    };
+
+    return () => {
+      if (window.setPlacesListData) {
+        delete window.setPlacesListData;
+      }
+    };
+  }, []);
 
   // Track user session changes
   useEffect(() => {
@@ -109,6 +132,19 @@ export default function MapContainer({ user: initialUser }) {
     };
   }, []);
 
+  const handlePlaceFromListSelect = (feature) => {
+    if (
+      typeof window !== "undefined" &&
+      typeof window.selectPlaceFromListFeature === "function"
+    ) {
+      window.selectPlaceFromListFeature(feature);
+    }
+    // Close the drawer after selecting a place
+    if (onPlacesListClose) {
+      onPlacesListClose();
+    }
+  };
+
   return (
     <div>
       {/* === Map container === */}
@@ -122,6 +158,28 @@ export default function MapContainer({ user: initialUser }) {
           bottom: 0,
         }}
       ></div>
+
+      {/* === Places list Drawer (controlled by AppBar burger) === */}
+      <Drawer
+        anchor="left"
+        open={Boolean(isPlacesListOpen && placesListData)}
+        onClose={onPlacesListClose}
+        PaperProps={{
+          sx: {
+            width: { xs: "100%", sm: 360 },
+            maxWidth: "100%",
+            pt: 2,
+            px: 1,
+          },
+        }}
+      >
+        {placesListData && (
+          <PlacesListReact
+            data={placesListData}
+            onSelect={handlePlaceFromListSelect}
+          />
+        )}
+      </Drawer>
 
       {/* === Offcanvas (Details + Directions) === */}
       <div

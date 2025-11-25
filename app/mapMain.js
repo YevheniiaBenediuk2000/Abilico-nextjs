@@ -41,6 +41,7 @@ import {
   showMainPhoto,
 } from "./modules/fetchPhotos.mjs";
 import { ZoomMuiControl } from "./leaflet-controls/ZoomMuiControl.mjs";
+import { queryClient } from "./queryClient.js";
 
 // console.log("🧭 mapMain.js imported fetchPhotos.mjs successfully");
 
@@ -66,6 +67,11 @@ let accessibilityFilter = new Set([
   "unknown",
   "no",
 ]);
+
+// Map-wide cache of places by stable OSM key (N/123, W/456, R/789)
+const placesCacheById = new Map();
+// Optional: also track a simple array of all known features for quick reuse
+let allPlacesFeatures = [];
 
 let departureSuggestionsRoot = null;
 let departureSuggestionsRenderSeq = 0;
@@ -107,6 +113,91 @@ let obstacleFeatures = [];
 
 let editingReviewId = null;
 
+// place-type filter state used on the map side
+let placeTypeFilterState = null; // { [groupLabel]: { [subLabel]: boolean } } or null = all on
+
+// helper to load from localStorage (same key as React)
+const PLACE_TYPE_FILTER_LS_KEY = "ui.placeType.filter";
+
+function loadPlaceTypeFilterFromLS() {
+  try {
+    const raw = localStorage.getItem(PLACE_TYPE_FILTER_LS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") return parsed;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+// used when building markers to decide if a feature is visible
+function isFeatureAllowedByTypeFilter(feature) {
+  if (!placeTypeFilterState) return true; // no filter -> all allowed
+
+  const props = feature.properties || {};
+  const tags = props.tags || props;
+
+  const major =
+    (tags.amenity && "amenity") ||
+    (tags.shop && "shop") ||
+    (tags.tourism && "tourism") ||
+    (tags.leisure && "leisure") ||
+    (tags.healthcare && "healthcare") ||
+    (tags.office && "office") ||
+    (tags.historic && "historic") ||
+    (tags.natural && "natural") ||
+    (tags.sport && "sport") ||
+    "other";
+
+  const labelForMajor = {
+    amenity: "Amenities",
+    shop: "Shops",
+    tourism: "Tourism",
+    leisure: "Leisure",
+    healthcare: "Healthcare",
+    office: "Office",
+    historic: "Historic",
+    natural: "Natural",
+    sport: "Sport",
+    other: "Other",
+  };
+
+  const groupLabel = labelForMajor[major] || "Other";
+
+  // build subLabel exactly like in PlacesListReact
+  const subRaw =
+    tags[major] ||
+    tags.amenity ||
+    tags.shop ||
+    tags.tourism ||
+    tags.leisure ||
+    tags.healthcare ||
+    tags.office ||
+    tags.historic ||
+    tags.natural ||
+    tags.sport ||
+    "other";
+
+  const subLabel = subRaw.toString().replace(/[_-]/g, " ");
+
+  const group = placeTypeFilterState[groupLabel];
+  if (!group) return false;
+
+  const val = group[subLabel];
+  // if subLabel never existed in this group, treat as off
+  return !!val;
+}
+
+function placeKeyFromFeature(feature) {
+  const p = feature.properties || {};
+  const osmType = p.osm_type || p.type;
+  const osmId = p.osm_id || p.id;
+
+  if (!osmType || !osmId) return null;
+  return `${osmType}/${osmId}`; // e.g. "N/123456789"
+}
+
 function showQuickRoutePopup(latlng) {
   const html = `
     <div class="d-flex align-items-center gap-2" role="group" aria-label="Quick route actions">
@@ -127,9 +218,9 @@ function showQuickRoutePopup(latlng) {
     closeOnClick: true,
     closeButton: true,
   })
-      .setLatLng(latlng)
-      .setContent(html)
-      .openOn(map);
+    .setLatLng(latlng)
+    .setContent(html)
+    .openOn(map);
 
   const startBtn = document.getElementById("qp-start");
   const goBtn = document.getElementById("qp-go");
@@ -180,16 +271,16 @@ elements.offcanvas.addEventListener("hidden.bs.offcanvas", () => {
 function toggleDepartureSuggestions(visible) {
   elements.departureSuggestions.classList.toggle("d-none", !visible);
   elements.departureSearchInput.setAttribute(
-      "aria-expanded",
-      visible ? "true" : "false"
+    "aria-expanded",
+    visible ? "true" : "false"
   );
 }
 
 function toggleDestinationSuggestions(visible) {
   elements.destinationSuggestions.classList.toggle("d-none", !visible);
   elements.destinationSearchInput.setAttribute(
-      "aria-expanded",
-      visible ? "true" : "false"
+    "aria-expanded",
+    visible ? "true" : "false"
   );
 }
 
@@ -284,8 +375,8 @@ async function openEditModalForLayer(layer) {
 
   // Update tooltip
   attachBootstrapTooltip(
-      layer,
-      tooltipTextFromProps(obstacleFeatures[idx].properties)
+    layer,
+    tooltipTextFromProps(obstacleFeatures[idx].properties)
   );
 }
 
@@ -294,7 +385,7 @@ function hookLayerInteractions(layer, props) {
   // (safe if we call after the layer is added to the map/featureGroup).
   // Re-attach tooltip whenever the layer is re-added to the map
   layer.once("add", () =>
-      attachBootstrapTooltip(layer, tooltipTextFromProps(props))
+    attachBootstrapTooltip(layer, tooltipTextFromProps(props))
   );
 
   layer.off("click");
@@ -353,49 +444,127 @@ function toggleObstaclesByZoom() {
   }
 }
 
+function serializeBounds(bounds) {
+  const s = bounds.getSouth();
+  const w = bounds.getWest();
+  const n = bounds.getNorth();
+  const e = bounds.getEast();
+  const round = (v) => Number(v.toFixed(4)); // ~10m precision
+  return [round(s), round(w), round(n), round(e)];
+}
+
+function accessibilityKey() {
+  return Array.from(accessibilityFilter).sort().join(",");
+}
+
 let placesReqSeq = 0;
 async function refreshPlaces() {
   const mySeq = ++placesReqSeq; // capture this call’s id
 
+  const bounds = map.getBounds();
   const zoom = map.getZoom();
   const key = showLoading("places");
 
   try {
-    const geojson = await fetchPlaces(map.getBounds(), zoom, {
-      accessibilityFilter,
-    });
+    const queryKey = [
+      "places",
+      serializeBounds(bounds),
+      zoom,
+      accessibilityKey(),
+    ];
+
+    // ✅ 1. Try to reuse from cache (no network at all if present)
+    let geojson = queryClient.getQueryData(queryKey);
+
+    // ✅ 2. If not cached yet, fetch & cache via react-query
+    if (!geojson) {
+      geojson = await queryClient.fetchQuery({
+        queryKey,
+        queryFn: () => fetchPlaces(bounds, zoom, { accessibilityFilter }),
+      });
+    }
+
     // If this response is for an old call, ignore it
     if (mySeq !== placesReqSeq) return;
+
+    // ✅ 1) Merge fresh features into global cache
+    const freshFeatures = geojson.features || [];
+    freshFeatures.forEach((f) => {
+      const k = placeKeyFromFeature(f);
+      if (!k) return;
+      placesCacheById.set(k, f);
+    });
+
+    // Optional: keep a flat array for convenience
+    allPlacesFeatures = Array.from(placesCacheById.values());
+
+    // ✅ 2) Compute which cached features are inside current bounds
+    const featuresInView = allPlacesFeatures.filter((f) => {
+      const g = f.geometry;
+      if (!g) return false;
+      if (g.type !== "Point" || !Array.isArray(g.coordinates)) return false;
+
+      const [lng, lat] = g.coordinates;
+      return bounds.contains(L.latLng(lat, lng));
+    });
+
+    const geojsonForView = {
+      type: "FeatureCollection",
+      features: featuresInView,
+    };
 
     placeClusterLayer.clearLayers();
 
     const placesLayer = L.geoJSON(geojson, {
+      filter: (feature) => {
+        // called for each feature; return true to keep it
+        return isFeatureAllowedByTypeFilter(feature);
+      },
       pointToLayer: (feature, latlng) => {
         const tags = feature.properties.tags || feature.properties;
-        // console.log("POI tags sample:", tags);
-
         const marker = L.marker(latlng, {
           pane: "places-pane",
-          icon: makePoiIcon(tags), // <-- fixed 33px badge
+          icon: makePoiIcon(tags),
         })
-            .on("click", () => {
-              renderDetails(tags, L.latLng(latlng), { keepDirectionsUi: true });
-            })
-            .on("add", () => {
-              const title = tags.name ?? tags.amenity ?? "Unnamed place";
-              attachBootstrapTooltip(marker, title);
-            })
-            .on("remove", () => {
-              if (marker._bsTooltip) {
-                marker._bsTooltip.dispose();
-                marker._bsTooltip = null;
-              }
-            });
+          .on("click", () => {
+            renderDetails(tags, L.latLng(latlng), { keepDirectionsUi: true });
+          })
+          .on("add", () => {
+            const title = tags.name ?? tags.amenity ?? "Unnamed place";
+            attachBootstrapTooltip(marker, title);
+          })
+          .on("remove", () => {
+            if (marker._bsTooltip) {
+              marker._bsTooltip.dispose();
+              marker._bsTooltip = null;
+            }
+          });
 
         return marker;
       },
     });
+
     placeClusterLayer.addLayer(placesLayer);
+
+    // 🔗 Notify React list overlay about places in the current viewport
+    try {
+      if (
+        typeof window !== "undefined" &&
+        typeof window.setPlacesListData === "function"
+      ) {
+        const center = map.getCenter();
+        const features =
+          geojson && Array.isArray(geojson.features) ? geojson.features : [];
+
+        window.setPlacesListData({
+          features,
+          center: center ? { lat: center.lat, lng: center.lng } : null,
+          zoom,
+        });
+      }
+    } catch (err) {
+      console.error("❌ Failed to update places list overlay:", err);
+    }
   } finally {
     hideLoading(key);
   }
@@ -403,7 +572,7 @@ async function refreshPlaces() {
 
 function moveDepartureSearchBarUnderTo() {
   const toLabel = elements.directionsUi?.querySelector?.(
-      'label[for="destination-search-input"]'
+    'label[for="destination-search-input"]'
   );
 
   if (!toLabel) {
@@ -691,20 +860,20 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   // WEBSITE (single merged block)
   const websiteLinks = splitMulti(nTags.website || "")
-      .map(cleanUrl)
-      .filter(Boolean);
+    .map(cleanUrl)
+    .filter(Boolean);
   if (websiteLinks.length) {
     const item = document.createElement("div");
     item.className =
-        "list-group-item d-flex justify-content-between align-items-start";
+      "list-group-item d-flex justify-content-between align-items-start";
     const links = websiteLinks
-        .map(
-            (u) =>
-                `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${linkLabel(
-                    u
-                )}</a>`
-        )
-        .join(" · ");
+      .map(
+        (u) =>
+          `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${linkLabel(
+            u
+          )}</a>`
+      )
+      .join(" · ");
     item.innerHTML = `<div class="me-2"><h6 class="mb-1 fw-semibold">Website</h6><p class="small mb-1">${links}</p></div>`;
     list.appendChild(item);
   }
@@ -712,28 +881,28 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   // --- Render basic tags (address, amenity, etc.) ---
   Object.entries(nTags).forEach(([key, value]) => {
     const isWebsiteVariant =
-        /^(website|url)(?::\d+)?$/i.test(key) || /^contact:website$/i.test(key);
+      /^(website|url)(?::\d+)?$/i.test(key) || /^contact:website$/i.test(key);
     if (isWebsiteVariant) return;
 
     const containsAltName = /alt\s*name/i.test(key);
     const containsLocalizedVariants =
-        /^(name|alt_name|short_name|display_name):/i.test(key);
+      /^(name|alt_name|short_name|display_name):/i.test(key);
     const isCountryKey = /^country$/i.test(key);
     const isWikiDataKey = /^wikidata(?::[a-z-]+)?$/i.test(key);
 
     const isExcluded =
-        EXCLUDED_PROPS.has(key) ||
-        containsAltName ||
-        containsLocalizedVariants ||
-        isCountryKey ||
-        isWikiDataKey;
+      EXCLUDED_PROPS.has(key) ||
+      containsAltName ||
+      containsLocalizedVariants ||
+      isCountryKey ||
+      isWikiDataKey;
 
     if (isExcluded) return;
 
     const lk = key.toLowerCase();
     const item = document.createElement("div");
     item.className =
-        "list-group-item d-flex justify-content-between align-items-start";
+      "list-group-item d-flex justify-content-between align-items-start";
 
     // Special cases: linkify
     if (lk === "website" || lk === "url") {
@@ -741,13 +910,13 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       if (!urls.length) return;
 
       const links = urls
-          .map(
-              (u) =>
-                  `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${hostLabel(
-                      u
-                  )}</a>`
-          )
-          .join(" · ");
+        .map(
+          (u) =>
+            `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${hostLabel(
+              u
+            )}</a>`
+        )
+        .join(" · ");
 
       item.innerHTML = `
       <div class="me-2">
@@ -763,22 +932,22 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       if (!urls.length) return;
 
       const links = urls
-          .map((u) => {
-            // If someone put a Mapillary URL in image=, route it to the viewer
-            if (/mapillary\.com/i.test(u)) {
-              const viewer = toMapillaryViewerUrl(u);
-              return `<a href="${viewer}" target="_blank" rel="noopener nofollow ugc">Mapillary</a>`;
-            }
-            // Google Photos shares are pages, not direct images; still useful
-            if (/photos\.app\.goo\.gl|photos\.google\.com/i.test(u)) {
-              return `<a href="${u}" target="_blank" rel="noopener nofollow ugc">Google Photos</a>`;
-            }
-            // Fallback: show host
-            return `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${hostLabel(
-                u
-            )}</a>`;
-          })
-          .join(" · ");
+        .map((u) => {
+          // If someone put a Mapillary URL in image=, route it to the viewer
+          if (/mapillary\.com/i.test(u)) {
+            const viewer = toMapillaryViewerUrl(u);
+            return `<a href="${viewer}" target="_blank" rel="noopener nofollow ugc">Mapillary</a>`;
+          }
+          // Google Photos shares are pages, not direct images; still useful
+          if (/photos\.app\.goo\.gl|photos\.google\.com/i.test(u)) {
+            return `<a href="${u}" target="_blank" rel="noopener nofollow ugc">Google Photos</a>`;
+          }
+          // Fallback: show host
+          return `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${hostLabel(
+            u
+          )}</a>`;
+        })
+        .join(" · ");
 
       item.innerHTML = `
       <div class="me-2">
@@ -810,7 +979,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
         const lang = m[1];
         const title = m[2].replace(/\s/g, "_");
         const href = `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(
-            title
+          title
         )}`;
         item.innerHTML = `
       <div class="me-2">
@@ -828,14 +997,14 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       displayKey = "Address";
     } else {
       displayKey = key
-          .replace(/^Addr_?/i, "")
-          .replace(/[_:]/g, " ")
-          .replace(/\b\w/g, (c) => c.toUpperCase());
+        .replace(/^Addr_?/i, "")
+        .replace(/[_:]/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
     }
 
     const displayValue = String(value)
-        .replace(/[_:]/g, " ")
-        .replace(/\b\w/g, (c) => c.toUpperCase());
+      .replace(/[_:]/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
 
     item.innerHTML = `
     <div class="me-2">
@@ -893,10 +1062,10 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     const photos = await resolvePlacePhotos(tags, latlng);
 
     console.log(
-        "📷 resolvePlacePhotos returned",
-        photos.length,
-        "items:",
-        photos
+      "📷 resolvePlacePhotos returned",
+      photos.length,
+      "items:",
+      photos
     );
     showMainPhoto(photos[0]);
     renderPhotosGrid(photos);
@@ -1090,12 +1259,12 @@ async function updateRoute({ fit = true } = {}) {
 
   // 🧩 Defensive guard
   if (
-      !fromLatLng ||
-      !toLatLng ||
-      !fromLatLng.lat ||
-      !fromLatLng.lng ||
-      !toLatLng.lat ||
-      !toLatLng.lng
+    !fromLatLng ||
+    !toLatLng ||
+    !fromLatLng.lat ||
+    !fromLatLng.lng ||
+    !toLatLng.lat ||
+    !toLatLng.lng
   ) {
     console.warn("⚠️ updateRoute aborted: invalid from/to coords", {
       fromLatLng,
@@ -1110,11 +1279,11 @@ async function updateRoute({ fit = true } = {}) {
 
   try {
     const geojson = await fetchRoute(
-        [
-          [fromLatLng.lng, fromLatLng.lat],
-          [toLatLng.lng, toLatLng.lat],
-        ],
-        obstacleFeatures
+      [
+        [fromLatLng.lng, fromLatLng.lat],
+        [toLatLng.lng, toLatLng.lat],
+      ],
+      obstacleFeatures
     );
     console.log("📦 fetchRoute() returned:", geojson);
 
@@ -1166,7 +1335,7 @@ async function setFrom(latlng, text, opts = {}) {
   });
 
   elements.departureSearchInput.value =
-      text ?? (await reverseAddressAt(latlng));
+    text ?? (await reverseAddressAt(latlng));
 
   await updateRoute(opts);
 }
@@ -1174,8 +1343,8 @@ async function setFrom(latlng, text, opts = {}) {
 async function setTo(latlng, text, opts = {}) {
   console.log("➡️ setTo() called with:", { latlng, text, opts });
   console.log(
-      "ℹ️ directionsUi visible?",
-      !elements.directionsUi.classList.contains("d-none")
+    "ℹ️ directionsUi visible?",
+    !elements.directionsUi.classList.contains("d-none")
   );
   toLatLng = latlng;
   const directionsActive = !elements.directionsUi.classList.contains("d-none");
@@ -1193,7 +1362,7 @@ async function setTo(latlng, text, opts = {}) {
   }
 
   elements.destinationSearchInput.value =
-      text ?? (await reverseAddressAt(latlng));
+    text ?? (await reverseAddressAt(latlng));
   updateRoute(opts);
 }
 
@@ -1208,10 +1377,10 @@ async function selectDestinationSuggestion(res) {
   if (selectedPlaceLayer) map.removeLayer(selectedPlaceLayer);
 
   showDetailsLoading(
-      elements.detailsPanel,
-      res.name ?? "Details",
-      moveDepartureSearchBarUnderTo,
-      mountInOffcanvas
+    elements.detailsPanel,
+    res.name ?? "Details",
+    moveDepartureSearchBarUnderTo,
+    mountInOffcanvas
   );
 
   const key = showLoading("place-select");
@@ -1219,13 +1388,21 @@ async function selectDestinationSuggestion(res) {
   try {
     const osmType = res.properties.osm_type;
     const osmId = res.properties.osm_id;
+    const osmKey = `${osmType}/${osmId}`;
+
+    // 🗺️ Draw outline or marker – cached by OSM id
+    const geojsonGeometry =
+      queryClient.getQueryData(["place-geometry", osmKey]) ??
+      (await queryClient.fetchQuery({
+        queryKey: ["place-geometry", osmKey],
+        queryFn: () => fetchPlaceGeometry(osmType, osmId),
+      }));
 
     // 🗺️ Draw outline or marker
-    const geojsonGeometry = await fetchPlaceGeometry(osmType, osmId);
     const polyLike =
-        geojsonGeometry.features.find(
-            (f) => f.geometry && f.geometry.type !== "Point"
-        ) || null;
+      geojsonGeometry.features.find(
+        (f) => f.geometry && f.geometry.type !== "Point"
+      ) || null;
 
     if (polyLike) {
       selectedPlaceLayer = L.geoJSON(geojsonGeometry, {
@@ -1257,7 +1434,12 @@ async function selectDestinationSuggestion(res) {
     console.log("🔍 Photon basic tags:", tags);
 
     // 🧭 STEP 2: fetch Overpass enrichment
-    const enriched = await fetchPlace(osmType, osmId); // uses Overpass
+    const enriched =
+      queryClient.getQueryData(["place-tags", osmKey]) ??
+      (await queryClient.fetchQuery({
+        queryKey: ["place-tags", osmKey],
+        queryFn: () => fetchPlace(osmType, osmId),
+      })); // uses Overpass
     tags = { ...tags, ...enriched };
     console.log("📦 Enriched tags:", tags);
 
@@ -1589,7 +1771,7 @@ export async function initMap(user = null) {
     try {
       // Compose the Photon API endpoint with a properly encoded search string.
       const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(
-          query
+        query
       )}`;
 
       // Fetch the GeoJSON response safely.
@@ -1598,10 +1780,10 @@ export async function initMap(user = null) {
       // Map each GeoJSON feature into Leaflet-friendly result objects.
       const results = (json.features || []).map((f) => ({
         name:
-            f.properties.name || // normal place name
-            f.properties.osm_value || // fallback: OSM tag (like "restaurant")
-            f.properties.street || // or street name
-            "Unnamed", // fallback if no name at all
+          f.properties.name || // normal place name
+          f.properties.osm_value || // fallback: OSM tag (like "restaurant")
+          f.properties.street || // or street name
+          "Unnamed", // fallback if no name at all
         center: [
           // convert [lon, lat] → [lat, lon] for Leaflet
           f.geometry.coordinates[1],
@@ -1631,10 +1813,10 @@ export async function initMap(user = null) {
   // Similar to above, but goes the other way around: lat/lng → nearest place name.
   geocoder.reverse = async function (latlng, scale, cb) {
     console.log(
-        "🔎 geocoder.reverse input:",
-        latlng,
-        "array?",
-        Array.isArray(latlng)
+      "🔎 geocoder.reverse input:",
+      latlng,
+      "array?",
+      Array.isArray(latlng)
     );
 
     try {
@@ -1647,10 +1829,10 @@ export async function initMap(user = null) {
       // Convert GeoJSON features to Leaflet-friendly results.
       const results = (json.features || []).map((f) => ({
         name:
-            f.properties.name || // best available name
-            f.properties.osm_value || // fallback (e.g., "building" or "bus_stop")
-            f.properties.street || // or nearby street
-            "Unnamed", // last-resort fallback
+          f.properties.name || // best available name
+          f.properties.osm_value || // fallback (e.g., "building" or "bus_stop")
+          f.properties.street || // or nearby street
+          "Unnamed", // last-resort fallback
         center: [f.geometry.coordinates[1], f.geometry.coordinates[0]],
         properties: f.properties,
       }));
@@ -1678,24 +1860,24 @@ export async function initMap(user = null) {
 
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          map.setView([latitude, longitude], DEFAULT_ZOOM);
-          L.marker([latitude, longitude]).addTo(map);
-        },
-        (error) => {
-          const userDeniedGeolocation = error.code === 1;
-          if (!userDeniedGeolocation) {
-            console.log(error);
-            toastError("Could not get your location. Using default location.", {
-              important: true,
-            });
-          }
-
-          const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
-          // const defaultLatLng = [51.5074, -0.1278]; // London, UK
-          map.setView(defaultLatLng, DEFAULT_ZOOM);
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        map.setView([latitude, longitude], DEFAULT_ZOOM);
+        L.marker([latitude, longitude]).addTo(map);
+      },
+      (error) => {
+        const userDeniedGeolocation = error.code === 1;
+        if (!userDeniedGeolocation) {
+          console.log(error);
+          toastError("Could not get your location. Using default location.", {
+            important: true,
+          });
         }
+
+        const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
+        // const defaultLatLng = [51.5074, -0.1278]; // London, UK
+        map.setView(defaultLatLng, DEFAULT_ZOOM);
+      }
     );
   } else {
     const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
@@ -1705,6 +1887,42 @@ export async function initMap(user = null) {
 
   // ============= EVENT LISTENERS =============
   map.whenReady(async () => {
+    // Allow React list items to focus a place on the map
+    if (typeof window !== "undefined") {
+      window.selectPlaceFromListFeature = async (feature) => {
+        try {
+          if (!feature || !feature.geometry) return;
+
+          const coords = feature.geometry.coordinates || [];
+          const [lon, lat] = coords;
+          if (
+            typeof lat !== "number" ||
+            Number.isNaN(lat) ||
+            typeof lon !== "number" ||
+            Number.isNaN(lon)
+          ) {
+            return;
+          }
+
+          const latlng = L.latLng(lat, lon);
+          const props = feature.properties || {};
+          const tags = props.tags || props || {};
+
+          // Show details panel (Overview/Reviews/Photos)
+          await renderDetails(tags, latlng, { keepDirectionsUi: true });
+
+          // Focus map on the selected place
+          if (map) {
+            const currentZoom = map.getZoom() || DEFAULT_ZOOM;
+            const targetZoom = Math.max(currentZoom, 17);
+            map.setView(latlng, targetZoom);
+          }
+        } catch (err) {
+          console.error("❌ selectPlaceFromListFeature failed:", err);
+        }
+      };
+    }
+
     // console.log("✅ Leaflet map ready, initializing places...");
     placesPane = map.createPane("places-pane");
     placesPane.style.zIndex = 450;
@@ -1744,10 +1962,10 @@ export async function initMap(user = null) {
 
   let destinationGeocodeReqSeq = 0;
   elements.destinationSearchInput.addEventListener(
-      "input",
-      debounce((e) => {
-        console.log("🎯 debounce triggered for query:", e.target.value);
-        const searchQuery = e.target.value.trim();
+    "input",
+    debounce((e) => {
+      console.log("🎯 debounce triggered for query:", e.target.value);
+      const searchQuery = e.target.value.trim();
 
       if (!searchQuery) {
         toggleDestinationSuggestions(false);
@@ -1793,22 +2011,22 @@ export async function initMap(user = null) {
   document.addEventListener("click", hideSuggestionsIfClickedOutside);
 
   elements.detailsPanel
-      .querySelector("#btn-start-here")
-      .addEventListener("click", async () => {
-        elements.directionsUi.classList.remove("d-none");
-        mountInOffcanvas("Directions");
-        await setFrom(globals.detailsCtx.latlng);
-        elements.departureSearchInput.focus();
-      });
+    .querySelector("#btn-start-here")
+    .addEventListener("click", async () => {
+      elements.directionsUi.classList.remove("d-none");
+      mountInOffcanvas("Directions");
+      await setFrom(globals.detailsCtx.latlng);
+      elements.departureSearchInput.focus();
+    });
 
   elements.detailsPanel
-      .querySelector("#btn-go-here")
-      .addEventListener("click", async () => {
-        elements.directionsUi.classList.remove("d-none");
-        mountInOffcanvas("Directions");
-        await setTo(globals.detailsCtx.latlng);
-        elements.departureSearchInput.focus();
-      });
+    .querySelector("#btn-go-here")
+    .addEventListener("click", async () => {
+      elements.directionsUi.classList.remove("d-none");
+      mountInOffcanvas("Directions");
+      await setTo(globals.detailsCtx.latlng);
+      elements.departureSearchInput.focus();
+    });
 
   // ✅ Set up review form handler using event delegation
   // This works even if the form is created dynamically after login
@@ -1834,11 +2052,11 @@ export async function initMap(user = null) {
     try {
       console.log("🧭 Review submit ctx:", globals.detailsCtx);
       const placeId =
-          globals.detailsCtx.placeId ??
-          (await ensurePlaceExists(
-              globals.detailsCtx.tags,
-              globals.detailsCtx.latlng
-          ));
+        globals.detailsCtx.placeId ??
+        (await ensurePlaceExists(
+          globals.detailsCtx.tags,
+          globals.detailsCtx.latlng
+        ));
       const newReview = { text, place_id: placeId };
 
       await withButtonLoading(
@@ -1877,5 +2095,16 @@ export async function initMap(user = null) {
     }
 
     refreshPlaces();
+  });
+
+  // Listen for React nested filter updates
+  document.addEventListener("placeTypeFilterChanged", (ev) => {
+    // We re-read from LS so both sides stay in sync
+    placeTypeFilterState = loadPlaceTypeFilterFromLS();
+    // Rebuild places layer in the current viewport using cached features
+    // so markers hide/show without refetching Overpass.
+    if (map) {
+      refreshPlaces(); // refresh will respect isFeatureAllowedByTypeFilter
+    }
   });
 }

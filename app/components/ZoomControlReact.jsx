@@ -7,7 +7,7 @@ import Divider from "@mui/material/Divider";
 import Box from "@mui/material/Box";
 
 export default function ZoomControlReact({ onZoomIn, onZoomOut }) {
-  const buttonSx = { py: 1, px: 1.4 };
+  const buttonSx = { py: 0.8, px: 0.8 };
 
   return (
     <Paper>
