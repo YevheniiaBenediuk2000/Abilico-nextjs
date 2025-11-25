@@ -43,9 +43,9 @@ async function handleSetupMFA() {
 const Search = styled("div")(({ theme }) => ({
   position: "relative",
   borderRadius: theme.shape.borderRadius,
-  backgroundColor: alpha(theme.palette.common.white, 0.15),
+  backgroundColor: alpha(theme.palette.common.black, 0.15),
   "&:hover": {
-    backgroundColor: alpha(theme.palette.common.white, 0.25),
+    backgroundColor: alpha(theme.palette.common.black, 0.25),
   },
   marginLeft: 0,
   width: "100%",
@@ -126,7 +126,16 @@ export default function MapLayout({ isDashboard = false }) {
     <QueryClientProvider client={queryClient}>
       <div className="d-flex flex-column min-vh-100">
         {/* === MUI AppBar with burger + search + account === */}
-        <AppBar position="static" color="primary" elevation={1}>
+        <AppBar
+          elevation={1}
+          position="static"
+          color="transparent"
+          sx={{
+            bgcolor: "#fff",
+            color: "text.primary",
+            borderBottom: "1px solid rgba(0,0,0,0.12)",
+          }}
+        >
           <Toolbar>
             {/* Burger: toggles places list drawer */}
             <IconButton
