@@ -602,19 +602,6 @@ export default function PlacesListReact({ data, onSelect }) {
           </Typography>
         </Box>
 
-        {/* Filters Button */}
-        {rawItems.length > 0 && (
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<FilterListIcon />}
-            onClick={() => setFiltersOpen(true)}
-            sx={{ alignSelf: "flex-start", mt: 0.5 }}
-          >
-            Filters
-          </Button>
-        )}
-
         {rawItems.length > 0 && (
           <Box
             sx={{
@@ -624,6 +611,17 @@ export default function PlacesListReact({ data, onSelect }) {
               gap: 0.5,
             }}
           >
+            {/* Filters Button */}
+            <Button
+              variant="outlined"
+              color="inherit"
+              size="small"
+              startIcon={<FilterListIcon />}
+              onClick={() => setFiltersOpen(true)}
+            >
+              Filters
+            </Button>
+
             {/* horizontal Sort by row */}
             <Stack direction="row" spacing={0.5} alignItems="center">
               <Typography variant="caption" color="text.secondary">
