@@ -144,7 +144,7 @@ export default function MapLayout({ isDashboard = false }) {
               variant="h6"
               noWrap
               component="div"
-              sx={{ display: { xs: "none", sm: "block" }, mr: 2 }}
+              sx={{ flexGrow: 1, display: { xs: "none", sm: "block" } }}
             >
               Abilico
             </Typography>
