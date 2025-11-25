@@ -576,7 +576,7 @@ export default function PlacesListReact({ data, onSelect }) {
         pb={0.75}
         borderBottom="1px solid rgba(0,0,0,0.08)"
         display="flex"
-        alignItems="center"
+        alignItems="flex-start"
         justifyContent="space-between"
         gap={1}
       >
@@ -594,7 +594,15 @@ export default function PlacesListReact({ data, onSelect }) {
         </Box>
 
         {rawItems.length > 0 && (
-          <Stack direction="row" spacing={1.5} alignItems="center">
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-end",
+              gap: 0.5,
+            }}
+          >
+            {/* horizontal Sort by row */}
             <Stack direction="row" spacing={0.5} alignItems="center">
               <Typography variant="caption" color="text.secondary">
                 Sort by
@@ -615,9 +623,9 @@ export default function PlacesListReact({ data, onSelect }) {
               </Stack>
             </Stack>
 
-            {/* "Only with photos" toggle */}
+            {/* "Only with photos" toggle, now below the Sort by row */}
             <FormControlLabel
-              sx={{ ml: 0 }}
+              sx={{ m: 0 }}
               control={
                 <Checkbox
                   size="small"
@@ -631,7 +639,7 @@ export default function PlacesListReact({ data, onSelect }) {
                 </Typography>
               }
             />
-          </Stack>
+          </Box>
         )}
       </Box>
 
