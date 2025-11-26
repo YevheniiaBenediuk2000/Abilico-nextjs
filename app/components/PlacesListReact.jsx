@@ -241,12 +241,11 @@ function NestedPlaceTypeFilter({ items }) {
 
   const [selection, setSelection] = useState(() => {
     const fromLs = loadInitialTypeFilter();
-    if (!fromLs || typeof fromLs !== "object") return defaultState;
+    if (!fromLs) return defaultState;
     // merge with default (so new categories get added)
     const merged = { ...defaultState };
     Object.entries(fromLs).forEach(([group, subs]) => {
       if (!merged[group]) merged[group] = {};
-      if (!subs || typeof subs !== "object") return;
       Object.entries(subs).forEach(([sub, val]) => {
         if (merged[group].hasOwnProperty(sub)) {
           merged[group][sub] = !!val;
@@ -264,8 +263,7 @@ function NestedPlaceTypeFilter({ items }) {
 
     // Build payload for non-React consumers
     const active = [];
-    Object.entries(selection || {}).forEach(([groupLabel, subs]) => {
-      if (!subs || typeof subs !== "object") return;
+    Object.entries(selection).forEach(([groupLabel, subs]) => {
       Object.entries(subs).forEach(([subLabel, isOn]) => {
         if (!isOn) return;
         active.push({ groupLabel, subLabel });
@@ -282,16 +280,14 @@ function NestedPlaceTypeFilter({ items }) {
 
   // group-level helpers
   const isGroupAllChecked = (groupLabel) => {
-    const subs = selection?.[groupLabel];
-    if (!subs || typeof subs !== "object") return false;
+    const subs = selection[groupLabel];
     const values = Object.values(subs);
     if (!values.length) return false;
     return values.every(Boolean);
   };
 
   const isGroupSomeChecked = (groupLabel) => {
-    const subs = selection?.[groupLabel];
-    if (!subs || typeof subs !== "object") return false;
+    const subs = selection[groupLabel];
     const values = Object.values(subs);
     return values.some(Boolean);
   };
@@ -300,7 +296,6 @@ function NestedPlaceTypeFilter({ items }) {
     setSelection((prev) => {
       const next = { ...prev };
       const subs = next[groupLabel] || {};
-      if (!subs || typeof subs !== "object") return next;
       const allChecked = Object.values(subs).every(Boolean);
       const newSubs = {};
       Object.keys(subs).forEach((subLabel) => {
@@ -587,15 +582,14 @@ export default function PlacesListReact({ data, onSelect }) {
     <>
       {/* Header */}
       <Box
-        pb={0.75}
-        borderBottom="1px solid rgba(0,0,0,0.08)"
+        pb={0.4}
         display="flex"
         alignItems="flex-start"
         justifyContent="space-between"
         gap={1}
       >
         <Box>
-          <Typography variant="subtitle1" fontWeight={600}>
+          <Typography sx={{ mb: 0.9 }} variant="subtitle1" fontWeight={600}>
             Places in view
           </Typography>
           <Typography variant="caption" color="text.secondary">
@@ -613,7 +607,7 @@ export default function PlacesListReact({ data, onSelect }) {
               display: "flex",
               flexDirection: "column",
               alignItems: "flex-end",
-              gap: 0.5,
+              gap: 1,
             }}
           >
             {/* Filters Button */}
@@ -647,23 +641,6 @@ export default function PlacesListReact({ data, onSelect }) {
                 />
               </Stack>
             </Stack>
-
-            {/* "Only with photos" toggle, now below the Sort by row */}
-            <FormControlLabel
-              sx={{ m: 0 }}
-              control={
-                <Checkbox
-                  size="small"
-                  checked={photosOnly}
-                  onChange={(e) => setPhotosOnly(e.target.checked)}
-                />
-              }
-              label={
-                <Typography variant="caption" color="text.secondary">
-                  Only with photos
-                </Typography>
-              }
-            />
           </Box>
         )}
       </Box>
@@ -721,6 +698,7 @@ export default function PlacesListReact({ data, onSelect }) {
                                   alt={photo?.title || item.name}
                                   loading="lazy"
                                   sx={{
+                                    mt: "6px",
                                     width: 64,
                                     height: 64,
                                     borderRadius: 1,
@@ -819,7 +797,11 @@ export default function PlacesListReact({ data, onSelect }) {
         fullWidth
       >
         <DialogTitle>
-          <Box display="flex" alignItems="center" justifyContent="space-between">
+          <Box
+            display="flex"
+            alignItems="center"
+            justifyContent="space-between"
+          >
             <Typography variant="h6">Filters</Typography>
             <IconButton
               aria-label="close"
@@ -843,6 +825,24 @@ export default function PlacesListReact({ data, onSelect }) {
                 <NestedPlaceTypeFilter items={rawItems} />
               </Box>
             )}
+
+            {/* Photos filter – same state as header toggle */}
+            <Box>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    size="small"
+                    checked={photosOnly}
+                    onChange={(e) => setPhotosOnly(e.target.checked)}
+                  />
+                }
+                label={
+                  <Typography variant="body2" color="text.secondary">
+                    Only with photos
+                  </Typography>
+                }
+              />
+            </Box>
           </Box>
         </DialogContent>
       </Dialog>

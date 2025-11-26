@@ -60,21 +60,9 @@
   background-color: var(--bs-danger);
 }
 
-#accessibility-legend .btn-check:not(:checked) + label.btn {
-  opacity: 0.5;
-  transform: scale(0.95);
-  filter: grayscale(10%);
-}
-
 @media (max-width: 768px) {
   .map-overlay {
     width: calc(100% - 24px);
-  }
-
-  #accessibility-legend {
-    position: fixed;
-    bottom: 12px;
-    left: 12px;
   }
 }
 

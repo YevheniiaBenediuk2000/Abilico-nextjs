@@ -155,11 +155,11 @@ function buildAccessibilityClauses(allowed) {
   if (allowed.has("unknown")) {
     // wheelchairs present but value is not any of the recognized ones
     clauses.add(
-        '["wheelchair"!~"^(designated|yes|true|limited|partial|no|false)$"]'
+      '["wheelchair"!~"^(designated|yes|true|limited|partial|no|false)$"]'
     );
     // …or none of the relevant keys exist at all
     clauses.add(
-        '[!"wheelchair"][!"toilets:wheelchair"][!"wheelchair:toilets"]'
+      '[!"wheelchair"][!"toilets:wheelchair"][!"wheelchair:toilets"]'
     );
   }
 
@@ -213,8 +213,8 @@ const SHOP_FOCUS_LOW = [
 
 // Build the base selectors depending on zoom
 function selectorsForZoom(
-    zoom,
-    { AMENITY_EXCLUDED, LEISURE_EXCLUDED, MAN_MADE_EXCLUDED, MILITARY_EXCLUDED }
+  zoom,
+  { AMENITY_EXCLUDED, LEISURE_EXCLUDED, MAN_MADE_EXCLUDED, MILITARY_EXCLUDED }
 ) {
   // Full fat at close zoom
   const FULL = [
@@ -290,10 +290,10 @@ export async function fetchPlaces(bounds, zoom, options) {
   const boundingBox = `${s},${w},${n},${e}`;
 
   const AMENITY_EXCLUDED =
-      "bench|waste_basket|bicycle_parking|vending_machine|fountain|ice_cream|grit_bin|drinking_water|give_box|parcel_locker|water_point|recycling|waste_basket|waste_disposal";
+    "bench|waste_basket|bicycle_parking|vending_machine|fountain|ice_cream|grit_bin|drinking_water|give_box|parcel_locker|water_point|recycling|waste_basket|waste_disposal";
   const LEISURE_EXCLUDED = "park|picnic_table";
   const MAN_MADE_EXCLUDED =
-      "surveillance|pump|pipeline|pier|groyne|flagpole|embankment|dyke|clearcut|cutline";
+    "surveillance|pump|pipeline|pier|groyne|flagpole|embankment|dyke|clearcut|cutline";
   const MILITARY_EXCLUDED = "trench";
 
   if (accessibilityFilter.size === 0) {
@@ -324,8 +324,8 @@ export async function fetchPlaces(bounds, zoom, options) {
 
   const outLimit = limitForZoom(zoom);
   const outLine = outLimit
-      ? `out center tags ${outLimit};`
-      : `out center tags;`;
+    ? `out center tags ${outLimit};`
+    : `out center tags;`;
 
   const query = `
     [out:json][timeout:180];
@@ -350,8 +350,6 @@ export async function fetchPlaces(bounds, zoom, options) {
           });
 
           if (!response.ok) {
-            // Throw error with status code - pRetry will handle retries
-            // For 504 errors, we'll catch and move to next endpoint after retries fail
             throw new Error(`Overpass error ${response.status} @ ${endpoint}`);
           }
 
@@ -367,7 +365,10 @@ export async function fetchPlaces(bounds, zoom, options) {
       }, pRetryConfig);
     } catch (error) {
       // Don't log 504 errors as errors - they're expected when servers are busy
-      if (error?.message?.includes("504") || error?.message?.includes("timeout")) {
+      if (
+        error?.message?.includes("504") ||
+        error?.message?.includes("timeout")
+      ) {
         console.warn(`[Overpass] ${endpoint} timed out, trying next endpoint…`);
       } else if (error?.name !== "AbortError") {
         console.error("❌ Overpass fetch failed:", error);
@@ -377,7 +378,10 @@ export async function fetchPlaces(bounds, zoom, options) {
       }
       lastError = error;
       // Only warn if it's not a timeout
-      if (!error?.message?.includes("504") && !error?.message?.includes("timeout")) {
+      if (
+        !error?.message?.includes("504") &&
+        !error?.message?.includes("timeout")
+      ) {
         console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
       }
     }

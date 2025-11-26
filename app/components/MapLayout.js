@@ -31,9 +31,6 @@ import PersonIcon from "@mui/icons-material/Person";
 
 import { queryClient } from "../queryClient";
 
-
-
-
 // Helper function to get initials from email
 function getInitialsFromEmail(email) {
   if (!email) return "?";
@@ -48,7 +45,9 @@ function getInitialsFromEmail(email) {
 // Helper function to get color based on email
 function getAvatarColor(email) {
   if (!email) return deepOrange[500];
-  const hash = email.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const hash = email
+    .split("")
+    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return hash % 2 === 0 ? deepOrange[500] : deepPurple[500];
 }
 
@@ -70,7 +69,6 @@ export default function MapLayout({ isDashboard = false, children }) {
 
     return () => subscription.unsubscribe();
   }, []);
-
 
   // ✅ Protect dashboard
   useEffect(() => {
@@ -98,96 +96,105 @@ export default function MapLayout({ isDashboard = false, children }) {
           }}
         >
           <Toolbar sx={{ gap: 2 }}>
-            {/* Burger: toggles places list drawer */}
-            <IconButton
-              size="large"
-              edge="start"
-              color="inherit"
-              aria-label="open places list"
-              onClick={() => setIsPlacesListOpen((prev) => !prev)}
-            >
-              <MenuIcon />
-            </IconButton>
+            {/* LEFT: burger + logo */}
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <IconButton
+                size="large"
+                edge="start"
+                color="inherit"
+                aria-label="open places list"
+                onClick={() => setIsPlacesListOpen((prev) => !prev)}
+              >
+                <MenuIcon />
+              </IconButton>
 
-            <Typography
-              variant="h6"
-              noWrap
-              component="div"
-              sx={{ display: { xs: "none", sm: "block" } }}
-            >
-              Abilico
-            </Typography>
+              <Typography
+                variant="h6"
+                noWrap
+                component="div"
+                sx={{ display: { xs: "none", sm: "block" } }}
+              >
+                Abilico
+              </Typography>
+            </Box>
 
-            {/* Search - centered in header, styled like login button */}
+            {/* CENTER: search bar, centered in available space */}
             <Box
-              id="destination-search-bar"
               sx={{
                 flex: 1,
                 display: "flex",
                 justifyContent: "center",
-                maxWidth: 600,
-                position: "relative",
-                mx: "auto",
+                px: { xs: 1, sm: 2 },
               }}
             >
-              <TextField
-                id="destination-search-input"
-                placeholder="Search place or click on the map…"
-                variant="outlined"
-                color="inherit"
-                fullWidth
-                size="small"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon sx={{ color: "text.secondary" }} />
-                    </InputAdornment>
-                  ),
-                }}
+              <Box
+                id="destination-search-bar"
                 sx={{
-                  "& .MuiOutlinedInput-root": {
-                    backgroundColor: "#fff",
-                    "& fieldset": {
-                      borderColor: "rgba(0, 0, 0, 0.23)",
-                    },
-                    "&:hover fieldset": {
-                      borderColor: "rgba(0, 0, 0, 0.87)",
-                    },
-                    "&.Mui-focused fieldset": {
-                      borderColor: "rgba(0, 0, 0, 0.87)",
-                    },
-                  },
+                  width: "100%",
+                  maxWidth: 600,
+                  position: "relative",
                 }}
-                inputProps={{
-                  "aria-label": "Search places",
-                  "aria-controls": "destination-suggestions",
-                }}
-              />
-              <ul
-                id="destination-suggestions"
-                className="list-group w-100 shadow d-none search-suggestions"
-                aria-label="Search suggestions"
-                style={{
-                  position: "absolute",
-                  top: "100%",
-                  left: 0,
-                  right: 0,
-                  zIndex: 1001,
-                  marginTop: 4,
-                }}
-              ></ul>
+              >
+                <TextField
+                  id="destination-search-input"
+                  placeholder="Search place or click on the map…"
+                  variant="outlined"
+                  color="inherit"
+                  fullWidth
+                  size="small"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon sx={{ color: "text.secondary" }} />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      backgroundColor: "#fff",
+                      "& fieldset": {
+                        borderColor: "rgba(0, 0, 0, 0.23)",
+                      },
+                      "&:hover fieldset": {
+                        borderColor: "rgba(0, 0, 0, 0.87)",
+                      },
+                      "&.Mui-focused fieldset": {
+                        borderColor: "rgba(0, 0, 0, 0.87)",
+                      },
+                    },
+                  }}
+                  inputProps={{
+                    "aria-label": "Search places",
+                    "aria-controls": "destination-suggestions",
+                  }}
+                />
+
+                <ul
+                  id="destination-suggestions"
+                  className="list-group w-100 shadow d-none search-suggestions"
+                  aria-label="Search suggestions"
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    zIndex: 1001,
+                    marginTop: 4,
+                  }}
+                ></ul>
+              </Box>
             </Box>
 
-            {/* Account / auth area */}
+            {/* RIGHT: account area (always pushed to the right) */}
             <Box
               sx={{
+                ml: "auto", // 👈 pushes this box to the far right
                 display: "flex",
                 alignItems: "center",
                 gap: 1,
               }}
             >
               {!user ? (
-                // Not logged in
                 <Button
                   variant="outlined"
                   color="inherit"
@@ -196,7 +203,6 @@ export default function MapLayout({ isDashboard = false, children }) {
                   Log in
                 </Button>
               ) : (
-                // Logged in
                 <>
                   <IconButton
                     onClick={(e) => setAvatarMenuAnchor(e.currentTarget)}
@@ -246,7 +252,10 @@ export default function MapLayout({ isDashboard = false, children }) {
                       }}
                     >
                       <ListItemIcon>
-                        <LogoutIcon fontSize="small" sx={{ color: "error.main" }} />
+                        <LogoutIcon
+                          fontSize="small"
+                          sx={{ color: "error.main" }}
+                        />
                       </ListItemIcon>
                       Log out
                     </MenuItem>
@@ -256,7 +265,6 @@ export default function MapLayout({ isDashboard = false, children }) {
             </Box>
           </Toolbar>
         </AppBar>
-
 
         {/* === Map or Children === */}
         <main className="flex-grow-1 position-relative">

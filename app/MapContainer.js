@@ -20,6 +20,8 @@ import Tab from "@mui/material/Tab";
 import IconButton from "@mui/material/IconButton";
 import CloseIcon from "@mui/icons-material/Close";
 import Drawer from "@mui/material/Drawer";
+import Snackbar from "@mui/material/Snackbar";
+import Alert from "@mui/material/Alert";
 
 import PlacesListReact from "./components/PlacesListReact";
 
@@ -39,6 +41,93 @@ function DetailsTabPanel({ value, active, children }) {
   );
 }
 
+function mapVariantToSeverity(variant) {
+  // map old bootstrap variants to MUI Alert severities
+  switch (variant) {
+    case "danger":
+    case "error":
+      return "error";
+    case "warning":
+      return "warning";
+    case "success":
+      return "success";
+    case "info":
+    case "primary":
+    case "secondary":
+    case "light":
+    case "dark":
+    default:
+      return "info";
+  }
+}
+
+/**
+ * React host for global toasts sent from utils/toast.mjs
+ */
+function ToastHost() {
+  const [queue, setQueue] = useState([]);
+  const [current, setCurrent] = useState(null);
+  const [open, setOpen] = useState(false);
+
+  // Listen for "app-toast" events from showToast()
+  useEffect(() => {
+    const handler = (ev) => {
+      const detail = ev.detail || {};
+      setQueue((prev) => [...prev, detail]);
+    };
+
+    window.addEventListener("app-toast", handler);
+    return () => window.removeEventListener("app-toast", handler);
+  }, []);
+
+  // Dequeue next toast when nothing is open
+  useEffect(() => {
+    if (!open && !current && queue.length) {
+      const [next, ...rest] = queue;
+      setCurrent(next);
+      setQueue(rest);
+      setOpen(true);
+    }
+  }, [queue, open, current]);
+
+  const handleClose = (_evt, reason) => {
+    if (reason === "clickaway") return;
+    setOpen(false);
+  };
+
+  const handleExited = () => {
+    setCurrent(null);
+  };
+
+  if (!current) return null;
+
+  const severity = mapVariantToSeverity(current.variant);
+  const autoHideDuration =
+    current.autohide === false ? null : current.delay ?? 7000;
+
+  return (
+    <Snackbar
+      open={open}
+      onClose={handleClose}
+      autoHideDuration={autoHideDuration}
+      anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      TransitionProps={{ onExited: handleExited }}
+    >
+      <Alert
+        onClose={handleClose}
+        severity={severity}
+        variant="filled"
+        sx={{ width: "100%" }}
+      >
+        {current.title && (
+          <strong style={{ marginRight: 8 }}>{current.title}</strong>
+        )}
+        {current.message}
+      </Alert>
+    </Snackbar>
+  );
+}
+
 export default function MapContainer({
   user: initialUser,
   isPlacesListOpen = false,
@@ -49,6 +138,38 @@ export default function MapContainer({
 
   const [detailsTab, setDetailsTab] = useState("overview");
   const [placesListData, setPlacesListData] = useState(null);
+  const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(false);
+  const [detailsTitle, setDetailsTitle] = useState("Details");
+
+  // Expose a global function so mapMain.js can open the details drawer
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.openPlaceDetails = (titleText) => {
+        if (titleText) setDetailsTitle(titleText);
+        setDetailsDrawerOpen(true);
+      };
+      window.closePlaceDetails = () => {
+        setDetailsDrawerOpen(false);
+      };
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        delete window.openPlaceDetails;
+        delete window.closePlaceDetails;
+      }
+    };
+  }, []);
+
+  const handleDetailsDrawerClose = () => {
+    setDetailsDrawerOpen(false);
+    if (
+      typeof window !== "undefined" &&
+      window.restoreDestinationSearchBarHome
+    ) {
+      window.restoreDestinationSearchBarHome();
+    }
+  };
 
   // Receive "places in viewport" data from mapMain.js
   useEffect(() => {
@@ -161,6 +282,7 @@ export default function MapContainer({
 
       {/* === Places list Drawer (controlled by AppBar burger) === */}
       <Drawer
+        variant="persistent"
         anchor="left"
         open={isPlacesListOpen}
         onClose={onPlacesListClose}
@@ -168,17 +290,20 @@ export default function MapContainer({
           keepMounted: true, // (optional) keeps it mounted for better perf
         }}
         hideBackdrop
-        sx={{ pointerEvents: "none" }}
         PaperProps={{
           sx: (theme) => ({
-            pointerEvents: "auto",
             width: 360,
             maxWidth: "80vw",
-            mt: 8,
             pt: 1,
             px: 1,
             boxShadow: "none", // ✅ remove the right-hand shadow
             borderRight: "1px solid rgba(0,0,0,0.12)", // optional subtle divider
+            top: 56,
+            height: "calc(100% - 56px)",
+            [theme.breakpoints.up("sm")]: {
+              top: 64,
+              height: "calc(100% - 64px)",
+            },
           }),
         }}
       >
@@ -196,211 +321,240 @@ export default function MapContainer({
         )}
       </Drawer>
 
-      {/* === Offcanvas (Details + Directions) === */}
-      <div
-        className="offcanvas offcanvas-start"
-        id="placeOffcanvas"
-        aria-labelledby="placeOffcanvasLabel"
-        data-bs-backdrop="false"
+      {/* === Details + Directions Drawer (MUI instead of Bootstrap Offcanvas) === */}
+      <Drawer
+        variant="persistent"
+        anchor="right"
+        open={detailsDrawerOpen}
+        onClose={handleDetailsDrawerClose}
+        ModalProps={{ keepMounted: true }}
+        hideBackdrop
+        PaperProps={{
+          sx: (theme) => ({
+            width: 420,
+            maxWidth: "80vw",
+            pt: 1,
+            px: 1,
+            boxShadow: "none", // ✅ remove the right-hand shadow
+            borderRight: "1px solid rgba(0,0,0,0.12)", // optional subtle divider
+            top: 56,
+            height: "calc(100% - 56px)",
+            [theme.breakpoints.up("sm")]: {
+              top: 64,
+              height: "calc(100% - 64px)",
+            },
+          }),
+        }}
       >
-        <div className="offcanvas-header">
-          <h2 className="offcanvas-title" id="placeOffcanvasLabel">
-            Details
-          </h2>
-          <button
-            type="button"
-            className="btn-close"
-            data-bs-dismiss="offcanvas"
-            aria-label="Close"
-          ></button>
-        </div>
+        {/* keep these IDs so existing JS (mapMain, modules) can still find them */}
+        <div id="placeOffcanvas">
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              mb: 1,
+            }}
+          >
+            <Typography id="placeOffcanvasLabel" variant="h6" component="h2">
+              {detailsTitle}
+            </Typography>
+            <IconButton
+              aria-label="Close details"
+              onClick={handleDetailsDrawerClose}
+              size="small"
+            >
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </Box>
 
-        <div className="offcanvas-body">
-          {/* === Directions UI === */}
-          <div id="directions-ui" className="mb-3 d-none">
-            <div className="row g-2 align-items-center mb-1">
-              <div className="col">
-                <label
-                  className="form-label mb-1"
-                  htmlFor="departure-search-input"
-                >
-                  From
-                </label>
-                <div id="departure-search-bar" className="position-relative">
-                  <TextField
-                    size="small"
-                    id="departure-search-input"
-                    type="search"
-                    variant="outlined"
-                    fullWidth
-                    className="form-control form-control-lg"
-                    placeholder="Search place or click on the map…"
-                    slotProps={{
-                      input: {
-                        "aria-label": "Search places",
-                        "aria-controls": "destination-suggestions",
-                      },
-                    }}
-                  />
-
-                  <ul
-                    className="list-group w-100 shadow d-none search-suggestions"
-                    aria-label="Search suggestions"
-                    id="departure-suggestions"
-                  ></ul>
-                </div>
-              </div>
-            </div>
-
-            <div className="row g-2 align-items-center mb-2">
-              <div className="col">
-                <label
-                  className="form-label mb-1"
-                  htmlFor="destination-search-input"
-                >
-                  To
-                </label>
-              </div>
-            </div>
-          </div>
-
-          {/* === Main photo (preview above tabs) === */}
-          <figure className="figure d-none" id="main-photo-wrapper">
-            <img
-              id="main-photo"
-              className="figure-img img-fluid shadow-sm mb-1"
-              alt=""
-            />
-            <figcaption
-              id="main-photo-caption"
-              className="figure-caption small text-muted"
-            ></figcaption>
-          </figure>
-
-          {/* === Details Panel with Tabs === */}
-          <div id="details-panel" className="d-none">
-            {/* MUI Tabs navigation */}
-            <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
-              <Tabs
-                value={detailsTab}
-                onChange={(_, newValue) => setDetailsTab(newValue)}
-                aria-label="Place details tabs"
-                variant="fullWidth"
-              >
-                <Tab
-                  id="overview-tab"
-                  label="Overview"
-                  value="overview"
-                  aria-controls="tab-overview"
-                />
-                <Tab
-                  id="reviews-tab"
-                  label="Reviews"
-                  value="reviews"
-                  aria-controls="tab-reviews"
-                />
-                <Tab
-                  id="photos-tab"
-                  label="Photos"
-                  value="photos"
-                  aria-controls="tab-photos"
-                />
-              </Tabs>
-            </Box>
-
-            {/* Tabs content */}
-            <div className="pt-3" id="detailsTabsContent">
-              {/* --- Overview tab --- */}
-              <DetailsTabPanel value="overview" active={detailsTab}>
-                <div className="d-grid gap-2 mb-3">
-                  <div
-                    className="btn-group"
-                    role="group"
-                    aria-label="Quick route actions"
+          <div className="offcanvas-body">
+            {/* === Directions UI === */}
+            <div id="directions-ui" className="mb-3 d-none">
+              <div className="row g-2 align-items-center mb-1">
+                <div className="col">
+                  <label
+                    className="form-label mb-1"
+                    htmlFor="departure-search-input"
                   >
-                    <button
-                      id="btn-start-here"
-                      type="button"
-                      className="btn btn-outline-primary"
-                    >
-                      Start here
-                    </button>
-                    <button
-                      id="btn-go-here"
-                      type="button"
-                      className="btn btn-outline-danger"
-                    >
-                      Go here
-                    </button>
+                    From
+                  </label>
+                  <div id="departure-search-bar" className="position-relative">
+                    <TextField
+                      size="small"
+                      id="departure-search-input"
+                      type="search"
+                      variant="outlined"
+                      fullWidth
+                      className="form-control form-control-lg"
+                      placeholder="Search place or click on the map…"
+                      slotProps={{
+                        input: {
+                          "aria-label": "Search places",
+                          "aria-controls": "destination-suggestions",
+                        },
+                      }}
+                    />
+
+                    <ul
+                      className="list-group w-100 shadow d-none search-suggestions"
+                      aria-label="Search suggestions"
+                      id="departure-suggestions"
+                    ></ul>
                   </div>
                 </div>
-                <div className="card shadow-sm">
-                  <div
-                    className="list-group list-group-flush"
-                    id="details-list"
-                  ></div>
+              </div>
+
+              <div className="row g-2 align-items-center mb-2">
+                <div className="col">
+                  <label
+                    className="form-label mb-1"
+                    htmlFor="destination-search-input"
+                  >
+                    To
+                  </label>
                 </div>
-              </DetailsTabPanel>
+              </div>
+            </div>
 
-              {/* --- Reviews tab --- */}
-              <DetailsTabPanel value="reviews" active={detailsTab}>
-                <div className="card shadow-sm">
-                  <div className="card-body">
-                    <h6 className="mb-3">Reviews</h6>
+            {/* === Main photo (preview above tabs) === */}
+            <figure className="figure d-none" id="main-photo-wrapper">
+              <img
+                id="main-photo"
+                className="figure-img img-fluid shadow-sm mb-1"
+                alt=""
+              />
+              <figcaption
+                id="main-photo-caption"
+                className="figure-caption small text-muted"
+              ></figcaption>
+            </figure>
 
-                    {/* Review form - only shown for logged-in users */}
-                    {user ? (
-                      <form id="review-form" className="d-grid gap-2 mb-3">
-                        <textarea
-                          id="review-text"
-                          className="form-control"
-                          placeholder="Write your review…"
-                          required
-                        ></textarea>
-                        <Button
-                          id="submit-review-btn"
-                          type="submit"
-                          variant="outlined"
-                        >
-                          Submit Review
-                        </Button>
-                      </form>
-                    ) : (
-                      /* CTA card for non-logged-in users */
-                      <div className="card bg-light border mb-3">
-                        <div className="card-body text-center py-4">
-                          <h6 className="mb-2">Want to leave a review?</h6>
-                          <p className="small text-muted mb-3">
-                            Log in or create an account to share your
-                            experience.
-                          </p>
+            {/* === Details Panel with Tabs === */}
+            <div id="details-panel" className="d-none">
+              {/* MUI Tabs navigation */}
+              <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
+                <Tabs
+                  value={detailsTab}
+                  onChange={(_, newValue) => setDetailsTab(newValue)}
+                  aria-label="Place details tabs"
+                  variant="fullWidth"
+                >
+                  <Tab
+                    id="overview-tab"
+                    label="Overview"
+                    value="overview"
+                    aria-controls="tab-overview"
+                  />
+                  <Tab
+                    id="reviews-tab"
+                    label="Reviews"
+                    value="reviews"
+                    aria-controls="tab-reviews"
+                  />
+                  <Tab
+                    id="photos-tab"
+                    label="Photos"
+                    value="photos"
+                    aria-controls="tab-photos"
+                  />
+                </Tabs>
+              </Box>
+
+              {/* Tabs content */}
+              <div className="pt-3" id="detailsTabsContent">
+                {/* --- Overview tab --- */}
+                <DetailsTabPanel value="overview" active={detailsTab}>
+                  <div className="d-grid gap-2 mb-3">
+                    <div
+                      className="btn-group"
+                      role="group"
+                      aria-label="Quick route actions"
+                    >
+                      <button
+                        id="btn-start-here"
+                        type="button"
+                        className="btn btn-outline-primary"
+                      >
+                        Start here
+                      </button>
+                      <button
+                        id="btn-go-here"
+                        type="button"
+                        className="btn btn-outline-danger"
+                      >
+                        Go here
+                      </button>
+                    </div>
+                  </div>
+                  <div className="card shadow-sm">
+                    <div
+                      className="list-group list-group-flush"
+                      id="details-list"
+                    ></div>
+                  </div>
+                </DetailsTabPanel>
+
+                {/* --- Reviews tab --- */}
+                <DetailsTabPanel value="reviews" active={detailsTab}>
+                  <div className="card shadow-sm">
+                    <div className="card-body">
+                      <h6 className="mb-3">Reviews</h6>
+
+                      {/* Review form - only shown for logged-in users */}
+                      {user ? (
+                        <form id="review-form" className="d-grid gap-2 mb-3">
+                          <textarea
+                            id="review-text"
+                            className="form-control"
+                            placeholder="Write your review…"
+                            required
+                          ></textarea>
                           <Button
-                            variant="contained"
-                            color="primary"
-                            onClick={() => router.push("/auth")}
+                            id="submit-review-btn"
+                            type="submit"
+                            variant="outlined"
                           >
-                            Log in / Sign up
+                            Submit Review
                           </Button>
+                        </form>
+                      ) : (
+                        /* CTA card for non-logged-in users */
+                        <div className="card bg-light border mb-3">
+                          <div className="card-body text-center py-4">
+                            <h6 className="mb-2">Want to leave a review?</h6>
+                            <p className="small text-muted mb-3">
+                              Log in or create an account to share your
+                              experience.
+                            </p>
+                            <Button
+                              variant="contained"
+                              color="primary"
+                              onClick={() => router.push("/auth")}
+                            >
+                              Log in / Sign up
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    <ul id="reviews-list" className="list-group"></ul>
+                      <ul id="reviews-list" className="list-group"></ul>
+                    </div>
                   </div>
-                </div>
-              </DetailsTabPanel>
+                </DetailsTabPanel>
 
-              {/* --- Photos tab --- */}
-              <DetailsTabPanel value="photos" active={detailsTab}>
-                <div id="photos-empty" className="text-muted small d-none">
-                  No photos found for this place.
-                </div>
-                <div id="photos-grid" className="row g-2"></div>
-              </DetailsTabPanel>
+                {/* --- Photos tab --- */}
+                <DetailsTabPanel value="photos" active={detailsTab}>
+                  <div id="photos-empty" className="text-muted small d-none">
+                    No photos found for this place.
+                  </div>
+                  <div id="photos-grid" className="row g-2"></div>
+                </DetailsTabPanel>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </Drawer>
 
       {/* === Obstacle Modal === */}
       <div
@@ -491,12 +645,7 @@ export default function MapContainer({
       </div>
 
       {/* === Toast Stack === */}
-      <div aria-live="polite" aria-atomic="true" className="position-relative">
-        <div
-          id="toast-stack"
-          className="toast-container position-fixed top-0 end-0 p-3"
-        ></div>
-      </div>
+      <ToastHost />
 
       {/* === Obstacle Management Overlay (for non-logged-in users) === */}
       {!user && (
