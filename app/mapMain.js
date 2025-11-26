@@ -628,12 +628,60 @@ function renderReviewsList() {
       const form = document.createElement("form");
       form.className = "d-grid gap-2";
 
+      // Show rating in edit mode (read-only display)
+      const ratingValue = review.rating || review.overall_rating;
+      if (ratingValue && ratingValue >= 1 && ratingValue <= 5) {
+        const ratingContainer = document.createElement("div");
+        ratingContainer.className = "mb-2 d-flex align-items-center gap-1";
+        
+        const starsContainer = document.createElement("span");
+        starsContainer.className = "text-warning";
+        starsContainer.style.fontSize = "1.1rem";
+        starsContainer.setAttribute("aria-label", `${ratingValue} out of 5 stars`);
+        
+        // Add filled stars
+        for (let i = 0; i < Math.floor(ratingValue); i++) {
+          const star = document.createElement("span");
+          star.textContent = "★";
+          star.setAttribute("aria-hidden", "true");
+          starsContainer.appendChild(star);
+        }
+        
+        // Add half star if needed
+        if (ratingValue % 1 >= 0.5) {
+          const halfStar = document.createElement("span");
+          halfStar.textContent = "☆";
+          halfStar.style.opacity = "0.5";
+          halfStar.setAttribute("aria-hidden", "true");
+          starsContainer.appendChild(halfStar);
+        }
+        
+        // Add empty stars
+        const totalStars = Math.ceil(ratingValue);
+        for (let i = totalStars; i < 5; i++) {
+          const emptyStar = document.createElement("span");
+          emptyStar.textContent = "☆";
+          emptyStar.style.opacity = "0.3";
+          emptyStar.setAttribute("aria-hidden", "true");
+          starsContainer.appendChild(emptyStar);
+        }
+        
+        const ratingText = document.createElement("span");
+        ratingText.className = "text-muted ms-1";
+        ratingText.style.fontSize = "0.9rem";
+        ratingText.textContent = ratingValue;
+        
+        ratingContainer.appendChild(starsContainer);
+        ratingContainer.appendChild(ratingText);
+        form.appendChild(ratingContainer);
+      }
+
       const textarea = document.createElement("textarea");
       textarea.className = "form-control";
       textarea.value = review.comment || "";
-      textarea.required = true;
+      textarea.required = false; // Comment is optional
       textarea.rows = 3;
-      textarea.setAttribute("aria-label", "Edit your review");
+      textarea.setAttribute("aria-label", "Edit your review comment");
       form.appendChild(textarea);
 
       const footerRow = document.createElement("div");
@@ -748,11 +796,70 @@ function renderReviewsList() {
     } else {
       // === Normal (read-only) mode ===
 
-      // Main text
-      const textP = document.createElement("p");
-      textP.className = "mb-1";
-      textP.textContent = review.comment || "";
-      li.appendChild(textP);
+      // Rating display - show stars based on rating value
+      const ratingValue = review.rating || review.overall_rating;
+      if (ratingValue && ratingValue >= 1 && ratingValue <= 5) {
+        const ratingContainer = document.createElement("div");
+        ratingContainer.className = "mb-2 d-flex align-items-center gap-1";
+        
+        // Create star rating display (filled and empty stars)
+        const starsContainer = document.createElement("div");
+        starsContainer.className = "text-warning";
+        starsContainer.style.fontSize = "1.1rem";
+        starsContainer.setAttribute("aria-label", `${ratingValue} out of 5 stars`);
+        
+        // Add filled stars
+        for (let i = 0; i < Math.floor(ratingValue); i++) {
+          const star = document.createElement("span");
+          star.textContent = "★";
+          star.setAttribute("aria-hidden", "true");
+          starsContainer.appendChild(star);
+        }
+        
+        // Add half star if needed (for ratings like 3.5, 4.5, etc.)
+        if (ratingValue % 1 >= 0.5) {
+          const halfStar = document.createElement("span");
+          halfStar.textContent = "☆";
+          halfStar.style.opacity = "0.5";
+          halfStar.setAttribute("aria-hidden", "true");
+          starsContainer.appendChild(halfStar);
+        }
+        
+        // Add empty stars to complete 5 stars
+        const totalStars = Math.ceil(ratingValue);
+        for (let i = totalStars; i < 5; i++) {
+          const emptyStar = document.createElement("span");
+          emptyStar.textContent = "☆";
+          emptyStar.style.opacity = "0.3";
+          emptyStar.setAttribute("aria-hidden", "true");
+          starsContainer.appendChild(emptyStar);
+        }
+        
+        // Add numeric rating next to stars
+        const ratingText = document.createElement("span");
+        ratingText.className = "text-muted ms-1";
+        ratingText.style.fontSize = "0.9rem";
+        ratingText.textContent = ratingValue;
+        
+        ratingContainer.appendChild(starsContainer);
+        ratingContainer.appendChild(ratingText);
+        li.appendChild(ratingContainer);
+      }
+
+      // Main comment text - only show if comment exists
+      const commentText = review.comment || "";
+      if (commentText.trim()) {
+        const textP = document.createElement("p");
+        textP.className = "mb-1";
+        textP.textContent = commentText;
+        li.appendChild(textP);
+      } else if (!ratingValue) {
+        // If no rating and no comment, show a placeholder
+        const noContentP = document.createElement("p");
+        noContentP.className = "mb-1 text-muted fst-italic";
+        noContentP.textContent = "No comment provided.";
+        li.appendChild(noContentP);
+      }
 
       // Meta + actions row
       const footer = document.createElement("div");
