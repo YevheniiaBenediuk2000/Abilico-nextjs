@@ -141,15 +141,34 @@ export default function MapContainer({
   const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(false);
   const [detailsTitle, setDetailsTitle] = useState("Details");
 
+  const [placePopupOpen, setPlacePopupOpen] = useState(false);
+  const [placePopupTitle, setPlacePopupTitle] = useState("Details");
+
   // Expose a global function so mapMain.js can open the details drawer
   useEffect(() => {
     if (typeof window !== "undefined") {
+      // Right drawer – used only for routes now
       window.openPlaceDetails = (titleText) => {
         if (titleText) setDetailsTitle(titleText);
         setDetailsDrawerOpen(true);
       };
       window.closePlaceDetails = () => {
         setDetailsDrawerOpen(false);
+        if (
+          typeof window !== "undefined" &&
+          typeof window.restoreDestinationSearchBarHome === "function"
+        ) {
+          window.restoreDestinationSearchBarHome();
+        }
+      };
+
+      // NEW: floating place-details popup
+      window.openPlacePopup = (titleText) => {
+        if (titleText) setPlacePopupTitle(titleText);
+        setPlacePopupOpen(true);
+      };
+      window.closePlacePopup = () => {
+        setPlacePopupOpen(false);
       };
     }
 
@@ -157,6 +176,8 @@ export default function MapContainer({
       if (typeof window !== "undefined") {
         delete window.openPlaceDetails;
         delete window.closePlaceDetails;
+        delete window.openPlacePopup;
+        delete window.closePlacePopup;
       }
     };
   }, []);
@@ -347,7 +368,7 @@ export default function MapContainer({
         }}
       >
         {/* keep these IDs so existing JS (mapMain, modules) can still find them */}
-        <div id="placeOffcanvas">
+        <div id="placeOffcanvasRoute">
           <Box
             sx={{
               display: "flex",
@@ -356,7 +377,7 @@ export default function MapContainer({
               mb: 1,
             }}
           >
-            <Typography id="placeOffcanvasLabel" variant="h6" component="h2">
+            <Typography variant="h6" component="h2">
               {detailsTitle}
             </Typography>
             <IconButton
@@ -416,145 +437,197 @@ export default function MapContainer({
                 </div>
               </div>
             </div>
-
-            {/* === Main photo (preview above tabs) === */}
-            <figure className="figure d-none" id="main-photo-wrapper">
-              <img
-                id="main-photo"
-                className="figure-img img-fluid shadow-sm mb-1"
-                alt=""
-              />
-              <figcaption
-                id="main-photo-caption"
-                className="figure-caption small text-muted"
-              ></figcaption>
-            </figure>
-
-            {/* === Details Panel with Tabs === */}
-            <div id="details-panel" className="d-none">
-              {/* MUI Tabs navigation */}
-              <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
-                <Tabs
-                  value={detailsTab}
-                  onChange={(_, newValue) => setDetailsTab(newValue)}
-                  aria-label="Place details tabs"
-                  variant="fullWidth"
-                >
-                  <Tab
-                    id="overview-tab"
-                    label="Overview"
-                    value="overview"
-                    aria-controls="tab-overview"
-                  />
-                  <Tab
-                    id="reviews-tab"
-                    label="Reviews"
-                    value="reviews"
-                    aria-controls="tab-reviews"
-                  />
-                  <Tab
-                    id="photos-tab"
-                    label="Photos"
-                    value="photos"
-                    aria-controls="tab-photos"
-                  />
-                </Tabs>
-              </Box>
-
-              {/* Tabs content */}
-              <div className="pt-3" id="detailsTabsContent">
-                {/* --- Overview tab --- */}
-                <DetailsTabPanel value="overview" active={detailsTab}>
-                  <div className="d-grid gap-2 mb-3">
-                    <div
-                      className="btn-group"
-                      role="group"
-                      aria-label="Quick route actions"
-                    >
-                      <button
-                        id="btn-start-here"
-                        type="button"
-                        className="btn btn-outline-primary"
-                      >
-                        Start here
-                      </button>
-                      <button
-                        id="btn-go-here"
-                        type="button"
-                        className="btn btn-outline-danger"
-                      >
-                        Go here
-                      </button>
-                    </div>
-                  </div>
-                  <div className="card shadow-sm">
-                    <div
-                      className="list-group list-group-flush"
-                      id="details-list"
-                    ></div>
-                  </div>
-                </DetailsTabPanel>
-
-                {/* --- Reviews tab --- */}
-                <DetailsTabPanel value="reviews" active={detailsTab}>
-                  <div className="card shadow-sm">
-                    <div className="card-body">
-                      <h6 className="mb-3">Reviews</h6>
-
-                      {/* Review form - only shown for logged-in users */}
-                      {user ? (
-                        <form id="review-form" className="d-grid gap-2 mb-3">
-                          <textarea
-                            id="review-text"
-                            className="form-control"
-                            placeholder="Write your review…"
-                            required
-                          ></textarea>
-                          <Button
-                            id="submit-review-btn"
-                            type="submit"
-                            variant="outlined"
-                          >
-                            Submit Review
-                          </Button>
-                        </form>
-                      ) : (
-                        /* CTA card for non-logged-in users */
-                        <div className="card bg-light border mb-3">
-                          <div className="card-body text-center py-4">
-                            <h6 className="mb-2">Want to leave a review?</h6>
-                            <p className="small text-muted mb-3">
-                              Log in or create an account to share your
-                              experience.
-                            </p>
-                            <Button
-                              variant="contained"
-                              color="primary"
-                              onClick={() => router.push("/auth")}
-                            >
-                              Log in / Sign up
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-
-                      <ul id="reviews-list" className="list-group"></ul>
-                    </div>
-                  </div>
-                </DetailsTabPanel>
-
-                {/* --- Photos tab --- */}
-                <DetailsTabPanel value="photos" active={detailsTab}>
-                  <div id="photos-empty" className="text-muted small d-none">
-                    No photos found for this place.
-                  </div>
-                  <div id="photos-grid" className="row g-2"></div>
-                </DetailsTabPanel>
-              </div>
-            </div>
           </div>
         </div>
       </Drawer>
+
+      {/* Floating place details popup over the map */}
+      <Box
+        sx={(theme) => ({
+          position: "absolute",
+          zIndex: theme.zIndex.modal,
+          top: { xs: 72, sm: 80 }, // below the app bar
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: "min(420px, calc(100% - 32px))",
+          pointerEvents: "none",
+          display: placePopupOpen ? "block" : "none",
+        })}
+      >
+        <div id="placeOffcanvas">
+          <Card
+            sx={{
+              pointerEvents: "auto",
+              borderRadius: 2,
+              boxShadow: 4,
+            }}
+          >
+            <CardContent sx={{ p: 2 }}>
+              {/* Header */}
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  mb: 1,
+                }}
+              >
+                <Typography variant="h6" component="h2" noWrap>
+                  {placePopupTitle}
+                </Typography>
+                <IconButton
+                  aria-label="Close place details"
+                  size="small"
+                  onClick={() => {
+                    setPlacePopupOpen(false);
+                    if (
+                      typeof window !== "undefined" &&
+                      typeof window.restoreDestinationSearchBarHome ===
+                        "function"
+                    ) {
+                      window.restoreDestinationSearchBarHome();
+                    }
+                  }}
+                >
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              </Box>
+
+              {/* MAIN PHOTO – moved from drawer */}
+              <figure className="figure d-none" id="main-photo-wrapper">
+                <img
+                  id="main-photo"
+                  className="figure-img img-fluid shadow-sm mb-1"
+                  alt=""
+                />
+                <figcaption
+                  id="main-photo-caption"
+                  className="figure-caption small text-muted"
+                ></figcaption>
+              </figure>
+
+              {/* DETAILS PANEL – moved from drawer */}
+              <div id="details-panel" className="d-none">
+                <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
+                  <Tabs
+                    value={detailsTab}
+                    onChange={(_, newValue) => setDetailsTab(newValue)}
+                    aria-label="Place details tabs"
+                    variant="fullWidth"
+                  >
+                    <Tab
+                      id="overview-tab"
+                      label="Overview"
+                      value="overview"
+                      aria-controls="tab-overview"
+                    />
+                    <Tab
+                      id="reviews-tab"
+                      label="Reviews"
+                      value="reviews"
+                      aria-controls="tab-reviews"
+                    />
+                    <Tab
+                      id="photos-tab"
+                      label="Photos"
+                      value="photos"
+                      aria-controls="tab-photos"
+                    />
+                  </Tabs>
+                </Box>
+
+                <div className="pt-3" id="detailsTabsContent">
+                  {/* OVERVIEW TAB */}
+                  <DetailsTabPanel value="overview" active={detailsTab}>
+                    <div className="d-grid gap-2 mb-3">
+                      <div
+                        className="btn-group"
+                        role="group"
+                        aria-label="Quick route actions"
+                      >
+                        <button
+                          id="btn-start-here"
+                          type="button"
+                          className="btn btn-outline-primary"
+                        >
+                          Start here
+                        </button>
+                        <button
+                          id="btn-go-here"
+                          type="button"
+                          className="btn btn-outline-danger"
+                        >
+                          Go here
+                        </button>
+                      </div>
+                    </div>
+                    <div className="card shadow-sm">
+                      <div
+                        className="list-group list-group-flush"
+                        id="details-list"
+                      ></div>
+                    </div>
+                  </DetailsTabPanel>
+
+                  {/* REVIEWS TAB */}
+                  <DetailsTabPanel value="reviews" active={detailsTab}>
+                    <div className="card shadow-sm">
+                      <div className="card-body">
+                        <h6 className="mb-3">Reviews</h6>
+
+                        {user ? (
+                          <form id="review-form" className="d-grid gap-2 mb-3">
+                            <textarea
+                              id="review-text"
+                              className="form-control"
+                              placeholder="Write your review…"
+                              required
+                            ></textarea>
+                            <Button
+                              id="submit-review-btn"
+                              type="submit"
+                              variant="outlined"
+                            >
+                              Submit Review
+                            </Button>
+                          </form>
+                        ) : (
+                          <div className="card bg-light border mb-3">
+                            <div className="card-body text-center py-4">
+                              <h6 className="mb-2">Want to leave a review?</h6>
+                              <p className="small text-muted mb-3">
+                                Log in or create an account to share your
+                                experience.
+                              </p>
+                              <Button
+                                variant="contained"
+                                color="primary"
+                                onClick={() => router.push("/auth")}
+                              >
+                                Log in / Sign up
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        <ul id="reviews-list" className="list-group"></ul>
+                      </div>
+                    </div>
+                  </DetailsTabPanel>
+
+                  {/* PHOTOS TAB */}
+                  <DetailsTabPanel value="photos" active={detailsTab}>
+                    <div id="photos-empty" className="text-muted small d-none">
+                      No photos found for this place.
+                    </div>
+                    <div id="photos-grid" className="row g-2"></div>
+                  </DetailsTabPanel>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </Box>
 
       {/* === Obstacle Modal === */}
       <div
