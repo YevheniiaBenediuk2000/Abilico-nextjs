@@ -68,6 +68,7 @@ export default function ProfilePage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [showPreferencesEditor, setShowPreferencesEditor] = useState(false);
   const [showDisabilityEditor, setShowDisabilityEditor] = useState(false);
+  const [accessibilityExpanded, setAccessibilityExpanded] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -367,101 +368,132 @@ export default function ProfilePage() {
             <Divider sx={{ my: 3 }} />
 
             {/* Accessibility Settings Section */}
-            <Box sx={{ mb: 3 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
-                <AccessibilityNewIcon sx={{ color: "text.secondary" }} />
-                <Typography variant="h6" sx={{ fontWeight: 500 }}>
-                  Accessibility Settings
-                </Typography>
-              </Box>
+            <Box>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 500 }}>
+                Accessibility Settings
+              </Typography>
+              <List sx={{ bgcolor: "background.paper" }}>
+                <ListItem disablePadding>
+                  <ListItemButton
+                    onClick={() => setAccessibilityExpanded(!accessibilityExpanded)}
+                    sx={{
+                      borderRadius: 1,
+                      bgcolor: accessibilityExpanded ? "action.hover" : "transparent",
+                      "&:hover": {
+                        bgcolor: "action.hover",
+                      },
+                    }}
+                  >
+                    <ListItemIcon>
+                      <AccessibilityNewIcon sx={{ color: "text.secondary" }} />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Accessibility Settings"
+                      secondary={accessibilityExpanded ? "Click to collapse" : "Click to expand"}
+                    />
+                  </ListItemButton>
+                </ListItem>
+              </List>
 
-              {loadingProfile ? (
-                <Typography variant="body2" color="text.secondary">
-                  Loading...
-                </Typography>
-              ) : (
-                <>
-                  {/* Accessibility Preferences */}
-                  <Box sx={{ mb: 3 }}>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        mb: 1.5,
-                      }}
-                    >
-                      <Typography variant="body2" color="text.secondary">
-                        Accessibility preferences
-                      </Typography>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<EditIcon />}
-                        onClick={() => setShowPreferencesEditor(true)}
-                      >
-                        Edit preferences
-                      </Button>
-                    </Box>
-                    {profile?.accessibility_preferences?.length > 0 ? (
-                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                        {profile.accessibility_preferences.map((pref) => (
-                          <Chip
-                            key={pref}
-                            label={ACCESSIBILITY_CATEGORY_LABELS[pref] || pref}
-                            size="small"
+              {/* Accessibility Content */}
+              {accessibilityExpanded && (
+                <Box
+                  sx={{
+                    mt: 2,
+                    p: 3,
+                  }}
+                >
+                  {loadingProfile ? (
+                    <Typography variant="body2" color="text.secondary">
+                      Loading...
+                    </Typography>
+                  ) : (
+                    <>
+                      {/* Accessibility Preferences */}
+                      <Box sx={{ mb: 3 }}>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            mb: 1.5,
+                          }}
+                        >
+                          <Typography variant="body2" color="text.secondary">
+                            Accessibility preferences
+                          </Typography>
+                          <Button
                             variant="outlined"
-                          />
-                        ))}
-                      </Stack>
-                    ) : (
-                      <Typography variant="body2" color="text.secondary" fontStyle="italic">
-                        No preferences selected yet
-                      </Typography>
-                    )}
-                  </Box>
+                            size="small"
+                            startIcon={<EditIcon />}
+                            onClick={() => setShowPreferencesEditor(true)}
+                          >
+                            Edit preferences
+                          </Button>
+                        </Box>
+                        {profile?.accessibility_preferences?.length > 0 ? (
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            {profile.accessibility_preferences.map((pref) => (
+                              <Chip
+                                key={pref}
+                                label={ACCESSIBILITY_CATEGORY_LABELS[pref] || pref}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ))}
+                          </Stack>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary" fontStyle="italic">
+                            No preferences selected yet
+                          </Typography>
+                        )}
+                      </Box>
 
-                  {/* Disability Types */}
-                  <Box sx={{ mb: 2 }}>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        mb: 1.5,
-                      }}
-                    >
-                      <Typography variant="body2" color="text.secondary">
-                        Disability type(s)
-                      </Typography>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<EditIcon />}
-                        onClick={() => setShowDisabilityEditor(true)}
-                      >
-                        Edit disability info
-                      </Button>
-                    </Box>
-                    {profile?.disability_types?.length > 0 ? (
-                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                        {profile.disability_types.map((type) => (
-                          <Chip
-                            key={type}
-                            label={type}
-                            size="small"
+                      <Divider sx={{ my: 3 }} />
+
+                      {/* Disability Types */}
+                      <Box sx={{ mb: 2 }}>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            mb: 1.5,
+                          }}
+                        >
+                          <Typography variant="body2" color="text.secondary">
+                            Disability type(s)
+                          </Typography>
+                          <Button
                             variant="outlined"
-                            color="primary"
-                          />
-                        ))}
-                      </Stack>
-                    ) : (
-                      <Typography variant="body2" color="text.secondary" fontStyle="italic">
-                        Not specified yet
-                      </Typography>
-                    )}
-                  </Box>
-                </>
+                            size="small"
+                            startIcon={<EditIcon />}
+                            onClick={() => setShowDisabilityEditor(true)}
+                          >
+                            Edit disability info
+                          </Button>
+                        </Box>
+                        {profile?.disability_types?.length > 0 ? (
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            {profile.disability_types.map((type) => (
+                              <Chip
+                                key={type}
+                                label={type}
+                                size="small"
+                                variant="outlined"
+                                color="primary"
+                              />
+                            ))}
+                          </Stack>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary" fontStyle="italic">
+                            Not specified yet
+                          </Typography>
+                        )}
+                      </Box>
+                    </>
+                  )}
+                </Box>
               )}
             </Box>
 
