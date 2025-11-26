@@ -23,7 +23,13 @@ import Button from "@mui/material/Button";
 import SecurityIcon from "@mui/icons-material/Security";
 import EmailIcon from "@mui/icons-material/Email";
 import LockIcon from "@mui/icons-material/Lock";
+import AccessibilityNewIcon from "@mui/icons-material/AccessibilityNew";
+import EditIcon from "@mui/icons-material/Edit";
+import Chip from "@mui/material/Chip";
+import Stack from "@mui/material/Stack";
 import { deepOrange, deepPurple } from "@mui/material/colors";
+import AccessibilityPreferencesEditor from "../components/AccessibilityPreferencesEditor";
+import { ACCESSIBILITY_CATEGORY_LABELS } from "../constants/accessibilityCategories";
 
 // Helper function to get initials from email
 function getInitialsFromEmail(email) {
@@ -58,6 +64,10 @@ export default function ProfilePage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
+  const [profile, setProfile] = useState(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [showPreferencesEditor, setShowPreferencesEditor] = useState(false);
+  const [showDisabilityEditor, setShowDisabilityEditor] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -92,6 +102,37 @@ export default function ProfilePage() {
       setHas2FA(!!verified);
     }
     checkMFA();
+  }, [user]);
+
+  // ✅ Load user profile data
+  useEffect(() => {
+    async function loadProfile() {
+      if (!user) return;
+      setLoadingProfile(true);
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("accessibility_preferences, disability_types, home_area, full_name")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (error && error.code !== "PGRST116") {
+          console.error("Error loading profile:", error);
+        } else {
+          setProfile(data || {
+            accessibility_preferences: [],
+            disability_types: [],
+            home_area: null,
+            full_name: null,
+          });
+        }
+      } catch (error) {
+        console.error("Error loading profile:", error);
+      } finally {
+        setLoadingProfile(false);
+      }
+    }
+    loadProfile();
   }, [user]);
 
   // Refresh MFA status after operations
@@ -325,6 +366,107 @@ export default function ProfilePage() {
 
             <Divider sx={{ my: 3 }} />
 
+            {/* Accessibility Settings Section */}
+            <Box sx={{ mb: 3 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+                <AccessibilityNewIcon sx={{ color: "text.secondary" }} />
+                <Typography variant="h6" sx={{ fontWeight: 500 }}>
+                  Accessibility Settings
+                </Typography>
+              </Box>
+
+              {loadingProfile ? (
+                <Typography variant="body2" color="text.secondary">
+                  Loading...
+                </Typography>
+              ) : (
+                <>
+                  {/* Accessibility Preferences */}
+                  <Box sx={{ mb: 3 }}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        mb: 1.5,
+                      }}
+                    >
+                      <Typography variant="body2" color="text.secondary">
+                        Accessibility preferences
+                      </Typography>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<EditIcon />}
+                        onClick={() => setShowPreferencesEditor(true)}
+                      >
+                        Edit preferences
+                      </Button>
+                    </Box>
+                    {profile?.accessibility_preferences?.length > 0 ? (
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        {profile.accessibility_preferences.map((pref) => (
+                          <Chip
+                            key={pref}
+                            label={ACCESSIBILITY_CATEGORY_LABELS[pref] || pref}
+                            size="small"
+                            variant="outlined"
+                          />
+                        ))}
+                      </Stack>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary" fontStyle="italic">
+                        No preferences selected yet
+                      </Typography>
+                    )}
+                  </Box>
+
+                  {/* Disability Types */}
+                  <Box sx={{ mb: 2 }}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        mb: 1.5,
+                      }}
+                    >
+                      <Typography variant="body2" color="text.secondary">
+                        Disability type(s)
+                      </Typography>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<EditIcon />}
+                        onClick={() => setShowDisabilityEditor(true)}
+                      >
+                        Edit disability info
+                      </Button>
+                    </Box>
+                    {profile?.disability_types?.length > 0 ? (
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        {profile.disability_types.map((type) => (
+                          <Chip
+                            key={type}
+                            label={type}
+                            size="small"
+                            variant="outlined"
+                            color="primary"
+                          />
+                        ))}
+                      </Stack>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary" fontStyle="italic">
+                        Not specified yet
+                      </Typography>
+                    )}
+                  </Box>
+                </>
+              )}
+            </Box>
+
+            <Divider sx={{ my: 3 }} />
+
             {/* Security Section */}
             <Box>
               <Typography variant="h6" sx={{ mb: 2, fontWeight: 500 }}>
@@ -535,6 +677,26 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       </Box>
+
+      {/* Accessibility Preferences Editor Dialog */}
+      {user && (
+        <AccessibilityPreferencesEditor
+          open={showPreferencesEditor}
+          onClose={() => setShowPreferencesEditor(false)}
+          supabase={supabase}
+          userId={user.id}
+          initialPreferences={profile?.accessibility_preferences || []}
+          onSave={(newPreferences) => {
+            // Update local profile state
+            setProfile((prev) => ({
+              ...prev,
+              accessibility_preferences: newPreferences,
+            }));
+          }}
+        />
+      )}
+
+      {/* TODO: Disability Editor Dialog - to be implemented when Step 3 is created */}
     </MapLayout>
   );
 }

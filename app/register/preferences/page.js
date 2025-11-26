@@ -16,49 +16,7 @@ import Button from "@mui/material/Button";
 import FormHelperText from "@mui/material/FormHelperText";
 import Stack from "@mui/material/Stack";
 import CircularProgress from "@mui/material/CircularProgress";
-
-const ACCESSIBILITY_CATEGORIES = [
-  {
-    id: "entrance",
-    label: "Entrance Accessibility",
-    helperText: "Step-free entrance, ramps, automatic or easy-to-open doors.",
-  },
-  {
-    id: "indoor_mobility",
-    label: "Indoor Mobility",
-    helperText: "Wide passages, elevators or ramps, enough space for wheelchairs.",
-  },
-  {
-    id: "restroom",
-    label: "Restroom Facilities",
-    helperText: "Accessible toilets, grab bars, enough space to manoeuvre.",
-  },
-  {
-    id: "seating",
-    label: "Seating & Table Accommodations",
-    helperText: "Wheelchair-friendly tables and flexible seating.",
-  },
-  {
-    id: "parking",
-    label: "Parking & Transportation",
-    helperText: "Accessible parking spots, curb cuts, nearby public transport.",
-  },
-  {
-    id: "visual_auditory",
-    label: "Visual & Auditory Support",
-    helperText: "Braille/tactile signs, large print, hearing support.",
-  },
-  {
-    id: "emergency",
-    label: "Emergency Preparedness",
-    helperText: "Safe, accessible emergency exits and alert systems.",
-  },
-  {
-    id: "staff",
-    label: "Staff Awareness and Assistance",
-    helperText: "Staff trained to assist people with disabilities.",
-  },
-];
+import { ACCESSIBILITY_CATEGORIES } from "../../constants/accessibilityCategories";
 
 const MIN_SELECTIONS = 3;
 const MAX_SELECTIONS = 5;
