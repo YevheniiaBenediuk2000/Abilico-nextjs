@@ -174,11 +174,16 @@ export default function MapContainer({
             pointerEvents: "auto",
             width: 360,
             maxWidth: "80vw",
-            mt: 8,
             pt: 1,
             px: 1,
             boxShadow: "none", // ✅ remove the right-hand shadow
             borderRight: "1px solid rgba(0,0,0,0.12)", // optional subtle divider
+            top: 56,
+            height: "calc(100% - 56px)",
+            [theme.breakpoints.up("sm")]: {
+              top: 64,
+              height: "calc(100% - 64px)",
+            },
           }),
         }}
       >
