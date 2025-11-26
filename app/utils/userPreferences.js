@@ -62,6 +62,34 @@ export async function hasCompletedPersonalInfo(supabase, userId) {
 }
 
 /**
+ * Check if user has a profile created (has completed at least one step)
+ * @param {Object} supabase - Supabase client instance
+ * @param {string} userId - User ID
+ * @returns {Promise<boolean>} - True if profile exists, false otherwise
+ */
+export async function hasProfile(supabase, userId) {
+  if (!userId) return false;
+
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (error && error.code !== "PGRST116") {
+      console.error("Error checking profile:", error);
+      return false;
+    }
+
+    return !!data;
+  } catch (error) {
+    console.error("Error checking profile:", error);
+    return false;
+  }
+}
+
+/**
  * Get the next registration step for a user
  * @param {Object} supabase - Supabase client instance
  * @param {string} userId - User ID
@@ -70,9 +98,10 @@ export async function hasCompletedPersonalInfo(supabase, userId) {
 export async function getNextRegistrationStep(supabase, userId) {
   if (!userId) return "/auth";
 
-  // Step 1: Check personal info (name is required)
-  const hasPersonalInfo = await hasCompletedPersonalInfo(supabase, userId);
-  if (!hasPersonalInfo) {
+  // Check if user has a profile - if not, they haven't been to personal info page yet
+  // Personal info page is skippable, but we still want to show it first
+  const hasProfileData = await hasProfile(supabase, userId);
+  if (!hasProfileData) {
     return "/register/personal-info";
   }
 
@@ -83,7 +112,7 @@ export async function getNextRegistrationStep(supabase, userId) {
   }
 
   // TODO: Check Step 3 (disability type) when implemented
-  // For now, if personal info and preferences are done, registration is complete
+  // For now, if preferences are done, registration is complete
   return null;
 }
 

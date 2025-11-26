@@ -62,7 +62,32 @@ export default function RegisterPersonalInfoPage() {
         return;
       }
 
-      // Navigate to next registration step without saving
+      // Check if profile exists
+      const { data: existingProfile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      // Create a minimal profile entry if it doesn't exist (so flow knows user skipped this step)
+      if (!existingProfile) {
+        const { error } = await supabase
+          .from("profiles")
+          .insert({
+            id: user.id,
+            full_name: null,
+            home_area: null,
+            accessibility_preferences: [],
+            disability_types: [],
+          });
+
+        if (error) {
+          console.error("Error creating profile:", error);
+          // Continue anyway - user can still proceed
+        }
+      }
+
+      // Navigate to next registration step
       const nextStep = await getNextRegistrationStep(supabase, user.id);
       router.push(nextStep || "/dashboard");
     } catch (error) {
