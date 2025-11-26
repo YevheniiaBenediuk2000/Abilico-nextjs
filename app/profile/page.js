@@ -27,6 +27,8 @@ import AccessibilityNewIcon from "@mui/icons-material/AccessibilityNew";
 import EditIcon from "@mui/icons-material/Edit";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
+import Grid from "@mui/material/Grid";
+import CircularProgress from "@mui/material/CircularProgress";
 import { deepOrange, deepPurple } from "@mui/material/colors";
 import AccessibilityPreferencesEditor from "../components/AccessibilityPreferencesEditor";
 import HomeAreaEditor from "../components/HomeAreaEditor";
@@ -71,6 +73,11 @@ export default function ProfilePage() {
   const [showDisabilityEditor, setShowDisabilityEditor] = useState(false);
   const [accessibilityExpanded, setAccessibilityExpanded] = useState(false);
   const [showHomeAreaEditor, setShowHomeAreaEditor] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [firstName, setFirstName] = useState("");
+  const [surname, setSurname] = useState("");
+  const [nameLoading, setNameLoading] = useState(false);
+  const [nameError, setNameError] = useState("");
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -122,12 +129,31 @@ export default function ProfilePage() {
         if (error && error.code !== "PGRST116") {
           console.error("Error loading profile:", error);
         } else {
-          setProfile(data || {
+          const profileData = data || {
             accessibility_preferences: [],
             disability_types: [],
             home_area: null,
             full_name: null,
-          });
+          };
+          setProfile(profileData);
+          
+          // Parse full_name into first name and surname
+          if (profileData.full_name) {
+            const nameParts = profileData.full_name.trim().split(/\s+/);
+            if (nameParts.length >= 2) {
+              setFirstName(nameParts.slice(0, -1).join(" "));
+              setSurname(nameParts[nameParts.length - 1]);
+            } else if (nameParts.length === 1) {
+              setFirstName(nameParts[0]);
+              setSurname("");
+            } else {
+              setFirstName("");
+              setSurname("");
+            }
+          } else {
+            setFirstName("");
+            setSurname("");
+          }
         }
       } catch (error) {
         console.error("Error loading profile:", error);
@@ -242,6 +268,40 @@ export default function ProfilePage() {
       setTotpCode("");
       await refreshMFAStatus();
       await supabase.auth.refreshSession();
+    }
+  };
+
+  // Handle saving name
+  const handleSaveName = async () => {
+    setNameError("");
+    setNameLoading(true);
+
+    try {
+      const fullName = [firstName.trim(), surname.trim()].filter(Boolean).join(" ");
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({
+          full_name: fullName || null,
+        })
+        .eq("id", user.id);
+
+      if (updateError) {
+        console.error("Error saving name:", updateError);
+        setNameError(`Failed to save: ${updateError.message || "Unknown error"}`);
+        setNameLoading(false);
+        return;
+      }
+
+      setNameLoading(false);
+      setProfile((prev) => ({
+        ...prev,
+        full_name: fullName || null,
+      }));
+      setIsEditingName(false);
+    } catch (err) {
+      console.error("Error:", err);
+      setNameError("An error occurred. Please try again.");
+      setNameLoading(false);
     }
   };
 
@@ -386,13 +446,250 @@ export default function ProfilePage() {
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
                       Name
                     </Typography>
-                    <Typography variant="body1">
-                      {profile?.full_name || (
-                        <Typography component="span" variant="body2" color="text.secondary" fontStyle="italic">
-                          Not set
+                    {isEditingName ? (
+                      <Grid container spacing={2} alignItems="center" sx={{ mt: 2 }}>
+                        <Grid item xs={12} sm={6}>
+                          <TextField
+                            fullWidth
+                            label="Name"
+                            value={firstName}
+                            onChange={(e) => {
+                              setFirstName(e.target.value);
+                              setNameError("");
+                            }}
+                            autoFocus
+                            size="small"
+                            sx={{
+                              "& .MuiOutlinedInput-root": {
+                                borderRadius: 2,
+                                fontSize: "0.875rem",
+                                height: "32.5px",
+                                "& fieldset": {
+                                  borderWidth: 1.5,
+                                  borderColor: "rgba(0, 0, 0, 0.23)",
+                                },
+                                "&:hover fieldset": {
+                                  borderColor: "rgba(0, 0, 0, 0.5)",
+                                },
+                                "&.Mui-focused fieldset": {
+                                  borderWidth: 2,
+                                },
+                              },
+                              "& .MuiInputBase-input": {
+                                py: 0.75,
+                                fontSize: "0.875rem",
+                                textAlign: "left",
+                                "&::placeholder": {
+                                  color: "text.secondary",
+                                  opacity: 1,
+                                },
+                              },
+                              "& .MuiInputLabel-root": {
+                                fontSize: "0.875rem",
+                                "&.MuiInputLabel-shrink": {
+                                  transform: "translate(14px, -9px) scale(0.75)",
+                                },
+                              },
+                            }}
+                          />
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                          <TextField
+                            fullWidth
+                            label="Surname"
+                            value={surname}
+                            onChange={(e) => {
+                              setSurname(e.target.value);
+                              setNameError("");
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                handleSaveName();
+                              } else if (e.key === "Escape") {
+                                setIsEditingName(false);
+                                // Reset to original values
+                                if (profile?.full_name) {
+                                  const nameParts = profile.full_name.trim().split(/\s+/);
+                                  if (nameParts.length >= 2) {
+                                    setFirstName(nameParts.slice(0, -1).join(" "));
+                                    setSurname(nameParts[nameParts.length - 1]);
+                                  } else if (nameParts.length === 1) {
+                                    setFirstName(nameParts[0]);
+                                    setSurname("");
+                                  }
+                                } else {
+                                  setFirstName("");
+                                  setSurname("");
+                                }
+                                setNameError("");
+                              }
+                            }}
+                            size="small"
+                            sx={{
+                              "& .MuiOutlinedInput-root": {
+                                borderRadius: 2,
+                                fontSize: "0.875rem",
+                                height: "32.5px",
+                                "& fieldset": {
+                                  borderWidth: 1.5,
+                                  borderColor: "rgba(0, 0, 0, 0.23)",
+                                },
+                                "&:hover fieldset": {
+                                  borderColor: "rgba(0, 0, 0, 0.5)",
+                                },
+                                "&.Mui-focused fieldset": {
+                                  borderWidth: 2,
+                                },
+                              },
+                              "& .MuiInputBase-input": {
+                                py: 0.75,
+                                fontSize: "0.875rem",
+                                textAlign: "left",
+                                "&::placeholder": {
+                                  color: "text.secondary",
+                                  opacity: 1,
+                                },
+                              },
+                              "& .MuiInputLabel-root": {
+                                fontSize: "0.875rem",
+                                "&.MuiInputLabel-shrink": {
+                                  transform: "translate(14px, -9px) scale(0.75)",
+                                },
+                              },
+                            }}
+                          />
+                        </Grid>
+                        <Grid item xs={12} sm={12} sx={{ display: { xs: "block", sm: "none" } }}>
+                          <Box sx={{ display: "flex", gap: 1.5, justifyContent: "flex-end", mt: 1 }}>
+                            <Button
+                              variant="contained"
+                              size="small"
+                              onClick={handleSaveName}
+                              disabled={nameLoading}
+                              sx={{
+                                minWidth: "80px",
+                                py: 0.75,
+                                px: 2,
+                                textTransform: "none",
+                                fontSize: "0.875rem",
+                                height: "32.5px",
+                              }}
+                            >
+                              {nameLoading ? <CircularProgress size={16} /> : "Save"}
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              onClick={() => {
+                                setIsEditingName(false);
+                                // Reset to original values
+                                if (profile?.full_name) {
+                                  const nameParts = profile.full_name.trim().split(/\s+/);
+                                  if (nameParts.length >= 2) {
+                                    setFirstName(nameParts.slice(0, -1).join(" "));
+                                    setSurname(nameParts[nameParts.length - 1]);
+                                  } else if (nameParts.length === 1) {
+                                    setFirstName(nameParts[0]);
+                                    setSurname("");
+                                  }
+                                } else {
+                                  setFirstName("");
+                                  setSurname("");
+                                }
+                                setNameError("");
+                              }}
+                              disabled={nameLoading}
+                              sx={{
+                                minWidth: "80px",
+                                py: 0.75,
+                                px: 2,
+                                textTransform: "none",
+                                fontSize: "0.875rem",
+                                height: "32.5px",
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </Box>
+                        </Grid>
+                        <Grid item xs={12} sm={12} sx={{ display: { xs: "none", sm: "flex" }, alignItems: "center", justifyContent: "flex-end", gap: 1.5 }}>
+                          <Button
+                            variant="contained"
+                            size="small"
+                            onClick={handleSaveName}
+                            disabled={nameLoading}
+                            sx={{
+                              minWidth: "80px",
+                              py: 0.75,
+                              px: 2,
+                              textTransform: "none",
+                              fontSize: "0.875rem",
+                              height: "32.5px",
+                            }}
+                          >
+                            {nameLoading ? <CircularProgress size={16} /> : "Save"}
+                          </Button>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => {
+                              setIsEditingName(false);
+                              // Reset to original values
+                              if (profile?.full_name) {
+                                const nameParts = profile.full_name.trim().split(/\s+/);
+                                if (nameParts.length >= 2) {
+                                  setFirstName(nameParts.slice(0, -1).join(" "));
+                                  setSurname(nameParts[nameParts.length - 1]);
+                                } else if (nameParts.length === 1) {
+                                  setFirstName(nameParts[0]);
+                                  setSurname("");
+                                }
+                              } else {
+                                setFirstName("");
+                                setSurname("");
+                              }
+                              setNameError("");
+                            }}
+                            disabled={nameLoading}
+                            sx={{
+                              minWidth: "80px",
+                              py: 0.75,
+                              px: 2,
+                              textTransform: "none",
+                              fontSize: "0.875rem",
+                              height: "32.5px",
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </Grid>
+                        {nameError && (
+                          <Grid item xs={12}>
+                            <Typography variant="body2" color="error" sx={{ mt: 1 }}>
+                              {nameError}
+                            </Typography>
+                          </Grid>
+                        )}
+                      </Grid>
+                    ) : (
+                      <Box
+                        onClick={() => setIsEditingName(true)}
+                        sx={{
+                          cursor: "pointer",
+                          "&:hover": {
+                            opacity: 0.7,
+                          },
+                        }}
+                      >
+                        <Typography variant="body1">
+                          {profile?.full_name || (
+                            <Typography component="span" variant="body2" color="text.secondary" fontStyle="italic">
+                              Not set
+                            </Typography>
+                          )}
                         </Typography>
-                      )}
-                    </Typography>
+                      </Box>
+                    )}
                   </Box>
 
                   {/* Home Area / Location */}
