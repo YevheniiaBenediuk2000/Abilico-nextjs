@@ -23,10 +23,14 @@ export default function AccessibilityPreferencesEditor({ open, onClose, supabase
   const [validationError, setValidationError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Update selected categories when initial preferences change
+  // Update selected categories when initial preferences change or dialog opens/closes
   useEffect(() => {
-    setSelectedCategories(initialPreferences);
-    setValidationError("");
+    if (open) {
+      // Reset state when dialog opens
+      setSelectedCategories(initialPreferences);
+      setValidationError("");
+      setLoading(false);
+    }
   }, [initialPreferences, open]);
 
   const handleCategoryChange = (categoryId) => {
@@ -81,6 +85,9 @@ export default function AccessibilityPreferencesEditor({ open, onClose, supabase
         return;
       }
 
+      // Reset loading state before closing
+      setLoading(false);
+
       // Call the onSave callback if provided
       if (onSave) {
         onSave(selectedCategories);
@@ -94,8 +101,15 @@ export default function AccessibilityPreferencesEditor({ open, onClose, supabase
     }
   };
 
+  const handleClose = () => {
+    // Reset loading state when closing
+    setLoading(false);
+    setValidationError("");
+    onClose();
+  };
+
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle>Edit Accessibility Preferences</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
@@ -147,7 +161,7 @@ export default function AccessibilityPreferencesEditor({ open, onClose, supabase
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose} disabled={loading}>
+        <Button onClick={handleClose} disabled={loading}>
           Cancel
         </Button>
         <Button
