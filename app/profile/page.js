@@ -22,6 +22,7 @@ import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
 import SecurityIcon from "@mui/icons-material/Security";
 import EmailIcon from "@mui/icons-material/Email";
+import LockIcon from "@mui/icons-material/Lock";
 import { deepOrange, deepPurple } from "@mui/material/colors";
 
 // Helper function to get initials from email
@@ -52,6 +53,11 @@ export default function ProfilePage() {
   const [show2FASetup, setShow2FASetup] = useState(false);
   const [qrCode, setQrCode] = useState("");
   const [totpCode, setTotpCode] = useState("");
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState("");
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -195,6 +201,53 @@ export default function ProfilePage() {
     }
   };
 
+  // Handle password change using Supabase's updateUser
+  const handlePasswordChange = async () => {
+    setPasswordError("");
+    setPasswordSuccess("");
+
+    // Validation
+    if (!newPassword || !confirmPassword) {
+      setPasswordError("All fields are required");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setPasswordError("New password must be at least 6 characters long");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("New passwords do not match");
+      return;
+    }
+
+    try {
+      // Update password using Supabase's updateUser method
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (updateError) {
+        setPasswordError(updateError.message || "Failed to update password");
+        return;
+      }
+
+      setPasswordSuccess("Password updated successfully!");
+      setNewPassword("");
+      setConfirmPassword("");
+      setShowPasswordChange(false);
+
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setPasswordSuccess("");
+      }, 3000);
+    } catch (error) {
+      setPasswordError("An error occurred while changing password");
+      console.error(error);
+    }
+  };
+
   if (!user) {
     return (
       <MapLayout isDashboard={true}>
@@ -308,6 +361,89 @@ export default function ProfilePage() {
                     p: 3,
                   }}
                 >
+                  {/* Password Change Section */}
+                  <Box sx={{ mb: 4 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <LockIcon sx={{ color: "text.secondary" }} />
+                        <Box>
+                          <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                            Change Password
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Update your account password
+                          </Typography>
+                        </Box>
+                      </Box>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => {
+                          setShowPasswordChange(!showPasswordChange);
+                          setPasswordError("");
+                          setPasswordSuccess("");
+                          setNewPassword("");
+                          setConfirmPassword("");
+                        }}
+                      >
+                        {showPasswordChange ? "Cancel" : "Change"}
+                      </Button>
+                    </Box>
+
+                    {showPasswordChange && (
+                      <Box
+                        sx={{
+                          mt: 2,
+                          p: 3,
+                          bgcolor: "background.paper",
+                          borderRadius: 1,
+                          border: "1px solid",
+                          borderColor: "divider",
+                        }}
+                      >
+                        <TextField
+                          fullWidth
+                          label="New Password"
+                          type="password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          sx={{ mb: 2 }}
+                          autoComplete="new-password"
+                          helperText="Must be at least 6 characters"
+                        />
+                        <TextField
+                          fullWidth
+                          label="Confirm New Password"
+                          type="password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          sx={{ mb: 2 }}
+                          autoComplete="new-password"
+                        />
+                        {passwordError && (
+                          <Typography variant="body2" color="error" sx={{ mb: 2 }}>
+                            {passwordError}
+                          </Typography>
+                        )}
+                        {passwordSuccess && (
+                          <Typography variant="body2" color="success.main" sx={{ mb: 2 }}>
+                            {passwordSuccess}
+                          </Typography>
+                        )}
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          onClick={handlePasswordChange}
+                          fullWidth
+                        >
+                          Update Password
+                        </Button>
+                      </Box>
+                    )}
+                  </Box>
+
+                  <Divider sx={{ my: 3 }} />
+
                   {/* 2FA Toggle */}
                   <Box sx={{ mb: 3 }}>
                     <FormControlLabel
