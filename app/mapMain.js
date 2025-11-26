@@ -549,11 +549,6 @@ async function refreshPlaces() {
           icon: makePoiIcon(tags),
         })
           .on("click", () => {
-            if (map) {
-              const currentZoom = map.getZoom() || DEFAULT_ZOOM;
-              const targetZoom = Math.max(currentZoom, 17);
-              map.setView(latlng, targetZoom);
-            }
             renderDetails(tags, L.latLng(latlng), { keepDirectionsUi: true });
           })
           .on("add", () => {

@@ -281,10 +281,6 @@ export default function MapContainer({
     ) {
       window.selectPlaceFromListFeature(feature);
     }
-    // Close the drawer after selecting a place
-    if (onPlacesListClose) {
-      onPlacesListClose();
-    }
   };
 
   return (
