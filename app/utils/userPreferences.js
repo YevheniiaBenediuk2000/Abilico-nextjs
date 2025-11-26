@@ -33,6 +33,35 @@ export async function hasCompletedPreferences(supabase, userId) {
 }
 
 /**
+ * Check if a user has completed their personal information (name)
+ * @param {Object} supabase - Supabase client instance
+ * @param {string} userId - User ID
+ * @returns {Promise<boolean>} - True if name is set, false otherwise
+ */
+export async function hasCompletedPersonalInfo(supabase, userId) {
+  if (!userId) return false;
+
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (error && error.code !== "PGRST116") {
+      console.error("Error checking personal info:", error);
+      return false;
+    }
+
+    // Check if full_name exists and is not empty
+    return !!(data?.full_name && data.full_name.trim().length > 0);
+  } catch (error) {
+    console.error("Error checking personal info:", error);
+    return false;
+  }
+}
+
+/**
  * Get the next registration step for a user
  * @param {Object} supabase - Supabase client instance
  * @param {string} userId - User ID
@@ -41,14 +70,20 @@ export async function hasCompletedPreferences(supabase, userId) {
 export async function getNextRegistrationStep(supabase, userId) {
   if (!userId) return "/auth";
 
-  // Check preferences first (Step 2)
+  // Step 1: Check personal info (name is required)
+  const hasPersonalInfo = await hasCompletedPersonalInfo(supabase, userId);
+  if (!hasPersonalInfo) {
+    return "/register/personal-info";
+  }
+
+  // Step 2: Check accessibility preferences
   const hasPreferences = await hasCompletedPreferences(supabase, userId);
   if (!hasPreferences) {
     return "/register/preferences";
   }
 
-  // TODO: Check Step 3 (disability type + home area) when implemented
-  // For now, if preferences are done, registration is complete
+  // TODO: Check Step 3 (disability type) when implemented
+  // For now, if personal info and preferences are done, registration is complete
   return null;
 }
 

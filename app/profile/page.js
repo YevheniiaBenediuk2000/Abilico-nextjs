@@ -29,6 +29,7 @@ import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import { deepOrange, deepPurple } from "@mui/material/colors";
 import AccessibilityPreferencesEditor from "../components/AccessibilityPreferencesEditor";
+import HomeAreaEditor from "../components/HomeAreaEditor";
 import { ACCESSIBILITY_CATEGORY_LABELS } from "../constants/accessibilityCategories";
 
 // Helper function to get initials from email
@@ -69,6 +70,7 @@ export default function ProfilePage() {
   const [showPreferencesEditor, setShowPreferencesEditor] = useState(false);
   const [showDisabilityEditor, setShowDisabilityEditor] = useState(false);
   const [accessibilityExpanded, setAccessibilityExpanded] = useState(false);
+  const [showHomeAreaEditor, setShowHomeAreaEditor] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -363,6 +365,68 @@ export default function ProfilePage() {
                   <Typography variant="body1">{user.email}</Typography>
                 </Box>
               </Box>
+            </Box>
+
+            <Divider sx={{ my: 3 }} />
+
+            {/* Personal Information Section */}
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 500 }}>
+                Personal Information
+              </Typography>
+
+              {loadingProfile ? (
+                <Typography variant="body2" color="text.secondary">
+                  Loading...
+                </Typography>
+              ) : (
+                <>
+                  {/* Full Name */}
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                      Name
+                    </Typography>
+                    <Typography variant="body1">
+                      {profile?.full_name || (
+                        <Typography component="span" variant="body2" color="text.secondary" fontStyle="italic">
+                          Not set
+                        </Typography>
+                      )}
+                    </Typography>
+                  </Box>
+
+                  {/* Home Area / Location */}
+                  <Box sx={{ mb: 2 }}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        mb: 0.5,
+                      }}
+                    >
+                      <Typography variant="body2" color="text.secondary">
+                        Home area
+                      </Typography>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<EditIcon />}
+                        onClick={() => setShowHomeAreaEditor(true)}
+                      >
+                        Edit home area
+                      </Button>
+                    </Box>
+                    <Typography variant="body1">
+                      {profile?.home_area || (
+                        <Typography component="span" variant="body2" color="text.secondary" fontStyle="italic">
+                          Not specified
+                        </Typography>
+                      )}
+                    </Typography>
+                  </Box>
+                </>
+              )}
             </Box>
 
             <Divider sx={{ my: 3 }} />
@@ -723,6 +787,24 @@ export default function ProfilePage() {
             setProfile((prev) => ({
               ...prev,
               accessibility_preferences: newPreferences,
+            }));
+          }}
+        />
+      )}
+
+      {/* Home Area Editor Dialog */}
+      {user && (
+        <HomeAreaEditor
+          open={showHomeAreaEditor}
+          onClose={() => setShowHomeAreaEditor(false)}
+          supabase={supabase}
+          userId={user.id}
+          initialHomeArea={profile?.home_area || ""}
+          onSave={(newHomeArea) => {
+            // Update local profile state
+            setProfile((prev) => ({
+              ...prev,
+              home_area: newHomeArea,
             }));
           }}
         />
