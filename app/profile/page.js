@@ -16,6 +16,10 @@ import ListItem from "@mui/material/ListItem";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
+import Switch from "@mui/material/Switch";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import TextField from "@mui/material/TextField";
+import Button from "@mui/material/Button";
 import SecurityIcon from "@mui/icons-material/Security";
 import EmailIcon from "@mui/icons-material/Email";
 import { deepOrange, deepPurple } from "@mui/material/colors";
@@ -38,10 +42,16 @@ function getAvatarColor(email) {
   return hash % 2 === 0 ? deepOrange[500] : deepPurple[500];
 }
 
+let currentFactorId = null;
+
 export default function ProfilePage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [securityExpanded, setSecurityExpanded] = useState(false);
+  const [has2FA, setHas2FA] = useState(false);
+  const [show2FASetup, setShow2FASetup] = useState(false);
+  const [qrCode, setQrCode] = useState("");
+  const [totpCode, setTotpCode] = useState("");
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -64,6 +74,126 @@ export default function ProfilePage() {
 
     return () => subscription.unsubscribe();
   }, [router]);
+
+  // ✅ Check if user already has verified TOTP 2FA
+  useEffect(() => {
+    async function checkMFA() {
+      if (!user) return;
+      const { data: factors } = await supabase.auth.mfa.listFactors();
+      const verified = factors?.all?.some(
+        (f) => f.factor_type === "totp" && f.status === "verified"
+      );
+      setHas2FA(!!verified);
+    }
+    checkMFA();
+  }, [user]);
+
+  // Refresh MFA status after operations
+  const refreshMFAStatus = async () => {
+    if (!user) return;
+    const { data: factors } = await supabase.auth.mfa.listFactors();
+    const verified = factors?.all?.some(
+      (f) => f.factor_type === "totp" && f.status === "verified"
+    );
+    setHas2FA(!!verified);
+  };
+
+  // Handle setting up 2FA
+  const handleSetupMFA = async () => {
+    const { data, error } = await supabase.auth.mfa.enroll({
+      factorType: "totp",
+    });
+    if (error) {
+      alert("❌ Failed to start 2FA setup");
+      console.error(error);
+      return;
+    }
+    currentFactorId = data.id;
+    setQrCode(data.totp.qr_code);
+    setShow2FASetup(true);
+  };
+
+  // Handle disabling 2FA
+  const handleDisableMFA = async () => {
+    try {
+      // Get all factors for the user
+      const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
+      if (listError) {
+        alert("❌ Failed to fetch 2FA factors");
+        console.error(listError);
+        return;
+      }
+
+      // Find the verified TOTP factor
+      const verifiedTotp = factors?.all?.find(
+        (f) => f.factor_type === "totp" && f.status === "verified"
+      );
+
+      if (!verifiedTotp) {
+        alert("⚠️ No verified 2FA factor found");
+        return;
+      }
+
+      // Confirm before disabling
+      if (!confirm("Are you sure you want to disable 2FA? This will reduce your account security.")) {
+        return;
+      }
+
+      // Unenroll the factor
+      const { error: unenrollError } = await supabase.auth.mfa.unenroll({
+        factorId: verifiedTotp.id,
+      });
+
+      if (unenrollError) {
+        alert("❌ Failed to disable 2FA");
+        console.error(unenrollError);
+        return;
+      }
+
+      alert("✅ 2FA has been disabled");
+      
+      // Refresh MFA status and session
+      await refreshMFAStatus();
+      await supabase.auth.refreshSession();
+    } catch (error) {
+      alert("❌ An error occurred while disabling 2FA");
+      console.error(error);
+    }
+  };
+
+  // Handle verifying 2FA code
+  const handleVerify2FA = async () => {
+    if (!currentFactorId) {
+      alert('⚠️ Please start 2FA setup first.');
+      return;
+    }
+
+    const { data: challenge, error: challengeErr } =
+      await supabase.auth.mfa.challenge({
+        factorId: currentFactorId,
+      });
+    if (challengeErr) {
+      console.error("Challenge failed:", challengeErr);
+      alert("❌ Challenge creation failed.");
+      return;
+    }
+
+    const { error: verifyErr } = await supabase.auth.mfa.verify({
+      factorId: currentFactorId,
+      challengeId: challenge.id,
+      code: totpCode,
+    });
+
+    if (verifyErr) {
+      alert("❌ Wrong code");
+    } else {
+      alert("✅ 2FA verified and enabled!");
+      setShow2FASetup(false);
+      setTotpCode("");
+      await refreshMFAStatus();
+      await supabase.auth.refreshSession();
+    }
+  };
 
   if (!user) {
     return (
@@ -153,6 +283,7 @@ export default function ProfilePage() {
                     onClick={() => setSecurityExpanded(!securityExpanded)}
                     sx={{
                       borderRadius: 1,
+                      bgcolor: securityExpanded ? "action.hover" : "transparent",
                       "&:hover": {
                         bgcolor: "action.hover",
                       },
@@ -169,18 +300,99 @@ export default function ProfilePage() {
                 </ListItem>
               </List>
 
-              {/* Security Content (empty for now) */}
+              {/* Security Content */}
               {securityExpanded && (
                 <Box
                   sx={{
                     mt: 2,
-                    p: 2,
-                    bgcolor: "action.hover",
-                    borderRadius: 1,
-                    minHeight: 100,
+                    p: 3,
                   }}
                 >
-                  {/* Empty for now - will be populated later */}
+                  {/* 2FA Toggle */}
+                  <Box sx={{ mb: 3 }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={has2FA}
+                          onChange={async (e) => {
+                            if (e.target.checked) {
+                              // Enable 2FA
+                              await handleSetupMFA();
+                            } else {
+                              // Disable 2FA
+                              await handleDisableMFA();
+                            }
+                          }}
+                          color="primary"
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                            Two-Factor Authentication (2FA)
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Add an extra layer of security to your account
+                          </Typography>
+                        </Box>
+                      }
+                    />
+                  </Box>
+
+                  {/* 2FA Setup Section */}
+                  {show2FASetup && (
+                    <Box
+                      sx={{
+                        mt: 3,
+                        p: 3,
+                        bgcolor: "background.paper",
+                        borderRadius: 1,
+                        border: "1px solid",
+                        borderColor: "divider",
+                      }}
+                    >
+                      <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 500 }}>
+                        Set up Two-Factor Authentication
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Scan this QR code with Google Authenticator, then enter the 6-digit code:
+                      </Typography>
+                      {qrCode && (
+                        <Box sx={{ display: "flex", justifyContent: "center", mb: 3 }}>
+                          <img src={qrCode} alt="QR code" width="200" height="200" />
+                        </Box>
+                      )}
+                      <TextField
+                        fullWidth
+                        label="Enter 6-digit code"
+                        placeholder="123456"
+                        value={totpCode}
+                        onChange={(e) => setTotpCode(e.target.value)}
+                        sx={{ mb: 2 }}
+                        inputProps={{ maxLength: 6 }}
+                      />
+                      <Box sx={{ display: "flex", gap: 2 }}>
+                        <Button
+                          variant="contained"
+                          color="success"
+                          onClick={handleVerify2FA}
+                        >
+                          Verify Code
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          onClick={() => {
+                            setShow2FASetup(false);
+                            setQrCode("");
+                            setTotpCode("");
+                            currentFactorId = null;
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </Box>
+                    </Box>
+                  )}
                 </Box>
               )}
             </Box>

@@ -21,29 +21,16 @@ import Box from "@mui/material/Box";
 import Avatar from "@mui/material/Avatar";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
-import Switch from "@mui/material/Switch";
-import FormControlLabel from "@mui/material/FormControlLabel";
+import Divider from "@mui/material/Divider";
+import ListItemIcon from "@mui/material/ListItemIcon";
 import { deepOrange, deepPurple } from "@mui/material/colors";
 import MenuIcon from "@mui/icons-material/Menu";
 import SearchIcon from "@mui/icons-material/Search";
+import LogoutIcon from "@mui/icons-material/Logout";
+import PersonIcon from "@mui/icons-material/Person";
 
 import { queryClient } from "../queryClient";
 
-let currentFactorId = null;
-
-async function handleSetupMFA() {
-  const { data, error } = await supabase.auth.mfa.enroll({
-    factorType: "totp",
-  });
-  if (error) {
-    alert("❌ Failed to start 2FA setup");
-    console.error(error);
-    return;
-  }
-  currentFactorId = data.id;
-  document.getElementById("qr").src = data.totp.qr_code;
-  document.getElementById("setup-container").style.display = "block";
-}
 
 
 
@@ -68,7 +55,6 @@ function getAvatarColor(email) {
 export default function MapLayout({ isDashboard = false, children }) {
   const router = useRouter();
   const [user, setUser] = useState(null);
-  const [has2FA, setHas2FA] = useState(false);
   const [isPlacesListOpen, setIsPlacesListOpen] = useState(false);
   const [avatarMenuAnchor, setAvatarMenuAnchor] = useState(null);
 
@@ -85,76 +71,6 @@ export default function MapLayout({ isDashboard = false, children }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  // ✅ Check if user already has verified TOTP 2FA
-  useEffect(() => {
-    async function checkMFA() {
-      if (!user) return;
-      const { data: factors } = await supabase.auth.mfa.listFactors();
-      const verified = factors?.all?.some(
-        (f) => f.factor_type === "totp" && f.status === "verified"
-      );
-      setHas2FA(!!verified);
-    }
-    checkMFA();
-  }, [user]);
-
-  // Refresh MFA status after operations
-  const refreshMFAStatus = async () => {
-    if (!user) return;
-    const { data: factors } = await supabase.auth.mfa.listFactors();
-    const verified = factors?.all?.some(
-      (f) => f.factor_type === "totp" && f.status === "verified"
-    );
-    setHas2FA(!!verified);
-  };
-
-  // Handle disabling 2FA
-  const handleDisableMFA = async () => {
-    try {
-      // Get all factors for the user
-      const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
-      if (listError) {
-        alert("❌ Failed to fetch 2FA factors");
-        console.error(listError);
-        return;
-      }
-
-      // Find the verified TOTP factor
-      const verifiedTotp = factors?.all?.find(
-        (f) => f.factor_type === "totp" && f.status === "verified"
-      );
-
-      if (!verifiedTotp) {
-        alert("⚠️ No verified 2FA factor found");
-        return;
-      }
-
-      // Confirm before disabling
-      if (!confirm("Are you sure you want to disable 2FA? This will reduce your account security.")) {
-        return;
-      }
-
-      // Unenroll the factor
-      const { error: unenrollError } = await supabase.auth.mfa.unenroll({
-        factorId: verifiedTotp.id,
-      });
-
-      if (unenrollError) {
-        alert("❌ Failed to disable 2FA");
-        console.error(unenrollError);
-        return;
-      }
-
-      alert("✅ 2FA has been disabled");
-      
-      // Refresh MFA status and session
-      await refreshMFAStatus();
-      await supabase.auth.refreshSession();
-    } catch (error) {
-      alert("❌ An error occurred while disabling 2FA");
-      console.error(error);
-    }
-  };
 
   // ✅ Protect dashboard
   useEffect(() => {
@@ -294,119 +210,53 @@ export default function MapLayout({ isDashboard = false, children }) {
                     anchorEl={avatarMenuAnchor}
                     open={Boolean(avatarMenuAnchor)}
                     onClose={() => setAvatarMenuAnchor(null)}
+                    PaperProps={{
+                      sx: {
+                        minWidth: 200,
+                      },
+                    }}
                   >
-                    <MenuItem disabled>{user.email}</MenuItem>
+                    <MenuItem disabled>
+                      <Typography variant="body2" color="text.secondary">
+                        {user.email}
+                      </Typography>
+                    </MenuItem>
+                    <Divider />
                     <MenuItem
                       onClick={() => {
                         setAvatarMenuAnchor(null);
                         router.push("/profile");
                       }}
                     >
+                      <ListItemIcon>
+                        <PersonIcon fontSize="small" />
+                      </ListItemIcon>
                       Profile
                     </MenuItem>
+                    <Divider />
+                    <MenuItem
+                      onClick={async () => {
+                        setAvatarMenuAnchor(null);
+                        await supabase.auth.signOut();
+                        setUser(null);
+                        if (isDashboard) router.push("/");
+                      }}
+                      sx={{
+                        color: "error.main",
+                      }}
+                    >
+                      <ListItemIcon>
+                        <LogoutIcon fontSize="small" sx={{ color: "error.main" }} />
+                      </ListItemIcon>
+                      Log out
+                    </MenuItem>
                   </Menu>
-
-                  {isDashboard && (
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={has2FA}
-                          onChange={async (e) => {
-                            if (e.target.checked) {
-                              // Enable 2FA
-                              handleSetupMFA();
-                            } else {
-                              // Disable 2FA
-                              await handleDisableMFA();
-                            }
-                          }}
-                          color="primary"
-                        />
-                      }
-                      label="2FA"
-                      sx={{ ml: 1 }}
-                    />
-                  )}
-
-                  <Button
-                    variant="outlined"
-                    color="inherit"
-                    size="small"
-                    onClick={async () => {
-                      await supabase.auth.signOut();
-                      setUser(null);
-                      if (isDashboard) router.push("/");
-                    }}
-                  >
-                    Log out
-                  </Button>
                 </>
               )}
             </Box>
           </Toolbar>
         </AppBar>
 
-        {/* === 2FA setup section (only dashboard) === */}
-        {isDashboard && (
-          <div
-            id="setup-container"
-            style={{ display: "none", marginTop: "1rem" }}
-          >
-            <p>
-              Scan this QR code with Google Authenticator, then enter the
-              6-digit code:
-            </p>
-            <img id="qr" alt="QR code" width="200" height="200" />
-            <input
-              id="totp-code"
-              type="text"
-              placeholder="123456"
-              className="form-control my-2"
-            />
-            <Button
-              variant="contained"
-              color="success"
-              onClick={async () => {
-                const code = document.getElementById("totp-code").value;
-
-                if (!currentFactorId) {
-                  alert('⚠️ Click "Enable 2FA" first to generate a QR code.');
-                  return;
-                }
-
-                const { data: challenge, error: challengeErr } =
-                  await supabase.auth.mfa.challenge({
-                    factorId: currentFactorId,
-                  });
-                if (challengeErr) {
-                  console.error("Challenge failed:", challengeErr);
-                  alert("❌ Challenge creation failed.");
-                  return;
-                }
-
-                const { error: verifyErr } = await supabase.auth.mfa.verify({
-                  factorId: currentFactorId,
-                  challengeId: challenge.id,
-                  code,
-                });
-
-                if (verifyErr) {
-                  alert("❌ Wrong code");
-                } else {
-                  alert("✅ 2FA verified and enabled!");
-                  // Refresh MFA status after successful verification
-                  const { data: factors } = await supabase.auth.mfa.listFactors();
-                  const verified = factors?.all?.some(
-                    (f) => f.factor_type === "totp" && f.status === "verified"
-                  );
-                  setHas2FA(!!verified);
-                }
-              }}
-            >
-              Verify Code
-            </Button>
-          </div>
-        )}
 
         {/* === Map or Children === */}
         <main className="flex-grow-1 position-relative">
