@@ -796,6 +796,53 @@ function renderReviewsList() {
     } else {
       // === Normal (read-only) mode ===
 
+      // Reviewer header with profile icon and name
+      const reviewerHeader = document.createElement("div");
+      reviewerHeader.className = "d-flex align-items-center gap-2 mb-2";
+
+      // Get reviewer name from profile or show "Anonymous"
+      let reviewerName = "Anonymous";
+      let reviewerInitials = "A";
+      
+      if (review.profile && review.profile.full_name) {
+        reviewerName = review.profile.full_name.trim();
+        // Get initials from full name (first letter of first word and first letter of last word)
+        const nameParts = reviewerName.split(/\s+/).filter(p => p);
+        if (nameParts.length >= 2) {
+          reviewerInitials = (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
+        } else if (nameParts.length === 1) {
+          reviewerInitials = nameParts[0].substring(0, 2).toUpperCase();
+        }
+      }
+
+      // Profile icon/avatar with initials
+      const avatar = document.createElement("div");
+      avatar.className = "rounded-circle d-flex align-items-center justify-content-center text-white fw-bold";
+      avatar.style.width = "32px";
+      avatar.style.height = "32px";
+      avatar.style.fontSize = "0.875rem";
+      avatar.style.flexShrink = "0";
+      
+      // Generate color from reviewer name (or use default)
+      const getAvatarColor = (name) => {
+        if (!name || name === "Anonymous") return "#ff9800"; // Orange for anonymous
+        const hash = name.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        return hash % 2 === 0 ? "#ff5722" : "#9c27b0"; // Deep orange or purple
+      };
+      
+      avatar.style.backgroundColor = getAvatarColor(reviewerName);
+      avatar.textContent = reviewerInitials;
+      avatar.setAttribute("aria-label", `Profile of ${reviewerName}`);
+
+      // Reviewer name
+      const nameElement = document.createElement("span");
+      nameElement.className = "fw-semibold";
+      nameElement.textContent = reviewerName;
+
+      reviewerHeader.appendChild(avatar);
+      reviewerHeader.appendChild(nameElement);
+      li.appendChild(reviewerHeader);
+
       // Rating display - show stars based on rating value
       const ratingValue = review.rating || review.overall_rating;
       if (ratingValue && ratingValue >= 1 && ratingValue <= 5) {

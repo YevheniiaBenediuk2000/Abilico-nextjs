@@ -69,7 +69,7 @@ export async function reviewStorage(method = "GET", reviewData) {
         return [];
       }
 
-      const { data, error } = await supabase
+      const { data: reviewsData, error } = await supabase
         .from("reviews")
         .select("*")
         .eq("place_id", reviewData.place_id)
@@ -80,8 +80,34 @@ export async function reviewStorage(method = "GET", reviewData) {
         return [];
       }
 
-      // console.log("✅ Supabase returned", data?.length ?? 0, "reviews", data);
-      return data ?? [];
+      if (!reviewsData || reviewsData.length === 0) {
+        return [];
+      }
+
+      // Fetch profiles for all users who have reviews
+      const userIds = [...new Set(reviewsData.map(r => r.user_id).filter(Boolean))];
+      let profilesMap = new Map();
+      
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", userIds);
+        
+        if (profilesData) {
+          profilesData.forEach(profile => {
+            profilesMap.set(profile.id, profile);
+          });
+        }
+      }
+
+      // Attach profile information to each review
+      const reviewsWithProfiles = reviewsData.map(review => ({
+        ...review,
+        profile: review.user_id ? profilesMap.get(review.user_id) || null : null
+      }));
+
+      return reviewsWithProfiles;
     }
 
     if (method === "POST") {
