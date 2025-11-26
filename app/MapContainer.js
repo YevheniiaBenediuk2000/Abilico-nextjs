@@ -312,7 +312,7 @@ export default function MapContainer({
             width: 360,
             maxWidth: "80vw",
             pt: 1,
-            px: 1,
+            px: 2,
             boxShadow: "none", // ✅ remove the right-hand shadow
             borderRight: "1px solid rgba(0,0,0,0.12)", // optional subtle divider
             top: 56,
@@ -351,7 +351,7 @@ export default function MapContainer({
             width: 420,
             maxWidth: "80vw",
             pt: 1,
-            px: 1,
+            px: 2,
             boxShadow: "none", // ✅ remove the right-hand shadow
             borderRight: "1px solid rgba(0,0,0,0.12)", // optional subtle divider
             top: 56,
@@ -465,13 +465,11 @@ export default function MapContainer({
           <Card
             sx={{
               pointerEvents: "auto",
-              borderRadius: 2,
-              boxShadow: 4,
               maxHeight: "90vh",
               overflowY: "auto",
             }}
           >
-            <CardContent sx={{ p: 2 }}>
+            <CardContent sx={{ py: 2 }}>
               {/* Header */}
               <Box
                 sx={{
