@@ -83,8 +83,6 @@ let map = null;
 let geocoder = null;
 let currentBasemapLayer = null; // Store basemap layer reference globally
 
-const offcanvasInstance = new bootstrap.Offcanvas(elements.offcanvas);
-
 let clickPopup = null;
 
 let selectedPlaceLayer = null;
@@ -257,20 +255,16 @@ function showQuickRoutePopup(latlng) {
   });
 }
 
-/** Mount search bar + details panel into the Offcanvas and open it. */
 function mountInOffcanvas(titleText) {
-  elements.offcanvasTitle.textContent = titleText;
-  offcanvasInstance.show();
+  if (
+    typeof window !== "undefined" &&
+    typeof window.openPlaceDetails === "function"
+  ) {
+    window.openPlaceDetails(titleText);
+  } else {
+    console.warn("openPlaceDetails() is not available yet");
+  }
 }
-
-elements.offcanvas.addEventListener("hidden.bs.offcanvas", () => {
-  const home = elements.destinationSearchBarHome;
-  const bar = elements.destinationSearchBar;
-  const next = elements.destinationSearchBarNextSibling;
-
-  home.insertBefore(bar, next);
-  bar.classList.remove("d-none");
-});
 
 function toggleDepartureSuggestions(visible) {
   elements.departureSuggestions.classList.toggle("d-none", !visible);
@@ -585,6 +579,22 @@ function moveDepartureSearchBarUnderTo() {
   }
 
   toLabel.insertAdjacentElement("afterend", elements.destinationSearchBar);
+}
+
+function restoreDestinationSearchBarHome() {
+  const home = elements.destinationSearchBarHome;
+  const bar = elements.destinationSearchBar;
+  const next = elements.destinationSearchBarNextSibling;
+
+  if (!home || !bar) return;
+
+  home.insertBefore(bar, next || null);
+  bar.classList.remove("d-none");
+}
+
+// Expose to React so Drawer onClose can call it
+if (typeof window !== "undefined") {
+  window.restoreDestinationSearchBarHome = restoreDestinationSearchBarHome;
 }
 
 function renderReviewsList() {
