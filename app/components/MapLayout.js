@@ -21,6 +21,8 @@ import Box from "@mui/material/Box";
 import Avatar from "@mui/material/Avatar";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
+import Switch from "@mui/material/Switch";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import { deepOrange, deepPurple } from "@mui/material/colors";
 import MenuIcon from "@mui/icons-material/Menu";
 import SearchIcon from "@mui/icons-material/Search";
@@ -304,26 +306,26 @@ export default function MapLayout({ isDashboard = false, children }) {
                     </MenuItem>
                   </Menu>
 
-                  {isDashboard && !has2FA && (
-                    <Button
-                      variant="outlined"
-                      color="inherit"
-                      size="small"
-                      onClick={handleSetupMFA}
-                    >
-                      Enable 2FA
-                    </Button>
-                  )}
-
-                  {isDashboard && has2FA && (
-                    <Button
-                      variant="outlined"
-                      color="error"
-                      size="small"
-                      onClick={handleDisableMFA}
-                    >
-                      Disable 2FA
-                    </Button>
+                  {isDashboard && (
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={has2FA}
+                          onChange={async (e) => {
+                            if (e.target.checked) {
+                              // Enable 2FA
+                              handleSetupMFA();
+                            } else {
+                              // Disable 2FA
+                              await handleDisableMFA();
+                            }
+                          }}
+                          color="primary"
+                        />
+                      }
+                      label="2FA"
+                      sx={{ ml: 1 }}
+                    />
                   )}
 
                   <Button
