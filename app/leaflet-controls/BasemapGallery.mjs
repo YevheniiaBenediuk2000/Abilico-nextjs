@@ -128,7 +128,7 @@ function buildBasemapList(baseLayersObj) {
 const basemapList = buildBasemapList(baseLayers);
 
 export const BasemapGallery = L.Control.extend({
-  options: { position: "topright" },
+  options: { position: "bottomleft" },
 
   initialize(opts = {}) {
     L.setOptions(this, opts);

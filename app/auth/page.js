@@ -15,6 +15,14 @@ export default function AuthPage() {
   const router = useRouter();
   const [pendingMFA, setPendingMFA] = useState(null);
   const [totpCode, setTotpCode] = useState("");
+  const [redirectTo, setRedirectTo] = useState("");
+
+  // Set redirect URL on client side only
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setRedirectTo(`${window.location.origin}/dashboard`);
+    }
+  }, []);
 
   useEffect(() => {
     const {
@@ -78,12 +86,14 @@ export default function AuthPage() {
       }}
     >
       {!pendingMFA ? (
-        <Auth
-          supabaseClient={supabase}
-          appearance={{ theme: ThemeSupa }}
-          providers={["google"]}
-          redirectTo={`${window.location.origin}/dashboard`}
-        />
+        redirectTo && (
+          <Auth
+            supabaseClient={supabase}
+            appearance={{ theme: ThemeSupa }}
+            providers={["google"]}
+            redirectTo={redirectTo}
+          />
+        )
       ) : (
         <div className="card p-3" style={{ maxWidth: 400 }}>
           <h5>Two-Factor Authentication</h5>

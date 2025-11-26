@@ -20,7 +20,6 @@ import {
   DRAW_HELP_LS_KEY,
   DrawHelpAlert,
 } from "./leaflet-controls/DrawHelpAlert.mjs";
-import { AccessibilityLegend } from "./leaflet-controls/AccessibilityLegend.mjs";
 import { ls } from "./utils/localStorage.mjs";
 import {
   duringLoading,
@@ -1930,9 +1929,7 @@ export async function initMap(user = null) {
     map.addControl(new ZoomMuiControl({ position: "bottomright" }));
     placeClusterLayer.addTo(map);
 
-    map.addControl(new AccessibilityLegend());
-
-    // console.log("🧩 AccessibilityLegend added to map");
+    // AccessibilityLegend removed - now available in sidebar Filters dialog
 
     map.on("draw:editstart", () => (drawState.editing = true));
     map.on("draw:editstop", () => (drawState.editing = false));

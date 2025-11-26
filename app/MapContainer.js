@@ -162,7 +162,7 @@ export default function MapContainer({
       {/* === Places list Drawer (controlled by AppBar burger) === */}
       <Drawer
         anchor="left"
-        open={Boolean(isPlacesListOpen && placesListData)}
+        open={isPlacesListOpen}
         onClose={onPlacesListClose}
         ModalProps={{
           keepMounted: true, // (optional) keeps it mounted for better perf
@@ -182,11 +182,17 @@ export default function MapContainer({
           }),
         }}
       >
-        {placesListData && (
+        {placesListData ? (
           <PlacesListReact
             data={placesListData}
             onSelect={handlePlaceFromListSelect}
           />
+        ) : (
+          <Box sx={{ p: 2 }}>
+            <Typography variant="body2" color="text.secondary">
+              Zoom in on the map to load accessible points of interest.
+            </Typography>
+          </Box>
         )}
       </Drawer>
 

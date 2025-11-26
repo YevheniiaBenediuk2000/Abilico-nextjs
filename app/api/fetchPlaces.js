@@ -350,6 +350,12 @@ export async function fetchPlaces(bounds, zoom, options) {
           });
 
           if (!response.ok) {
+            // 504 Gateway Timeout - server is overloaded, skip retries for this endpoint
+            if (response.status === 504) {
+              throw new pRetry.AbortError(
+                `Overpass timeout (504) @ ${endpoint} - trying next endpoint`
+              );
+            }
             throw new Error(`Overpass error ${response.status} @ ${endpoint}`);
           }
 
@@ -364,12 +370,20 @@ export async function fetchPlaces(bounds, zoom, options) {
         }
       }, pRetryConfig);
     } catch (error) {
-      console.error("❌ Overpass fetch failed:", error);
+      // Don't log 504 errors as errors - they're expected when servers are busy
+      if (error?.message?.includes("504") || error?.message?.includes("timeout")) {
+        console.warn(`[Overpass] ${endpoint} timed out, trying next endpoint…`);
+      } else if (error?.name !== "AbortError") {
+        console.error("❌ Overpass fetch failed:", error);
+      }
       if (error?.name === "AbortError") {
         return { type: "FeatureCollection", features: [] };
       }
       lastError = error;
-      console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
+      // Only warn if it's not a timeout
+      if (!error?.message?.includes("504") && !error?.message?.includes("timeout")) {
+        console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
+      }
     }
   }
 

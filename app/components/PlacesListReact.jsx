@@ -15,7 +15,15 @@ import AccordionSummary from "@mui/material/AccordionSummary";
 import AccordionDetails from "@mui/material/AccordionDetails";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
+import Button from "@mui/material/Button";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import IconButton from "@mui/material/IconButton";
+import CloseIcon from "@mui/icons-material/Close";
+import FilterListIcon from "@mui/icons-material/FilterList";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import AccessibilityLegendReact from "./AccessibilityLegendReact";
 
 import {
   BADGE_COLOR_BY_TIER,
@@ -233,12 +241,13 @@ function NestedPlaceTypeFilter({ items }) {
 
   const [selection, setSelection] = useState(() => {
     const fromLs = loadInitialTypeFilter();
-    if (!fromLs) return defaultState;
+    if (!fromLs || typeof fromLs !== "object") return defaultState;
     // merge with default (so new categories get added)
     const merged = { ...defaultState };
     Object.entries(fromLs).forEach(([group, subs]) => {
       if (!merged[group]) merged[group] = {};
-      Object.entries(subs || {}).forEach(([sub, val]) => {
+      if (!subs || typeof subs !== "object") return;
+      Object.entries(subs).forEach(([sub, val]) => {
         if (merged[group].hasOwnProperty(sub)) {
           merged[group][sub] = !!val;
         } else {
@@ -255,7 +264,8 @@ function NestedPlaceTypeFilter({ items }) {
 
     // Build payload for non-React consumers
     const active = [];
-    Object.entries(selection).forEach(([groupLabel, subs]) => {
+    Object.entries(selection || {}).forEach(([groupLabel, subs]) => {
+      if (!subs || typeof subs !== "object") return;
       Object.entries(subs).forEach(([subLabel, isOn]) => {
         if (!isOn) return;
         active.push({ groupLabel, subLabel });
@@ -272,14 +282,16 @@ function NestedPlaceTypeFilter({ items }) {
 
   // group-level helpers
   const isGroupAllChecked = (groupLabel) => {
-    const subs = selection[groupLabel] || {};
+    const subs = selection?.[groupLabel];
+    if (!subs || typeof subs !== "object") return false;
     const values = Object.values(subs);
     if (!values.length) return false;
     return values.every(Boolean);
   };
 
   const isGroupSomeChecked = (groupLabel) => {
-    const subs = selection[groupLabel] || {};
+    const subs = selection?.[groupLabel];
+    if (!subs || typeof subs !== "object") return false;
     const values = Object.values(subs);
     return values.some(Boolean);
   };
@@ -288,6 +300,7 @@ function NestedPlaceTypeFilter({ items }) {
     setSelection((prev) => {
       const next = { ...prev };
       const subs = next[groupLabel] || {};
+      if (!subs || typeof subs !== "object") return next;
       const allChecked = Object.values(subs).every(Boolean);
       const newSubs = {};
       Object.keys(subs).forEach((subLabel) => {
@@ -395,6 +408,7 @@ function NestedPlaceTypeFilter({ items }) {
 export default function PlacesListReact({ data, onSelect }) {
   const { features = [], center, zoom } = data || {};
   const [sortBy, setSortBy] = useState("distance"); // "distance" | "name"
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [photoByKey, setPhotoByKey] = useState({});
   const photoCacheRef = useRef({});
@@ -602,6 +616,17 @@ export default function PlacesListReact({ data, onSelect }) {
               gap: 0.5,
             }}
           >
+            {/* Filters Button */}
+            <Button
+              variant="outlined"
+              color="inherit"
+              size="small"
+              startIcon={<FilterListIcon />}
+              onClick={() => setFiltersOpen(true)}
+            >
+              Filters
+            </Button>
+
             {/* horizontal Sort by row */}
             <Stack direction="row" spacing={0.5} alignItems="center">
               <Typography variant="caption" color="text.secondary">
@@ -642,13 +667,6 @@ export default function PlacesListReact({ data, onSelect }) {
           </Box>
         )}
       </Box>
-
-      {/* Nested place-type filter */}
-      {rawItems.length > 0 && (
-        <Box pt={0.75}>
-          <NestedPlaceTypeFilter items={rawItems} />
-        </Box>
-      )}
 
       {/* Body */}
       <Box sx={{ flexGrow: 1, pt: 0.5 }}>
@@ -792,6 +810,42 @@ export default function PlacesListReact({ data, onSelect }) {
           </List>
         )}
       </Box>
+
+      {/* Filters Dialog */}
+      <Dialog
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" justifyContent="space-between">
+            <Typography variant="h6">Filters</Typography>
+            <IconButton
+              aria-label="close"
+              onClick={() => setFiltersOpen(false)}
+              sx={{ color: (theme) => theme.palette.grey[500] }}
+            >
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pt: 1 }}>
+            {/* Place Accessibility Filters */}
+            <Box>
+              <AccessibilityLegendReact />
+            </Box>
+
+            {/* Place Type Filters */}
+            {rawItems.length > 0 && (
+              <Box>
+                <NestedPlaceTypeFilter items={rawItems} />
+              </Box>
+            )}
+          </Box>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
