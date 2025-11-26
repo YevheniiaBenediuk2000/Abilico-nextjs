@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../api/supabaseClient";
 import { getNextRegistrationStep } from "../../utils/userPreferences";
@@ -14,11 +14,20 @@ import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import CircularProgress from "@mui/material/CircularProgress";
 import FormHelperText from "@mui/material/FormHelperText";
+import Grid from "@mui/material/Grid";
+import Autocomplete from "@mui/material/Autocomplete";
+import { COUNTRIES } from "../../constants/countries";
+import debounce from "lodash.debounce";
 
 export default function RegisterPersonalInfoPage() {
   const router = useRouter();
-  const [fullName, setFullName] = useState("");
-  const [homeArea, setHomeArea] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [surname, setSurname] = useState("");
+  const [country, setCountry] = useState("");
+  const [city, setCity] = useState("");
+  const [cityOptions, setCityOptions] = useState([]);
+  const [cityLoading, setCityLoading] = useState(false);
+  const [cityInputValue, setCityInputValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [validationError, setValidationError] = useState("");
@@ -43,12 +52,106 @@ export default function RegisterPersonalInfoPage() {
         .maybeSingle();
       
       if (profile) {
-        setFullName(profile.full_name || "");
-        setHomeArea(profile.home_area || "");
+        // Split full_name into first name and surname
+        if (profile.full_name) {
+          const nameParts = profile.full_name.trim().split(/\s+/);
+          if (nameParts.length >= 2) {
+            setFirstName(nameParts.slice(0, -1).join(" ")); // Everything except last word
+            setSurname(nameParts[nameParts.length - 1]); // Last word
+          } else if (nameParts.length === 1) {
+            setFirstName(nameParts[0]);
+          }
+        }
+        
+        // Parse home_area to extract city and country if it's in "City, Country" format
+        if (profile.home_area) {
+          const parts = profile.home_area.split(",").map(p => p.trim());
+          if (parts.length >= 2) {
+            setCity(parts[0]);
+            setCityInputValue(parts[0]);
+            setCountry(parts.slice(1).join(", ")); // Handle cases like "City, State, Country"
+          } else {
+            // If not in expected format, treat as city
+            setCity(profile.home_area);
+            setCityInputValue(profile.home_area);
+          }
+        }
       }
     }
     checkAuth();
   }, [router]);
+
+  // Memoized city search function
+  const searchCities = useMemo(
+    () =>
+      debounce(async (query, selectedCountry) => {
+        if (!query || query.length < 2 || !selectedCountry) {
+          setCityOptions([]);
+          return;
+        }
+
+        setCityLoading(true);
+        try {
+          // Build search query with city name and country
+          const searchQuery = `${query}, ${selectedCountry}`;
+          const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(searchQuery)}&limit=15`;
+
+          const response = await fetch(url);
+          const data = await response.json();
+
+          // Extract unique city names from the results
+          const cities = new Map();
+          (data.features || []).forEach((feature) => {
+            const cityName = feature.properties.name;
+            const cityCountry = feature.properties.country;
+            const placeType = feature.properties.osm_value; // city, town, village, etc.
+
+            // Only include cities/towns/villages from the selected country
+            if (
+              cityName &&
+              cityCountry &&
+              cityCountry.toLowerCase() === selectedCountry.toLowerCase() &&
+              (placeType === "city" || placeType === "town" || placeType === "village")
+            ) {
+              // Use Map to avoid duplicates, prioritize cities over towns
+              if (!cities.has(cityName)) {
+                cities.set(cityName, { name: cityName, type: placeType });
+              }
+            }
+          });
+
+          // Sort: cities first, then towns, then villages, then alphabetically
+          const sortedCities = Array.from(cities.values())
+            .sort((a, b) => {
+              const typeOrder = { city: 0, town: 1, village: 2 };
+              const aOrder = typeOrder[a.type] ?? 3;
+              const bOrder = typeOrder[b.type] ?? 3;
+              if (aOrder !== bOrder) return aOrder - bOrder;
+              return a.name.localeCompare(b.name);
+            })
+            .map((item) => item.name)
+            .slice(0, 10);
+
+          setCityOptions(sortedCities);
+        } catch (error) {
+          console.error("Error fetching cities:", error);
+          setCityOptions([]);
+        } finally {
+          setCityLoading(false);
+        }
+      }, 400),
+    []
+  );
+
+  // Effect to search cities when input changes and country is selected
+  useEffect(() => {
+    if (cityInputValue && country) {
+      searchCities(cityInputValue, country);
+    } else {
+      setCityOptions([]);
+      setCityLoading(false);
+    }
+  }, [cityInputValue, country, searchCities]);
 
   const handleSkip = async () => {
     setLoading(true);
@@ -99,13 +202,12 @@ export default function RegisterPersonalInfoPage() {
   const handleContinue = async () => {
     setValidationError("");
 
-    // Validate required fields only if user is trying to save (not skipping)
-    if (fullName && fullName.trim().length > 0) {
-      if (fullName.trim().length < 2) {
-        setValidationError("Name must be at least 2 characters");
-        return;
-      }
-    }
+    // Build full name from first name and surname
+    const fullName = [firstName.trim(), surname.trim()].filter(Boolean).join(" ");
+    
+    // Build home area from city and country
+    const homeAreaParts = [city.trim(), country.trim()].filter(Boolean);
+    const homeArea = homeAreaParts.length > 0 ? homeAreaParts.join(", ") : null;
 
     setLoading(true);
     try {
@@ -134,7 +236,7 @@ export default function RegisterPersonalInfoPage() {
         // Profile exists, update only provided fields
         const updateData = {};
         if (hasName) updateData.full_name = fullName.trim();
-        if (hasHomeArea) updateData.home_area = homeArea.trim();
+        if (hasHomeArea) updateData.home_area = homeArea;
         else if (!hasName) updateData.home_area = null; // Allow clearing home area
 
         if (Object.keys(updateData).length > 0) {
@@ -153,7 +255,7 @@ export default function RegisterPersonalInfoPage() {
           .insert({
             id: user.id,
             full_name: hasName ? fullName.trim() : null,
-            home_area: hasHomeArea ? homeArea.trim() : null,
+            home_area: hasHomeArea ? homeArea : null,
             accessibility_preferences: [],
             disability_types: [],
           }));
@@ -210,20 +312,22 @@ export default function RegisterPersonalInfoPage() {
     >
       <Card
         sx={{
-          maxWidth: 600,
+          maxWidth: { xs: "100%", sm: 600 },
           width: "100%",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+          borderRadius: 2,
         }}
       >
-        <CardContent sx={{ p: 4 }}>
+        <CardContent sx={{ p: { xs: 3, sm: 5 } }}>
           {/* Title */}
           <Typography
             variant="h4"
             component="h1"
             sx={{
-              mb: 2,
-              fontWeight: 500,
+              mb: 1.5,
+              fontWeight: 600,
               textAlign: "center",
+              color: "text.primary",
             }}
           >
             Tell us about yourself
@@ -234,65 +338,271 @@ export default function RegisterPersonalInfoPage() {
             variant="body1"
             color="text.secondary"
             sx={{
-              mb: 4,
+              mb: 5,
               textAlign: "center",
+              fontSize: "0.95rem",
             }}
           >
             We'll use this information to personalise your experience.
           </Typography>
 
-          {/* Full Name Field */}
-          <TextField
-            fullWidth
-            label="Name"
-            value={fullName}
-            onChange={(e) => {
-              setFullName(e.target.value);
-              setValidationError("");
-            }}
-            sx={{ mb: 3 }}
-            helperText="Enter your full name (optional)"
-            error={!!validationError && validationError.includes("Name")}
-            autoFocus
-          />
+          {/* Name and Surname in one row */}
+          <Grid container spacing={4} sx={{ mb: 5 }}>
+            <Grid item xs={12} sm="auto">
+              <TextField
+                label="Name"
+                value={firstName}
+                onChange={(e) => {
+                  setFirstName(e.target.value);
+                  setValidationError("");
+                }}
+                error={!!validationError && validationError.includes("Name")}
+                autoFocus
+                sx={{
+                  width: { xs: "100%", sm: "500px" },
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: 2,
+                    fontSize: "1rem",
+                    height: "56px",
+                    "& fieldset": {
+                      borderWidth: 1.5,
+                      borderColor: "rgba(0, 0, 0, 0.23)",
+                    },
+                    "&:hover fieldset": {
+                      borderColor: "rgba(0, 0, 0, 0.5)",
+                    },
+                    "&.Mui-focused fieldset": {
+                      borderWidth: 2,
+                    },
+                  },
+                  "& .MuiInputBase-input": {
+                    py: 1.5,
+                    textAlign: "left",
+                    "&::placeholder": {
+                      color: "text.secondary",
+                      opacity: 1,
+                    },
+                  },
+                  "& .MuiInputLabel-root": {
+                    fontSize: "1rem",
+                  },
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} sm="auto">
+              <TextField
+                label="Surname"
+                value={surname}
+                onChange={(e) => {
+                  setSurname(e.target.value);
+                  setValidationError("");
+                }}
+                sx={{
+                  width: { xs: "100%", sm: "500px" },
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: 2,
+                    fontSize: "1rem",
+                    height: "56px",
+                    "& fieldset": {
+                      borderWidth: 1.5,
+                      borderColor: "rgba(0, 0, 0, 0.23)",
+                    },
+                    "&:hover fieldset": {
+                      borderColor: "rgba(0, 0, 0, 0.5)",
+                    },
+                    "&.Mui-focused fieldset": {
+                      borderWidth: 2,
+                    },
+                  },
+                  "& .MuiInputBase-input": {
+                    py: 1.5,
+                    textAlign: "left",
+                    "&::placeholder": {
+                      color: "text.secondary",
+                      opacity: 1,
+                    },
+                  },
+                  "& .MuiInputLabel-root": {
+                    fontSize: "1rem",
+                  },
+                }}
+              />
+            </Grid>
+          </Grid>
 
-          {/* Home Area Field - Optional */}
-          <Typography
-            variant="h6"
-            component="label"
-            sx={{
-              mb: 1,
-              fontWeight: 500,
-              display: "block",
-            }}
-          >
-            Location <Typography component="span" variant="body2" color="text.secondary">(Optional)</Typography>
-          </Typography>
+          {/* Location Section - Country and City */}
+          <Box sx={{ mb: 4 }}>
+            <Typography
+              variant="h6"
+              component="label"
+              sx={{
+                mb: 2.5,
+                fontWeight: 500,
+                display: "block",
+                color: "text.primary",
+              }}
+            >
+              Location <Typography component="span" variant="body2" color="text.secondary" sx={{ fontWeight: 400 }}>(Optional)</Typography>
+            </Typography>
 
-          <TextField
-            fullWidth
-            label="Home area"
-            placeholder="City / Neighbourhood"
-            value={homeArea}
-            onChange={(e) => setHomeArea(e.target.value)}
-            sx={{ mb: 3 }}
-            helperText="Enter your city or neighbourhood (optional)"
-          />
+            <Grid container spacing={4}>
+              <Grid item xs={12} sm="auto">
+                <Autocomplete
+                  freeSolo
+                  options={COUNTRIES}
+                  value={country}
+                  onChange={(event, newValue) => {
+                    setCountry(newValue || "");
+                    // Clear city when country changes
+                    if (newValue !== country) {
+                      setCity("");
+                      setCityInputValue("");
+                    }
+                  }}
+                  onInputChange={(event, newInputValue) => {
+                    setCountry(newInputValue);
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Country"
+                      placeholder="Select or type country"
+                      sx={{
+                        width: { xs: "100%", sm: "500px" },
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: 2,
+                          fontSize: "1rem",
+                          height: "56px",
+                          "& fieldset": {
+                            borderWidth: 1.5,
+                            borderColor: "rgba(0, 0, 0, 0.23)",
+                          },
+                          "&:hover fieldset": {
+                            borderColor: "rgba(0, 0, 0, 0.5)",
+                          },
+                          "&.Mui-focused fieldset": {
+                            borderWidth: 2,
+                          },
+                        },
+                        "& .MuiInputBase-input": {
+                          py: 1.5,
+                          textAlign: "left",
+                          "&::placeholder": {
+                            color: "text.secondary",
+                            opacity: 1,
+                          },
+                        },
+                        "& .MuiAutocomplete-input": {
+                          "&::placeholder": {
+                            color: "text.secondary",
+                            opacity: 1,
+                          },
+                        },
+                        "& .MuiInputLabel-root": {
+                          fontSize: "1rem",
+                        },
+                      }}
+                    />
+                  )}
+                />
+              </Grid>
+              <Grid item xs={12} sm="auto">
+                <Autocomplete
+                  freeSolo
+                  options={cityOptions}
+                  value={city}
+                  loading={cityLoading}
+                  disabled={!country}
+                  inputValue={cityInputValue}
+                  onInputChange={(event, newInputValue, reason) => {
+                    setCityInputValue(newInputValue);
+                    if (reason === "input") {
+                      // User is typing
+                    }
+                  }}
+                  onChange={(event, newValue) => {
+                    setCity(newValue || "");
+                    setCityInputValue(newValue || "");
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="City"
+                      placeholder={country ? "Search or type city" : "Select country first"}
+                      helperText={country ? "City or neighbourhood" : "Please select a country first"}
+                      InputProps={{
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {cityLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
+                      sx={{
+                        width: { xs: "100%", sm: "500px" },
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: 2,
+                          fontSize: "1rem",
+                          height: "56px",
+                          "& fieldset": {
+                            borderWidth: 1.5,
+                            borderColor: "rgba(0, 0, 0, 0.23)",
+                          },
+                          "&:hover fieldset": {
+                            borderColor: "rgba(0, 0, 0, 0.5)",
+                          },
+                          "&.Mui-focused fieldset": {
+                            borderWidth: 2,
+                          },
+                        },
+                        "& .MuiInputBase-input": {
+                          py: 1.5,
+                          textAlign: "left",
+                          "&::placeholder": {
+                            color: "text.secondary",
+                            opacity: 1,
+                          },
+                        },
+                        "& .MuiAutocomplete-input": {
+                          "&::placeholder": {
+                            color: "text.secondary",
+                            opacity: 1,
+                          },
+                        },
+                        "& .MuiInputLabel-root": {
+                          fontSize: "1rem",
+                        },
+                      }}
+                    />
+                  )}
+                />
+              </Grid>
+            </Grid>
+          </Box>
 
           {/* Validation Error */}
           {validationError && (
-            <FormHelperText error sx={{ mb: 2 }}>
-              {validationError}
-            </FormHelperText>
+            <Box sx={{ mb: 3 }}>
+              <FormHelperText error sx={{ fontSize: "0.875rem" }}>
+                {validationError}
+              </FormHelperText>
+            </Box>
           )}
 
           {/* Navigation Buttons */}
-          <Stack direction="row" spacing={2} sx={{ mt: 4 }}>
+          <Stack direction="row" spacing={2} sx={{ mt: 5 }}>
             <Button
               variant="outlined"
               onClick={handleBack}
               disabled={loading}
-              sx={{ flex: 1 }}
+              sx={{
+                flex: 1,
+                py: 1.25,
+                borderRadius: 1.5,
+                textTransform: "none",
+                fontWeight: 500,
+              }}
             >
               Back
             </Button>
@@ -300,7 +610,13 @@ export default function RegisterPersonalInfoPage() {
               variant="text"
               onClick={handleSkip}
               disabled={loading}
-              sx={{ flex: 1 }}
+              sx={{
+                flex: 1,
+                py: 1.25,
+                borderRadius: 1.5,
+                textTransform: "none",
+                fontWeight: 500,
+              }}
             >
               Skip
             </Button>
@@ -308,9 +624,19 @@ export default function RegisterPersonalInfoPage() {
               variant="contained"
               onClick={handleContinue}
               disabled={loading}
-              sx={{ flex: 1 }}
+              sx={{
+                flex: 1,
+                py: 1.25,
+                borderRadius: 1.5,
+                textTransform: "none",
+                fontWeight: 500,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                "&:hover": {
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+                },
+              }}
             >
-              {loading ? <CircularProgress size={24} /> : "Continue"}
+              {loading ? <CircularProgress size={24} color="inherit" /> : "Continue"}
             </Button>
           </Stack>
         </CardContent>
