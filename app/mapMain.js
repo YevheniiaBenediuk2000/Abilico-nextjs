@@ -13,6 +13,7 @@ import {
   DEFAULT_ZOOM,
   EXCLUDED_PROPS,
   placeClusterConfig,
+  SHOW_PLACES_ZOOM,
 } from "./constants/constants.mjs";
 import { toastError, toastWarn } from "./utils/toast.mjs";
 import { waypointDivIcon, WP_COLORS } from "./utils/wayPoints.mjs";
@@ -1937,6 +1938,12 @@ export async function initMap(user = null) {
     map.on("draw:deletestop", () => (drawState.deleting = false));
 
     map.on("moveend", debounce(refreshPlaces, 20));
+    const initialZoom = map.getZoom();
+    if (initialZoom >= SHOW_PLACES_ZOOM) {
+      // Run once on first load so list & markers appear without dragging
+      refreshPlaces();
+    }
+
     await initDrawingObstacles();
 
     map.addControl(new BasemapGallery({ initial: initialName }));
