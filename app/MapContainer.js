@@ -20,6 +20,8 @@ import Tab from "@mui/material/Tab";
 import IconButton from "@mui/material/IconButton";
 import CloseIcon from "@mui/icons-material/Close";
 import Drawer from "@mui/material/Drawer";
+import Snackbar from "@mui/material/Snackbar";
+import Alert from "@mui/material/Alert";
 
 import PlacesListReact from "./components/PlacesListReact";
 
@@ -36,6 +38,93 @@ function DetailsTabPanel({ value, active, children }) {
     >
       {children}
     </div>
+  );
+}
+
+function mapVariantToSeverity(variant) {
+  // map old bootstrap variants to MUI Alert severities
+  switch (variant) {
+    case "danger":
+    case "error":
+      return "error";
+    case "warning":
+      return "warning";
+    case "success":
+      return "success";
+    case "info":
+    case "primary":
+    case "secondary":
+    case "light":
+    case "dark":
+    default:
+      return "info";
+  }
+}
+
+/**
+ * React host for global toasts sent from utils/toast.mjs
+ */
+function ToastHost() {
+  const [queue, setQueue] = useState([]);
+  const [current, setCurrent] = useState(null);
+  const [open, setOpen] = useState(false);
+
+  // Listen for "app-toast" events from showToast()
+  useEffect(() => {
+    const handler = (ev) => {
+      const detail = ev.detail || {};
+      setQueue((prev) => [...prev, detail]);
+    };
+
+    window.addEventListener("app-toast", handler);
+    return () => window.removeEventListener("app-toast", handler);
+  }, []);
+
+  // Dequeue next toast when nothing is open
+  useEffect(() => {
+    if (!open && !current && queue.length) {
+      const [next, ...rest] = queue;
+      setCurrent(next);
+      setQueue(rest);
+      setOpen(true);
+    }
+  }, [queue, open, current]);
+
+  const handleClose = (_evt, reason) => {
+    if (reason === "clickaway") return;
+    setOpen(false);
+  };
+
+  const handleExited = () => {
+    setCurrent(null);
+  };
+
+  if (!current) return null;
+
+  const severity = mapVariantToSeverity(current.variant);
+  const autoHideDuration =
+    current.autohide === false ? null : current.delay ?? 7000;
+
+  return (
+    <Snackbar
+      open={open}
+      onClose={handleClose}
+      autoHideDuration={autoHideDuration}
+      anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      TransitionProps={{ onExited: handleExited }}
+    >
+      <Alert
+        onClose={handleClose}
+        severity={severity}
+        variant="filled"
+        sx={{ width: "100%" }}
+      >
+        {current.title && (
+          <strong style={{ marginRight: 8 }}>{current.title}</strong>
+        )}
+        {current.message}
+      </Alert>
+    </Snackbar>
   );
 }
 
@@ -556,12 +645,7 @@ export default function MapContainer({
       </div>
 
       {/* === Toast Stack === */}
-      <div aria-live="polite" aria-atomic="true" className="position-relative">
-        <div
-          id="toast-stack"
-          className="toast-container position-fixed top-0 end-0 p-3"
-        ></div>
-      </div>
+      <ToastHost />
 
       {/* === Obstacle Management Overlay (for non-logged-in users) === */}
       {!user && (

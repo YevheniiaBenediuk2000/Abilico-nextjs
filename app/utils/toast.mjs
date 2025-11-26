@@ -1,28 +1,19 @@
-// ./js/utils/toast.mjs
+// app/utils/toast.mjs
 
-// Variants: primary, secondary, success, danger, warning, info, light, dark
-const VARIANT_DEFAULT = "danger"; // good default for errors
+// We now use a global window event that a React MUI ToastHost listens to.
+// This file is still plain JS and can be imported from mapMain.js etc.
 
-function getContainer() {
-  let el = document.getElementById("toast-stack");
-  if (!el) {
-    el = document.createElement("div");
-    el.id = "toast-stack";
-    el.className = "toast-container position-fixed top-0 end-0 p-3";
-    document.body.appendChild(el);
-  }
-  return el;
-}
+const VARIANT_DEFAULT = "danger"; // backwards-compatible with old callers
 
 /**
- * showToast
+ * Internal: send a toast event to the React layer.
  * @param {Object} opts
- * @param {string} opts.message - required
- * @param {string} [opts.title] - optional header text
- * @param {('primary'|'secondary'|'success'|'danger'|'warning'|'info'|'light'|'dark')} [opts.variant='danger']
+ * @param {string} opts.message
+ * @param {string} [opts.title]
+ * @param {string} [opts.variant] - old Bootstrap variants: danger, warning, info, success, primary, secondary, light, dark
  * @param {boolean} [opts.autohide=true]
- * @param {number} [opts.delay=7000]
- * @param {boolean} [opts.important=false] - use assertive live region for critical errors
+ * @param {number} [opts.delay=7000] - ms
+ * @param {boolean} [opts.important=false]
  */
 export function showToast({
   message,
@@ -34,62 +25,61 @@ export function showToast({
 } = {}) {
   if (!message) return;
 
-  const container = getContainer();
+  if (
+    typeof window === "undefined" ||
+    typeof window.dispatchEvent !== "function"
+  ) {
+    // SSR / non-browser: just log
+    console[variant === "danger" ? "error" : "log"](
+      `[toast:${variant}]`,
+      title ? `${title}:` : "",
+      message
+    );
+    return;
+  }
 
-  // role/aria-live: 'alert' + 'assertive' for errors; 'status' + 'polite' otherwise
-  const isErrorLike = variant === "danger" || important;
-  const role = isErrorLike ? "alert" : "status";
-  const ariaLive = isErrorLike ? "assertive" : "polite";
-
-  const toast = document.createElement("div");
-  toast.className = `toast align-items-center text-bg-${variant} border-0`;
-  toast.setAttribute("role", role);
-  toast.setAttribute("aria-live", ariaLive);
-  toast.setAttribute("aria-atomic", "true");
-
-  // Body (you can add a header if you like; simple layout is usually best for alerts)
-  toast.innerHTML = `
-    <div class="d-flex">
-      <div class="toast-body">
-        ${title ? `<strong class="me-2">${escapeHtml(title)}</strong>` : ""}
-        ${escapeHtml(message)}
-      </div>
-      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-    </div>
-  `;
-
-  container.appendChild(toast);
-
-  // Respect autohide/delay via JS options (preferred over data attributes)
-  const bsToast = bootstrap.Toast.getOrCreateInstance(toast, {
-    autohide,
-    delay,
+  const event = new CustomEvent("app-toast", {
+    detail: {
+      message,
+      title,
+      variant,
+      autohide,
+      delay,
+      important,
+    },
   });
 
-  // Clean DOM on hide
-  toast.addEventListener("hidden.bs.toast", () => toast.remove());
-  bsToast.show();
-
-  return bsToast;
+  window.dispatchEvent(event);
 }
 
-// Convenience helpers
+// Convenience helpers (kept same API as before)
 export const toastError = (msg, opts = {}) =>
-  showToast({ message: msg, variant: "danger", title: "Error", ...opts });
-export const toastWarn = (msg, opts = {}) =>
-  showToast({ message: msg, variant: "warning", title: "Warning", ...opts });
-export const toastInfo = (msg, opts = {}) =>
-  showToast({ message: msg, variant: "info", ...opts });
-export const toastSuccess = (msg, opts = {}) =>
-  showToast({ message: msg, variant: "success", ...opts });
+  showToast({
+    message: msg,
+    title: opts.title ?? "Error",
+    variant: "danger",
+    important: true,
+    ...opts,
+  });
 
-// Tiny XSS-safe text escape for dynamic content
-function escapeHtml(s) {
-  return String(s).replace(
-    /[&<>"']/g,
-    (ch) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[
-        ch
-      ])
-  );
-}
+export const toastWarn = (msg, opts = {}) =>
+  showToast({
+    message: msg,
+    title: opts.title ?? "Warning",
+    variant: "warning",
+    ...opts,
+  });
+
+export const toastInfo = (msg, opts = {}) =>
+  showToast({
+    message: msg,
+    variant: "info",
+    ...opts,
+  });
+
+export const toastSuccess = (msg, opts = {}) =>
+  showToast({
+    message: msg,
+    variant: "success",
+    ...opts,
+  });
