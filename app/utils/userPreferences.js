@@ -90,6 +90,36 @@ export async function hasProfile(supabase, userId) {
 }
 
 /**
+ * Check if a user has completed their disability types selection
+ * @param {Object} supabase - Supabase client instance
+ * @param {string} userId - User ID
+ * @returns {Promise<boolean>} - True if at least one disability type is set, false otherwise
+ */
+export async function hasCompletedDisabilityTypes(supabase, userId) {
+  if (!userId) return false;
+
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("disability_types")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (error && error.code !== "PGRST116") {
+      console.error("Error checking disability types:", error);
+      return false;
+    }
+
+    // Check if disability_types exists and has at least one item
+    const types = data?.disability_types || [];
+    return Array.isArray(types) && types.length > 0;
+  } catch (error) {
+    console.error("Error checking disability types:", error);
+    return false;
+  }
+}
+
+/**
  * Get the next registration step for a user
  * @param {Object} supabase - Supabase client instance
  * @param {string} userId - User ID
@@ -111,8 +141,13 @@ export async function getNextRegistrationStep(supabase, userId) {
     return "/register/preferences";
   }
 
-  // TODO: Check Step 3 (disability type) when implemented
-  // For now, if preferences are done, registration is complete
+  // Step 3: Check disability types
+  const hasDisabilityTypes = await hasCompletedDisabilityTypes(supabase, userId);
+  if (!hasDisabilityTypes) {
+    return "/register/disability-types";
+  }
+
+  // All registration steps completed
   return null;
 }
 

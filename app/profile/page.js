@@ -32,7 +32,15 @@ import CircularProgress from "@mui/material/CircularProgress";
 import { deepOrange, deepPurple } from "@mui/material/colors";
 import AccessibilityPreferencesEditor from "../components/AccessibilityPreferencesEditor";
 import HomeAreaEditor from "../components/HomeAreaEditor";
+import DisabilityTypesEditor from "../components/DisabilityTypesEditor";
 import { ACCESSIBILITY_CATEGORY_LABELS } from "../constants/accessibilityCategories";
+
+const DISABILITY_TYPES = [
+  { id: "wheelchair", label: "Wheelchair User" },
+  { id: "visual", label: "Visually Impaired" },
+  { id: "hearing", label: "Hearing Impaired" },
+  { id: "other", label: "Other" },
+];
 
 // Helper function to get initials from email
 function getInitialsFromEmail(email) {
@@ -839,7 +847,7 @@ export default function ProfilePage() {
                             {profile.disability_types.map((type) => (
                               <Chip
                                 key={type}
-                                label={type}
+                                label={DISABILITY_TYPES.find(t => t.id === type)?.label || type}
                                 size="small"
                                 variant="outlined"
                                 color="primary"
@@ -1107,7 +1115,23 @@ export default function ProfilePage() {
         />
       )}
 
-      {/* TODO: Disability Editor Dialog - to be implemented when Step 3 is created */}
+      {/* Disability Types Editor Dialog */}
+      {user && (
+        <DisabilityTypesEditor
+          open={showDisabilityEditor}
+          onClose={() => setShowDisabilityEditor(false)}
+          supabase={supabase}
+          userId={user.id}
+          initialTypes={profile?.disability_types || []}
+          onSave={(newTypes) => {
+            // Update local profile state
+            setProfile((prev) => ({
+              ...prev,
+              disability_types: newTypes,
+            }));
+          }}
+        />
+      )}
     </MapLayout>
   );
 }
