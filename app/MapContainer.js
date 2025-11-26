@@ -460,6 +460,8 @@ export default function MapContainer({
               pointerEvents: "auto",
               borderRadius: 2,
               boxShadow: 4,
+              maxHeight: "75vh",
+              overflowY: "auto",
             }}
           >
             <CardContent sx={{ p: 2 }}>
