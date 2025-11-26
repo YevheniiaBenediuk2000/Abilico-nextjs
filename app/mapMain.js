@@ -264,8 +264,12 @@ function mountInOffcanvas(titleText) {
 }
 
 elements.offcanvas.addEventListener("hidden.bs.offcanvas", () => {
-  elements.destinationSearchBarHome.prepend(elements.destinationSearchBar);
-  elements.destinationSearchBar.classList.remove("d-none");
+  const home = elements.destinationSearchBarHome;
+  const bar = elements.destinationSearchBar;
+  const next = elements.destinationSearchBarNextSibling;
+
+  home.insertBefore(bar, next);
+  bar.classList.remove("d-none");
 });
 
 function toggleDepartureSuggestions(visible) {
