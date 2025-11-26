@@ -39,7 +39,6 @@ async function handleSetupMFA() {
   document.getElementById("setup-container").style.display = "block";
 }
 
-
 export default function MapLayout({ isDashboard = false }) {
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -98,27 +97,36 @@ export default function MapLayout({ isDashboard = false }) {
           }}
         >
           <Toolbar sx={{ gap: 2 }}>
-            {/* Burger: toggles places list drawer */}
-            <IconButton
-              size="large"
-              edge="start"
-              color="inherit"
-              aria-label="open places list"
-              onClick={() => setIsPlacesListOpen((prev) => !prev)}
+            {/* LEFT: burger + logo, fixed width */}
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+                flexShrink: 0,
+              }}
             >
-              <MenuIcon />
-            </IconButton>
+              <IconButton
+                size="large"
+                edge="start"
+                color="inherit"
+                aria-label="open places list"
+                onClick={() => setIsPlacesListOpen((prev) => !prev)}
+              >
+                <MenuIcon />
+              </IconButton>
 
-            <Typography
-              variant="h6"
-              noWrap
-              component="div"
-              sx={{ display: { xs: "none", sm: "block" } }}
-            >
-              Abilico
-            </Typography>
+              <Typography
+                variant="h6"
+                noWrap
+                component="div"
+                sx={{ display: { xs: "none", sm: "block" } }}
+              >
+                Abilico
+              </Typography>
+            </Box>
 
-            {/* Search - centered in header, styled like login button */}
+            {/* CENTER: search bar, grows to fill remaining space */}
             <Box
               id="destination-search-bar"
               sx={{
@@ -178,12 +186,14 @@ export default function MapLayout({ isDashboard = false }) {
               ></ul>
             </Box>
 
-            {/* Account / auth area */}
+            {/* RIGHT: account area, always pushed to the far right */}
             <Box
               sx={{
+                ml: "auto", // 🔑 pushes this box to the far right
                 display: "flex",
                 alignItems: "center",
                 gap: 1,
+                flexShrink: 0,
               }}
             >
               {!user ? (
