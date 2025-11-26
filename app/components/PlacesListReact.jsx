@@ -582,15 +582,14 @@ export default function PlacesListReact({ data, onSelect }) {
     <>
       {/* Header */}
       <Box
-        pb={0.75}
-        borderBottom="1px solid rgba(0,0,0,0.08)"
+        pb={0.4}
         display="flex"
         alignItems="flex-start"
         justifyContent="space-between"
         gap={1}
       >
         <Box>
-          <Typography variant="subtitle1" fontWeight={600}>
+          <Typography sx={{ mb: 0.9 }} variant="subtitle1" fontWeight={600}>
             Places in view
           </Typography>
           <Typography variant="caption" color="text.secondary">
@@ -608,7 +607,7 @@ export default function PlacesListReact({ data, onSelect }) {
               display: "flex",
               flexDirection: "column",
               alignItems: "flex-end",
-              gap: 0.5,
+              gap: 1,
             }}
           >
             {/* Filters Button */}
@@ -699,6 +698,7 @@ export default function PlacesListReact({ data, onSelect }) {
                                   alt={photo?.title || item.name}
                                   loading="lazy"
                                   sx={{
+                                    mt: "6px",
                                     width: 64,
                                     height: 64,
                                     borderRadius: 1,
