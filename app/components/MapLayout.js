@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -109,14 +110,19 @@ export default function MapLayout({ isDashboard = false }) {
                 <MenuIcon />
               </IconButton>
 
-              <Typography
-                variant="h6"
-                noWrap
-                component="div"
-                sx={{ display: { xs: "none", sm: "block" } }}
+              <Link
+                href="/"
+                style={{ textDecoration: "none", color: "inherit" }}
               >
-                Abilico
-              </Typography>
+                <Typography
+                  variant="h6"
+                  noWrap
+                  component="div"
+                  sx={{ display: { xs: "none", sm: "block" } }}
+                >
+                  Abilico
+                </Typography>
+              </Link>
             </Box>
 
             {/* CENTER: search bar, centered in available space */}
