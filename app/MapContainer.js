@@ -446,11 +446,22 @@ export default function MapContainer({
         sx={(theme) => ({
           position: "absolute",
           zIndex: theme.zIndex.modal,
-          top: { xs: 72, sm: 80 }, // below the app bar
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: "min(420px, calc(100% - 32px))",
-          pointerEvents: "none",
+          top: { xs: 2, sm: 10 }, // below the app bar
+          // 👇 stick to the left, but when the list drawer is open on desktop,
+          // shift to the right of the 360px drawer
+          left: {
+            xs: 8, // small padding from the left on mobile
+            sm: isPlacesListOpen ? 360 + 8 : 8,
+          },
+          right: "auto",
+          transform: "none", // no centering
+          width: {
+            xs: "calc(100% - 32px)", // full width minus side padding on mobile
+            sm: isPlacesListOpen
+              ? `min(420px, calc(100% - ${360 + 32}px))` // leave room for the drawer + margins
+              : "min(420px, calc(100% - 32px))",
+          },
+          pointerEvents: "none", // clicks go through wrapper
           display: placePopupOpen ? "block" : "none",
         })}
       >
@@ -460,7 +471,7 @@ export default function MapContainer({
               pointerEvents: "auto",
               borderRadius: 2,
               boxShadow: 4,
-              maxHeight: "75vh",
+              maxHeight: "90vh",
               overflowY: "auto",
             }}
           >
