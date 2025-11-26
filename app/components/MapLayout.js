@@ -10,6 +10,7 @@ import "leaflet/dist/leaflet.css";
 import "../styles/poi-badge.css";
 import MapContainer from "../MapContainer";
 import { supabase } from "../auth/page";
+import { getNextRegistrationStep } from "../utils/userPreferences";
 
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
@@ -71,7 +72,7 @@ export default function MapLayout({ isDashboard = false, children }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  // ✅ Protect dashboard
+  // ✅ Protect dashboard and check registration status
   useEffect(() => {
     if (isDashboard && user === null) {
       // user not loaded yet, wait
@@ -79,6 +80,17 @@ export default function MapLayout({ isDashboard = false, children }) {
     }
     if (isDashboard && !user) {
       router.push("/auth");
+      return;
+    }
+    // Check if user has completed registration steps
+    if (isDashboard && user) {
+      async function checkRegistration() {
+        const nextStep = await getNextRegistrationStep(supabase, user.id);
+        if (nextStep) {
+          router.push(nextStep);
+        }
+      }
+      checkRegistration();
     }
   }, [isDashboard, user, router]);
 
