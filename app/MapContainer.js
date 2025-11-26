@@ -161,6 +161,7 @@ export default function MapContainer({
 
       {/* === Places list Drawer (controlled by AppBar burger) === */}
       <Drawer
+        variant="persistent" //
         anchor="left"
         open={isPlacesListOpen}
         onClose={onPlacesListClose}
@@ -168,10 +169,8 @@ export default function MapContainer({
           keepMounted: true, // (optional) keeps it mounted for better perf
         }}
         hideBackdrop
-        sx={{ pointerEvents: "none" }}
         PaperProps={{
           sx: (theme) => ({
-            pointerEvents: "auto",
             width: 360,
             maxWidth: "80vw",
             pt: 1,
