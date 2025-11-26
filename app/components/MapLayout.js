@@ -63,7 +63,7 @@ function getAvatarColor(email) {
   return hash % 2 === 0 ? deepOrange[500] : deepPurple[500];
 }
 
-export default function MapLayout({ isDashboard = false }) {
+export default function MapLayout({ isDashboard = false, children }) {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [has2FA, setHas2FA] = useState(false);
@@ -294,6 +294,14 @@ export default function MapLayout({ isDashboard = false }) {
                     onClose={() => setAvatarMenuAnchor(null)}
                   >
                     <MenuItem disabled>{user.email}</MenuItem>
+                    <MenuItem
+                      onClick={() => {
+                        setAvatarMenuAnchor(null);
+                        router.push("/profile");
+                      }}
+                    >
+                      Profile
+                    </MenuItem>
                   </Menu>
 
                   {isDashboard && !has2FA && (
@@ -398,13 +406,17 @@ export default function MapLayout({ isDashboard = false }) {
           </div>
         )}
 
-        {/* === Map === */}
+        {/* === Map or Children === */}
         <main className="flex-grow-1 position-relative">
-          <MapContainer
-            user={user}
-            isPlacesListOpen={isPlacesListOpen}
-            onPlacesListClose={() => setIsPlacesListOpen(false)}
-          />
+          {children ? (
+            children
+          ) : (
+            <MapContainer
+              user={user}
+              isPlacesListOpen={isPlacesListOpen}
+              onPlacesListClose={() => setIsPlacesListOpen(false)}
+            />
+          )}
         </main>
       </div>
     </QueryClientProvider>
