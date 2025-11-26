@@ -18,6 +18,10 @@ import TextField from "@mui/material/TextField";
 import InputAdornment from "@mui/material/InputAdornment";
 import Button from "@mui/material/Button";
 import Box from "@mui/material/Box";
+import Avatar from "@mui/material/Avatar";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import { deepOrange, deepPurple } from "@mui/material/colors";
 import MenuIcon from "@mui/icons-material/Menu";
 import SearchIcon from "@mui/icons-material/Search";
 
@@ -40,11 +44,30 @@ async function handleSetupMFA() {
 }
 
 
+// Helper function to get initials from email
+function getInitialsFromEmail(email) {
+  if (!email) return "?";
+  const parts = email.split("@")[0];
+  const words = parts.split(/[._-]/);
+  if (words.length >= 2) {
+    return (words[0][0] + words[1][0]).toUpperCase();
+  }
+  return parts.substring(0, 2).toUpperCase();
+}
+
+// Helper function to get color based on email
+function getAvatarColor(email) {
+  if (!email) return deepOrange[500];
+  const hash = email.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return hash % 2 === 0 ? deepOrange[500] : deepPurple[500];
+}
+
 export default function MapLayout({ isDashboard = false }) {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [has2FA, setHas2FA] = useState(false);
   const [isPlacesListOpen, setIsPlacesListOpen] = useState(false);
+  const [avatarMenuAnchor, setAvatarMenuAnchor] = useState(null);
 
   // ✅ Track user session
   useEffect(() => {
@@ -198,12 +221,21 @@ export default function MapLayout({ isDashboard = false }) {
               ) : (
                 // Logged in
                 <>
-                  <Typography
-                    variant="body2"
-                    sx={{ display: { xs: "none", sm: "block" } }}
+                  <IconButton
+                    onClick={(e) => setAvatarMenuAnchor(e.currentTarget)}
+                    sx={{ p: 0 }}
                   >
-                    {user.email}
-                  </Typography>
+                    <Avatar sx={{ bgcolor: getAvatarColor(user.email) }}>
+                      {getInitialsFromEmail(user.email)}
+                    </Avatar>
+                  </IconButton>
+                  <Menu
+                    anchorEl={avatarMenuAnchor}
+                    open={Boolean(avatarMenuAnchor)}
+                    onClose={() => setAvatarMenuAnchor(null)}
+                  >
+                    <MenuItem disabled>{user.email}</MenuItem>
+                  </Menu>
 
                   {isDashboard && !has2FA && (
                     <Button
