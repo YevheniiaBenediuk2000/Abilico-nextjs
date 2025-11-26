@@ -16,7 +16,6 @@ import CircularProgress from "@mui/material/CircularProgress";
 import FormHelperText from "@mui/material/FormHelperText";
 import Grid from "@mui/material/Grid";
 import Autocomplete from "@mui/material/Autocomplete";
-import { COUNTRIES } from "../../constants/countries";
 import debounce from "lodash.debounce";
 
 export default function RegisterPersonalInfoPage() {
@@ -24,6 +23,9 @@ export default function RegisterPersonalInfoPage() {
   const [firstName, setFirstName] = useState("");
   const [surname, setSurname] = useState("");
   const [country, setCountry] = useState("");
+  const [countryOptions, setCountryOptions] = useState([]);
+  const [countryLoading, setCountryLoading] = useState(false);
+  const [countryInputValue, setCountryInputValue] = useState("");
   const [city, setCity] = useState("");
   const [cityOptions, setCityOptions] = useState([]);
   const [cityLoading, setCityLoading] = useState(false);
@@ -80,6 +82,61 @@ export default function RegisterPersonalInfoPage() {
     }
     checkAuth();
   }, [router]);
+
+  // Memoized country search function
+  const searchCountries = useMemo(
+    () =>
+      debounce(async (query) => {
+        if (!query || query.length < 2) {
+          setCountryOptions([]);
+          return;
+        }
+
+        setCountryLoading(true);
+        try {
+          const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=30`;
+
+          const response = await fetch(url);
+          const data = await response.json();
+
+          // Extract unique country names from all results
+          // Prioritize results where osm_value is "country", but also include countries from other features
+          const countries = new Map();
+          (data.features || []).forEach((feature) => {
+            const countryName = feature.properties.country;
+            const placeType = feature.properties.osm_value;
+
+            if (countryName) {
+              // Prioritize direct country matches, but also collect countries from other features
+              const isDirectCountry = placeType === "country";
+              const existing = countries.get(countryName);
+              
+              if (!existing || (isDirectCountry && !existing.isDirect)) {
+                countries.set(countryName, { name: countryName, isDirect: isDirectCountry });
+              }
+            }
+          });
+
+          // Sort: direct country matches first, then alphabetically
+          const sortedCountries = Array.from(countries.values())
+            .sort((a, b) => {
+              if (a.isDirect && !b.isDirect) return -1;
+              if (!a.isDirect && b.isDirect) return 1;
+              return a.name.localeCompare(b.name);
+            })
+            .map(item => item.name)
+            .slice(0, 20);
+
+          setCountryOptions(sortedCountries);
+        } catch (error) {
+          console.error("Error fetching countries:", error);
+          setCountryOptions([]);
+        } finally {
+          setCountryLoading(false);
+        }
+      }, 400),
+    []
+  );
 
   // Memoized city search function
   const searchCities = useMemo(
@@ -142,6 +199,16 @@ export default function RegisterPersonalInfoPage() {
       }, 400),
     []
   );
+
+  // Effect to search countries when input changes
+  useEffect(() => {
+    if (countryInputValue) {
+      searchCountries(countryInputValue);
+    } else {
+      setCountryOptions([]);
+      setCountryLoading(false);
+    }
+  }, [countryInputValue, searchCountries]);
 
   // Effect to search cities when input changes and country is selected
   useEffect(() => {
@@ -449,24 +516,39 @@ export default function RegisterPersonalInfoPage() {
               <Grid item xs={12} sm="auto">
                 <Autocomplete
                   freeSolo
-                  options={COUNTRIES}
+                  options={countryOptions}
                   value={country}
+                  loading={countryLoading}
+                  inputValue={countryInputValue}
+                  onInputChange={(event, newInputValue, reason) => {
+                    setCountryInputValue(newInputValue);
+                    if (reason === "input") {
+                      // User is typing
+                    }
+                  }}
                   onChange={(event, newValue) => {
                     setCountry(newValue || "");
+                    setCountryInputValue(newValue || "");
                     // Clear city when country changes
                     if (newValue !== country) {
                       setCity("");
                       setCityInputValue("");
                     }
                   }}
-                  onInputChange={(event, newInputValue) => {
-                    setCountry(newInputValue);
-                  }}
                   renderInput={(params) => (
                     <TextField
                       {...params}
                       label="Country"
-                      placeholder="Select or type country"
+                      placeholder="Search or type country"
+                      InputProps={{
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {countryLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
                       sx={{
                         width: { xs: "100%", sm: "500px" },
                         "& .MuiOutlinedInput-root": {
