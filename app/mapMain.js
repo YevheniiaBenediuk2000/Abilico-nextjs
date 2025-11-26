@@ -804,6 +804,13 @@ function renderReviewsList() {
       let reviewerName = "Anonymous";
       let reviewerInitials = "A";
       
+      // Debug: Log review data to see profile structure
+      console.log(`🎭 Review ${review.id} profile data:`, {
+        user_id: review.user_id,
+        profile: review.profile,
+        profile_full_name: review.profile?.full_name
+      });
+      
       if (review.profile && review.profile.full_name) {
         reviewerName = review.profile.full_name.trim();
         // Get initials from full name (first letter of first word and first letter of last word)
@@ -813,6 +820,9 @@ function renderReviewsList() {
         } else if (nameParts.length === 1) {
           reviewerInitials = nameParts[0].substring(0, 2).toUpperCase();
         }
+        console.log(`✅ Using reviewer name: "${reviewerName}" with initials "${reviewerInitials}"`);
+      } else {
+        console.log(`⚠️ No profile or full_name found for review ${review.id}, showing Anonymous`);
       }
 
       // Profile icon/avatar with initials

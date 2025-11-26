@@ -89,23 +89,38 @@ export async function reviewStorage(method = "GET", reviewData) {
       let profilesMap = new Map();
       
       if (userIds.length > 0) {
-        const { data: profilesData } = await supabase
+        console.log("🔍 Fetching profiles for user_ids:", userIds);
+        const { data: profilesData, error: profilesError } = await supabase
           .from("profiles")
           .select("id, full_name")
           .in("id", userIds);
         
-        if (profilesData) {
-          profilesData.forEach(profile => {
-            profilesMap.set(profile.id, profile);
-          });
+        if (profilesError) {
+          console.error("❌ Error fetching profiles:", profilesError);
+        } else {
+          console.log("✅ Fetched profiles:", profilesData);
+          if (profilesData && profilesData.length > 0) {
+            profilesData.forEach(profile => {
+              console.log(`  - Profile ID: ${profile.id}, Full Name: "${profile.full_name}"`);
+              profilesMap.set(profile.id, profile);
+            });
+          } else {
+            console.warn("⚠️ No profiles found for user_ids:", userIds);
+          }
         }
+      } else {
+        console.warn("⚠️ No user_ids found in reviews");
       }
 
       // Attach profile information to each review
-      const reviewsWithProfiles = reviewsData.map(review => ({
-        ...review,
-        profile: review.user_id ? profilesMap.get(review.user_id) || null : null
-      }));
+      const reviewsWithProfiles = reviewsData.map(review => {
+        const profile = review.user_id ? profilesMap.get(review.user_id) || null : null;
+        console.log(`📝 Review ${review.id}: user_id=${review.user_id}, profile=`, profile);
+        return {
+          ...review,
+          profile: profile
+        };
+      });
 
       return reviewsWithProfiles;
     }
