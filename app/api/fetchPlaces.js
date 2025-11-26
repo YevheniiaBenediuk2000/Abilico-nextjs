@@ -350,12 +350,8 @@ export async function fetchPlaces(bounds, zoom, options) {
           });
 
           if (!response.ok) {
-            // 504 Gateway Timeout - server is overloaded, skip retries for this endpoint
-            if (response.status === 504) {
-              throw new pRetry.AbortError(
-                `Overpass timeout (504) @ ${endpoint} - trying next endpoint`
-              );
-            }
+            // Throw error with status code - pRetry will handle retries
+            // For 504 errors, we'll catch and move to next endpoint after retries fail
             throw new Error(`Overpass error ${response.status} @ ${endpoint}`);
           }
 
