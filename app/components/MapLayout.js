@@ -44,6 +44,7 @@ async function handleSetupMFA() {
 }
 
 
+
 // Helper function to get initials from email
 function getInitialsFromEmail(email) {
   if (!email) return "?";
@@ -94,6 +95,64 @@ export default function MapLayout({ isDashboard = false }) {
     }
     checkMFA();
   }, [user]);
+
+  // Refresh MFA status after operations
+  const refreshMFAStatus = async () => {
+    if (!user) return;
+    const { data: factors } = await supabase.auth.mfa.listFactors();
+    const verified = factors?.all?.some(
+      (f) => f.factor_type === "totp" && f.status === "verified"
+    );
+    setHas2FA(!!verified);
+  };
+
+  // Handle disabling 2FA
+  const handleDisableMFA = async () => {
+    try {
+      // Get all factors for the user
+      const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
+      if (listError) {
+        alert("❌ Failed to fetch 2FA factors");
+        console.error(listError);
+        return;
+      }
+
+      // Find the verified TOTP factor
+      const verifiedTotp = factors?.all?.find(
+        (f) => f.factor_type === "totp" && f.status === "verified"
+      );
+
+      if (!verifiedTotp) {
+        alert("⚠️ No verified 2FA factor found");
+        return;
+      }
+
+      // Confirm before disabling
+      if (!confirm("Are you sure you want to disable 2FA? This will reduce your account security.")) {
+        return;
+      }
+
+      // Unenroll the factor
+      const { error: unenrollError } = await supabase.auth.mfa.unenroll({
+        factorId: verifiedTotp.id,
+      });
+
+      if (unenrollError) {
+        alert("❌ Failed to disable 2FA");
+        console.error(unenrollError);
+        return;
+      }
+
+      alert("✅ 2FA has been disabled");
+      
+      // Refresh MFA status and session
+      await refreshMFAStatus();
+      await supabase.auth.refreshSession();
+    } catch (error) {
+      alert("❌ An error occurred while disabling 2FA");
+      console.error(error);
+    }
+  };
 
   // ✅ Protect dashboard
   useEffect(() => {
@@ -248,6 +307,17 @@ export default function MapLayout({ isDashboard = false }) {
                     </Button>
                   )}
 
+                  {isDashboard && has2FA && (
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      size="small"
+                      onClick={handleDisableMFA}
+                    >
+                      Disable 2FA
+                    </Button>
+                  )}
+
                   <Button
                     variant="outlined"
                     color="inherit"
@@ -310,8 +380,17 @@ export default function MapLayout({ isDashboard = false }) {
                   code,
                 });
 
-                if (verifyErr) alert("❌ Wrong code");
-                else alert("✅ 2FA verified and enabled!");
+                if (verifyErr) {
+                  alert("❌ Wrong code");
+                } else {
+                  alert("✅ 2FA verified and enabled!");
+                  // Refresh MFA status after successful verification
+                  const { data: factors } = await supabase.auth.mfa.listFactors();
+                  const verified = factors?.all?.some(
+                    (f) => f.factor_type === "totp" && f.status === "verified"
+                  );
+                  setHas2FA(!!verified);
+                }
               }}
             >
               Verify Code
