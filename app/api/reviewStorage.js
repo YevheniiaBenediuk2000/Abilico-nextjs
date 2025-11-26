@@ -91,6 +91,7 @@ export async function reviewStorage(method = "GET", reviewData) {
         comment: reviewData.text,
         place_id: reviewData.place_id,
         rating: reviewData.rating || null,
+        category_ratings: reviewData.category_ratings || null,
         image_url: reviewData.image_url || null,
       };
 

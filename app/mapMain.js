@@ -60,6 +60,11 @@ import {
 import { recomputePlaceAccessibilityKeywords } from "./modules/accessibilityKeywordsExtraction.js";
 import globals from "./constants/globalVariables.js";
 
+// Expose globals on window for React components to access
+if (typeof window !== "undefined") {
+  window.globals = globals;
+}
+
 let accessibilityFilter = new Set([
   "designated",
   "yes",
@@ -2046,10 +2051,10 @@ export async function initMap(user = null) {
       elements.departureSearchInput.focus();
     });
 
-  // ✅ Set up review form handler using event delegation
+  // ✅ Set up review form handler using event delegation (for old HTML form, kept for backward compatibility)
   // This works even if the form is created dynamically after login
   elements.detailsPanel.addEventListener("submit", async (e) => {
-    // Only handle review form submissions
+    // Only handle review form submissions (old HTML form)
     if (e.target.id !== "review-form") return;
 
     e.preventDefault();
@@ -2093,6 +2098,21 @@ export async function initMap(user = null) {
     } catch (error) {
       console.error("❌ Failed to save review:", error);
       toastError("Could not save your review. Please try again.");
+    }
+  });
+
+  // ✅ Listen for review submissions from React ReviewForm component
+  window.addEventListener("review-submitted", async (e) => {
+    const placeId = e.detail?.placeId || globals.detailsCtx?.placeId;
+    if (!placeId) return;
+
+    try {
+      // Reload and render updated reviews list
+      globals.reviews = await reviewStorage("GET", { place_id: placeId });
+      renderReviewsList();
+      recomputePlaceAccessibilityKeywords().catch(console.error);
+    } catch (error) {
+      console.error("❌ Failed to refresh reviews:", error);
     }
   });
 

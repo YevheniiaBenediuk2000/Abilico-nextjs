@@ -24,6 +24,7 @@ import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 
 import PlacesListReact from "./components/PlacesListReact";
+import ReviewForm from "./components/ReviewForm";
 
 function DetailsTabPanel({ value, active, children }) {
   const hidden = active !== value;
@@ -503,21 +504,9 @@ export default function MapContainer({
 
                       {/* Review form - only shown for logged-in users */}
                       {user ? (
-                        <form id="review-form" className="d-grid gap-2 mb-3">
-                          <textarea
-                            id="review-text"
-                            className="form-control"
-                            placeholder="Write your review…"
-                            required
-                          ></textarea>
-                          <Button
-                            id="submit-review-btn"
-                            type="submit"
-                            variant="outlined"
-                          >
-                            Submit Review
-                          </Button>
-                        </form>
+                        <Box sx={{ mb: 3 }}>
+                          <ReviewForm />
+                        </Box>
                       ) : (
                         /* CTA card for non-logged-in users */
                         <div className="card bg-light border mb-3">
