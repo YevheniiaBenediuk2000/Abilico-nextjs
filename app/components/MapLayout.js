@@ -97,15 +97,8 @@ export default function MapLayout({ isDashboard = false }) {
           }}
         >
           <Toolbar sx={{ gap: 2 }}>
-            {/* LEFT: burger + logo, fixed width */}
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 1,
-                flexShrink: 0,
-              }}
-            >
+            {/* LEFT: burger + logo */}
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <IconButton
                 size="large"
                 edge="start"
@@ -126,78 +119,83 @@ export default function MapLayout({ isDashboard = false }) {
               </Typography>
             </Box>
 
-            {/* CENTER: search bar, grows to fill remaining space */}
+            {/* CENTER: search bar, centered in available space */}
             <Box
-              id="destination-search-bar"
               sx={{
                 flex: 1,
                 display: "flex",
                 justifyContent: "center",
-                maxWidth: 600,
-                position: "relative",
-                mx: "auto",
+                px: { xs: 1, sm: 2 },
               }}
             >
-              <TextField
-                id="destination-search-input"
-                placeholder="Search place or click on the map…"
-                variant="outlined"
-                color="inherit"
-                fullWidth
-                size="small"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon sx={{ color: "text.secondary" }} />
-                    </InputAdornment>
-                  ),
-                }}
+              <Box
+                id="destination-search-bar"
                 sx={{
-                  "& .MuiOutlinedInput-root": {
-                    backgroundColor: "#fff",
-                    "& fieldset": {
-                      borderColor: "rgba(0, 0, 0, 0.23)",
-                    },
-                    "&:hover fieldset": {
-                      borderColor: "rgba(0, 0, 0, 0.87)",
-                    },
-                    "&.Mui-focused fieldset": {
-                      borderColor: "rgba(0, 0, 0, 0.87)",
-                    },
-                  },
+                  width: "100%",
+                  maxWidth: 600,
+                  position: "relative",
                 }}
-                inputProps={{
-                  "aria-label": "Search places",
-                  "aria-controls": "destination-suggestions",
-                }}
-              />
-              <ul
-                id="destination-suggestions"
-                className="list-group w-100 shadow d-none search-suggestions"
-                aria-label="Search suggestions"
-                style={{
-                  position: "absolute",
-                  top: "100%",
-                  left: 0,
-                  right: 0,
-                  zIndex: 1001,
-                  marginTop: 4,
-                }}
-              ></ul>
+              >
+                <TextField
+                  id="destination-search-input"
+                  placeholder="Search place or click on the map…"
+                  variant="outlined"
+                  color="inherit"
+                  fullWidth
+                  size="small"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon sx={{ color: "text.secondary" }} />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      backgroundColor: "#fff",
+                      "& fieldset": {
+                        borderColor: "rgba(0, 0, 0, 0.23)",
+                      },
+                      "&:hover fieldset": {
+                        borderColor: "rgba(0, 0, 0, 0.87)",
+                      },
+                      "&.Mui-focused fieldset": {
+                        borderColor: "rgba(0, 0, 0, 0.87)",
+                      },
+                    },
+                  }}
+                  inputProps={{
+                    "aria-label": "Search places",
+                    "aria-controls": "destination-suggestions",
+                  }}
+                />
+
+                <ul
+                  id="destination-suggestions"
+                  className="list-group w-100 shadow d-none search-suggestions"
+                  aria-label="Search suggestions"
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    zIndex: 1001,
+                    marginTop: 4,
+                  }}
+                ></ul>
+              </Box>
             </Box>
 
-            {/* RIGHT: account area, always pushed to the far right */}
+            {/* RIGHT: account area (always pushed to the right) */}
             <Box
               sx={{
-                ml: "auto", // 🔑 pushes this box to the far right
+                ml: "auto", // 👈 pushes this box to the far right
                 display: "flex",
                 alignItems: "center",
                 gap: 1,
-                flexShrink: 0,
               }}
             >
               {!user ? (
-                // Not logged in
                 <Button
                   variant="outlined"
                   color="inherit"
@@ -206,7 +204,6 @@ export default function MapLayout({ isDashboard = false }) {
                   Log in
                 </Button>
               ) : (
-                // Logged in
                 <>
                   <Typography
                     variant="body2"
