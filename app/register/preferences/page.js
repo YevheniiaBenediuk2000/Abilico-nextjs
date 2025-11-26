@@ -132,22 +132,49 @@ export default function RegisterPreferencesPage() {
         return;
       }
 
-      // Save preferences to the profiles table
-      const { error } = await supabase
+      // Check if profile exists first
+      const { data: existingProfile, error: checkError } = await supabase
         .from("profiles")
-        .upsert(
-          {
+        .select("id")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (checkError && checkError.code !== "PGRST116") {
+        // PGRST116 means no rows found, which is fine
+        console.error("Error checking profile:", checkError);
+        setValidationError("Failed to check profile. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      let error;
+      if (existingProfile) {
+        // Profile exists, update it (only update accessibility_preferences, keep other fields)
+        ({ error } = await supabase
+          .from("profiles")
+          .update({
+            accessibility_preferences: selectedCategories,
+          })
+          .eq("id", user.id));
+      } else {
+        // Profile doesn't exist, insert it
+        // Set disability_types to empty array since Step 3 (disability type selection) is not yet implemented
+        ({ error } = await supabase
+          .from("profiles")
+          .insert({
             id: user.id,
             accessibility_preferences: selectedCategories,
-          },
-          {
-            onConflict: "id",
-          }
-        );
+            disability_types: [], // Empty array until Step 3 is completed
+            home_area: null, // Will be set in Step 3
+            full_name: null, // Will be set in Step 1 or later
+          }));
+      }
 
       if (error) {
         console.error("Error saving preferences:", error);
-        setValidationError("Failed to save preferences. Please try again.");
+        setValidationError(
+          `Failed to save preferences: ${error.message || "Unknown error"}`
+        );
         setLoading(false);
         return;
       }
