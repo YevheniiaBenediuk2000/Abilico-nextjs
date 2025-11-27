@@ -764,8 +764,9 @@ export default function PlacesListReact({ data, onSelect }) {
             console.log("🏙️ BestForMe – detected city from viewport:", detectedCity);
 
             try {
-              // 🔽 1) Load all reviews in this city that have category_ratings
-              //     We go FROM reviews and INNER JOIN places via FK, then filter by city.
+              // 🔽 1) Load all reviews that have category_ratings
+              //     We go FROM reviews and INNER JOIN places via FK.
+              //     We'll filter by distance from viewport center instead of exact city match.
               const { data: rows, error } = await supabase
                 .from("reviews")
                 .select(
@@ -786,7 +787,6 @@ export default function PlacesListReact({ data, onSelect }) {
                   )
                 `
                 )
-                .eq("places.city", detectedCity)
                 .not("category_ratings", "is", null);
 
               if (error) {
@@ -826,6 +826,8 @@ export default function PlacesListReact({ data, onSelect }) {
                 });
 
                 // 🔽 3) For each place, compute multi-level scores (perCategory, etc.)
+                //     and filter by distance from viewport center
+                const maxDistanceKm = 20; // radius around map center
                 const cityPlacesWithScores = [];
 
                 for (const entry of byPlace.values()) {
@@ -843,6 +845,15 @@ export default function PlacesListReact({ data, onSelect }) {
                     Object.keys(perCategory).filter((k) => k !== "overall").length > 0;
 
                   if (!hasMultiLevel) continue;
+
+                  // Distance filter – we have viewport center + place lat/lon
+                  const lat = entry.lat;
+                  const lon = entry.lon;
+
+                  if (center && lat != null && lon != null) {
+                    const distKm = haversineKm(center.lat, center.lng, lat, lon);
+                    if (distKm > maxDistanceKm) continue;
+                  }
 
                   cityPlacesWithScores.push({
                     ...entry,

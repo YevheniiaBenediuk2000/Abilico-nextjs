@@ -63,7 +63,7 @@ export async function ensurePlaceExists(tags = {}, latlng = null) {
     // Don't throw here - continue to try insert
   }
 
-  // 2) Not found → try to insert
+  // 2) Not found → use upsert to avoid 409 conflicts
   const payload = {
     osm_id: osmKey,
     name: tags.name ?? tags.amenity ?? "Unnamed",
@@ -73,45 +73,38 @@ export async function ensurePlaceExists(tags = {}, latlng = null) {
     lon: latlng?.lng ?? null,
   };
 
-  const { data: inserted, error: insertError } = await supabase
+  // Use upsert with onConflict to handle race conditions gracefully
+  const { data: upserted, error: upsertError } = await supabase
     .from("places")
-    .insert(payload)
+    .upsert(payload, {
+      onConflict: "osm_id", // your unique index is places_osm_id_key on osm_id
+      ignoreDuplicates: false, // update existing rows with new data
+    })
     .select("id")
     .maybeSingle();
 
-  if (insertError) {
-    const msg = insertError.message || "";
+  if (upsertError) {
+    // If upsert fails, try one more time to select the existing row
+    const { data: fallback, error: fallbackError } = await supabase
+      .from("places")
+      .select("id")
+      .eq("osm_id", osmKey)
+      .maybeSingle();
 
-    // Postgres unique violation = 23505
-    const isUniqueViolation =
-      insertError.code === "23505" ||
-      msg.includes("duplicate key value violates unique constraint");
-
-    if (isUniqueViolation) {
-      // Someone else inserted the same osm_id in the meantime → just re-select
-      const { data: again, error: againError } = await supabase
-        .from("places")
-        .select("id")
-        .eq("osm_id", osmKey)
-        .maybeSingle();
-
-      if (again?.id) {
-        return again.id;
-      }
-
-      console.error(
-        "ensurePlaceExists: re-select after duplicate failed for osm_id",
-        osmKey,
-        againError
-      );
-      return null;
+    if (fallback?.id) {
+      return fallback.id;
     }
 
-    // Any other error: bubble up
-    throw insertError;
+    console.error(
+      "ensurePlaceExists: upsert and fallback select both failed for osm_id",
+      osmKey,
+      upsertError,
+      fallbackError
+    );
+    return null;
   }
 
-  return inserted?.id ?? null;
+  return upserted?.id ?? null;
 }
 
 /**
