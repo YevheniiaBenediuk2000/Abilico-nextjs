@@ -657,17 +657,47 @@ export default function PlacesListReact({ data, onSelect }) {
             }
 
             try {
-              const { personalScore, globalScore } = computePlaceScores(
-                reviews || [],
-                prefs
-              );
+              const {
+                personalScore,
+                globalScore,
+                perCategory,
+              } = computePlaceScores(reviews || [], prefs);
+
+              // 🔍 DEBUG: log places that actually use multi-level ratings
+              const hasMultiLevel =
+                perCategory &&
+                Object.keys(perCategory).filter((k) => k !== "overall").length > 0;
+
+              if (hasMultiLevel) {
+                console.log("🧩 BestForMe – multi-level place detected", {
+                  placeKey: key,
+                  placeName: item.name,
+                  placeId,
+                  perCategory,
+                  personalScore,
+                  globalScore,
+                  reviews,
+                  prefs,
+                });
+              } else {
+                // Optional: uncomment if you want to see single-level places too
+                // console.log("ℹ️ BestForMe – single-level place", {
+                //   placeKey: key,
+                //   placeName: item.name,
+                //   placeId,
+                //   personalScore,
+                //   globalScore,
+                //   reviewsCount: reviews?.length ?? 0,
+                // });
+              }
 
               if (!cancelled) {
                 setScoresByPlaceKey((prev) => {
                   if (prev[key] !== undefined) return prev;
                   return {
                     ...prev,
-                    [key]: { personalScore, globalScore },
+                    // keep perCategory too for debugging
+                    [key]: { personalScore, globalScore, perCategory },
                   };
                 });
               }
