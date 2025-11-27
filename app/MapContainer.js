@@ -434,130 +434,6 @@ export default function MapContainer({
                 </div>
               </div>
             </div>
-
-            {/* === Main photo (preview above tabs) === */}
-            <figure className="figure d-none" id="main-photo-wrapper">
-              <img
-                id="main-photo"
-                className="figure-img img-fluid shadow-sm mb-1"
-                alt=""
-              />
-              <figcaption
-                id="main-photo-caption"
-                className="figure-caption small text-muted"
-              ></figcaption>
-            </figure>
-
-            {/* === Details Panel with Tabs === */}
-            <div id="details-panel" className="d-none">
-              {/* MUI Tabs navigation */}
-              <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
-                <Tabs
-                  value={detailsTab}
-                  onChange={(_, newValue) => setDetailsTab(newValue)}
-                  aria-label="Place details tabs"
-                  variant="fullWidth"
-                >
-                  <Tab
-                    id="overview-tab"
-                    label="Overview"
-                    value="overview"
-                    aria-controls="tab-overview"
-                  />
-                  <Tab
-                    id="reviews-tab"
-                    label="Reviews"
-                    value="reviews"
-                    aria-controls="tab-reviews"
-                  />
-                  <Tab
-                    id="photos-tab"
-                    label="Photos"
-                    value="photos"
-                    aria-controls="tab-photos"
-                  />
-                </Tabs>
-              </Box>
-
-              {/* Tabs content */}
-              <div className="pt-3" id="detailsTabsContent">
-                {/* --- Overview tab --- */}
-                <DetailsTabPanel value="overview" active={detailsTab}>
-                  <div className="d-grid gap-2 mb-3">
-                    <div
-                      className="btn-group"
-                      role="group"
-                      aria-label="Quick route actions"
-                    >
-                      <button
-                        id="btn-start-here"
-                        type="button"
-                        className="btn btn-outline-primary"
-                      >
-                        Start here
-                      </button>
-                      <button
-                        id="btn-go-here"
-                        type="button"
-                        className="btn btn-outline-danger"
-                      >
-                        Go here
-                      </button>
-                    </div>
-                  </div>
-                  <div className="card shadow-sm">
-                    <div
-                      className="list-group list-group-flush"
-                      id="details-list"
-                    ></div>
-                  </div>
-                </DetailsTabPanel>
-
-                {/* --- Reviews tab --- */}
-                <DetailsTabPanel value="reviews" active={detailsTab}>
-                  <div className="card shadow-sm">
-                    <div className="card-body">
-                      <h6 className="mb-3">Reviews</h6>
-
-                      {/* Review form - only shown for logged-in users */}
-                      {user ? (
-                        <Box sx={{ mb: 3 }}>
-                          <ReviewForm />
-                        </Box>
-                      ) : (
-                        /* CTA card for non-logged-in users */
-                        <div className="card bg-light border mb-3">
-                          <div className="card-body text-center py-4">
-                            <h6 className="mb-2">Want to leave a review?</h6>
-                            <p className="small text-muted mb-3">
-                              Log in or create an account to share your
-                              experience.
-                            </p>
-                            <Button
-                              variant="contained"
-                              color="primary"
-                              onClick={() => router.push("/auth")}
-                            >
-                              Log in / Sign up
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-
-                      <ul id="reviews-list" className="list-group"></ul>
-                    </div>
-                  </div>
-                </DetailsTabPanel>
-
-                {/* --- Photos tab --- */}
-                <DetailsTabPanel value="photos" active={detailsTab}>
-                  <div id="photos-empty" className="text-muted small d-none">
-                    No photos found for this place.
-                  </div>
-                  <div id="photos-grid" className="row g-2"></div>
-                </DetailsTabPanel>
-              </div>
-            </div>
           </div>
         </div>
       </Drawer>
@@ -708,21 +584,9 @@ export default function MapContainer({
                         <h6 className="mb-3">Reviews</h6>
 
                         {user ? (
-                          <form id="review-form" className="d-grid gap-2 mb-3">
-                            <textarea
-                              id="review-text"
-                              className="form-control"
-                              placeholder="Write your review…"
-                              required
-                            ></textarea>
-                            <Button
-                              id="submit-review-btn"
-                              type="submit"
-                              variant="outlined"
-                            >
-                              Submit Review
-                            </Button>
-                          </form>
+                          <Box sx={{ mb: 3 }}>
+                            <ReviewForm />
+                          </Box>
                         ) : (
                           <div className="card bg-light border mb-3">
                             <div className="card-body text-center py-4">
