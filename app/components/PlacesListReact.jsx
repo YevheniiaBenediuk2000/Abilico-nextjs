@@ -402,7 +402,7 @@ function NestedPlaceTypeFilter({ items }) {
 
 export default function PlacesListReact({ data, onSelect }) {
   const { features = [], center, zoom } = data || {};
-  const [sortBy, setSortBy] = useState("distance"); // "distance" | "name"
+  const [sortBy, setSortBy] = useState("distance"); // "distance" | "name" | "bestForMe"
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [photoByKey, setPhotoByKey] = useState({});
@@ -638,6 +638,12 @@ export default function PlacesListReact({ data, onSelect }) {
                   label="Name"
                   variant={sortBy === "name" ? "filled" : "outlined"}
                   onClick={() => setSortBy("name")}
+                />
+                <Chip
+                  size="small"
+                  label="Best for me"
+                  variant={sortBy === "bestForMe" ? "filled" : "outlined"}
+                  onClick={() => setSortBy("bestForMe")}
                 />
               </Stack>
             </Stack>

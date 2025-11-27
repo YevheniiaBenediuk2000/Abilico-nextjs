@@ -126,23 +126,25 @@ export async function reviewStorage(method = "GET", reviewData) {
     }
 
     if (method === "POST") {
-      // console.log("🧩 Preparing to insert review:", reviewData);
-
+      const overall = reviewData.overall_rating ?? reviewData.rating ?? null;
+    
       const payload = {
-        comment: reviewData.text,
-        place_id: reviewData.place_id,
-        rating: reviewData.rating || null,
+        comment: reviewData.text ?? null,
+        place_id: reviewData.place_id ?? null,
+        rating: overall,                   // legacy, real
+        overall_rating: overall,           // smallint 1–5
         category_ratings: reviewData.category_ratings || null,
         image_url: reviewData.image_url || null,
+        user_id: reviewData.user_id || null, // if you added this column
       };
-
+    
       console.log("📦 Payload sent to Supabase:", payload);
-
+    
       const { data, error } = await supabase
         .from("reviews")
         .insert([payload])
         .select();
-
+    
       if (error) throw error;
       console.log("✅ Review inserted:", data);
       return data;
