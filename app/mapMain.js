@@ -66,9 +66,6 @@ if (typeof window !== "undefined") {
   window.globals = globals;
 }
 
-// TEMP: user preferences for testing – later we read from profiles
-const MOCK_USER_PREFS = ["entrance", "restroom", "parking"];
-
 let accessibilityFilter = new Set([
   "designated",
   "yes",
@@ -122,6 +119,61 @@ let editingReviewId = null;
 
 // place-type filter state used on the map side
 let placeTypeFilterState = null; // { [groupLabel]: { [subLabel]: boolean } } or null = all on
+
+// ---- User accessibility preferences (for personalised scores) ----
+let userPrefsCache = [];
+let userPrefsLoaded = false;
+
+async function getUserAccessibilityPreferences() {
+  if (userPrefsLoaded) {
+    return userPrefsCache;
+  }
+
+  try {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError) {
+      console.error("❌ Failed to get current user for prefs:", userError);
+    }
+
+    if (!user) {
+      console.log(
+        "👤 No logged-in user – personal accessibility preferences empty."
+      );
+      userPrefsCache = [];
+      userPrefsLoaded = true;
+      return userPrefsCache;
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("accessibility_preferences")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error(
+        "❌ Failed to load accessibility_preferences:",
+        profileError
+      );
+      userPrefsCache = [];
+    } else {
+      userPrefsCache = profile?.accessibility_preferences || [];
+    }
+
+    console.log("👤 Loaded accessibility_preferences:", userPrefsCache);
+  } catch (err) {
+    console.error("❌ Error while loading accessibility_preferences:", err);
+    userPrefsCache = [];
+  } finally {
+    userPrefsLoaded = true;
+  }
+
+  return userPrefsCache;
+}
 
 // helper to load from localStorage (same key as React)
 const PLACE_TYPE_FILTER_LS_KEY = "ui.placeType.filter";
@@ -1674,6 +1726,11 @@ let currentUser = null;
 let obstacleEventHandlersSetup = false;
 
 export function updateUser(user) {
+  currentUser = user;
+
+  // reset prefs cache when user logs in / out so next place open refetches
+  userPrefsCache = [];
+  userPrefsLoaded = false;
   currentUser = user;
   // If user logged in, initialize draw controls if not already done
   if (user && !drawControl && map) {
