@@ -407,7 +407,8 @@ export default function PlacesListReact({ data, onSelect }) {
   const { features = [], center, zoom } = data || {};
   const [sortBy, setSortBy] = useState("distance"); // "distance" | "name" | "bestForMe"
   const [filtersOpen, setFiltersOpen] = useState(false);
-
+  // ✅ NEW: remember which city Best for me resolved to
+  const [currentBestForMeCity, setCurrentBestForMeCity] = useState(null);
   // ✅ NEW: user prefs + scores
   const [userPrefs, setUserPrefs] = useState([]);
   const [scoresByPlaceKey, setScoresByPlaceKey] = useState({});
@@ -755,6 +756,9 @@ export default function PlacesListReact({ data, onSelect }) {
 
           const detectedCity = sortedCities[0]?.[0] || null;
 
+          // ✅ NEW: store detected city in state so the list can use it
+          setCurrentBestForMeCity(detectedCity);
+
           if (!detectedCity) {
             console.log(
               "🏙️ BestForMe – could not detect city from viewport",
@@ -965,8 +969,46 @@ export default function PlacesListReact({ data, onSelect }) {
       });
     }
 
+    // 👇 NEW: when Best for me is active:
+    // keep ONLY places that have multi-level ratings AND belong to the detected city
+    if (sortBy === "bestForMe") {
+      filtered = filtered.filter((item) => {
+        const scoreData = scoresByPlaceKey[item.placeKey];
+        if (!scoreData || !scoreData.perCategory) return false;
+
+        const categories = Object.keys(scoreData.perCategory || {});
+        const hasMultiLevel = categories.some((k) => k !== "overall");
+        if (!hasMultiLevel) return false;
+
+        // If we don't know the city yet, don't filter by it
+        if (!currentBestForMeCity) return true;
+
+        const cityTag =
+          item.tags["addr:city"] ||
+          item.tags.city ||
+          item.tags["addr:town"] ||
+          item.tags["addr:suburb"] ||
+          null;
+
+        if (!cityTag) return false;
+
+        return (
+          cityTag.toLowerCase().trim() ===
+          currentBestForMeCity.toLowerCase().trim()
+        );
+      });
+    }
+
     return filtered;
-  }, [rawItems, activeTypeFilters, photosOnly, photoByKey]);
+  }, [
+    rawItems,
+    activeTypeFilters,
+    photosOnly,
+    photoByKey,
+    sortBy,
+    scoresByPlaceKey,
+    currentBestForMeCity,
+  ]);
 
   const hasPlaces = items.length > 0;
 
