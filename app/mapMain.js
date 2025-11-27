@@ -1295,22 +1295,25 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     hideLoading(key);
   }
 
-  // ✅ Render reviews
+        // ✅ Render reviews
   renderReviewsList();
 
   try {
     console.log("🧮 Before computePlaceScores, reviews:", globals.reviews);
 
+    // Load real user preferences from profiles.accessibility_preferences
+    const prefs = await getUserAccessibilityPreferences();
+
     const { perCategory, personalScore, globalScore } = computePlaceScores(
       globals.reviews,
-      MOCK_USER_PREFS
+      prefs
     );
 
     console.log("🧮 Accessibility stats for current place:", {
       perCategory,
       personalScore,
       globalScore,
-      prefs: MOCK_USER_PREFS,
+      prefs,
     });
   } catch (err) {
     console.error("❌ computePlaceScores failed:", err);
@@ -1731,7 +1734,6 @@ export function updateUser(user) {
   // reset prefs cache when user logs in / out so next place open refetches
   userPrefsCache = [];
   userPrefsLoaded = false;
-  currentUser = user;
   // If user logged in, initialize draw controls if not already done
   if (user && !drawControl && map) {
     drawControl = new L.Control.Draw({
