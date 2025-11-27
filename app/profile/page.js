@@ -23,7 +23,24 @@ import Button from "@mui/material/Button";
 import SecurityIcon from "@mui/icons-material/Security";
 import EmailIcon from "@mui/icons-material/Email";
 import LockIcon from "@mui/icons-material/Lock";
+import AccessibilityNewIcon from "@mui/icons-material/AccessibilityNew";
+import EditIcon from "@mui/icons-material/Edit";
+import Chip from "@mui/material/Chip";
+import Stack from "@mui/material/Stack";
+import Grid from "@mui/material/Grid";
+import CircularProgress from "@mui/material/CircularProgress";
 import { deepOrange, deepPurple } from "@mui/material/colors";
+import AccessibilityPreferencesEditor from "../components/AccessibilityPreferencesEditor";
+import HomeAreaEditor from "../components/HomeAreaEditor";
+import DisabilityTypesEditor from "../components/DisabilityTypesEditor";
+import { ACCESSIBILITY_CATEGORY_LABELS } from "../constants/accessibilityCategories";
+
+const DISABILITY_TYPES = [
+  { id: "wheelchair", label: "Wheelchair User" },
+  { id: "visual", label: "Visually Impaired" },
+  { id: "hearing", label: "Hearing Impaired" },
+  { id: "other", label: "Other" },
+];
 
 // Helper function to get initials from email
 function getInitialsFromEmail(email) {
@@ -58,6 +75,17 @@ export default function ProfilePage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
+  const [profile, setProfile] = useState(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [showPreferencesEditor, setShowPreferencesEditor] = useState(false);
+  const [showDisabilityEditor, setShowDisabilityEditor] = useState(false);
+  const [accessibilityExpanded, setAccessibilityExpanded] = useState(false);
+  const [showHomeAreaEditor, setShowHomeAreaEditor] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [firstName, setFirstName] = useState("");
+  const [surname, setSurname] = useState("");
+  const [nameLoading, setNameLoading] = useState(false);
+  const [nameError, setNameError] = useState("");
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -92,6 +120,56 @@ export default function ProfilePage() {
       setHas2FA(!!verified);
     }
     checkMFA();
+  }, [user]);
+
+  // ✅ Load user profile data
+  useEffect(() => {
+    async function loadProfile() {
+      if (!user) return;
+      setLoadingProfile(true);
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("accessibility_preferences, disability_types, home_area, full_name")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (error && error.code !== "PGRST116") {
+          console.error("Error loading profile:", error);
+        } else {
+          const profileData = data || {
+            accessibility_preferences: [],
+            disability_types: [],
+            home_area: null,
+            full_name: null,
+          };
+          setProfile(profileData);
+          
+          // Parse full_name into first name and surname
+          if (profileData.full_name) {
+            const nameParts = profileData.full_name.trim().split(/\s+/);
+            if (nameParts.length >= 2) {
+              setFirstName(nameParts.slice(0, -1).join(" "));
+              setSurname(nameParts[nameParts.length - 1]);
+            } else if (nameParts.length === 1) {
+              setFirstName(nameParts[0]);
+              setSurname("");
+            } else {
+              setFirstName("");
+              setSurname("");
+            }
+          } else {
+            setFirstName("");
+            setSurname("");
+          }
+        }
+      } catch (error) {
+        console.error("Error loading profile:", error);
+      } finally {
+        setLoadingProfile(false);
+      }
+    }
+    loadProfile();
   }, [user]);
 
   // Refresh MFA status after operations
@@ -198,6 +276,40 @@ export default function ProfilePage() {
       setTotpCode("");
       await refreshMFAStatus();
       await supabase.auth.refreshSession();
+    }
+  };
+
+  // Handle saving name
+  const handleSaveName = async () => {
+    setNameError("");
+    setNameLoading(true);
+
+    try {
+      const fullName = [firstName.trim(), surname.trim()].filter(Boolean).join(" ");
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({
+          full_name: fullName || null,
+        })
+        .eq("id", user.id);
+
+      if (updateError) {
+        console.error("Error saving name:", updateError);
+        setNameError(`Failed to save: ${updateError.message || "Unknown error"}`);
+        setNameLoading(false);
+        return;
+      }
+
+      setNameLoading(false);
+      setProfile((prev) => ({
+        ...prev,
+        full_name: fullName || null,
+      }));
+      setIsEditingName(false);
+    } catch (err) {
+      console.error("Error:", err);
+      setNameError("An error occurred. Please try again.");
+      setNameLoading(false);
     }
   };
 
@@ -321,6 +433,437 @@ export default function ProfilePage() {
                   <Typography variant="body1">{user.email}</Typography>
                 </Box>
               </Box>
+            </Box>
+
+            <Divider sx={{ my: 3 }} />
+
+            {/* Personal Information Section */}
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 500 }}>
+                Personal Information
+              </Typography>
+
+              {loadingProfile ? (
+                <Typography variant="body2" color="text.secondary">
+                  Loading...
+                </Typography>
+              ) : (
+                <>
+                  {/* Full Name */}
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                      Name
+                    </Typography>
+                    {isEditingName ? (
+                      <Grid container spacing={2} alignItems="center" sx={{ mt: 2 }}>
+                        <Grid item xs={12} sm={6}>
+                          <TextField
+                            fullWidth
+                            label="Name"
+                            value={firstName}
+                            onChange={(e) => {
+                              setFirstName(e.target.value);
+                              setNameError("");
+                            }}
+                            autoFocus
+                            size="small"
+                            sx={{
+                              "& .MuiOutlinedInput-root": {
+                                borderRadius: 2,
+                                fontSize: "0.875rem",
+                                height: "32.5px",
+                                "& fieldset": {
+                                  borderWidth: 1.5,
+                                  borderColor: "rgba(0, 0, 0, 0.23)",
+                                },
+                                "&:hover fieldset": {
+                                  borderColor: "rgba(0, 0, 0, 0.5)",
+                                },
+                                "&.Mui-focused fieldset": {
+                                  borderWidth: 2,
+                                },
+                              },
+                              "& .MuiInputBase-input": {
+                                py: 0.75,
+                                fontSize: "0.875rem",
+                                textAlign: "left",
+                                "&::placeholder": {
+                                  color: "text.secondary",
+                                  opacity: 1,
+                                },
+                              },
+                              "& .MuiInputLabel-root": {
+                                fontSize: "0.875rem",
+                                "&.MuiInputLabel-shrink": {
+                                  transform: "translate(14px, -9px) scale(0.75)",
+                                },
+                              },
+                            }}
+                          />
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                          <TextField
+                            fullWidth
+                            label="Surname"
+                            value={surname}
+                            onChange={(e) => {
+                              setSurname(e.target.value);
+                              setNameError("");
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                handleSaveName();
+                              } else if (e.key === "Escape") {
+                                setIsEditingName(false);
+                                // Reset to original values
+                                if (profile?.full_name) {
+                                  const nameParts = profile.full_name.trim().split(/\s+/);
+                                  if (nameParts.length >= 2) {
+                                    setFirstName(nameParts.slice(0, -1).join(" "));
+                                    setSurname(nameParts[nameParts.length - 1]);
+                                  } else if (nameParts.length === 1) {
+                                    setFirstName(nameParts[0]);
+                                    setSurname("");
+                                  }
+                                } else {
+                                  setFirstName("");
+                                  setSurname("");
+                                }
+                                setNameError("");
+                              }
+                            }}
+                            size="small"
+                            sx={{
+                              "& .MuiOutlinedInput-root": {
+                                borderRadius: 2,
+                                fontSize: "0.875rem",
+                                height: "32.5px",
+                                "& fieldset": {
+                                  borderWidth: 1.5,
+                                  borderColor: "rgba(0, 0, 0, 0.23)",
+                                },
+                                "&:hover fieldset": {
+                                  borderColor: "rgba(0, 0, 0, 0.5)",
+                                },
+                                "&.Mui-focused fieldset": {
+                                  borderWidth: 2,
+                                },
+                              },
+                              "& .MuiInputBase-input": {
+                                py: 0.75,
+                                fontSize: "0.875rem",
+                                textAlign: "left",
+                                "&::placeholder": {
+                                  color: "text.secondary",
+                                  opacity: 1,
+                                },
+                              },
+                              "& .MuiInputLabel-root": {
+                                fontSize: "0.875rem",
+                                "&.MuiInputLabel-shrink": {
+                                  transform: "translate(14px, -9px) scale(0.75)",
+                                },
+                              },
+                            }}
+                          />
+                        </Grid>
+                        <Grid item xs={12} sm={12} sx={{ display: { xs: "block", sm: "none" } }}>
+                          <Box sx={{ display: "flex", gap: 1.5, justifyContent: "flex-end", mt: 1 }}>
+                            <Button
+                              variant="contained"
+                              size="small"
+                              onClick={handleSaveName}
+                              disabled={nameLoading}
+                              sx={{
+                                minWidth: "80px",
+                                py: 0.75,
+                                px: 2,
+                                textTransform: "none",
+                                fontSize: "0.875rem",
+                                height: "32.5px",
+                              }}
+                            >
+                              {nameLoading ? <CircularProgress size={16} /> : "Save"}
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              onClick={() => {
+                                setIsEditingName(false);
+                                // Reset to original values
+                                if (profile?.full_name) {
+                                  const nameParts = profile.full_name.trim().split(/\s+/);
+                                  if (nameParts.length >= 2) {
+                                    setFirstName(nameParts.slice(0, -1).join(" "));
+                                    setSurname(nameParts[nameParts.length - 1]);
+                                  } else if (nameParts.length === 1) {
+                                    setFirstName(nameParts[0]);
+                                    setSurname("");
+                                  }
+                                } else {
+                                  setFirstName("");
+                                  setSurname("");
+                                }
+                                setNameError("");
+                              }}
+                              disabled={nameLoading}
+                              sx={{
+                                minWidth: "80px",
+                                py: 0.75,
+                                px: 2,
+                                textTransform: "none",
+                                fontSize: "0.875rem",
+                                height: "32.5px",
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </Box>
+                        </Grid>
+                        <Grid item xs={12} sm={12} sx={{ display: { xs: "none", sm: "flex" }, alignItems: "center", justifyContent: "flex-end", gap: 1.5 }}>
+                          <Button
+                            variant="contained"
+                            size="small"
+                            onClick={handleSaveName}
+                            disabled={nameLoading}
+                            sx={{
+                              minWidth: "80px",
+                              py: 0.75,
+                              px: 2,
+                              textTransform: "none",
+                              fontSize: "0.875rem",
+                              height: "32.5px",
+                            }}
+                          >
+                            {nameLoading ? <CircularProgress size={16} /> : "Save"}
+                          </Button>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => {
+                              setIsEditingName(false);
+                              // Reset to original values
+                              if (profile?.full_name) {
+                                const nameParts = profile.full_name.trim().split(/\s+/);
+                                if (nameParts.length >= 2) {
+                                  setFirstName(nameParts.slice(0, -1).join(" "));
+                                  setSurname(nameParts[nameParts.length - 1]);
+                                } else if (nameParts.length === 1) {
+                                  setFirstName(nameParts[0]);
+                                  setSurname("");
+                                }
+                              } else {
+                                setFirstName("");
+                                setSurname("");
+                              }
+                              setNameError("");
+                            }}
+                            disabled={nameLoading}
+                            sx={{
+                              minWidth: "80px",
+                              py: 0.75,
+                              px: 2,
+                              textTransform: "none",
+                              fontSize: "0.875rem",
+                              height: "32.5px",
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </Grid>
+                        {nameError && (
+                          <Grid item xs={12}>
+                            <Typography variant="body2" color="error" sx={{ mt: 1 }}>
+                              {nameError}
+                            </Typography>
+                          </Grid>
+                        )}
+                      </Grid>
+                    ) : (
+                      <Box
+                        onClick={() => setIsEditingName(true)}
+                        sx={{
+                          cursor: "pointer",
+                          "&:hover": {
+                            opacity: 0.7,
+                          },
+                        }}
+                      >
+                        <Typography variant="body1">
+                          {profile?.full_name || (
+                            <Typography component="span" variant="body2" color="text.secondary" fontStyle="italic">
+                              Not set
+                            </Typography>
+                          )}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+
+                  {/* Home Area / Location */}
+                  <Box sx={{ mb: 2 }}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        mb: 0.5,
+                      }}
+                    >
+                      <Typography variant="body2" color="text.secondary">
+                        Home area
+                      </Typography>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<EditIcon />}
+                        onClick={() => setShowHomeAreaEditor(true)}
+                      >
+                        Edit home area
+                      </Button>
+                    </Box>
+                    <Typography variant="body1">
+                      {profile?.home_area || (
+                        <Typography component="span" variant="body2" color="text.secondary" fontStyle="italic">
+                          Not specified
+                        </Typography>
+                      )}
+                    </Typography>
+                  </Box>
+                </>
+              )}
+            </Box>
+
+            <Divider sx={{ my: 3 }} />
+
+            {/* Accessibility Settings Section */}
+            <Box>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 500 }}>
+                Accessibility Settings
+              </Typography>
+              <List sx={{ bgcolor: "background.paper" }}>
+                <ListItem disablePadding>
+                  <ListItemButton
+                    onClick={() => setAccessibilityExpanded(!accessibilityExpanded)}
+                    sx={{
+                      borderRadius: 1,
+                      bgcolor: accessibilityExpanded ? "action.hover" : "transparent",
+                      "&:hover": {
+                        bgcolor: "action.hover",
+                      },
+                    }}
+                  >
+                    <ListItemIcon>
+                      <AccessibilityNewIcon sx={{ color: "text.secondary" }} />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Accessibility Settings"
+                      secondary={accessibilityExpanded ? "Click to collapse" : "Click to expand"}
+                    />
+                  </ListItemButton>
+                </ListItem>
+              </List>
+
+              {/* Accessibility Content */}
+              {accessibilityExpanded && (
+                <Box
+                  sx={{
+                    mt: 2,
+                    p: 3,
+                  }}
+                >
+                  {loadingProfile ? (
+                    <Typography variant="body2" color="text.secondary">
+                      Loading...
+                    </Typography>
+                  ) : (
+                    <>
+                      {/* Accessibility Preferences */}
+                      <Box sx={{ mb: 3 }}>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            mb: 1.5,
+                          }}
+                        >
+                          <Typography variant="body2" color="text.secondary">
+                            Accessibility preferences
+                          </Typography>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<EditIcon />}
+                            onClick={() => setShowPreferencesEditor(true)}
+                          >
+                            Edit preferences
+                          </Button>
+                        </Box>
+                        {profile?.accessibility_preferences?.length > 0 ? (
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            {profile.accessibility_preferences.map((pref) => (
+                              <Chip
+                                key={pref}
+                                label={ACCESSIBILITY_CATEGORY_LABELS[pref] || pref}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ))}
+                          </Stack>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary" fontStyle="italic">
+                            No preferences selected yet
+                          </Typography>
+                        )}
+                      </Box>
+
+                      <Divider sx={{ my: 3 }} />
+
+                      {/* Disability Types */}
+                      <Box sx={{ mb: 2 }}>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            mb: 1.5,
+                          }}
+                        >
+                          <Typography variant="body2" color="text.secondary">
+                            Disability type(s)
+                          </Typography>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<EditIcon />}
+                            onClick={() => setShowDisabilityEditor(true)}
+                          >
+                            Edit disability info
+                          </Button>
+                        </Box>
+                        {profile?.disability_types?.length > 0 ? (
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            {profile.disability_types.map((type) => (
+                              <Chip
+                                key={type}
+                                label={DISABILITY_TYPES.find(t => t.id === type)?.label || type}
+                                size="small"
+                                variant="outlined"
+                                color="primary"
+                              />
+                            ))}
+                          </Stack>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary" fontStyle="italic">
+                            Not specified yet
+                          </Typography>
+                        )}
+                      </Box>
+                    </>
+                  )}
+                </Box>
+              )}
             </Box>
 
             <Divider sx={{ my: 3 }} />
@@ -535,6 +1078,60 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       </Box>
+
+      {/* Accessibility Preferences Editor Dialog */}
+      {user && (
+        <AccessibilityPreferencesEditor
+          open={showPreferencesEditor}
+          onClose={() => setShowPreferencesEditor(false)}
+          supabase={supabase}
+          userId={user.id}
+          initialPreferences={profile?.accessibility_preferences || []}
+          onSave={(newPreferences) => {
+            // Update local profile state
+            setProfile((prev) => ({
+              ...prev,
+              accessibility_preferences: newPreferences,
+            }));
+          }}
+        />
+      )}
+
+      {/* Home Area Editor Dialog */}
+      {user && (
+        <HomeAreaEditor
+          open={showHomeAreaEditor}
+          onClose={() => setShowHomeAreaEditor(false)}
+          supabase={supabase}
+          userId={user.id}
+          initialHomeArea={profile?.home_area || ""}
+          onSave={(newHomeArea) => {
+            // Update local profile state
+            setProfile((prev) => ({
+              ...prev,
+              home_area: newHomeArea,
+            }));
+          }}
+        />
+      )}
+
+      {/* Disability Types Editor Dialog */}
+      {user && (
+        <DisabilityTypesEditor
+          open={showDisabilityEditor}
+          onClose={() => setShowDisabilityEditor(false)}
+          supabase={supabase}
+          userId={user.id}
+          initialTypes={profile?.disability_types || []}
+          onSave={(newTypes) => {
+            // Update local profile state
+            setProfile((prev) => ({
+              ...prev,
+              disability_types: newTypes,
+            }));
+          }}
+        />
+      )}
     </MapLayout>
   );
 }

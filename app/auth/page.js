@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
 import Button from "@mui/material/Button";
+import { getNextRegistrationStep } from "../utils/userPreferences";
 
 export const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -17,10 +18,10 @@ export default function AuthPage() {
   const [totpCode, setTotpCode] = useState("");
   const [redirectTo, setRedirectTo] = useState("");
 
-  // Set redirect URL on client side only
+  // Set redirect URL on client side only - redirect to callback page for proper handling
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setRedirectTo(`${window.location.origin}/dashboard`);
+      setRedirectTo(`${window.location.origin}/auth/callback`);
     }
   }, []);
 
@@ -29,6 +30,8 @@ export default function AuthPage() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_IN") {
+        const userId = session?.user?.id;
+        
         // check if this user has verified TOTP
         const { data: factors } = await supabase.auth.mfa.listFactors();
         const totp = factors?.all?.find(
@@ -42,15 +45,18 @@ export default function AuthPage() {
           });
           if (error) {
             console.error("Challenge failed:", error);
-            router.push("/dashboard");
+            // Check registration status before redirecting
+            const nextStep = await getNextRegistrationStep(supabase, userId);
+            router.push(nextStep || "/dashboard");
             return;
           }
 
           // show the 2FA input UI
           setPendingMFA({ factorId: totp.id, challengeId: challenge.id });
         } else {
-          // user has no MFA — normal login
-          router.push("/dashboard");
+          // user has no MFA — check registration status and redirect accordingly
+          const nextStep = await getNextRegistrationStep(supabase, userId);
+          router.push(nextStep || "/dashboard");
         }
       }
     });
@@ -72,7 +78,12 @@ export default function AuthPage() {
       alert("❌ Wrong code");
     } else {
       alert("✅ 2FA verified!");
-      router.push("/dashboard");
+      // Check registration status before redirecting
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const nextStep = await getNextRegistrationStep(supabase, user?.id);
+      router.push(nextStep || "/dashboard");
     }
   };
 
