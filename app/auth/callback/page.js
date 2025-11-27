@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../page";
 import { getNextRegistrationStep } from "../../utils/userPreferences";
@@ -9,10 +9,10 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Typography from "@mui/material/Typography";
 
 /**
- * Auth callback page - handles email verification and other auth callbacks
- * Redirects users to the appropriate page based on their registration status
+ * Inner client component that *actually* uses useSearchParams.
+ * This must be wrapped in <Suspense>.
  */
-export default function AuthCallbackPage() {
+function AuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -24,7 +24,7 @@ export default function AuthCallbackPage() {
         // Check for error in URL (e.g., email verification failed)
         const errorParam = searchParams.get("error");
         const errorDescription = searchParams.get("error_description");
-        
+
         if (errorParam) {
           setError(errorDescription || "An authentication error occurred");
           setLoading(false);
@@ -52,7 +52,7 @@ export default function AuthCallbackPage() {
 
         // Check if user has completed registration steps
         const nextStep = await getNextRegistrationStep(supabase, user.id);
-        
+
         // Redirect to next registration step or dashboard
         router.push(nextStep || "/dashboard");
       } catch (err) {
@@ -86,20 +86,54 @@ export default function AuthCallbackPage() {
     );
   }
 
-  return (
-    <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: "100vh",
-        gap: 2,
-      }}
-    >
-      <CircularProgress />
-      <Typography>Completing authentication...</Typography>
-    </Box>
-  );
+  if (loading) {
+    return (
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "100vh",
+          gap: 2,
+        }}
+      >
+        <CircularProgress />
+        <Typography>Completing authentication...</Typography>
+      </Box>
+    );
+  }
+
+  // In practice we usually never see this, because we redirect.
+  return null;
 }
 
+/**
+ * Page component: **doesn't** call useSearchParams itself,
+ * only wraps the inner component in Suspense.
+ */
+export default function AuthCallbackPage() {
+  return (
+    <Suspense
+      // Fallback only shows if the inner component ever suspends;
+      // it's mainly here to satisfy Next's requirement.
+      fallback={
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            minHeight: "100vh",
+            gap: 2,
+          }}
+        >
+          <CircularProgress />
+          <Typography>Completing authentication...</Typography>
+        </Box>
+      }
+    >
+      <AuthCallbackContent />
+    </Suspense>
+  );
+}
