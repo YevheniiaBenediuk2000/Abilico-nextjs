@@ -61,11 +61,54 @@ export default function ReviewForm() {
     try {
       // Get or create place ID
       let placeId = globals.detailsCtx.placeId;
-      if (!placeId && globals.detailsCtx.tags && globals.detailsCtx.latlng) {
-        placeId = await ensurePlaceExists(
-          globals.detailsCtx.tags,
-          globals.detailsCtx.latlng
-        );
+      
+      // If placeId is not set, try to get/create it using tags and latlng
+      if (!placeId) {
+        if (!globals.detailsCtx.tags || !globals.detailsCtx.latlng) {
+          console.error("Missing place context:", {
+            hasTags: !!globals.detailsCtx.tags,
+            hasLatlng: !!globals.detailsCtx.latlng,
+            placeId: globals.detailsCtx.placeId,
+            detailsCtx: globals.detailsCtx,
+          });
+          throw new Error(
+            "Place information is missing. Please select a place again."
+          );
+        }
+        
+        // Normalize latlng - handle both Leaflet LatLng objects and plain objects
+        let normalizedLatlng = globals.detailsCtx.latlng;
+        if (normalizedLatlng && typeof normalizedLatlng === 'object') {
+          // Extract lat/lng - works for both Leaflet LatLng and plain objects
+          if (normalizedLatlng.lat !== undefined && normalizedLatlng.lng !== undefined) {
+            normalizedLatlng = {
+              lat: Number(normalizedLatlng.lat),
+              lng: Number(normalizedLatlng.lng),
+            };
+          }
+        }
+        
+        if (!normalizedLatlng?.lat || !normalizedLatlng?.lng) {
+          console.error("Invalid latlng format:", globals.detailsCtx.latlng);
+          throw new Error("Invalid location data. Please select a place again.");
+        }
+        
+        try {
+          placeId = await ensurePlaceExists(
+            globals.detailsCtx.tags,
+            normalizedLatlng
+          );
+          
+          // Update globals with the newly created/found placeId
+          if (placeId) {
+            globals.detailsCtx.placeId = placeId;
+          }
+        } catch (ensureErr) {
+          console.error("Failed to ensure place exists:", ensureErr);
+          throw new Error(
+            `Could not create or find place: ${ensureErr.message || ensureErr}`
+          );
+        }
       }
 
       if (!placeId) {

@@ -1213,14 +1213,17 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   let uuid = null;
   try {
     uuid = await ensurePlaceExists(tags, latlng);
-    globals.detailsCtx.placeId = uuid;
-    console.log("✅ globals.detailsCtx.placeId (UUID):", uuid);
+    if (uuid) {
+      globals.detailsCtx.placeId = uuid;
+      console.log("✅ globals.detailsCtx.placeId (UUID):", uuid);
+    } else {
+      console.warn("⚠️ ensurePlaceExists returned null/undefined");
+    }
   } catch (err) {
     console.warn("⚠️ ensurePlaceExists failed, skipping reviews:", err);
-    globals.detailsCtx.placeId = null; // still allow photos to load
+    // Don't set placeId to null - keep the OSM ID so ReviewForm can retry
+    // globals.detailsCtx.placeId remains as the OSM ID from line 1205
   }
-  globals.detailsCtx.placeId = uuid;
-  console.log("✅ globals.detailsCtx.placeId (UUID):", uuid);
 
   // ✅ Fetch reviews ONCE (with small retry for consistency)
   const key = showLoading("reviews-load");
