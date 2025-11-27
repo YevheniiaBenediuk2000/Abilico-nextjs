@@ -235,9 +235,15 @@ function showQuickRoutePopup(latlng) {
       elements.directionsUi.classList.remove("d-none");
       moveDepartureSearchBarUnderTo();
       mountInOffcanvas("Directions");
-
       await setFrom(L.latLng(latlng), null, { fit: false });
       elements.departureSearchInput.focus();
+
+      if (
+        typeof window !== "undefined" &&
+        typeof window.closePlacePopup === "function"
+      ) {
+        window.closePlacePopup();
+      }
     } finally {
       map.closePopup(clickPopup);
       console.log("🟢 Start here handler finished");
@@ -251,9 +257,15 @@ function showQuickRoutePopup(latlng) {
       elements.directionsUi.classList.remove("d-none");
       moveDepartureSearchBarUnderTo();
       mountInOffcanvas("Directions");
-
       await setTo(L.latLng(latlng), null, { fit: false });
       elements.departureSearchInput.focus();
+
+      if (
+        typeof window !== "undefined" &&
+        typeof window.closePlacePopup === "function"
+      ) {
+        window.closePlacePopup();
+      }
     } finally {
       map.closePopup(clickPopup);
     }
@@ -268,6 +280,18 @@ function mountInOffcanvas(titleText) {
     window.openPlaceDetails(titleText);
   } else {
     console.warn("openPlaceDetails() is not available yet");
+  }
+}
+
+function openPlaceDetailsPopup(titleText) {
+  if (
+    typeof window !== "undefined" &&
+    typeof window.openPlacePopup === "function"
+  ) {
+    window.openPlacePopup(titleText);
+  } else {
+    // Fallback: use the drawer if popup is not wired yet
+    mountInOffcanvas(titleText);
   }
 }
 
@@ -1200,13 +1224,23 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   globals.detailsCtx.latlng = latlng;
   globals.detailsCtx.placeId = tags.id ?? tags.osm_id ?? tags.place_id;
 
-  // ✅ Handle layout and offcanvas
-  if (!keepDirectionsUi) elements.directionsUi.classList.add("d-none");
-  moveDepartureSearchBarUnderTo();
-  mountInOffcanvas(titleText);
+  // If we are not in an existing "directions" flow, hide the directions UI
+  // and close the route drawer, because we only want the floating card.
+  if (!keepDirectionsUi) {
+    elements.directionsUi.classList.add("d-none");
+    if (
+      typeof window !== "undefined" &&
+      typeof window.closePlaceDetails === "function"
+    ) {
+      window.closePlaceDetails();
+    }
+  }
 
-  // ✅ Ensure the place exists before fetching reviews
+  // Open the floating place-details popup (overview / reviews / photos).
+  openPlaceDetailsPopup(titleText);
+
   let uuid = null;
+
   try {
     uuid = await ensurePlaceExists(tags, latlng);
     globals.detailsCtx.placeId = uuid;
@@ -1477,7 +1511,7 @@ async function updateRoute({ fit = true } = {}) {
 
     const bounds = routeLayer.getBounds();
     if (fit && bounds.isValid()) {
-      map.fitBounds(bounds, { padding: [120, 120] });
+      map.fitBounds(bounds, { padding: [40, 40] });
     }
   } finally {
     hideLoading(key);
@@ -1562,8 +1596,8 @@ async function selectDestinationSuggestion(res) {
   showDetailsLoading(
     elements.detailsPanel,
     res.name ?? "Details",
-    moveDepartureSearchBarUnderTo,
-    mountInOffcanvas
+    () => {}, // no-op: we no longer move the search bar for details
+    (title) => openPlaceDetailsPopup(title)
   );
 
   const key = showLoading("place-select");
@@ -2201,7 +2235,14 @@ export async function initMap(user = null) {
     .querySelector("#btn-start-here")
     .addEventListener("click", async () => {
       elements.directionsUi.classList.remove("d-none");
+      moveDepartureSearchBarUnderTo();
       mountInOffcanvas("Directions");
+      if (
+        typeof window !== "undefined" &&
+        typeof window.closePlacePopup === "function"
+      ) {
+        window.closePlacePopup();
+      }
       await setFrom(globals.detailsCtx.latlng);
       elements.departureSearchInput.focus();
     });
@@ -2210,7 +2251,14 @@ export async function initMap(user = null) {
     .querySelector("#btn-go-here")
     .addEventListener("click", async () => {
       elements.directionsUi.classList.remove("d-none");
+      moveDepartureSearchBarUnderTo();
       mountInOffcanvas("Directions");
+      if (
+        typeof window !== "undefined" &&
+        typeof window.closePlacePopup === "function"
+      ) {
+        window.closePlacePopup();
+      }
       await setTo(globals.detailsCtx.latlng);
       elements.departureSearchInput.focus();
     });

@@ -20,7 +20,6 @@ const submitReviewBtn =
   detailsPanel?.querySelector("#submit-review-btn") || null;
 
 const offcanvas = document.getElementById("placeOffcanvas");
-const offcanvasTitle = document.getElementById("placeOffcanvasLabel");
 
 const directionsUi = document.getElementById("directions-ui");
 
@@ -38,7 +37,6 @@ const elements = {
   reviewsList,
   submitReviewBtn,
   offcanvas,
-  offcanvasTitle,
   directionsUi,
 };
 
