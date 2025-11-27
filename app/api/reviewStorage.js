@@ -69,7 +69,7 @@ export async function reviewStorage(method = "GET", reviewData) {
         return [];
       }
 
-      const { data, error } = await supabase
+      const { data: reviewsData, error } = await supabase
         .from("reviews")
         .select("*")
         .eq("place_id", reviewData.place_id)
@@ -80,8 +80,49 @@ export async function reviewStorage(method = "GET", reviewData) {
         return [];
       }
 
-      // console.log("✅ Supabase returned", data?.length ?? 0, "reviews", data);
-      return data ?? [];
+      if (!reviewsData || reviewsData.length === 0) {
+        return [];
+      }
+
+      // Fetch profiles for all users who have reviews
+      const userIds = [...new Set(reviewsData.map(r => r.user_id).filter(Boolean))];
+      let profilesMap = new Map();
+      
+      if (userIds.length > 0) {
+        console.log("🔍 Fetching profiles for user_ids:", userIds);
+        const { data: profilesData, error: profilesError } = await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", userIds);
+        
+        if (profilesError) {
+          console.error("❌ Error fetching profiles:", profilesError);
+        } else {
+          console.log("✅ Fetched profiles:", profilesData);
+          if (profilesData && profilesData.length > 0) {
+            profilesData.forEach(profile => {
+              console.log(`  - Profile ID: ${profile.id}, Full Name: "${profile.full_name}"`);
+              profilesMap.set(profile.id, profile);
+            });
+          } else {
+            console.warn("⚠️ No profiles found for user_ids:", userIds);
+          }
+        }
+      } else {
+        console.warn("⚠️ No user_ids found in reviews");
+      }
+
+      // Attach profile information to each review
+      const reviewsWithProfiles = reviewsData.map(review => {
+        const profile = review.user_id ? profilesMap.get(review.user_id) || null : null;
+        console.log(`📝 Review ${review.id}: user_id=${review.user_id}, profile=`, profile);
+        return {
+          ...review,
+          profile: profile
+        };
+      });
+
+      return reviewsWithProfiles;
     }
 
     if (method === "POST") {
@@ -91,6 +132,7 @@ export async function reviewStorage(method = "GET", reviewData) {
         comment: reviewData.text,
         place_id: reviewData.place_id,
         rating: reviewData.rating || null,
+        category_ratings: reviewData.category_ratings || null,
         image_url: reviewData.image_url || null,
       };
 
