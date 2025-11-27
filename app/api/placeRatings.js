@@ -77,8 +77,29 @@ export function computeGlobalRatingFromReviews(reviews = []) {
  * Convenience: everything in one call.
  */
 export function computePlaceScores(reviews = [], preferences = []) {
-  const perCategory = computeCategoryAveragesFromReviews(reviews);
-  const personalScore = computePersonalScore(perCategory, preferences);
-  const globalScore = computeGlobalRatingFromReviews(reviews);
-  return { perCategory, personalScore, globalScore };
+  // Defensive: ensure inputs are arrays
+  const safeReviews = Array.isArray(reviews) ? reviews : [];
+  const safePrefs = Array.isArray(preferences) ? preferences : [];
+
+  const perCategory = computeCategoryAveragesFromReviews(safeReviews);
+  const personalScore = computePersonalScore(perCategory, safePrefs);
+  const globalScore = computeGlobalRatingFromReviews(safeReviews);
+
+  // ✅ NEW: does this place have at least one review
+  // with 2+ category ratings in category_ratings JSON?
+  const hasMultiLevelReviews = safeReviews.some((review) => {
+    const cr = review.category_ratings;
+    return (
+      cr &&
+      typeof cr === "object" &&
+      Object.keys(cr).length >= 2
+    );
+  });
+
+  return {
+    perCategory,
+    personalScore,
+    globalScore,
+    hasMultiLevelReviews, // 👈 extra flag
+  };
 }

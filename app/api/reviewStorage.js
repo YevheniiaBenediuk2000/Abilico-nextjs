@@ -2,56 +2,116 @@ import { supabase } from "./supabaseClient.js";
 
 /**
  * Ensures the OSM place exists in Supabase and returns its UUID.
+ * Race-safe: handles concurrent inserts gracefully.
  * @param {Object} tags - OSM tags object from fetchPlace
  * @param {Object} latlng - { lat, lng } of the place
  */
-export async function ensurePlaceExists(tags, latlng) {
-  if (!latlng?.lat || !latlng?.lng) {
-    console.warn("⚠️ ensurePlaceExists called without valid lat/lng:", latlng);
-    throw new Error("Missing lat/lng for place");
+export async function ensurePlaceExists(tags = {}, latlng = null) {
+  // 🧠 Safely extract OSM identity
+  let osmType = tags.osm_type || tags.type || tags.source_type || tags.osm_type_guess || null;
+  let osmId = tags.osm_id || tags.id || tags.place_id || null;
+
+  // Handle case where osmId might already include the type (e.g., "node/123456")
+  if (osmId && typeof osmId === "string" && osmId.includes("/")) {
+    const parts = osmId.split("/");
+    if (parts.length === 2) {
+      osmType = parts[0]; // e.g., "node", "way", "relation"
+      osmId = parts[1]; // e.g., "123456"
+    }
   }
 
-  // 🧠 Safely extract OSM identity
-  const osmType = tags.osm_type || tags.type || tags.source_type || "unknown";
-  const osmId =
-    tags.osm_id ||
-    tags.id ||
-    tags.place_id ||
-    `${latlng.lat.toFixed(5)},${latlng.lng.toFixed(5)}`;
+  // If still no type, try to infer from ID format or use "unknown"
+  if (!osmType) {
+    // Check if ID looks like a numeric OSM ID
+    if (osmId && /^\d+$/.test(String(osmId))) {
+      osmType = "node"; // Default to node for numeric IDs
+    } else {
+      osmType = "unknown";
+    }
+  }
+
+  // If still no ID, use coordinates as fallback (if available)
+  if (!osmId) {
+    if (latlng?.lat && latlng?.lng) {
+      osmId = `${latlng.lat.toFixed(5)},${latlng.lng.toFixed(5)}`;
+    } else {
+      console.warn("ensurePlaceExists: missing osm_id in tags", tags);
+      return null;
+    }
+  }
 
   const osmKey = `${osmType}/${osmId}`;
-  // console.log("🧩 ensurePlaceExists for", osmKey);
 
-  const { data: existing, error: selectErr } = await supabase
+  // 1) Try to find an existing place first
+  const { data: existing, error: selectError } = await supabase
     .from("places")
     .select("id")
-    .eq("osm_id", osmKey)
+    .eq("osm_id", osmKey) // your unique index is places_osm_id_key
     .maybeSingle();
 
-  if (selectErr) throw selectErr;
-  if (existing) {
-    // console.log("✅ Found existing place:", existing.id);
+  if (existing?.id) {
     return existing.id;
   }
 
-  const { data, error } = await supabase
-    .from("places")
-    .insert([
-      {
-        osm_id: osmKey,
-        name: tags.name ?? tags.amenity ?? "Unnamed",
-        country: tags["addr:country"] ?? null,
-        city: tags["addr:city"] ?? null,
-        lat: latlng.lat,
-        lon: latlng.lng,
-      },
-    ])
-    .select("id")
-    .single();
+  if (selectError && selectError.code !== "PGRST116") {
+    // PGRST116 = no rows; anything else is a real error worth logging
+    console.error(
+      "ensurePlaceExists: select error for osm_id",
+      osmKey,
+      selectError
+    );
+    // Don't throw here - continue to try insert
+  }
 
-  if (error) throw error;
-  // console.log("✅ Inserted new place:", data.id);
-  return data.id;
+  // 2) Not found → try to insert
+  const payload = {
+    osm_id: osmKey,
+    name: tags.name ?? tags.amenity ?? "Unnamed",
+    country: tags["addr:country"] ?? null,
+    city: tags["addr:city"] ?? null,
+    lat: latlng?.lat ?? null,
+    lon: latlng?.lng ?? null,
+  };
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("places")
+    .insert(payload)
+    .select("id")
+    .maybeSingle();
+
+  if (insertError) {
+    const msg = insertError.message || "";
+
+    // Postgres unique violation = 23505
+    const isUniqueViolation =
+      insertError.code === "23505" ||
+      msg.includes("duplicate key value violates unique constraint");
+
+    if (isUniqueViolation) {
+      // Someone else inserted the same osm_id in the meantime → just re-select
+      const { data: again, error: againError } = await supabase
+        .from("places")
+        .select("id")
+        .eq("osm_id", osmKey)
+        .maybeSingle();
+
+      if (again?.id) {
+        return again.id;
+      }
+
+      console.error(
+        "ensurePlaceExists: re-select after duplicate failed for osm_id",
+        osmKey,
+        againError
+      );
+      return null;
+    }
+
+    // Any other error: bubble up
+    throw insertError;
+  }
+
+  return inserted?.id ?? null;
 }
 
 /**
@@ -76,8 +136,8 @@ export async function reviewStorage(method = "GET", reviewData) {
         .order("created_at", { ascending: false });
 
       if (error) {
-        console.error("❌ Supabase error:", error);
-        return [];
+        console.error("❌ reviewStorage GET error:", error?.message ?? error);
+        return []; // Important: don't throw, return empty array
       }
 
       if (!reviewsData || reviewsData.length === 0) {
@@ -127,12 +187,20 @@ export async function reviewStorage(method = "GET", reviewData) {
 
     if (method === "POST") {
       const overall = reviewData.overall_rating ?? reviewData.rating ?? null;
+      
+      // Validate overall_rating is a valid number between 1-5
+      // The database check constraint requires an integer between 1-5
+      // Round to nearest integer since Rating component allows half-stars (precision={0.5})
+      const overallRating = overall != null ? Math.round(Number(overall)) : null;
+      if (overallRating === null || isNaN(overallRating) || overallRating < 1 || overallRating > 5) {
+        throw new Error(`Invalid overall_rating: ${overall}. Must be a number between 1 and 5.`);
+      }
     
       const payload = {
         comment: reviewData.text ?? null,
         place_id: reviewData.place_id ?? null,
-        rating: overall,                   // legacy, real
-        overall_rating: overall,           // smallint 1–5
+        rating: overallRating,                   // legacy, real
+        overall_rating: overallRating,           // smallint 1–5 (required by check constraint, must be integer)
         category_ratings: reviewData.category_ratings || null,
         image_url: reviewData.image_url || null,
         user_id: reviewData.user_id || null, // if you added this column
@@ -193,8 +261,8 @@ export async function reviewStorage(method = "GET", reviewData) {
     console.warn("⚠️ reviewStorage called with unknown method:", method);
     return [];
   } catch (e) {
-    console.error("❌ Review storage failed:", e.message || e);
+    console.error("❌ Review storage failed:", e?.message ?? e);
     if (method === "DELETE") return false;
-    return [];
+    return []; // Always return array for GET, empty array on error
   }
 }

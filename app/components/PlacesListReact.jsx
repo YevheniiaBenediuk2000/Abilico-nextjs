@@ -601,6 +601,19 @@ export default function PlacesListReact({ data, onSelect }) {
         // compute globalScore; personalScore will just be null.
         const prefs = userPrefs || [];
 
+        // Helper function to mark a place as having null scores
+        const markNullScores = (key) => {
+          if (!cancelled) {
+            setScoresByPlaceKey((prev) => {
+              if (prev[key] !== undefined) return prev;
+              return {
+                ...prev,
+                [key]: { personalScore: null, globalScore: null },
+              };
+            });
+          }
+        };
+
         for (const item of candidates) {
           if (cancelled) break;
 
@@ -610,43 +623,70 @@ export default function PlacesListReact({ data, onSelect }) {
           if (scoresByPlaceKey[key] !== undefined) continue;
 
           try {
-            // 1) Ensure place exists (get UUID)
-            const placeId = await ensurePlaceExists(item.tags, item.latlng);
+            let placeId;
+            try {
+              placeId = await ensurePlaceExists(item.tags, item.latlng);
+            } catch (err) {
+              console.warn(
+                "⚠️ Best for me: could not ensure place exists for",
+                key,
+                err?.message ?? err
+              );
+              // mark as known but unsortable and skip to next place
+              markNullScores(key);
+              continue;
+            }
 
-            // 2) Load reviews for that place
-            const reviews = await reviewStorage("GET", { place_id: placeId });
+            if (!placeId) {
+              console.warn("⚠️ ensurePlaceExists returned no placeId for", key);
+              markNullScores(key);
+              continue;
+            }
 
-            // 3) Compute scores
-            const { personalScore, globalScore } = computePlaceScores(
-              reviews,
-              prefs
-            );
+            let reviews = [];
+            try {
+              reviews = await reviewStorage("GET", { place_id: placeId });
+            } catch (err) {
+              console.error(
+                "❌ reviewStorage(GET) failed for place",
+                key,
+                err?.message ?? err
+              );
+              markNullScores(key);
+              continue;
+            }
 
-            // 4) Cache in state
-            if (!cancelled) {
-              setScoresByPlaceKey((prev) => {
-                // Don't overwrite if another loop iteration already wrote it
-                if (prev[key] !== undefined) return prev;
+            try {
+              const { personalScore, globalScore } = computePlaceScores(
+                reviews || [],
+                prefs
+              );
 
-                return {
-                  ...prev,
-                  [key]: { personalScore, globalScore },
-                };
-              });
+              if (!cancelled) {
+                setScoresByPlaceKey((prev) => {
+                  if (prev[key] !== undefined) return prev;
+                  return {
+                    ...prev,
+                    [key]: { personalScore, globalScore },
+                  };
+                });
+              }
+            } catch (err) {
+              console.error(
+                "❌ computePlaceScores failed for place",
+                key,
+                err?.message ?? err
+              );
+              markNullScores(key);
+              continue;
             }
           } catch (err) {
-            console.error("❌ Failed to compute scores for place", key, err);
-            if (!cancelled) {
-              // Still mark as "known", just with null scores
-              setScoresByPlaceKey((prev) => {
-                if (prev[key] !== undefined) return prev;
-
-                return {
-                  ...prev,
-                  [key]: { personalScore: null, globalScore: null },
-                };
-              });
-            }
+            console.error(
+              "❌ Unexpected failure in loadScores for place",
+              key,
+              err?.message ?? err
+            );
+            markNullScores(key);
           }
         }
       } finally {
