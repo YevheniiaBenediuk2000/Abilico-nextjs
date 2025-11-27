@@ -1,4 +1,3 @@
-// will now just render a wrapper
 import debounce from "lodash.debounce";
 
 import elements from "./constants/domElements.js";
@@ -42,8 +41,7 @@ import {
 } from "./modules/fetchPhotos.mjs";
 import { ZoomMuiControl } from "./leaflet-controls/ZoomMuiControl.mjs";
 import { queryClient } from "./queryClient.js";
-
-// console.log("🧭 mapMain.js imported fetchPhotos.mjs successfully");
+import { computePlaceScores } from "./api/placeRatings.js";
 
 import { makePoiIcon } from "./icons/makePoiIcon.mjs";
 import { supabase } from "./api/supabaseClient.js";
@@ -60,10 +58,16 @@ import {
 import { recomputePlaceAccessibilityKeywords } from "./modules/accessibilityKeywordsExtraction.js";
 import globals from "./constants/globalVariables.js";
 
+// DEBUG: confirm import really works
+console.log("🔍 computePlaceScores import is:", computePlaceScores);
+
 // Expose globals on window for React components to access
 if (typeof window !== "undefined") {
   window.globals = globals;
 }
+
+// TEMP: user preferences for testing – later we read from profiles
+const MOCK_USER_PREFS = ["entrance", "restroom", "parking"];
 
 let accessibilityFilter = new Set([
   "designated",
@@ -1239,6 +1243,24 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   // ✅ Render reviews
   renderReviewsList();
 
+  try {
+    console.log("🧮 Before computePlaceScores, reviews:", globals.reviews);
+
+    const { perCategory, personalScore, globalScore } = computePlaceScores(
+      globals.reviews,
+      MOCK_USER_PREFS
+    );
+
+    console.log("🧮 Accessibility stats for current place:", {
+      perCategory,
+      personalScore,
+      globalScore,
+      prefs: MOCK_USER_PREFS,
+    });
+  } catch (err) {
+    console.error("❌ computePlaceScores failed:", err);
+  }
+
   // --- Photos ---
   try {
     const keyPhotos = showLoading("photos-load");
@@ -2309,4 +2331,32 @@ export async function initMap(user = null) {
       refreshPlaces(); // refresh will respect isFeatureAllowedByTypeFilter
     }
   });
+
+  // 1) load user profile to get preferences
+
+// const {
+//   data: { user },
+// } = await supabase.auth.getUser();
+
+// let prefs = [];
+// if (user) {
+//   const { data: profile } = await supabase
+//     .from("profiles")
+//     .select("accessibility_preferences")
+//     .eq("id", user.id)
+//     .maybeSingle();
+
+//   prefs = profile?.accessibility_preferences || [];
+// }
+
+// // 2) collect osm_ids for places in viewport (you already have placeKeyFromFeature(feature))
+// const osmIds = features
+//   .map((f) => placeKeyFromFeature(f))
+//   .filter(Boolean);
+
+// // 3) ask Supabase for scores
+// const ratingMap = await fetchPlaceRatingsForUser(osmIds, prefs);
+
+// ratingMap["N/123456"].personal_score -> personalised rating for that place
+// ratingMap["N/123456"].avg_overall   -> global average
 }
