@@ -30,7 +30,7 @@ import {
   SHOW_PLACES_ZOOM,
 } from "../constants/constants.mjs";
 import { resolvePlacePhotos } from "../modules/fetchPhotos.mjs";
-import { supabase } from "../auth/page"; // same client you use elsewhere
+import { supabase } from "../api/supabaseClient";
 import { ensurePlaceExists, reviewStorage } from "../api/reviewStorage";
 import { computePlaceScores } from "../api/placeRatings";
 
@@ -591,7 +591,9 @@ export default function PlacesListReact({ data, onSelect }) {
       setLoadingBestForMe(true);
       try {
         // Build a base list of places (same as rawItems base)
-        const baseItems = (features || []).map((f) => derivePlaceInfo(f, center));
+        const baseItems = (features || []).map((f) =>
+          derivePlaceInfo(f, center)
+        );
 
         const candidates = baseItems.filter(
           (item) => item.placeKey && item.latlng
@@ -613,6 +615,9 @@ export default function PlacesListReact({ data, onSelect }) {
             });
           }
         };
+
+        // 🔍 Collect all multi-level places we encounter (for city-wide debug log)
+        const debugMultiLevel = [];
 
         for (const item of candidates) {
           if (cancelled) break;
@@ -663,32 +668,37 @@ export default function PlacesListReact({ data, onSelect }) {
                 perCategory,
               } = computePlaceScores(reviews || [], prefs);
 
-              // 🔍 DEBUG: log places that actually use multi-level ratings
+              // 🔍 Detect multi-level (more than just "overall")
               const hasMultiLevel =
                 perCategory &&
-                Object.keys(perCategory).filter((k) => k !== "overall").length > 0;
+                Object.keys(perCategory).filter((k) => k !== "overall").length >
+                  0;
 
               if (hasMultiLevel) {
-                console.log("🧩 BestForMe – multi-level place detected", {
+                const cityTag =
+                  item.tags["addr:city"] ||
+                  item.tags.city ||
+                  item.tags["addr:town"] ||
+                  item.tags["addr:suburb"] ||
+                  null;
+                const debugEntry = {
                   placeKey: key,
                   placeName: item.name,
                   placeId,
+                  city: cityTag,
+                  address: item.address || null,
+                  category: item.category || null,
                   perCategory,
                   personalScore,
                   globalScore,
-                  reviews,
+                  reviewsCount: reviews?.length ?? 0,
                   prefs,
-                });
-              } else {
-                // Optional: uncomment if you want to see single-level places too
-                // console.log("ℹ️ BestForMe – single-level place", {
-                //   placeKey: key,
-                //   placeName: item.name,
-                //   placeId,
-                //   personalScore,
-                //   globalScore,
-                //   reviewsCount: reviews?.length ?? 0,
-                // });
+                };
+
+                debugMultiLevel.push(debugEntry);
+
+                // Per-place log (optional, nice for detailed inspection)
+                console.log("🧩 BestForMe – multi-level place detected", debugEntry);
               }
 
               if (!cancelled) {
@@ -717,6 +727,146 @@ export default function PlacesListReact({ data, onSelect }) {
               err?.message ?? err
             );
             markNullScores(key);
+          }
+        }
+
+        // 🏙️ After processing all candidates, detect "current city"
+        // from all baseItems in the viewport, then load ALL multi-level
+        // places for that city from the DB (not just in the viewport).
+        if (!cancelled) {
+          const cityCounts = {};
+
+          baseItems.forEach((item) => {
+            const t = item.tags || {};
+            const city =
+              t["addr:city"] ||
+              t.city ||
+              t["addr:town"] ||
+              t["addr:suburb"] ||
+              null;
+
+            if (!city) return;
+            cityCounts[city] = (cityCounts[city] || 0) + 1;
+          });
+
+          const sortedCities = Object.entries(cityCounts).sort(
+            (a, b) => b[1] - a[1]
+          );
+
+          const detectedCity = sortedCities[0]?.[0] || null;
+
+          if (!detectedCity) {
+            console.log(
+              "🏙️ BestForMe – could not detect city from viewport",
+              { cityCounts, viewportCenter: center || null }
+            );
+          } else {
+            console.log("🏙️ BestForMe – detected city from viewport:", detectedCity);
+
+            try {
+              // 🔽 1) Load all reviews in this city that have category_ratings
+              //     We go FROM reviews and INNER JOIN places via FK, then filter by city.
+              const { data: rows, error } = await supabase
+                .from("reviews")
+                .select(
+                  `
+                  id,
+                  place_id,
+                  rating,
+                  overall_rating,
+                  category_ratings,
+                  created_at,
+                  user_id,
+                  places!inner (
+                    id,
+                    name,
+                    city,
+                    lat,
+                    lon
+                  )
+                `
+                )
+                .eq("places.city", detectedCity)
+                .not("category_ratings", "is", null);
+
+              if (error) {
+                console.error(
+                  "❌ BestForMe – failed to load city-wide multi-level places",
+                  error
+                );
+              } else {
+                // 🔽 2) Group reviews by place_id
+                const byPlace = new Map();
+
+                (rows || []).forEach((row) => {
+                  const pid = row.place_id;
+                  if (!pid) return;
+
+                  if (!byPlace.has(pid)) {
+                    byPlace.set(pid, {
+                      placeId: pid,
+                      placeName: row.places?.name || "Unnamed place",
+                      city: row.places?.city || detectedCity,
+                      address: row.places?.address || null,
+                      lat: row.places?.lat ?? null,
+                      lon: row.places?.lon ?? null,
+                      reviews: [],
+                    });
+                  }
+
+                  // keep the review data in a format computePlaceScores understands
+                  byPlace.get(pid).reviews.push({
+                    id: row.id,
+                    rating: row.rating,
+                    overall_rating: row.overall_rating,
+                    category_ratings: row.category_ratings,
+                    created_at: row.created_at,
+                    user_id: row.user_id,
+                  });
+                });
+
+                // 🔽 3) For each place, compute multi-level scores (perCategory, etc.)
+                const cityPlacesWithScores = [];
+
+                for (const entry of byPlace.values()) {
+                  const reviewsForPlace = entry.reviews;
+
+                  const {
+                    personalScore,
+                    globalScore,
+                    perCategory,
+                  } = computePlaceScores(reviewsForPlace || [], userPrefs || []);
+
+                  // Only keep places that actually have multi-level categories
+                  const hasMultiLevel =
+                    perCategory &&
+                    Object.keys(perCategory).filter((k) => k !== "overall").length > 0;
+
+                  if (!hasMultiLevel) continue;
+
+                  cityPlacesWithScores.push({
+                    ...entry,
+                    personalScore,
+                    globalScore,
+                    perCategory,
+                    reviewsCount: reviewsForPlace.length,
+                  });
+                }
+
+                // 🔽 4) Final log: ALL places in that city with multi-level rankings
+                console.log("🏙️ BestForMe – ALL multi-level places in city", {
+                  detectedCity,
+                  viewportCenter: center || null,
+                  totalPlacesWithMultiLevel: cityPlacesWithScores.length,
+                  places: cityPlacesWithScores,
+                });
+              }
+            } catch (err) {
+              console.error(
+                "❌ BestForMe – unexpected error while loading city-wide multi-level places",
+                err
+              );
+            }
           }
         }
       } finally {
