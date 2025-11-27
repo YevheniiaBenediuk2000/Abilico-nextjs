@@ -30,6 +30,9 @@ import {
   SHOW_PLACES_ZOOM,
 } from "../constants/constants.mjs";
 import { resolvePlacePhotos } from "../modules/fetchPhotos.mjs";
+import { supabase } from "../auth/page"; // same client you use elsewhere
+import { ensurePlaceExists, reviewStorage } from "../api/reviewStorage";
+import { computePlaceScores } from "../api/placeRatings";
 
 /** Local copy of the accessibility tier logic to avoid importing Leaflet code */
 function getAccessibilityTier(tags = {}) {
@@ -405,6 +408,11 @@ export default function PlacesListReact({ data, onSelect }) {
   const [sortBy, setSortBy] = useState("distance"); // "distance" | "name" | "bestForMe"
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  // ✅ NEW: user prefs + scores
+  const [userPrefs, setUserPrefs] = useState([]);
+  const [scoresByPlaceKey, setScoresByPlaceKey] = useState({});
+  const [loadingBestForMe, setLoadingBestForMe] = useState(false);
+
   const [photoByKey, setPhotoByKey] = useState({});
   const photoCacheRef = useRef({});
 
@@ -449,10 +457,32 @@ export default function PlacesListReact({ data, onSelect }) {
       });
     } else if (sortBy === "name") {
       sorted.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortBy === "bestForMe") {
+      sorted.sort((a, b) => {
+        const scoreAData = scoresByPlaceKey[a.placeKey] || {};
+        const scoreBData = scoresByPlaceKey[b.placeKey] || {};
+
+        // Prefer personalScore; fall back to globalScore; fall back to 0
+        const scoreA =
+          scoreAData.personalScore ?? scoreAData.globalScore ?? 0;
+        const scoreB =
+          scoreBData.personalScore ?? scoreBData.globalScore ?? 0;
+
+        // Higher score = better → sort descending
+        if (scoreA === scoreB) {
+          // tie-break by distance (closer first)
+          if (a.distKm == null && b.distKm == null) return 0;
+          if (a.distKm == null) return 1;
+          if (b.distKm == null) return -1;
+          return a.distKm - b.distKm;
+        }
+
+        return scoreB - scoreA;
+      });
     }
 
     return sorted;
-  }, [features, center, sortBy]);
+  }, [features, center, sortBy, scoresByPlaceKey]);
 
   // Load thumbnails for the closest / first items
   useEffect(() => {
@@ -500,6 +530,137 @@ export default function PlacesListReact({ data, onSelect }) {
       cancelled = true;
     };
   }, [rawItems]);
+
+  // ✅ Load user accessibility preferences (once) when Best for me is used
+  useEffect(() => {
+    if (sortBy !== "bestForMe") return; // only needed when user clicks the chip
+
+    if (userPrefs.length > 0) return; // already loaded
+
+    let cancelled = false;
+
+    async function loadPrefs() {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          console.log(
+            "👤 Not logged in – Best for me will fall back to global rating / distance."
+          );
+          return;
+        }
+
+        const { data: profile, error } = await supabase
+          .from("profiles")
+          .select("accessibility_preferences")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (error) {
+          console.error("❌ Failed to load accessibility_preferences:", error);
+          return;
+        }
+
+        if (!cancelled) {
+          const prefs = profile?.accessibility_preferences || [];
+          console.log("👤 Loaded prefs for Best for me:", prefs);
+          setUserPrefs(prefs);
+        }
+      } catch (err) {
+        console.error("❌ Error loading accessibility_preferences:", err);
+      }
+    }
+
+    loadPrefs();
+    return () => {
+      cancelled = true;
+    };
+  }, [sortBy, userPrefs.length]);
+
+  // ✅ When Best for me is active, compute per-place scores and cache them
+  useEffect(() => {
+    if (sortBy !== "bestForMe") return;
+
+    if (!features || features.length === 0) return;
+
+    let cancelled = false;
+
+    async function loadScores() {
+      setLoadingBestForMe(true);
+      try {
+        // Build a base list of places (same as rawItems base)
+        const baseItems = (features || []).map((f) => derivePlaceInfo(f, center));
+
+        const candidates = baseItems.filter(
+          (item) => item.placeKey && item.latlng
+        );
+
+        // If no prefs (user not logged in or didn't set them), we'll still
+        // compute globalScore; personalScore will just be null.
+        const prefs = userPrefs || [];
+
+        for (const item of candidates) {
+          if (cancelled) break;
+
+          const key = item.placeKey;
+
+          // Skip if we already have scores for this place
+          if (scoresByPlaceKey[key] !== undefined) continue;
+
+          try {
+            // 1) Ensure place exists (get UUID)
+            const placeId = await ensurePlaceExists(item.tags, item.latlng);
+
+            // 2) Load reviews for that place
+            const reviews = await reviewStorage("GET", { place_id: placeId });
+
+            // 3) Compute scores
+            const { personalScore, globalScore } = computePlaceScores(
+              reviews,
+              prefs
+            );
+
+            // 4) Cache in state
+            if (!cancelled) {
+              setScoresByPlaceKey((prev) => {
+                // Don't overwrite if another loop iteration already wrote it
+                if (prev[key] !== undefined) return prev;
+
+                return {
+                  ...prev,
+                  [key]: { personalScore, globalScore },
+                };
+              });
+            }
+          } catch (err) {
+            console.error("❌ Failed to compute scores for place", key, err);
+            if (!cancelled) {
+              // Still mark as "known", just with null scores
+              setScoresByPlaceKey((prev) => {
+                if (prev[key] !== undefined) return prev;
+
+                return {
+                  ...prev,
+                  [key]: { personalScore: null, globalScore: null },
+                };
+              });
+            }
+          }
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingBestForMe(false);
+        }
+      }
+    }
+
+    loadScores();
+    return () => {
+      cancelled = true;
+    };
+  }, [sortBy, features, center, userPrefs, scoresByPlaceKey]);
 
   // Place-type filter state for *list* (mirrors NestedPlaceTypeFilter localStorage)
   const [activeTypeFilters, setActiveTypeFilters] = useState(() => {
