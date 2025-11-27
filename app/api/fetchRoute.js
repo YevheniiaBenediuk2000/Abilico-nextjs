@@ -1,7 +1,6 @@
 import turfcircle from "@turf/circle";
 import turfbuffer from "@turf/buffer";
 
-import { ORS_API_KEY } from "../constants/constants.mjs";
 import { toastError, toastWarn } from "../utils/toast.mjs";
 
 let routeAbortController = null;
@@ -49,7 +48,7 @@ export async function fetchRoute(coordinates, obstacleFeatures) {
     const response = await fetch(url, {
       method: "POST",
       headers: {
-        Authorization: ORS_API_KEY,
+        Authorization: process.env.NEXT_PUBLIC_ORS_API_KEY,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(requestBody),
