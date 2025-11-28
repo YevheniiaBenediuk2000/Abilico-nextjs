@@ -6,7 +6,6 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import "leaflet/dist/leaflet.css";
 import "./styles/poi-badge.css";
 import "./styles/ui.css";
-import "./globals.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
