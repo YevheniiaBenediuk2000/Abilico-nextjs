@@ -1,4 +1,3 @@
-// will now just render a wrapper
 import debounce from "lodash.debounce";
 
 import elements from "./constants/domElements.js";
@@ -42,8 +41,7 @@ import {
 } from "./modules/fetchPhotos.mjs";
 import { ZoomMuiControl } from "./leaflet-controls/ZoomMuiControl.mjs";
 import { queryClient } from "./queryClient.js";
-
-// console.log("🧭 mapMain.js imported fetchPhotos.mjs successfully");
+import { computePlaceScores } from "./api/placeRatings.js";
 
 import { makePoiIcon } from "./icons/makePoiIcon.mjs";
 import { supabase } from "./api/supabaseClient.js";
@@ -59,6 +57,9 @@ import {
 
 import { recomputePlaceAccessibilityKeywords } from "./modules/accessibilityKeywordsExtraction.js";
 import globals from "./constants/globalVariables.js";
+
+// DEBUG: confirm import really works
+console.log("🔍 computePlaceScores import is:", computePlaceScores);
 
 // Expose globals on window for React components to access
 if (typeof window !== "undefined") {
@@ -118,6 +119,61 @@ let editingReviewId = null;
 
 // place-type filter state used on the map side
 let placeTypeFilterState = null; // { [groupLabel]: { [subLabel]: boolean } } or null = all on
+
+// ---- User accessibility preferences (for personalised scores) ----
+let userPrefsCache = [];
+let userPrefsLoaded = false;
+
+async function getUserAccessibilityPreferences() {
+  if (userPrefsLoaded) {
+    return userPrefsCache;
+  }
+
+  try {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError) {
+      console.error("❌ Failed to get current user for prefs:", userError);
+    }
+
+    if (!user) {
+      console.log(
+        "👤 No logged-in user – personal accessibility preferences empty."
+      );
+      userPrefsCache = [];
+      userPrefsLoaded = true;
+      return userPrefsCache;
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("accessibility_preferences")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error(
+        "❌ Failed to load accessibility_preferences:",
+        profileError
+      );
+      userPrefsCache = [];
+    } else {
+      userPrefsCache = profile?.accessibility_preferences || [];
+    }
+
+    console.log("👤 Loaded accessibility_preferences:", userPrefsCache);
+  } catch (err) {
+    console.error("❌ Error while loading accessibility_preferences:", err);
+    userPrefsCache = [];
+  } finally {
+    userPrefsLoaded = true;
+  }
+
+  return userPrefsCache;
+}
 
 // helper to load from localStorage (same key as React)
 const PLACE_TYPE_FILTER_LS_KEY = "ui.placeType.filter";
@@ -1243,14 +1299,17 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   try {
     uuid = await ensurePlaceExists(tags, latlng);
-    globals.detailsCtx.placeId = uuid;
-    console.log("✅ globals.detailsCtx.placeId (UUID):", uuid);
+    if (uuid) {
+      globals.detailsCtx.placeId = uuid;
+      console.log("✅ globals.detailsCtx.placeId (UUID):", uuid);
+    } else {
+      console.warn("⚠️ ensurePlaceExists returned null/undefined");
+    }
   } catch (err) {
     console.warn("⚠️ ensurePlaceExists failed, skipping reviews:", err);
-    globals.detailsCtx.placeId = null; // still allow photos to load
+    // Don't set placeId to null - keep the OSM ID so ReviewForm can retry
+    // globals.detailsCtx.placeId remains as the OSM ID from line 1205
   }
-  globals.detailsCtx.placeId = uuid;
-  console.log("✅ globals.detailsCtx.placeId (UUID):", uuid);
 
   // ✅ Fetch reviews ONCE (with small retry for consistency)
   const key = showLoading("reviews-load");
@@ -1270,8 +1329,29 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     hideLoading(key);
   }
 
-  // ✅ Render reviews
+        // ✅ Render reviews
   renderReviewsList();
+
+  try {
+    console.log("🧮 Before computePlaceScores, reviews:", globals.reviews);
+
+    // Load real user preferences from profiles.accessibility_preferences
+    const prefs = await getUserAccessibilityPreferences();
+
+    const { perCategory, personalScore, globalScore } = computePlaceScores(
+      globals.reviews,
+      prefs
+    );
+
+    console.log("🧮 Accessibility stats for current place:", {
+      perCategory,
+      personalScore,
+      globalScore,
+      prefs,
+    });
+  } catch (err) {
+    console.error("❌ computePlaceScores failed:", err);
+  }
 
   // --- Photos ---
   try {
@@ -1684,6 +1764,10 @@ let obstacleEventHandlersSetup = false;
 
 export function updateUser(user) {
   currentUser = user;
+
+  // reset prefs cache when user logs in / out so next place open refetches
+  userPrefsCache = [];
+  userPrefsLoaded = false;
   // If user logged in, initialize draw controls if not already done
   if (user && !drawControl && map) {
     drawControl = new L.Control.Draw({
@@ -2357,4 +2441,32 @@ export async function initMap(user = null) {
       refreshPlaces(); // refresh will respect isFeatureAllowedByTypeFilter
     }
   });
+
+  // 1) load user profile to get preferences
+
+// const {
+//   data: { user },
+// } = await supabase.auth.getUser();
+
+// let prefs = [];
+// if (user) {
+//   const { data: profile } = await supabase
+//     .from("profiles")
+//     .select("accessibility_preferences")
+//     .eq("id", user.id)
+//     .maybeSingle();
+
+//   prefs = profile?.accessibility_preferences || [];
+// }
+
+// // 2) collect osm_ids for places in viewport (you already have placeKeyFromFeature(feature))
+// const osmIds = features
+//   .map((f) => placeKeyFromFeature(f))
+//   .filter(Boolean);
+
+// // 3) ask Supabase for scores
+// const ratingMap = await fetchPlaceRatingsForUser(osmIds, prefs);
+
+// ratingMap["N/123456"].personal_score -> personalised rating for that place
+// ratingMap["N/123456"].avg_overall   -> global average
 }

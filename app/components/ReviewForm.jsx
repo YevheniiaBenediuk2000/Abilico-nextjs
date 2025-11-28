@@ -12,22 +12,15 @@ import CircularProgress from "@mui/material/CircularProgress";
 import { ACCESSIBILITY_CATEGORIES } from "../constants/accessibilityCategories";
 import { reviewStorage, ensurePlaceExists } from "../api/reviewStorage";
 
-const RATING_CATEGORIES = [
-  { key: "entrance", label: "Entrance" },
-  { key: "indoor_mobility", label: "Indoor mobility" },
-  { key: "restroom", label: "Restroom" },
-  { key: "parking", label: "Parking & transportation" },
-  { key: "staff", label: "Staff awareness" },
-];
-
 export default function ReviewForm() {
   const [overallRating, setOverallRating] = useState(0);
-  const [categoryRatings, setCategoryRatings] = useState({
-    entrance: 0,
-    indoor_mobility: 0,
-    restroom: 0,
-    parking: 0,
-    staff: 0,
+  // Initialize categoryRatings with all categories from ACCESSIBILITY_CATEGORIES
+  const [categoryRatings, setCategoryRatings] = useState(() => {
+    const initial = {};
+    ACCESSIBILITY_CATEGORIES.forEach((cat) => {
+      initial[cat.id] = 0;
+    });
+    return initial;
   });
   const [comment, setComment] = useState("");
   const [error, setError] = useState("");
@@ -61,11 +54,54 @@ export default function ReviewForm() {
     try {
       // Get or create place ID
       let placeId = globals.detailsCtx.placeId;
-      if (!placeId && globals.detailsCtx.tags && globals.detailsCtx.latlng) {
+      
+      // If placeId is not set, try to get/create it using tags and latlng
+      if (!placeId) {
+        if (!globals.detailsCtx.tags || !globals.detailsCtx.latlng) {
+          console.error("Missing place context:", {
+            hasTags: !!globals.detailsCtx.tags,
+            hasLatlng: !!globals.detailsCtx.latlng,
+            placeId: globals.detailsCtx.placeId,
+            detailsCtx: globals.detailsCtx,
+          });
+          throw new Error(
+            "Place information is missing. Please select a place again."
+          );
+        }
+        
+        // Normalize latlng - handle both Leaflet LatLng objects and plain objects
+        let normalizedLatlng = globals.detailsCtx.latlng;
+        if (normalizedLatlng && typeof normalizedLatlng === 'object') {
+          // Extract lat/lng - works for both Leaflet LatLng and plain objects
+          if (normalizedLatlng.lat !== undefined && normalizedLatlng.lng !== undefined) {
+            normalizedLatlng = {
+              lat: Number(normalizedLatlng.lat),
+              lng: Number(normalizedLatlng.lng),
+            };
+          }
+        }
+        
+        if (!normalizedLatlng?.lat || !normalizedLatlng?.lng) {
+          console.error("Invalid latlng format:", globals.detailsCtx.latlng);
+          throw new Error("Invalid location data. Please select a place again.");
+        }
+        
+        try {
         placeId = await ensurePlaceExists(
           globals.detailsCtx.tags,
-          globals.detailsCtx.latlng
-        );
+            normalizedLatlng
+          );
+          
+          // Update globals with the newly created/found placeId
+          if (placeId) {
+            globals.detailsCtx.placeId = placeId;
+          }
+        } catch (ensureErr) {
+          console.error("Failed to ensure place exists:", ensureErr);
+          throw new Error(
+            `Could not create or find place: ${ensureErr.message || ensureErr}`
+          );
+        }
       }
 
       if (!placeId) {
@@ -105,13 +141,11 @@ export default function ReviewForm() {
 
       // Reset form
       setOverallRating(0);
-      setCategoryRatings({
-        entrance: 0,
-        indoor_mobility: 0,
-        restroom: 0,
-        parking: 0,
-        staff: 0,
+      const resetRatings = {};
+      ACCESSIBILITY_CATEGORIES.forEach((cat) => {
+        resetRatings[cat.id] = 0;
       });
+      setCategoryRatings(resetRatings);
       setComment("");
       setError("");
     } catch (err) {
@@ -152,24 +186,23 @@ export default function ReviewForm() {
       </Box>
 
       {/* Category Ratings - Optional */}
-      {RATING_CATEGORIES.map((cat) => {
-        const category = ACCESSIBILITY_CATEGORIES.find((c) => c.id === cat.key);
+      {ACCESSIBILITY_CATEGORIES.map((cat) => {
         return (
-          <Box key={cat.key}>
+          <Box key={cat.id}>
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 0.5 }}>
               <Typography variant="body2">{cat.label}</Typography>
               <Rating
-                value={categoryRatings[cat.key]}
+                value={categoryRatings[cat.id] || 0}
                 precision={0.5}
                 onChange={(_, newValue) => {
-                  handleCategoryRatingChange(cat.key, newValue);
+                  handleCategoryRatingChange(cat.id, newValue);
                 }}
                 size="small"
               />
             </Box>
-            {category?.helperText && (
+            {cat.helperText && (
               <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
-                {category.helperText}
+                {cat.helperText}
               </Typography>
             )}
           </Box>

@@ -30,6 +30,9 @@ import {
   SHOW_PLACES_ZOOM,
 } from "../constants/constants.mjs";
 import { resolvePlacePhotos } from "../modules/fetchPhotos.mjs";
+import { supabase } from "../api/supabaseClient";
+import { ensurePlaceExists, reviewStorage } from "../api/reviewStorage";
+import { computePlaceScores } from "../api/placeRatings";
 
 /** Local copy of the accessibility tier logic to avoid importing Leaflet code */
 function getAccessibilityTier(tags = {}) {
@@ -424,6 +427,12 @@ export default function PlacesListReact({
   const { features = [], center, zoom } = data || {};
   const [sortBy, setSortBy] = useState("distance"); // "distance" | "name" | "bestForMe"
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // ✅ NEW: remember which city Best for me resolved to
+  const [currentBestForMeCity, setCurrentBestForMeCity] = useState(null);
+  // ✅ NEW: user prefs + scores
+  const [userPrefs, setUserPrefs] = useState([]);
+  const [scoresByPlaceKey, setScoresByPlaceKey] = useState({});
+  const [loadingBestForMe, setLoadingBestForMe] = useState(false);
 
   const [photoByKey, setPhotoByKey] = useState({});
   const photoCacheRef = useRef({});
@@ -469,10 +478,32 @@ export default function PlacesListReact({
       });
     } else if (sortBy === "name") {
       sorted.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortBy === "bestForMe") {
+      sorted.sort((a, b) => {
+        const scoreAData = scoresByPlaceKey[a.placeKey] || {};
+        const scoreBData = scoresByPlaceKey[b.placeKey] || {};
+
+        // Prefer personalScore; fall back to globalScore; fall back to 0
+        const scoreA =
+          scoreAData.personalScore ?? scoreAData.globalScore ?? 0;
+        const scoreB =
+          scoreBData.personalScore ?? scoreBData.globalScore ?? 0;
+
+        // Higher score = better → sort descending
+        if (scoreA === scoreB) {
+          // tie-break by distance (closer first)
+          if (a.distKm == null && b.distKm == null) return 0;
+          if (a.distKm == null) return 1;
+          if (b.distKm == null) return -1;
+          return a.distKm - b.distKm;
+        }
+
+        return scoreB - scoreA;
+      });
     }
 
     return sorted;
-  }, [features, center, sortBy]);
+  }, [features, center, sortBy, scoresByPlaceKey]);
 
   // Load thumbnails for the closest / first items
   useEffect(() => {
@@ -520,6 +551,371 @@ export default function PlacesListReact({
       cancelled = true;
     };
   }, [rawItems]);
+
+  // ✅ Load user accessibility preferences (once) when Best for me is used
+  useEffect(() => {
+    if (sortBy !== "bestForMe") return; // only needed when user clicks the chip
+
+    if (userPrefs.length > 0) return; // already loaded
+
+    let cancelled = false;
+
+    async function loadPrefs() {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          console.log(
+            "👤 Not logged in – Best for me will fall back to global rating / distance."
+          );
+          return;
+        }
+
+        const { data: profile, error } = await supabase
+          .from("profiles")
+          .select("accessibility_preferences")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (error) {
+          console.error("❌ Failed to load accessibility_preferences:", error);
+          return;
+        }
+
+        if (!cancelled) {
+          const prefs = profile?.accessibility_preferences || [];
+          console.log("👤 Loaded prefs for Best for me:", prefs);
+          setUserPrefs(prefs);
+        }
+      } catch (err) {
+        console.error("❌ Error loading accessibility_preferences:", err);
+      }
+    }
+
+    loadPrefs();
+    return () => {
+      cancelled = true;
+    };
+  }, [sortBy, userPrefs.length]);
+
+  // ✅ When Best for me is active, compute per-place scores and cache them
+  useEffect(() => {
+    if (sortBy !== "bestForMe") return;
+
+    if (!features || features.length === 0) return;
+
+    let cancelled = false;
+
+    async function loadScores() {
+      setLoadingBestForMe(true);
+      try {
+        // Build a base list of places (same as rawItems base)
+        const baseItems = (features || []).map((f) =>
+          derivePlaceInfo(f, center)
+        );
+
+        const candidates = baseItems.filter(
+          (item) => item.placeKey && item.latlng
+        );
+
+        // If no prefs (user not logged in or didn't set them), we'll still
+        // compute globalScore; personalScore will just be null.
+        const prefs = userPrefs || [];
+
+        // Helper function to mark a place as having null scores
+        const markNullScores = (key) => {
+          if (!cancelled) {
+            setScoresByPlaceKey((prev) => {
+              if (prev[key] !== undefined) return prev;
+              return {
+                ...prev,
+                [key]: { personalScore: null, globalScore: null },
+              };
+            });
+          }
+        };
+
+        // 🔍 Collect all multi-level places we encounter (for city-wide debug log)
+        const debugMultiLevel = [];
+
+        for (const item of candidates) {
+          if (cancelled) break;
+
+          const key = item.placeKey;
+
+          // Skip if we already have scores for this place
+          if (scoresByPlaceKey[key] !== undefined) continue;
+
+          try {
+            let placeId;
+            try {
+              placeId = await ensurePlaceExists(item.tags, item.latlng);
+            } catch (err) {
+              console.warn(
+                "⚠️ Best for me: could not ensure place exists for",
+                key,
+                err?.message ?? err
+              );
+              // mark as known but unsortable and skip to next place
+              markNullScores(key);
+              continue;
+            }
+
+            if (!placeId) {
+              console.warn("⚠️ ensurePlaceExists returned no placeId for", key);
+              markNullScores(key);
+              continue;
+            }
+
+            let reviews = [];
+            try {
+              reviews = await reviewStorage("GET", { place_id: placeId });
+            } catch (err) {
+              console.error(
+                "❌ reviewStorage(GET) failed for place",
+                key,
+                err?.message ?? err
+              );
+              markNullScores(key);
+              continue;
+            }
+
+            try {
+              const {
+                personalScore,
+                globalScore,
+                perCategory,
+              } = computePlaceScores(reviews || [], prefs);
+
+              // 🔍 Detect multi-level (more than just "overall")
+              const hasMultiLevel =
+                perCategory &&
+                Object.keys(perCategory).filter((k) => k !== "overall").length >
+                  0;
+
+              if (hasMultiLevel) {
+                const cityTag =
+                  item.tags["addr:city"] ||
+                  item.tags.city ||
+                  item.tags["addr:town"] ||
+                  item.tags["addr:suburb"] ||
+                  null;
+                const debugEntry = {
+                  placeKey: key,
+                  placeName: item.name,
+                  placeId,
+                  city: cityTag,
+                  address: item.address || null,
+                  category: item.category || null,
+                  perCategory,
+                  personalScore,
+                  globalScore,
+                  reviewsCount: reviews?.length ?? 0,
+                  prefs,
+                };
+
+                debugMultiLevel.push(debugEntry);
+
+                // Per-place log (optional, nice for detailed inspection)
+                console.log("🧩 BestForMe – multi-level place detected", debugEntry);
+              }
+
+              if (!cancelled) {
+                setScoresByPlaceKey((prev) => {
+                  if (prev[key] !== undefined) return prev;
+                  return {
+                    ...prev,
+                    // keep perCategory too for debugging
+                    [key]: { personalScore, globalScore, perCategory },
+                  };
+                });
+              }
+            } catch (err) {
+              console.error(
+                "❌ computePlaceScores failed for place",
+                key,
+                err?.message ?? err
+              );
+              markNullScores(key);
+              continue;
+            }
+          } catch (err) {
+            console.error(
+              "❌ Unexpected failure in loadScores for place",
+              key,
+              err?.message ?? err
+            );
+            markNullScores(key);
+          }
+        }
+
+        // 🏙️ After processing all candidates, detect "current city"
+        // from all baseItems in the viewport, then load ALL multi-level
+        // places for that city from the DB (not just in the viewport).
+        if (!cancelled) {
+          const cityCounts = {};
+
+          baseItems.forEach((item) => {
+            const t = item.tags || {};
+            const city =
+              t["addr:city"] ||
+              t.city ||
+              t["addr:town"] ||
+              t["addr:suburb"] ||
+              null;
+
+            if (!city) return;
+            cityCounts[city] = (cityCounts[city] || 0) + 1;
+          });
+
+          const sortedCities = Object.entries(cityCounts).sort(
+            (a, b) => b[1] - a[1]
+          );
+
+          const detectedCity = sortedCities[0]?.[0] || null;
+
+          // ✅ NEW: store detected city in state so the list can use it
+          setCurrentBestForMeCity(detectedCity);
+
+          if (!detectedCity) {
+            console.log(
+              "🏙️ BestForMe – could not detect city from viewport",
+              { cityCounts, viewportCenter: center || null }
+            );
+          } else {
+            console.log("🏙️ BestForMe – detected city from viewport:", detectedCity);
+
+            try {
+              // 🔽 1) Load all reviews that have category_ratings
+              //     We go FROM reviews and INNER JOIN places via FK.
+              //     We'll filter by distance from viewport center instead of exact city match.
+              const { data: rows, error } = await supabase
+                .from("reviews")
+                .select(
+                  `
+                  id,
+                  place_id,
+                  rating,
+                  overall_rating,
+                  category_ratings,
+                  created_at,
+                  user_id,
+                  places!inner (
+                    id,
+                    name,
+                    city,
+                    lat,
+                    lon
+                  )
+                `
+                )
+                .not("category_ratings", "is", null);
+
+              if (error) {
+                console.error(
+                  "❌ BestForMe – failed to load city-wide multi-level places",
+                  error
+                );
+              } else {
+                // 🔽 2) Group reviews by place_id
+                const byPlace = new Map();
+
+                (rows || []).forEach((row) => {
+                  const pid = row.place_id;
+                  if (!pid) return;
+
+                  if (!byPlace.has(pid)) {
+                    byPlace.set(pid, {
+                      placeId: pid,
+                      placeName: row.places?.name || "Unnamed place",
+                      city: row.places?.city || detectedCity,
+                      address: row.places?.address || null,
+                      lat: row.places?.lat ?? null,
+                      lon: row.places?.lon ?? null,
+                      reviews: [],
+                    });
+                  }
+
+                  // keep the review data in a format computePlaceScores understands
+                  byPlace.get(pid).reviews.push({
+                    id: row.id,
+                    rating: row.rating,
+                    overall_rating: row.overall_rating,
+                    category_ratings: row.category_ratings,
+                    created_at: row.created_at,
+                    user_id: row.user_id,
+                  });
+                });
+
+                // 🔽 3) For each place, compute multi-level scores (perCategory, etc.)
+                //     and filter by distance from viewport center
+                const maxDistanceKm = 20; // radius around map center
+                const cityPlacesWithScores = [];
+
+                for (const entry of byPlace.values()) {
+                  const reviewsForPlace = entry.reviews;
+
+                  const {
+                    personalScore,
+                    globalScore,
+                    perCategory,
+                  } = computePlaceScores(reviewsForPlace || [], userPrefs || []);
+
+                  // Only keep places that actually have multi-level categories
+                  const hasMultiLevel =
+                    perCategory &&
+                    Object.keys(perCategory).filter((k) => k !== "overall").length > 0;
+
+                  if (!hasMultiLevel) continue;
+
+                  // Distance filter – we have viewport center + place lat/lon
+                  const lat = entry.lat;
+                  const lon = entry.lon;
+
+                  if (center && lat != null && lon != null) {
+                    const distKm = haversineKm(center.lat, center.lng, lat, lon);
+                    if (distKm > maxDistanceKm) continue;
+                  }
+
+                  cityPlacesWithScores.push({
+                    ...entry,
+                    personalScore,
+                    globalScore,
+                    perCategory,
+                    reviewsCount: reviewsForPlace.length,
+                  });
+                }
+
+                // 🔽 4) Final log: ALL places in that city with multi-level rankings
+                console.log("🏙️ BestForMe – ALL multi-level places in city", {
+                  detectedCity,
+                  viewportCenter: center || null,
+                  totalPlacesWithMultiLevel: cityPlacesWithScores.length,
+                  places: cityPlacesWithScores,
+                });
+              }
+            } catch (err) {
+              console.error(
+                "❌ BestForMe – unexpected error while loading city-wide multi-level places",
+                err
+              );
+            }
+          }
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingBestForMe(false);
+        }
+      }
+    }
+
+    loadScores();
+    return () => {
+      cancelled = true;
+    };
+  }, [sortBy, features, center, userPrefs, scoresByPlaceKey]);
 
   // Place-type filter state for *list* (mirrors NestedPlaceTypeFilter localStorage)
   const [activeTypeFilters, setActiveTypeFilters] = useState(() => {
@@ -593,8 +989,46 @@ export default function PlacesListReact({
       });
     }
 
+    // 👇 NEW: when Best for me is active:
+    // keep ONLY places that have multi-level ratings AND belong to the detected city
+    if (sortBy === "bestForMe") {
+      filtered = filtered.filter((item) => {
+        const scoreData = scoresByPlaceKey[item.placeKey];
+        if (!scoreData || !scoreData.perCategory) return false;
+
+        const categories = Object.keys(scoreData.perCategory || {});
+        const hasMultiLevel = categories.some((k) => k !== "overall");
+        if (!hasMultiLevel) return false;
+
+        // If we don't know the city yet, don't filter by it
+        if (!currentBestForMeCity) return true;
+
+        const cityTag =
+          item.tags["addr:city"] ||
+          item.tags.city ||
+          item.tags["addr:town"] ||
+          item.tags["addr:suburb"] ||
+          null;
+
+        if (!cityTag) return false;
+
+        return (
+          cityTag.toLowerCase().trim() ===
+          currentBestForMeCity.toLowerCase().trim()
+        );
+      });
+    }
+
     return filtered;
-  }, [rawItems, activeTypeFilters, photosOnly, photoByKey]);
+  }, [
+    rawItems,
+    activeTypeFilters,
+    photosOnly,
+    photoByKey,
+    sortBy,
+    scoresByPlaceKey,
+    currentBestForMeCity,
+  ]);
 
   const hasPlaces = items.length > 0;
 
