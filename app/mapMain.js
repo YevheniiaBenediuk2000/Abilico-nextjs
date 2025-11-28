@@ -862,7 +862,7 @@ function renderReviewsList() {
 
           editingReviewId = null;
           renderReviewsList();
-          recomputePlaceAccessibilityKeywords().catch(console.error);
+          recomputePlaceAccessibilityKeywords(true).catch(console.error);
         } catch (err) {
           console.error("❌ Failed to update review:", err);
           toastError("Could not update review. Please try again.");
@@ -1108,7 +1108,7 @@ async function handleDeleteReview(review) {
 
     globals.reviews = globals.reviews.filter((r) => r.id !== review.id);
     renderReviewsList();
-    recomputePlaceAccessibilityKeywords().catch(console.error);
+    recomputePlaceAccessibilityKeywords(true).catch(console.error);
   } catch (err) {
     console.error("❌ Failed to delete review:", err);
     toastError("Could not delete review. Please try again.");
@@ -1373,12 +1373,12 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     const keyPhotos = showLoading("photos-load");
     const photos = await resolvePlacePhotos(tags, latlng);
 
-    console.log(
-      "📷 resolvePlacePhotos returned",
-      photos.length,
-      "items:",
-      photos
-    );
+    // console.log(
+    //   "📷 resolvePlacePhotos returned",
+    //   photos.length,
+    //   "items:",
+    //   photos
+    // );
     showMainPhoto(photos[0]);
     renderPhotosGrid(photos);
     hideLoading(keyPhotos);
@@ -2421,7 +2421,7 @@ export async function initMap(user = null) {
       // Reload and render updated reviews list
       globals.reviews = await reviewStorage("GET", { place_id: placeId });
       renderReviewsList();
-      recomputePlaceAccessibilityKeywords().catch(console.error);
+      recomputePlaceAccessibilityKeywords(true).catch(console.error);
     } catch (error) {
       console.error("❌ Failed to refresh reviews:", error);
     }

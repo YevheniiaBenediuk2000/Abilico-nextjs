@@ -417,6 +417,30 @@ export default function PlacesListReact({ data, onSelect }) {
   const [photoByKey, setPhotoByKey] = useState({});
   const photoCacheRef = useRef({});
 
+  const [keywordsByPlaceKey, setKeywordsByPlaceKey] = useState({});
+
+  // Listen for real-time keyword updates from ML inference
+  useEffect(() => {
+    const handleKeywordUpdate = (e) => {
+      const { osmId, keywords } = e.detail || {};
+
+      // We rely on osmId ("node/12345") because that's what the List uses as keys
+      // If we only have placeId (UUID), we might need to map it, but `recompute...` now passes osmId too.
+      if (osmId && keywords) {
+        console.log("⚡ List View received keyword update for:", osmId);
+        setKeywordsByPlaceKey((prev) => ({
+          ...prev,
+          [osmId]: keywords,
+        }));
+      }
+    };
+
+    window.addEventListener("keywords-updated", handleKeywordUpdate);
+    return () => {
+      window.removeEventListener("keywords-updated", handleKeywordUpdate);
+    };
+  }, []);
+
   useEffect(() => {
     photoCacheRef.current = photoByKey;
   }, [photoByKey]);
@@ -464,10 +488,8 @@ export default function PlacesListReact({ data, onSelect }) {
         const scoreBData = scoresByPlaceKey[b.placeKey] || {};
 
         // Prefer personalScore; fall back to globalScore; fall back to 0
-        const scoreA =
-          scoreAData.personalScore ?? scoreAData.globalScore ?? 0;
-        const scoreB =
-          scoreBData.personalScore ?? scoreBData.globalScore ?? 0;
+        const scoreA = scoreAData.personalScore ?? scoreAData.globalScore ?? 0;
+        const scoreB = scoreBData.personalScore ?? scoreBData.globalScore ?? 0;
 
         // Higher score = better → sort descending
         if (scoreA === scoreB) {
@@ -484,6 +506,54 @@ export default function PlacesListReact({ data, onSelect }) {
 
     return sorted;
   }, [features, center, sortBy, scoresByPlaceKey]);
+
+  // Fetch accessibility keywords for visible places
+  useEffect(() => {
+    if (!rawItems.length) return;
+    let cancelled = false;
+
+    async function fetchKeywords() {
+      // 1. Collect OSM IDs (placeKeys) from current list items
+      const osmKeys = rawItems
+        .map((item) => item.placeKey) // e.g., "node/12345"
+        .filter(Boolean);
+
+      if (!osmKeys.length) return;
+
+      // 2. Fetch from Supabase
+      // Note: We match on 'osm_id' column which stores "type/id"
+      const { data, error } = await supabase
+        .from("places")
+        .select("osm_id, accessibility_keywords")
+        .in("osm_id", osmKeys);
+
+      if (error) {
+        console.error("❌ Failed to fetch keywords for list:", error);
+        return;
+      }
+
+      if (cancelled) return;
+
+      // 3. Update state
+      if (data && data.length > 0) {
+        const newMap = {};
+        data.forEach((row) => {
+          // ensure row.accessibility_keywords is a valid array
+          if (row.osm_id && Array.isArray(row.accessibility_keywords)) {
+            newMap[row.osm_id] = row.accessibility_keywords;
+          }
+        });
+
+        setKeywordsByPlaceKey((prev) => ({ ...prev, ...newMap }));
+      }
+    }
+
+    fetchKeywords();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rawItems]); // Re-run when the list of places changes
 
   // Load thumbnails for the closest / first items
   useEffect(() => {
@@ -663,11 +733,8 @@ export default function PlacesListReact({ data, onSelect }) {
             }
 
             try {
-              const {
-                personalScore,
-                globalScore,
-                perCategory,
-              } = computePlaceScores(reviews || [], prefs);
+              const { personalScore, globalScore, perCategory } =
+                computePlaceScores(reviews || [], prefs);
 
               // 🔍 Detect multi-level (more than just "overall")
               const hasMultiLevel =
@@ -699,7 +766,10 @@ export default function PlacesListReact({ data, onSelect }) {
                 debugMultiLevel.push(debugEntry);
 
                 // Per-place log (optional, nice for detailed inspection)
-                console.log("🧩 BestForMe – multi-level place detected", debugEntry);
+                console.log(
+                  "🧩 BestForMe – multi-level place detected",
+                  debugEntry
+                );
               }
 
               if (!cancelled) {
@@ -760,12 +830,15 @@ export default function PlacesListReact({ data, onSelect }) {
           setCurrentBestForMeCity(detectedCity);
 
           if (!detectedCity) {
-            console.log(
-              "🏙️ BestForMe – could not detect city from viewport",
-              { cityCounts, viewportCenter: center || null }
-            );
+            console.log("🏙️ BestForMe – could not detect city from viewport", {
+              cityCounts,
+              viewportCenter: center || null,
+            });
           } else {
-            console.log("🏙️ BestForMe – detected city from viewport:", detectedCity);
+            console.log(
+              "🏙️ BestForMe – detected city from viewport:",
+              detectedCity
+            );
 
             try {
               // 🔽 1) Load all reviews that have category_ratings
@@ -837,16 +910,14 @@ export default function PlacesListReact({ data, onSelect }) {
                 for (const entry of byPlace.values()) {
                   const reviewsForPlace = entry.reviews;
 
-                  const {
-                    personalScore,
-                    globalScore,
-                    perCategory,
-                  } = computePlaceScores(reviewsForPlace || [], userPrefs || []);
+                  const { personalScore, globalScore, perCategory } =
+                    computePlaceScores(reviewsForPlace || [], userPrefs || []);
 
                   // Only keep places that actually have multi-level categories
                   const hasMultiLevel =
                     perCategory &&
-                    Object.keys(perCategory).filter((k) => k !== "overall").length > 0;
+                    Object.keys(perCategory).filter((k) => k !== "overall")
+                      .length > 0;
 
                   if (!hasMultiLevel) continue;
 
@@ -855,7 +926,12 @@ export default function PlacesListReact({ data, onSelect }) {
                   const lon = entry.lon;
 
                   if (center && lat != null && lon != null) {
-                    const distKm = haversineKm(center.lat, center.lng, lat, lon);
+                    const distKm = haversineKm(
+                      center.lat,
+                      center.lng,
+                      lat,
+                      lon
+                    );
                     if (distKm > maxDistanceKm) continue;
                   }
 
@@ -1116,6 +1192,11 @@ export default function PlacesListReact({ data, onSelect }) {
                       : undefined;
                     const thumbSrc = photo && (photo.thumb || photo.src || "");
 
+                    // Get keywords for this item
+                    const keywords = item.placeKey
+                      ? keywordsByPlaceKey[item.placeKey]
+                      : null;
+
                     return (
                       <Box key={item.placeKey || idx}>
                         <Divider component="li" />
@@ -1210,6 +1291,22 @@ export default function PlacesListReact({ data, onSelect }) {
                                           height: 22,
                                         }}
                                       />
+
+                                      {/* Render Top 2 Keywords if available */}
+                                      {keywords &&
+                                        keywords.slice(0, 2).map((k, i) => (
+                                          <Chip
+                                            key={i}
+                                            size="small"
+                                            label={k.label}
+                                            variant="outlined"
+                                            sx={{
+                                              fontSize: "0.65rem",
+                                              height: 22,
+                                              borderColor: "rgba(0,0,0,0.12)",
+                                            }}
+                                          />
+                                        ))}
                                     </Box>
                                   </Box>
                                 }
