@@ -652,12 +652,12 @@ async function resolveFromWikipediaTag(value) {
 
   const listPhotos = await fetchWikipediaMediaList(lang, title);
   photos.push(...listPhotos);
-  console.log(
-    "📘 Wikipedia resolver found",
-    photos.length,
-    "photos for",
-    value
-  );
+  // console.log(
+  //   "📘 Wikipedia resolver found",
+  //   photos.length,
+  //   "photos for",
+  //   value
+  // );
 
   // As a bonus, try pageimages via MediaWiki API for more sizes (optional)
   return photos;

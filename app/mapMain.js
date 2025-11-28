@@ -59,7 +59,7 @@ import { recomputePlaceAccessibilityKeywords } from "./modules/accessibilityKeyw
 import globals from "./constants/globalVariables.js";
 
 // DEBUG: confirm import really works
-console.log("🔍 computePlaceScores import is:", computePlaceScores);
+// console.log("🔍 computePlaceScores import is:", computePlaceScores);
 
 // Expose globals on window for React components to access
 if (typeof window !== "undefined") {
@@ -713,12 +713,15 @@ function renderReviewsList() {
       if (ratingValue && ratingValue >= 1 && ratingValue <= 5) {
         const ratingContainer = document.createElement("div");
         ratingContainer.className = "mb-2 d-flex align-items-center gap-1";
-        
+
         const starsContainer = document.createElement("span");
         starsContainer.className = "text-warning";
         starsContainer.style.fontSize = "1.1rem";
-        starsContainer.setAttribute("aria-label", `${ratingValue} out of 5 stars`);
-        
+        starsContainer.setAttribute(
+          "aria-label",
+          `${ratingValue} out of 5 stars`
+        );
+
         // Add filled stars
         for (let i = 0; i < Math.floor(ratingValue); i++) {
           const star = document.createElement("span");
@@ -726,7 +729,7 @@ function renderReviewsList() {
           star.setAttribute("aria-hidden", "true");
           starsContainer.appendChild(star);
         }
-        
+
         // Add half star if needed
         if (ratingValue % 1 >= 0.5) {
           const halfStar = document.createElement("span");
@@ -735,7 +738,7 @@ function renderReviewsList() {
           halfStar.setAttribute("aria-hidden", "true");
           starsContainer.appendChild(halfStar);
         }
-        
+
         // Add empty stars
         const totalStars = Math.ceil(ratingValue);
         for (let i = totalStars; i < 5; i++) {
@@ -745,12 +748,12 @@ function renderReviewsList() {
           emptyStar.setAttribute("aria-hidden", "true");
           starsContainer.appendChild(emptyStar);
         }
-        
+
         const ratingText = document.createElement("span");
         ratingText.className = "text-muted ms-1";
         ratingText.style.fontSize = "0.9rem";
         ratingText.textContent = ratingValue;
-        
+
         ratingContainer.appendChild(starsContainer);
         ratingContainer.appendChild(ratingText);
         form.appendChild(ratingContainer);
@@ -883,43 +886,52 @@ function renderReviewsList() {
       // Get reviewer name from profile or show "Anonymous"
       let reviewerName = "Anonymous";
       let reviewerInitials = "A";
-      
+
       // Debug: Log review data to see profile structure
       console.log(`🎭 Review ${review.id} profile data:`, {
         user_id: review.user_id,
         profile: review.profile,
-        profile_full_name: review.profile?.full_name
+        profile_full_name: review.profile?.full_name,
       });
-      
+
       if (review.profile && review.profile.full_name) {
         reviewerName = review.profile.full_name.trim();
         // Get initials from full name (first letter of first word and first letter of last word)
-        const nameParts = reviewerName.split(/\s+/).filter(p => p);
+        const nameParts = reviewerName.split(/\s+/).filter((p) => p);
         if (nameParts.length >= 2) {
-          reviewerInitials = (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
+          reviewerInitials = (
+            nameParts[0][0] + nameParts[nameParts.length - 1][0]
+          ).toUpperCase();
         } else if (nameParts.length === 1) {
           reviewerInitials = nameParts[0].substring(0, 2).toUpperCase();
         }
-        console.log(`✅ Using reviewer name: "${reviewerName}" with initials "${reviewerInitials}"`);
+        console.log(
+          `✅ Using reviewer name: "${reviewerName}" with initials "${reviewerInitials}"`
+        );
       } else {
-        console.log(`⚠️ No profile or full_name found for review ${review.id}, showing Anonymous`);
+        console.log(
+          `⚠️ No profile or full_name found for review ${review.id}, showing Anonymous`
+        );
       }
 
       // Profile icon/avatar with initials
       const avatar = document.createElement("div");
-      avatar.className = "rounded-circle d-flex align-items-center justify-content-center text-white fw-bold";
+      avatar.className =
+        "rounded-circle d-flex align-items-center justify-content-center text-white fw-bold";
       avatar.style.width = "32px";
       avatar.style.height = "32px";
       avatar.style.fontSize = "0.875rem";
       avatar.style.flexShrink = "0";
-      
+
       // Generate color from reviewer name (or use default)
       const getAvatarColor = (name) => {
         if (!name || name === "Anonymous") return "#ff9800"; // Orange for anonymous
-        const hash = name.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const hash = name
+          .split("")
+          .reduce((acc, char) => acc + char.charCodeAt(0), 0);
         return hash % 2 === 0 ? "#ff5722" : "#9c27b0"; // Deep orange or purple
       };
-      
+
       avatar.style.backgroundColor = getAvatarColor(reviewerName);
       avatar.textContent = reviewerInitials;
       avatar.setAttribute("aria-label", `Profile of ${reviewerName}`);
@@ -938,13 +950,16 @@ function renderReviewsList() {
       if (ratingValue && ratingValue >= 1 && ratingValue <= 5) {
         const ratingContainer = document.createElement("div");
         ratingContainer.className = "mb-2 d-flex align-items-center gap-1";
-        
+
         // Create star rating display (filled and empty stars)
         const starsContainer = document.createElement("div");
         starsContainer.className = "text-warning";
         starsContainer.style.fontSize = "1.1rem";
-        starsContainer.setAttribute("aria-label", `${ratingValue} out of 5 stars`);
-        
+        starsContainer.setAttribute(
+          "aria-label",
+          `${ratingValue} out of 5 stars`
+        );
+
         // Add filled stars
         for (let i = 0; i < Math.floor(ratingValue); i++) {
           const star = document.createElement("span");
@@ -952,7 +967,7 @@ function renderReviewsList() {
           star.setAttribute("aria-hidden", "true");
           starsContainer.appendChild(star);
         }
-        
+
         // Add half star if needed (for ratings like 3.5, 4.5, etc.)
         if (ratingValue % 1 >= 0.5) {
           const halfStar = document.createElement("span");
@@ -961,7 +976,7 @@ function renderReviewsList() {
           halfStar.setAttribute("aria-hidden", "true");
           starsContainer.appendChild(halfStar);
         }
-        
+
         // Add empty stars to complete 5 stars
         const totalStars = Math.ceil(ratingValue);
         for (let i = totalStars; i < 5; i++) {
@@ -971,13 +986,13 @@ function renderReviewsList() {
           emptyStar.setAttribute("aria-hidden", "true");
           starsContainer.appendChild(emptyStar);
         }
-        
+
         // Add numeric rating next to stars
         const ratingText = document.createElement("span");
         ratingText.className = "text-muted ms-1";
         ratingText.style.fontSize = "0.9rem";
         ratingText.textContent = ratingValue;
-        
+
         ratingContainer.appendChild(starsContainer);
         ratingContainer.appendChild(ratingText);
         li.appendChild(ratingContainer);
@@ -1329,7 +1344,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     hideLoading(key);
   }
 
-        // ✅ Render reviews
+  // ✅ Render reviews
   renderReviewsList();
 
   try {
@@ -2444,29 +2459,29 @@ export async function initMap(user = null) {
 
   // 1) load user profile to get preferences
 
-// const {
-//   data: { user },
-// } = await supabase.auth.getUser();
+  // const {
+  //   data: { user },
+  // } = await supabase.auth.getUser();
 
-// let prefs = [];
-// if (user) {
-//   const { data: profile } = await supabase
-//     .from("profiles")
-//     .select("accessibility_preferences")
-//     .eq("id", user.id)
-//     .maybeSingle();
+  // let prefs = [];
+  // if (user) {
+  //   const { data: profile } = await supabase
+  //     .from("profiles")
+  //     .select("accessibility_preferences")
+  //     .eq("id", user.id)
+  //     .maybeSingle();
 
-//   prefs = profile?.accessibility_preferences || [];
-// }
+  //   prefs = profile?.accessibility_preferences || [];
+  // }
 
-// // 2) collect osm_ids for places in viewport (you already have placeKeyFromFeature(feature))
-// const osmIds = features
-//   .map((f) => placeKeyFromFeature(f))
-//   .filter(Boolean);
+  // // 2) collect osm_ids for places in viewport (you already have placeKeyFromFeature(feature))
+  // const osmIds = features
+  //   .map((f) => placeKeyFromFeature(f))
+  //   .filter(Boolean);
 
-// // 3) ask Supabase for scores
-// const ratingMap = await fetchPlaceRatingsForUser(osmIds, prefs);
+  // // 3) ask Supabase for scores
+  // const ratingMap = await fetchPlaceRatingsForUser(osmIds, prefs);
 
-// ratingMap["N/123456"].personal_score -> personalised rating for that place
-// ratingMap["N/123456"].avg_overall   -> global average
+  // ratingMap["N/123456"].personal_score -> personalised rating for that place
+  // ratingMap["N/123456"].avg_overall   -> global average
 }
