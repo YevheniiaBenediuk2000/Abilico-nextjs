@@ -76,19 +76,6 @@ function formatDistance(km) {
   return `${km.toFixed(1)} km`;
 }
 
-function geoKeyFromLatLng(lat, lon) {
-  if (
-    typeof lat !== "number" ||
-    Number.isNaN(lat) ||
-    typeof lon !== "number" ||
-    Number.isNaN(lon)
-  ) {
-    return null;
-  }
-  // must match geoKeyFromLatLng in accessibilityKeywordsExtraction.js
-  return `${lat.toFixed(5)},${lon.toFixed(5)}`;
-}
-
 function derivePlaceInfo(feature, center) {
   const props = feature.properties || {};
   const tags = props.tags || props;
@@ -100,8 +87,6 @@ function derivePlaceInfo(feature, center) {
     !Number.isNaN(lat) &&
     typeof lon === "number" &&
     !Number.isNaN(lon);
-
-  const geoKey = hasCoord ? geoKeyFromLatLng(lat, lon) : null;
 
   const distKm =
     center && hasCoord ? haversineKm(center.lat, center.lng, lat, lon) : null;
@@ -182,7 +167,6 @@ function derivePlaceInfo(feature, center) {
     typeSub: subKey || "other",
     placeKey,
     latlng: hasCoord ? { lat, lng: lon } : null,
-    geoKey,
   };
 }
 
@@ -419,11 +403,7 @@ function NestedPlaceTypeFilter({ items }) {
   );
 }
 
-export default function PlacesListReact({
-  data,
-  onSelect,
-  accKeywordsByGeoKey = {},
-}) {
+export default function PlacesListReact({ data, onSelect }) {
   const { features = [], center, zoom } = data || {};
   const [sortBy, setSortBy] = useState("distance"); // "distance" | "name" | "bestForMe"
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -1136,16 +1116,6 @@ export default function PlacesListReact({
                       : undefined;
                     const thumbSrc = photo && (photo.thumb || photo.src || "");
 
-                    const accSummaryRaw =
-                      (item.geoKey && accKeywordsByGeoKey[item.geoKey]) || [];
-                    const accSummary = Array.isArray(accSummaryRaw)
-                      ? accSummaryRaw
-                      : [];
-                    const hasAccSummary = accSummary.length > 0;
-                    const topKeywords = hasAccSummary
-                      ? accSummary.slice(0, 3)
-                      : [];
-
                     return (
                       <Box key={item.placeKey || idx}>
                         <Divider component="li" />
@@ -1215,7 +1185,6 @@ export default function PlacesListReact({
                                     >
                                       {item.category || "Point of interest"}
                                     </Typography>
-
                                     {item.address && (
                                       <Typography
                                         variant="caption"
@@ -1226,7 +1195,6 @@ export default function PlacesListReact({
                                         {item.address}
                                       </Typography>
                                     )}
-
                                     <Box mt={0.75}>
                                       <Chip
                                         size="small"
@@ -1243,52 +1211,6 @@ export default function PlacesListReact({
                                         }}
                                       />
                                     </Box>
-
-                                    {hasAccSummary && (
-                                      <Box
-                                        mt={0.75}
-                                        sx={{
-                                          display: "flex",
-                                          flexWrap: "wrap",
-                                          gap: 0.5,
-                                          alignItems: "center",
-                                        }}
-                                      >
-                                        <Typography
-                                          variant="caption"
-                                          color="text.secondary"
-                                          sx={{ mr: 0.5 }}
-                                        >
-                                          In reviews:
-                                        </Typography>
-
-                                        {topKeywords.map((kw) => (
-                                          <Chip
-                                            key={kw.label}
-                                            size="small"
-                                            variant="outlined"
-                                            label={kw.label}
-                                            sx={{
-                                              fontSize: "0.65rem",
-                                              height: 20,
-                                            }}
-                                          />
-                                        ))}
-
-                                        {accSummary.length >
-                                          topKeywords.length && (
-                                          <Typography
-                                            variant="caption"
-                                            color="text.secondary"
-                                          >
-                                            +
-                                            {accSummary.length -
-                                              topKeywords.length}{" "}
-                                            more
-                                          </Typography>
-                                        )}
-                                      </Box>
-                                    )}
                                   </Box>
                                 }
                                 primaryTypographyProps={{ component: "div" }}

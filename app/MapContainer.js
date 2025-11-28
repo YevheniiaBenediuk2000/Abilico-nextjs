@@ -142,29 +142,8 @@ export default function MapContainer({
   const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(false);
   const [detailsTitle, setDetailsTitle] = useState("Details");
 
-  const [placeAccKeywordsByGeoKey, setPlaceAccKeywordsByGeoKey] = useState({});
-
   const [placePopupOpen, setPlacePopupOpen] = useState(false);
   const [placePopupTitle, setPlacePopupTitle] = useState("Details");
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    // Called from accessibilityKeywordsExtraction.js
-    window.updatePlaceAccKeywords = (geoKey, agg) => {
-      if (!geoKey) return;
-      setPlaceAccKeywordsByGeoKey((prev) => ({
-        ...prev,
-        [geoKey]: Array.isArray(agg) ? agg : [],
-      }));
-    };
-
-    return () => {
-      if (window.updatePlaceAccKeywords) {
-        delete window.updatePlaceAccKeywords;
-      }
-    };
-  }, []);
 
   // Expose a global function so mapMain.js can open the details drawer
   useEffect(() => {
@@ -350,7 +329,6 @@ export default function MapContainer({
           <PlacesListReact
             data={placesListData}
             onSelect={handlePlaceFromListSelect}
-            accKeywordsByGeoKey={placeAccKeywordsByGeoKey}
           />
         ) : (
           <Box sx={{ p: 2 }}>
