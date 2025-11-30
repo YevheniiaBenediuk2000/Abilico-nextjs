@@ -76,6 +76,19 @@ export default function MapLayout({ isDashboard = false, children }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  // ✅ Listen for dialog reopen event (after location selection)
+  useEffect(() => {
+    const handleReopen = (e) => {
+      // Reopen the dialog with the selected location
+      setAddPlaceDialogOpen(true);
+    };
+
+    window.addEventListener("add-place-dialog-reopen", handleReopen);
+    return () => {
+      window.removeEventListener("add-place-dialog-reopen", handleReopen);
+    };
+  }, []);
+
   // ✅ Protect dashboard and check registration status
   useEffect(() => {
     if (isDashboard && user === null) {

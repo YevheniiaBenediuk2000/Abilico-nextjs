@@ -49,38 +49,83 @@ export default function AddPlaceDialog({ open, onClose }) {
   const [isSelectingLocation, setIsSelectingLocation] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [pendingLocation, setPendingLocation] = useState(null); // Store location before reopening dialog
 
-  // Marker for location selection
+  // Marker and popup for location confirmation
   const [locationMarker, setLocationMarker] = useState(null);
+  const [confirmationPopup, setConfirmationPopup] = useState(null);
 
-  // Reset form when dialog opens/closes
+  // Reset form when dialog opens - check for pending location
   useEffect(() => {
     if (open) {
-      setName("");
-      setPlaceType("");
-      setCity("");
-      setCountry("");
-      setLocation(null);
-      setIsSelectingLocation(false);
       setError("");
       setSubmitting(false);
-      // Clean up marker
-      if (locationMarker && typeof window !== "undefined" && window.map) {
-        window.map.removeLayer(locationMarker);
+      setIsSelectingLocation(false);
+      
+      // If there's a pending location from map selection, use it
+      if (pendingLocation) {
+        setLocation(pendingLocation);
+        setPendingLocation(null);
+      } else if (!location) {
+        // Only reset form fields if no pending location
+        setName("");
+        setPlaceType("");
+        setCity("");
+        setCountry("");
+        setLocation(null);
       }
-      setLocationMarker(null);
+      
+      // Clean up any leftover markers/popups
+      cleanupLocationSelection();
     } else {
-      // Clean up marker when dialog closes
-      if (locationMarker && typeof window !== "undefined" && window.map) {
-        window.map.removeLayer(locationMarker);
-      }
-      setLocationMarker(null);
+      // Clean up when dialog closes
+      cleanupLocationSelection();
       setIsSelectingLocation(false);
     }
   }, [open]);
 
+  // Cleanup function for location selection resources
+  const cleanupLocationSelection = () => {
+    if (typeof window === "undefined" || !window.map) return;
+    
+    const map = window.map;
+    
+    // Remove marker
+    if (locationMarker) {
+      try {
+        map.removeLayer(locationMarker);
+      } catch (e) {
+        console.warn("Error removing location marker:", e);
+      }
+      setLocationMarker(null);
+    }
+    
+    // Remove popup
+    if (confirmationPopup) {
+      try {
+        map.closePopup(confirmationPopup);
+      } catch (e) {
+        console.warn("Error closing confirmation popup:", e);
+      }
+      setConfirmationPopup(null);
+    }
+    
+    // Remove map click handler
+    if (map._addPlaceLocationHandler) {
+      map.off("click", map._addPlaceLocationHandler);
+      delete map._addPlaceLocationHandler;
+    }
+    
+    // Re-enable quick route popup
+    if (typeof window !== "undefined" && window.globals) {
+      window.globals._isSelectingPlaceLocation = false;
+    }
+    
+    setIsSelectingLocation(false);
+  };
+
   const handleStartLocationSelection = () => {
-    if (typeof window === "undefined" || !window.map) {
+    if (typeof window === "undefined") {
       setError("Map is not available. Please refresh the page.");
       return;
     }
@@ -91,91 +136,146 @@ export default function AddPlaceDialog({ open, onClose }) {
       return;
     }
 
-    setIsSelectingLocation(true);
-    setError("");
-
-    // Get map instance
     const map = window.map;
-
-    // Add temporary marker at map center or current view
-    const center = map.getCenter();
-    
-    // Create a simple colored divIcon for the location marker
-    const markerIcon = L.divIcon({
-      className: "add-place-marker",
-      html: `
-        <div style="
-          width: 24px;
-          height: 24px;
-          background-color: #1976d2;
-          border: 3px solid white;
-          border-radius: 50%;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        "></div>
-      `,
-      iconSize: [24, 24],
-      iconAnchor: [12, 12],
-    });
-
-    const marker = L.marker([center.lat, center.lng], {
-      draggable: true,
-      icon: markerIcon,
-    }).addTo(map);
-
-    // Create popup with instructions
-    marker
-      .bindPopup("Drag this marker to set the location, or click on the map")
-      .openPopup();
-
-    setLocationMarker(marker);
-    setLocation({ lat: center.lat, lng: center.lng });
-
-    // Handle marker drag
-    marker.on("dragend", () => {
-      const pos = marker.getLatLng();
-      setLocation({ lat: pos.lat, lng: pos.lng });
-      marker.setPopupContent("Location selected. Click 'Confirm Location' when ready.");
-    });
-
-    // Handle map click to move marker
-    const onMapClick = (e) => {
-      const { lat, lng } = e.latlng;
-      marker.setLatLng([lat, lng]);
-      setLocation({ lat, lng });
-      marker.setPopupContent("Location selected. Click 'Confirm Location' when ready.");
-    };
-
-    map.on("click", onMapClick);
-
-    // Store click handler for cleanup
-    marker._onMapClick = onMapClick;
-  };
-
-  const handleConfirmLocation = () => {
-    if (!location) {
-      setError("Please select a location first.");
+    if (!map) {
+      setError("Map is not initialized yet. Please wait a moment and try again.");
       return;
     }
-    setIsSelectingLocation(false);
-    if (locationMarker) {
-      locationMarker.setPopupContent("Location confirmed!");
-      // Remove click handler
-      if (typeof window !== "undefined" && window.map && locationMarker._onMapClick) {
-        window.map.off("click", locationMarker._onMapClick);
-      }
-    }
-  };
 
-  const handleCancelLocationSelection = () => {
-    setIsSelectingLocation(false);
-    if (locationMarker && typeof window !== "undefined" && window.map) {
-      window.map.removeLayer(locationMarker);
-      if (locationMarker._onMapClick) {
-        window.map.off("click", locationMarker._onMapClick);
+    // Close the dialog first
+    onClose();
+    
+    // Wait a moment for dialog to close, then set up map click handler
+    setTimeout(() => {
+      setIsSelectingLocation(true);
+      
+      // Create map click handler
+      const handleMapClick = (e) => {
+        // Stop propagation to prevent other handlers (like quick route popup)
+        if (e.originalEvent) {
+          e.originalEvent.stopPropagation();
+        }
+        
+        const { lat, lng } = e.latlng;
+        
+        // Create a temporary marker at clicked location
+        const markerIcon = L.divIcon({
+          className: "add-place-marker",
+          html: `
+            <div style="
+              width: 32px;
+              height: 32px;
+              background-color: #1976d2;
+              border: 3px solid white;
+              border-radius: 50%;
+              box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            "></div>
+          `,
+          iconSize: [32, 32],
+          iconAnchor: [16, 32],
+        });
+        
+        const marker = L.marker([lat, lng], {
+          icon: markerIcon,
+        }).addTo(map);
+        setLocationMarker(marker);
+        
+        // Create confirmation popup
+        const popupContent = `
+          <div style="text-align: center; padding: 8px;">
+            <p style="margin: 0 0 12px 0; font-weight: 500;">Do you want to choose this location?</p>
+            <p style="margin: 0 0 12px 0; font-size: 12px; color: #666;">
+              ${lat.toFixed(5)}, ${lng.toFixed(5)}
+            </p>
+            <div style="display: flex; gap: 8px; justify-content: center;">
+              <button id="confirm-location-btn" style="
+                padding: 6px 16px;
+                background-color: #1976d2;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+              ">Yes, choose this</button>
+              <button id="cancel-location-btn" style="
+                padding: 6px 16px;
+                background-color: #f5f5f5;
+                color: #333;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+              ">Cancel</button>
+            </div>
+          </div>
+        `;
+        
+        const popup = L.popup({
+          closeOnClick: false,
+          closeButton: true,
+          className: "add-place-confirmation-popup",
+        })
+          .setLatLng([lat, lng])
+          .setContent(popupContent)
+          .openOn(map);
+        
+        setConfirmationPopup(popup);
+        
+        // Handle confirmation button click
+        setTimeout(() => {
+          const confirmBtn = document.getElementById("confirm-location-btn");
+          const cancelBtn = document.getElementById("cancel-location-btn");
+          
+          if (confirmBtn) {
+            confirmBtn.onclick = () => {
+              // Store the location and reopen dialog
+              setPendingLocation({ lat, lng });
+              cleanupLocationSelection();
+              
+              // Reopen the dialog via window event (parent will handle)
+              if (typeof window !== "undefined") {
+                window.dispatchEvent(
+                  new CustomEvent("add-place-dialog-reopen", {
+                    detail: { location: { lat, lng } },
+                  })
+                );
+              }
+            };
+          }
+          
+          if (cancelBtn) {
+            cancelBtn.onclick = () => {
+              cleanupLocationSelection();
+              setIsSelectingLocation(false);
+            };
+          }
+        }, 100);
+      };
+      
+      // Store handler reference for cleanup
+      map._addPlaceLocationHandler = handleMapClick;
+      
+      // Prevent quick route popup from showing while selecting location
+      if (typeof window !== "undefined" && window.globals) {
+        window.globals._isSelectingPlaceLocation = true;
       }
-    }
-    setLocationMarker(null);
-    setLocation(null);
+      
+      // Add click handler - will run before the quick route popup handler
+      map.on("click", handleMapClick);
+      
+      // Show instruction toast
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("app-toast", {
+            detail: {
+              message: "Click on the map to choose a location",
+              variant: "info",
+              delay: 5000,
+            },
+          })
+        );
+      }
+    }, 300); // Small delay to ensure dialog closes smoothly
   };
 
   const handleSubmit = async (e) => {
@@ -223,13 +323,8 @@ export default function AddPlaceDialog({ open, onClose }) {
         );
       }
 
-      // Clean up marker
-      if (locationMarker && typeof window !== "undefined" && window.map) {
-        window.map.removeLayer(locationMarker);
-        if (locationMarker._onMapClick) {
-          window.map.off("click", locationMarker._onMapClick);
-        }
-      }
+      // Clean up location selection resources
+      cleanupLocationSelection();
 
       // Close dialog (will reset form via useEffect)
       onClose();
@@ -245,13 +340,13 @@ export default function AddPlaceDialog({ open, onClose }) {
 
   const handleClose = () => {
     if (submitting) return; // Prevent closing while submitting
-
-    // Clean up marker
-    if (locationMarker && typeof window !== "undefined" && window.map) {
-      window.map.removeLayer(locationMarker);
-      if (locationMarker._onMapClick) {
-        window.map.off("click", locationMarker._onMapClick);
-      }
+    
+    // Clean up location selection resources
+    cleanupLocationSelection();
+    
+    // If we're in the middle of selecting location, cancel it
+    if (isSelectingLocation) {
+      setIsSelectingLocation(false);
     }
 
     onClose();
@@ -312,7 +407,7 @@ export default function AddPlaceDialog({ open, onClose }) {
               </Typography>
             </Typography>
 
-            {!location && !isSelectingLocation && (
+            {!location ? (
               <Button
                 variant="outlined"
                 onClick={handleStartLocationSelection}
@@ -321,34 +416,7 @@ export default function AddPlaceDialog({ open, onClose }) {
               >
                 Select Location on Map
               </Button>
-            )}
-
-            {isSelectingLocation && (
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                <Alert severity="info" sx={{ mb: 1 }}>
-                  Click on the map or drag the marker to set the location.
-                </Alert>
-                <Box sx={{ display: "flex", gap: 1 }}>
-                  <Button
-                    variant="contained"
-                    onClick={handleConfirmLocation}
-                    disabled={!location}
-                    sx={{ flex: 1 }}
-                  >
-                    Confirm Location
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    onClick={handleCancelLocationSelection}
-                    sx={{ flex: 1 }}
-                  >
-                    Cancel
-                  </Button>
-                </Box>
-              </Box>
-            )}
-
-            {location && !isSelectingLocation && (
+            ) : (
               <Box>
                 <Alert severity="success" sx={{ mb: 1 }}>
                   Location selected: {location.lat.toFixed(5)},{" "}

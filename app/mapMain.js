@@ -2170,6 +2170,11 @@ export async function initMap(user = null) {
   // ============= MAP INIT =============
   map = L.map("map", { zoomControl: false });
 
+  // Expose map on window for React components
+  if (typeof window !== "undefined") {
+    window.map = map;
+  }
+
   const initialName = ls.get(BASEMAP_LS_KEY) || "OSM Greyscale";
   currentBasemapLayer = baseLayers[initialName] || osm;
   currentBasemapLayer.addTo(map);
@@ -2268,6 +2273,8 @@ export async function initMap(user = null) {
     map.on("zoomend", toggleObstaclesByZoom);
     map.on("click", (e) => {
       if (drawState.editing || drawState.deleting) return;
+      // Don't show quick route popup if we're selecting location for adding a place
+      if (globals._isSelectingPlaceLocation) return;
       showQuickRoutePopup(e.latlng);
     });
   });
