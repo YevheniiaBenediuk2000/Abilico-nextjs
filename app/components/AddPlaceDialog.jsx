@@ -13,7 +13,9 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import CircularProgress from "@mui/material/CircularProgress";
 import Alert from "@mui/material/Alert";
+import InputAdornment from "@mui/material/InputAdornment";
 import { addUserPlace } from "../api/placeStorage";
+import { reverseGeocode } from "../api/reverseGeocode";
 
 // Access Leaflet from window (loaded globally by mapMain.js)
 const getL = () => {
@@ -50,6 +52,7 @@ export default function AddPlaceDialog({ open, onClose }) {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [pendingLocation, setPendingLocation] = useState(null); // Store location before reopening dialog
+  const [loadingLocation, setLoadingLocation] = useState(false); // Loading city/country from coordinates
 
   // Marker and popup for location confirmation
   const [locationMarker, setLocationMarker] = useState(null);
@@ -62,10 +65,12 @@ export default function AddPlaceDialog({ open, onClose }) {
       setSubmitting(false);
       setIsSelectingLocation(false);
       
-      // If there's a pending location from map selection, use it
+      // If there's a pending location from map selection, use it and reverse geocode
       if (pendingLocation) {
         setLocation(pendingLocation);
         setPendingLocation(null);
+        // Automatically fetch city and country from coordinates
+        fetchCityAndCountry(pendingLocation.lat, pendingLocation.lng);
       } else if (!location) {
         // Only reset form fields if no pending location
         setName("");
@@ -122,6 +127,21 @@ export default function AddPlaceDialog({ open, onClose }) {
     }
     
     setIsSelectingLocation(false);
+  };
+
+  // Fetch city and country from coordinates using reverse geocoding
+  const fetchCityAndCountry = async (lat, lng) => {
+    setLoadingLocation(true);
+    try {
+      const { city: fetchedCity, country: fetchedCountry } = await reverseGeocode(lat, lng);
+      if (fetchedCity) setCity(fetchedCity);
+      if (fetchedCountry) setCountry(fetchedCountry);
+    } catch (err) {
+      console.error("Failed to reverse geocode location:", err);
+      // Don't show error to user - just continue without city/country
+    } finally {
+      setLoadingLocation(false);
+    }
   };
 
   const handleStartLocationSelection = () => {
@@ -435,22 +455,38 @@ export default function AddPlaceDialog({ open, onClose }) {
             )}
           </Box>
 
-          {/* Optional: City */}
+          {/* City - auto-filled from coordinates */}
           <TextField
-            label="City (optional)"
+            label="City"
             fullWidth
             value={city}
             onChange={(e) => setCity(e.target.value)}
             disabled={submitting || isSelectingLocation}
+            helperText={loadingLocation ? "Detecting city from location..." : city ? "Auto-detected from coordinates" : "Will be detected from coordinates"}
+            InputProps={{
+              endAdornment: loadingLocation ? (
+                <InputAdornment position="end">
+                  <CircularProgress size={20} />
+                </InputAdornment>
+              ) : null,
+            }}
           />
 
-          {/* Optional: Country */}
+          {/* Country - auto-filled from coordinates */}
           <TextField
-            label="Country (optional)"
+            label="Country"
             fullWidth
             value={country}
             onChange={(e) => setCountry(e.target.value)}
             disabled={submitting || isSelectingLocation}
+            helperText={loadingLocation ? "Detecting country from location..." : country ? "Auto-detected from coordinates" : "Will be detected from coordinates"}
+            InputProps={{
+              endAdornment: loadingLocation ? (
+                <InputAdornment position="end">
+                  <CircularProgress size={20} />
+                </InputAdornment>
+              ) : null,
+            }}
           />
 
           {/* Error message */}
