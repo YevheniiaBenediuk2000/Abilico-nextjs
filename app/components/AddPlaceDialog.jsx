@@ -175,62 +175,102 @@ export default function AddPlaceDialog({ open, onClose }) {
   };
 
   // Upload photos to Supabase Storage
+  // 
+  // ⚠️ IMPORTANT: Before uploading photos, create the storage bucket in Supabase:
+  // 1. Go to Supabase Dashboard → Storage → Buckets
+  // 2. Click "New bucket"
+  // 3. Name: "place-photos" (exactly as shown below)
+  // 4. Make it Public: Yes (checked)
+  // 5. Create bucket
+  //
+  // If the bucket doesn't exist, photos will be skipped but the place will still be saved.
   const uploadPhotos = async (photoFiles) => {
     const urls = [];
+    const BUCKET_NAME = "place-photos"; // 👈 Must match the bucket name in Supabase Storage
 
-    for (const file of photoFiles) {
+    // Wrap everything in try-catch to handle bucket errors gracefully
+    try {
+      for (const file of photoFiles) {
       try {
         const fileExt = file.name.split(".").pop();
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const filePath = `place-photos/${fileName}`;
+        const filePath = `${BUCKET_NAME}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
-          .from("place-photos")
-          .upload(filePath, file, {
+          .from(BUCKET_NAME)
+          .upload(fileName, file, {
             cacheControl: "3600",
             upsert: false,
           });
 
         if (uploadError) {
-          console.error("Error uploading photo:", uploadError);
-          // If bucket doesn't exist, skip photo upload gracefully
-          if (
-            uploadError.message?.includes("Bucket") ||
-            uploadError.message?.includes("not found") ||
-            uploadError.message?.includes("Bucket not found")
-          ) {
-            console.warn(
-              "Storage bucket 'place-photos' does not exist. Please create it in Supabase Storage dashboard, or photos will be skipped."
-            );
-            // Return empty array - photos will be skipped
+          // Check if bucket doesn't exist - check multiple error formats
+          const errorMsg = String(uploadError.message || uploadError.error || JSON.stringify(uploadError) || "");
+          const isBucketNotFound = 
+            (errorMsg.includes("Bucket") && errorMsg.includes("not found")) ||
+            errorMsg.includes("Bucket not found") ||
+            uploadError.statusCode === "404" ||
+            uploadError.statusCode === 404 ||
+            (uploadError.error && typeof uploadError.error === "string" && uploadError.error.includes("Bucket")) ||
+            uploadError.name === "StorageApiError";
+          
+          if (isBucketNotFound) {
+            bucketErrorOccurred = true;
+            // Bucket doesn't exist - silently skip photos (this is expected)
+            // Return empty array - skip all photos immediately
             return [];
           }
-          continue; // Skip this photo but continue with others
+          
+          // For other errors, skip this photo but continue with others
+          console.warn("Skipping photo due to upload error:", uploadError);
+          continue;
         }
 
         // Get public URL
         const { data } = supabase.storage
-          .from("place-photos")
-          .getPublicUrl(filePath);
+          .from(BUCKET_NAME)
+          .getPublicUrl(fileName);
 
         if (data?.publicUrl) {
           urls.push(data.publicUrl);
         }
       } catch (err) {
-        console.error("Error processing photo:", err);
-        // If bucket error, return empty array
-        if (
-          err.message?.includes("Bucket") ||
-          err.message?.includes("not found") ||
-          err.message?.includes("Bucket not found")
-        ) {
+        // Check if bucket doesn't exist - catch any StorageApiError
+        const errorMsg = String(err.message || err.error || JSON.stringify(err) || "");
+        const isBucketNotFound = 
+          err.name === "StorageApiError" ||
+          (errorMsg.includes("Bucket") && errorMsg.includes("not found")) ||
+          errorMsg.includes("Bucket not found");
+        
+        if (isBucketNotFound) {
+          bucketErrorOccurred = true;
+          // Bucket doesn't exist - silently skip photos
           return [];
         }
-        // Continue with next photo
+        
+        // For other unexpected errors, log but continue
+        console.warn("Error processing photo (will skip):", err);
+        // Continue with next photo for other errors
       }
     }
 
-    return urls;
+      return urls;
+    } catch (globalErr) {
+      // Catch any unhandled errors (e.g., bucket doesn't exist)
+      const errorMsg = String(globalErr.message || globalErr.error || JSON.stringify(globalErr) || "");
+      const isBucketError = 
+        globalErr.name === "StorageApiError" ||
+        (errorMsg.includes("Bucket") && errorMsg.includes("not found")) ||
+        errorMsg.includes("Bucket not found");
+      
+      if (isBucketError) {
+        // Bucket doesn't exist - return empty array (photos are optional)
+        return [];
+      }
+      
+      // Re-throw other unexpected errors
+      throw globalErr;
+    }
   };
 
   const handleStartLocationSelection = () => {
@@ -418,17 +458,20 @@ export default function AddPlaceDialog({ open, onClose }) {
           photoUrls = await uploadPhotos(photos);
           if (photoUrls.length === 0 && photos.length > 0) {
             // Photos couldn't be uploaded (bucket doesn't exist)
-            console.warn("Photos could not be uploaded - storage bucket may not exist");
-            // Don't show error - just continue without photos
+            // This is OK - we'll save the place without photos
+            console.info("Note: Photos were not uploaded. The place will be saved without photos.");
           }
         } catch (photoError) {
-          console.error("Photo upload error:", photoError);
-          // Continue without photos - don't fail the whole submission
-          // Don't show error to user - photos are optional
+          // Silently ignore photo upload errors - photos are optional
+          // The place will still be saved successfully
+          console.info("Photo upload skipped. Place will be saved without photos.");
+          photoUrls = []; // Ensure we have empty array
         }
         setUploadingPhotos(false);
       }
 
+      console.log("📤 Sending place data to API...");
+      
       const result = await addUserPlace({
         name: name.trim(),
         place_type: placeType,
@@ -436,17 +479,23 @@ export default function AddPlaceDialog({ open, onClose }) {
         lon: location.lng,
         city: city.trim() || null,
         country: country.trim() || null,
-        overall_accessibility: overallAccessibility || null,
-        step_free_entrance: stepFreeEntrance || null,
-        accessible_toilet: accessibleToilet || null,
+        // These fields are commented out in API because columns don't exist yet
+        // overall_accessibility: overallAccessibility || null,
+        // step_free_entrance: stepFreeEntrance || null,
+        // accessible_toilet: accessibleToilet || null,
         accessibility_comments: accessibilityComments.trim() || null,
         photos: photoUrls.length > 0 ? photoUrls : null,
-        submitter_name: submitterName.trim() || null,
-        submitter_email: submitterEmail.trim() || null,
+        submitted_by_name: submitterName.trim() || null,
+        submitted_by_email: submitterEmail.trim() || null,
       });
 
+      console.log("📥 API result:", result);
+
       if (result.error) {
-        throw result.error;
+        const errorMessage = typeof result.error === "string" 
+          ? result.error 
+          : result.error?.message || JSON.stringify(result.error) || "Unknown error";
+        throw new Error(errorMessage);
       }
 
       // Success - dispatch event to refresh places on map
