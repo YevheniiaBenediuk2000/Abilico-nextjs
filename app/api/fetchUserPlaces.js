@@ -107,6 +107,28 @@ export async function fetchUserPlaces(bounds) {
       if (place.accessibility_comments) tags.accessibility_comments = place.accessibility_comments;
       if (place.photos && Array.isArray(place.photos)) tags.photos = place.photos;
 
+      // Add OSM-standard accessibility tags for proper icon coloring
+      // These values come from accessibility_keywords JSONB field (designated, yes, limited, no)
+      // They will be used by getAccessibilityTier() to determine badge color
+      if (place.accessibility_keywords && typeof place.accessibility_keywords === 'object') {
+        const accKw = place.accessibility_keywords;
+        
+        // Overall accessibility - OSM standard: wheelchair=designated/yes/limited/no
+        if (accKw.wheelchair) {
+          tags.wheelchair = accKw.wheelchair;
+        }
+        
+        // Step-free entrance - store as additional info
+        if (accKw.step_free_entrance) {
+          tags["entrance:step_free"] = accKw.step_free_entrance;
+        }
+        
+        // Accessible toilet - OSM uses toilets:wheelchair or wheelchair:toilets
+        if (accKw.accessible_toilet) {
+          tags["toilets:wheelchair"] = accKw.accessible_toilet; // OSM standard
+        }
+      }
+
       // Create GeoJSON feature
       return {
         type: "Feature",

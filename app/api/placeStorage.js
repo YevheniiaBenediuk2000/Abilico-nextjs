@@ -28,9 +28,7 @@ export async function addUserPlace(placeData) {
       place_type,
       country = null,
       city = null,
-      overall_accessibility = null,
-      step_free_entrance = null,
-      accessible_toilet = null,
+      accessibility_keywords = null,
       accessibility_comments = null,
       photos = null,
       submitted_by_name = null,
@@ -51,7 +49,7 @@ export async function addUserPlace(placeData) {
       city,
       osm_id: null, // User places have no OSM ID
       source: "user", // Mark as user-added
-      accessibility_keywords: null,
+      accessibility_keywords: accessibility_keywords || null, // Store accessibility data as JSONB
     };
 
     // Add optional fields only if they have values

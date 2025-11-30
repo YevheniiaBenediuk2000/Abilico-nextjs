@@ -472,6 +472,12 @@ export default function AddPlaceDialog({ open, onClose }) {
 
       console.log("📤 Sending place data to API...");
       
+      // Build accessibility keywords object to store in JSONB field
+      const accessibilityKeywords = {};
+      if (overallAccessibility) accessibilityKeywords.wheelchair = overallAccessibility;
+      if (stepFreeEntrance) accessibilityKeywords.step_free_entrance = stepFreeEntrance;
+      if (accessibleToilet) accessibilityKeywords.accessible_toilet = accessibleToilet;
+      
       const result = await addUserPlace({
         name: name.trim(),
         place_type: placeType,
@@ -479,10 +485,7 @@ export default function AddPlaceDialog({ open, onClose }) {
         lon: location.lng,
         city: city.trim() || null,
         country: country.trim() || null,
-        // These fields are commented out in API because columns don't exist yet
-        // overall_accessibility: overallAccessibility || null,
-        // step_free_entrance: stepFreeEntrance || null,
-        // accessible_toilet: accessibleToilet || null,
+        accessibility_keywords: Object.keys(accessibilityKeywords).length > 0 ? accessibilityKeywords : null,
         accessibility_comments: accessibilityComments.trim() || null,
         photos: photoUrls.length > 0 ? photoUrls : null,
         submitted_by_name: submitterName.trim() || null,
@@ -675,7 +678,7 @@ export default function AddPlaceDialog({ open, onClose }) {
             3. Accessibility Overview (optional)
           </Typography>
 
-          {/* Overall accessibility level */}
+          {/* Overall accessibility level - using OSM values */}
           <TextField
             select
             label="Overall accessibility level"
@@ -683,12 +686,13 @@ export default function AddPlaceDialog({ open, onClose }) {
             value={overallAccessibility}
             onChange={(e) => setOverallAccessibility(e.target.value)}
             disabled={submitting || isSelectingLocation}
+            helperText="This will be saved as wheelchair= tag (OSM standard)"
           >
             <MenuItem value="">Not selected</MenuItem>
-            <MenuItem value="barrier-free">Barrier-free</MenuItem>
-            <MenuItem value="partially-barrier-free">Partially barrier-free</MenuItem>
-            <MenuItem value="barriered">Barriered</MenuItem>
-            <MenuItem value="not-sure">Not sure</MenuItem>
+            <MenuItem value="designated">Designated (Fully accessible)</MenuItem>
+            <MenuItem value="yes">Yes (Accessible)</MenuItem>
+            <MenuItem value="limited">Limited (Partially accessible)</MenuItem>
+            <MenuItem value="no">No (Not accessible)</MenuItem>
           </TextField>
 
           {/* Step-free entrance */}
@@ -701,7 +705,6 @@ export default function AddPlaceDialog({ open, onClose }) {
             >
               <FormControlLabel value="yes" control={<Radio />} label="Yes" />
               <FormControlLabel value="no" control={<Radio />} label="No" />
-              <FormControlLabel value="not-sure" control={<Radio />} label="Not sure" />
             </RadioGroup>
           </FormControl>
 
@@ -715,7 +718,6 @@ export default function AddPlaceDialog({ open, onClose }) {
             >
               <FormControlLabel value="yes" control={<Radio />} label="Yes" />
               <FormControlLabel value="no" control={<Radio />} label="No" />
-              <FormControlLabel value="not-sure" control={<Radio />} label="Not sure" />
             </RadioGroup>
           </FormControl>
 
