@@ -14,8 +14,17 @@ import Typography from "@mui/material/Typography";
 import CircularProgress from "@mui/material/CircularProgress";
 import Alert from "@mui/material/Alert";
 import InputAdornment from "@mui/material/InputAdornment";
+import Divider from "@mui/material/Divider";
+import FormControl from "@mui/material/FormControl";
+import FormLabel from "@mui/material/FormLabel";
+import RadioGroup from "@mui/material/RadioGroup";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Radio from "@mui/material/Radio";
+import IconButton from "@mui/material/IconButton";
+import CloseIcon from "@mui/icons-material/Close";
 import { addUserPlace } from "../api/placeStorage";
 import { reverseGeocode } from "../api/reverseGeocode";
+import { supabase } from "../api/supabaseClient";
 
 // Access Leaflet from window (loaded globally by mapMain.js)
 const getL = () => {
@@ -54,6 +63,20 @@ export default function AddPlaceDialog({ open, onClose }) {
   const [pendingLocation, setPendingLocation] = useState(null); // Store location before reopening dialog
   const [loadingLocation, setLoadingLocation] = useState(false); // Loading city/country from coordinates
 
+  // Accessibility fields
+  const [overallAccessibility, setOverallAccessibility] = useState("");
+  const [stepFreeEntrance, setStepFreeEntrance] = useState("");
+  const [accessibleToilet, setAccessibleToilet] = useState("");
+  const [accessibilityComments, setAccessibilityComments] = useState("");
+
+  // Photos
+  const [photos, setPhotos] = useState([]);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+
+  // Submitter info
+  const [submitterName, setSubmitterName] = useState("");
+  const [submitterEmail, setSubmitterEmail] = useState("");
+
   // Marker and popup for location confirmation
   const [locationMarker, setLocationMarker] = useState(null);
   const [confirmationPopup, setConfirmationPopup] = useState(null);
@@ -78,6 +101,13 @@ export default function AddPlaceDialog({ open, onClose }) {
         setCity("");
         setCountry("");
         setLocation(null);
+        setOverallAccessibility("");
+        setStepFreeEntrance("");
+        setAccessibleToilet("");
+        setAccessibilityComments("");
+        setPhotos([]);
+        setSubmitterName("");
+        setSubmitterEmail("");
       }
       
       // Clean up any leftover markers/popups
@@ -142,6 +172,65 @@ export default function AddPlaceDialog({ open, onClose }) {
     } finally {
       setLoadingLocation(false);
     }
+  };
+
+  // Upload photos to Supabase Storage
+  const uploadPhotos = async (photoFiles) => {
+    const urls = [];
+
+    for (const file of photoFiles) {
+      try {
+        const fileExt = file.name.split(".").pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = `place-photos/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("place-photos")
+          .upload(filePath, file, {
+            cacheControl: "3600",
+            upsert: false,
+          });
+
+        if (uploadError) {
+          console.error("Error uploading photo:", uploadError);
+          // If bucket doesn't exist, skip photo upload gracefully
+          if (
+            uploadError.message?.includes("Bucket") ||
+            uploadError.message?.includes("not found") ||
+            uploadError.message?.includes("Bucket not found")
+          ) {
+            console.warn(
+              "Storage bucket 'place-photos' does not exist. Please create it in Supabase Storage dashboard, or photos will be skipped."
+            );
+            // Return empty array - photos will be skipped
+            return [];
+          }
+          continue; // Skip this photo but continue with others
+        }
+
+        // Get public URL
+        const { data } = supabase.storage
+          .from("place-photos")
+          .getPublicUrl(filePath);
+
+        if (data?.publicUrl) {
+          urls.push(data.publicUrl);
+        }
+      } catch (err) {
+        console.error("Error processing photo:", err);
+        // If bucket error, return empty array
+        if (
+          err.message?.includes("Bucket") ||
+          err.message?.includes("not found") ||
+          err.message?.includes("Bucket not found")
+        ) {
+          return [];
+        }
+        // Continue with next photo
+      }
+    }
+
+    return urls;
   };
 
   const handleStartLocationSelection = () => {
@@ -319,8 +408,27 @@ export default function AddPlaceDialog({ open, onClose }) {
     }
 
     setSubmitting(true);
+    setUploadingPhotos(photos.length > 0);
 
     try {
+      // Upload photos first if any
+      let photoUrls = [];
+      if (photos.length > 0) {
+        try {
+          photoUrls = await uploadPhotos(photos);
+          if (photoUrls.length === 0 && photos.length > 0) {
+            // Photos couldn't be uploaded (bucket doesn't exist)
+            console.warn("Photos could not be uploaded - storage bucket may not exist");
+            // Don't show error - just continue without photos
+          }
+        } catch (photoError) {
+          console.error("Photo upload error:", photoError);
+          // Continue without photos - don't fail the whole submission
+          // Don't show error to user - photos are optional
+        }
+        setUploadingPhotos(false);
+      }
+
       const result = await addUserPlace({
         name: name.trim(),
         place_type: placeType,
@@ -328,6 +436,13 @@ export default function AddPlaceDialog({ open, onClose }) {
         lon: location.lng,
         city: city.trim() || null,
         country: country.trim() || null,
+        overall_accessibility: overallAccessibility || null,
+        step_free_entrance: stepFreeEntrance || null,
+        accessible_toilet: accessibleToilet || null,
+        accessibility_comments: accessibilityComments.trim() || null,
+        photos: photoUrls.length > 0 ? photoUrls : null,
+        submitter_name: submitterName.trim() || null,
+        submitter_email: submitterEmail.trim() || null,
       });
 
       if (result.error) {
@@ -380,18 +495,27 @@ export default function AddPlaceDialog({ open, onClose }) {
       fullWidth
       PaperProps={{
         sx: {
-          minHeight: 400,
+          maxHeight: "90vh",
         },
       }}
     >
       <DialogTitle>Add a New Place</DialogTitle>
-      <DialogContent>
+      <DialogContent
+        sx={{
+          overflowY: "auto",
+          maxHeight: "calc(90vh - 140px)",
+        }}
+      >
         <Box
           component="form"
           onSubmit={handleSubmit}
           sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}
         >
-          {/* Name field */}
+          {/* 1. Place Information Section */}
+          <Typography variant="h6" sx={{ mt: 1, mb: 1 }}>
+            1. Place Information
+          </Typography>
+
           <TextField
             label="Place Name"
             required
@@ -401,7 +525,6 @@ export default function AddPlaceDialog({ open, onClose }) {
             disabled={submitting || isSelectingLocation}
           />
 
-          {/* Place Type dropdown */}
           <TextField
             select
             label="Place Type"
@@ -417,6 +540,13 @@ export default function AddPlaceDialog({ open, onClose }) {
               </MenuItem>
             ))}
           </TextField>
+
+          <Divider sx={{ my: 2 }} />
+
+          {/* 2. Location Section */}
+          <Typography variant="h6" sx={{ mt: 1, mb: 1 }}>
+            2. Location
+          </Typography>
 
           {/* Location selection */}
           <Box>
@@ -489,6 +619,180 @@ export default function AddPlaceDialog({ open, onClose }) {
             }}
           />
 
+          <Divider sx={{ my: 2 }} />
+
+          {/* Accessibility Overview Section */}
+          <Typography variant="h6" sx={{ mt: 1, mb: 1 }}>
+            3. Accessibility Overview (optional)
+          </Typography>
+
+          {/* Overall accessibility level */}
+          <TextField
+            select
+            label="Overall accessibility level"
+            fullWidth
+            value={overallAccessibility}
+            onChange={(e) => setOverallAccessibility(e.target.value)}
+            disabled={submitting || isSelectingLocation}
+          >
+            <MenuItem value="">Not selected</MenuItem>
+            <MenuItem value="barrier-free">Barrier-free</MenuItem>
+            <MenuItem value="partially-barrier-free">Partially barrier-free</MenuItem>
+            <MenuItem value="barriered">Barriered</MenuItem>
+            <MenuItem value="not-sure">Not sure</MenuItem>
+          </TextField>
+
+          {/* Step-free entrance */}
+          <FormControl component="fieldset" disabled={submitting || isSelectingLocation}>
+            <FormLabel component="legend">Step-free entrance</FormLabel>
+            <RadioGroup
+              row
+              value={stepFreeEntrance}
+              onChange={(e) => setStepFreeEntrance(e.target.value)}
+            >
+              <FormControlLabel value="yes" control={<Radio />} label="Yes" />
+              <FormControlLabel value="no" control={<Radio />} label="No" />
+              <FormControlLabel value="not-sure" control={<Radio />} label="Not sure" />
+            </RadioGroup>
+          </FormControl>
+
+          {/* Accessible toilet available */}
+          <FormControl component="fieldset" disabled={submitting || isSelectingLocation}>
+            <FormLabel component="legend">Accessible toilet available</FormLabel>
+            <RadioGroup
+              row
+              value={accessibleToilet}
+              onChange={(e) => setAccessibleToilet(e.target.value)}
+            >
+              <FormControlLabel value="yes" control={<Radio />} label="Yes" />
+              <FormControlLabel value="no" control={<Radio />} label="No" />
+              <FormControlLabel value="not-sure" control={<Radio />} label="Not sure" />
+            </RadioGroup>
+          </FormControl>
+
+          {/* Additional accessibility comments */}
+          <TextField
+            label="Additional comments"
+            multiline
+            rows={3}
+            fullWidth
+            value={accessibilityComments}
+            onChange={(e) => setAccessibilityComments(e.target.value)}
+            disabled={submitting || isSelectingLocation}
+            helperText="Anything important about accessibility, issues, time limits, etc."
+            placeholder="E.g., Ramp available on the side entrance, accessible parking nearby..."
+          />
+
+          <Divider sx={{ my: 2 }} />
+
+          {/* Photos Section */}
+          <Typography variant="h6" sx={{ mt: 1, mb: 1 }}>
+            4. Photos (optional)
+          </Typography>
+
+          <Box>
+            <input
+              accept="image/*"
+              style={{ display: "none" }}
+              id="photo-upload-input"
+              type="file"
+              multiple
+              onChange={(e) => {
+                const files = Array.from(e.target.files || []);
+                setPhotos((prev) => [...prev, ...files]);
+              }}
+              disabled={submitting || isSelectingLocation}
+            />
+            <label htmlFor="photo-upload-input">
+              <Button
+                variant="outlined"
+                component="span"
+                disabled={submitting || isSelectingLocation}
+                fullWidth
+                sx={{ mb: 1 }}
+              >
+                Upload Photos
+              </Button>
+            </label>
+            {photos.length > 0 && (
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  {photos.length} photo(s) selected
+                </Typography>
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                  {photos.map((photo, index) => (
+                    <Box
+                      key={index}
+                      sx={{
+                        position: "relative",
+                        width: 80,
+                        height: 80,
+                        borderRadius: 1,
+                        overflow: "hidden",
+                        border: "1px solid #ddd",
+                      }}
+                    >
+                      <img
+                        src={URL.createObjectURL(photo)}
+                        alt={`Preview ${index + 1}`}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                        }}
+                      />
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          setPhotos((prev) => prev.filter((_, i) => i !== index));
+                        }}
+                        sx={{
+                          position: "absolute",
+                          top: 0,
+                          right: 0,
+                          bgcolor: "rgba(0,0,0,0.5)",
+                          color: "white",
+                          "&:hover": { bgcolor: "rgba(0,0,0,0.7)" },
+                        }}
+                      >
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  ))}
+                </Box>
+                <FormHelperText>
+                  Upload photos of entrance, ramp, stairs, lift, etc.
+                </FormHelperText>
+              </Box>
+            )}
+          </Box>
+
+          <Divider sx={{ my: 2 }} />
+
+          {/* Submitter Information Section */}
+          <Typography variant="h6" sx={{ mt: 1, mb: 1 }}>
+            5. Person who submits (optional)
+          </Typography>
+
+          <TextField
+            label="Your name (optional)"
+            fullWidth
+            value={submitterName}
+            onChange={(e) => setSubmitterName(e.target.value)}
+            disabled={submitting || isSelectingLocation}
+            sx={{ mb: 2 }}
+          />
+
+          <TextField
+            label="Email for contact (optional, not shown on the map)"
+            type="email"
+            fullWidth
+            value={submitterEmail}
+            onChange={(e) => setSubmitterEmail(e.target.value)}
+            disabled={submitting || isSelectingLocation}
+            helperText="So you can follow up if needed"
+          />
+
           {/* Error message */}
           {error && (
             <Alert severity="error" sx={{ mt: 1 }}>
@@ -506,16 +810,17 @@ export default function AddPlaceDialog({ open, onClose }) {
           variant="contained"
           disabled={
             submitting ||
+            uploadingPhotos ||
             !name.trim() ||
             !placeType ||
             !location ||
             isSelectingLocation
           }
         >
-          {submitting ? (
+          {submitting || uploadingPhotos ? (
             <>
               <CircularProgress size={20} sx={{ mr: 1 }} />
-              Saving…
+              {uploadingPhotos ? "Uploading photos…" : "Saving…"}
             </>
           ) : (
             "Add Place"
