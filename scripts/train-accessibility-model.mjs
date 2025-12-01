@@ -6,7 +6,7 @@ import path from "path";
 // Configuration
 const OVERPASS_API_URL = "https://overpass-api.de/api/interpreter";
 const BBOX = "34.0,-10.0,72.0,40.0"; // Europe
-const CACHE_FILE = "osm_data_cache.json";
+const CACHE_FILE = `osm_data_cache_${BBOX.replace(/,/g, "_")}.json`;
 const MODEL_SAVE_PATH = "public/models/accessibility_model";
 
 // Features to extract (one-hot encoding candidates)
