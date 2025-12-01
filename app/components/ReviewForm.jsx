@@ -7,7 +7,6 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import Rating from "@mui/material/Rating";
 import FormHelperText from "@mui/material/FormHelperText";
-import Stack from "@mui/material/Stack";
 import CircularProgress from "@mui/material/CircularProgress";
 import { ACCESSIBILITY_CATEGORIES } from "../constants/accessibilityCategories";
 import { reviewStorage, ensurePlaceExists } from "../api/reviewStorage";
@@ -54,7 +53,7 @@ export default function ReviewForm() {
     try {
       // Get or create place ID
       let placeId = globals.detailsCtx.placeId;
-      
+
       // If placeId is not set, try to get/create it using tags and latlng
       if (!placeId) {
         if (!globals.detailsCtx.tags || !globals.detailsCtx.latlng) {
@@ -68,30 +67,35 @@ export default function ReviewForm() {
             "Place information is missing. Please select a place again."
           );
         }
-        
+
         // Normalize latlng - handle both Leaflet LatLng objects and plain objects
         let normalizedLatlng = globals.detailsCtx.latlng;
-        if (normalizedLatlng && typeof normalizedLatlng === 'object') {
+        if (normalizedLatlng && typeof normalizedLatlng === "object") {
           // Extract lat/lng - works for both Leaflet LatLng and plain objects
-          if (normalizedLatlng.lat !== undefined && normalizedLatlng.lng !== undefined) {
+          if (
+            normalizedLatlng.lat !== undefined &&
+            normalizedLatlng.lng !== undefined
+          ) {
             normalizedLatlng = {
               lat: Number(normalizedLatlng.lat),
               lng: Number(normalizedLatlng.lng),
             };
           }
         }
-        
+
         if (!normalizedLatlng?.lat || !normalizedLatlng?.lng) {
           console.error("Invalid latlng format:", globals.detailsCtx.latlng);
-          throw new Error("Invalid location data. Please select a place again.");
+          throw new Error(
+            "Invalid location data. Please select a place again."
+          );
         }
-        
+
         try {
-        placeId = await ensurePlaceExists(
-          globals.detailsCtx.tags,
+          placeId = await ensurePlaceExists(
+            globals.detailsCtx.tags,
             normalizedLatlng
           );
-          
+
           // Update globals with the newly created/found placeId
           if (placeId) {
             globals.detailsCtx.placeId = placeId;
@@ -124,9 +128,10 @@ export default function ReviewForm() {
         text: comment.trim() || null,
         place_id: placeId,
         rating: overallRating,
-        category_ratings: Object.keys(categoriesWithRatings).length > 0 
-          ? categoriesWithRatings 
-          : null,
+        category_ratings:
+          Object.keys(categoriesWithRatings).length > 0
+            ? categoriesWithRatings
+            : null,
       };
 
       // Submit review
@@ -157,16 +162,31 @@ export default function ReviewForm() {
   };
 
   return (
-    <Box component="form" onSubmit={handleSubmit} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+    <Box
+      id="review-form"
+      component="form"
+      onSubmit={handleSubmit}
+      sx={{ display: "flex", flexDirection: "column", gap: 2 }}
+    >
       <Typography variant="h6" sx={{ mb: 1 }}>
         Rate this place
       </Typography>
 
       {/* Overall Rating - Required */}
       <Box>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 0.5 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 0.5,
+          }}
+        >
           <Typography variant="body2">
-            Overall <Typography component="span" color="error">*</Typography>
+            Overall{" "}
+            <Typography component="span" color="error">
+              *
+            </Typography>
           </Typography>
           <Rating
             value={overallRating}
@@ -189,7 +209,14 @@ export default function ReviewForm() {
       {ACCESSIBILITY_CATEGORIES.map((cat) => {
         return (
           <Box key={cat.id}>
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 0.5 }}>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                mb: 0.5,
+              }}
+            >
               <Typography variant="body2">{cat.label}</Typography>
               <Rating
                 value={categoryRatings[cat.id] || 0}
@@ -201,7 +228,11 @@ export default function ReviewForm() {
               />
             </Box>
             {cat.helperText && (
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: "block", mt: 0.5 }}
+              >
                 {cat.helperText}
               </Typography>
             )}
@@ -243,4 +274,3 @@ export default function ReviewForm() {
     </Box>
   );
 }
-

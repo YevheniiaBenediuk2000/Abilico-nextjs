@@ -1291,10 +1291,29 @@ export default function PlacesListReact({ data, onSelect }) {
                                           height: 22,
                                         }}
                                       />
+                                    </Box>
 
-                                      {/* Render Top 2 Keywords if available */}
-                                      {keywords &&
-                                        keywords.slice(0, 2).map((k, i) => (
+                                    {/* Render Top 2 Keywords if available */}
+                                    {keywords && keywords.length > 0 && (
+                                      <Box
+                                        mt={0.5}
+                                        display="flex"
+                                        flexWrap="wrap"
+                                        gap={0.5}
+                                      >
+                                        <Typography
+                                          variant="caption"
+                                          color="text.secondary"
+                                          sx={{
+                                            alignSelf: "center",
+                                            fontSize: "0.65rem",
+                                          }}
+                                        >
+                                          Extracted accessibility tags from
+                                          reviews:
+                                        </Typography>
+
+                                        {keywords.map((k, i) => (
                                           <Chip
                                             key={i}
                                             size="small"
@@ -1307,7 +1326,8 @@ export default function PlacesListReact({ data, onSelect }) {
                                             }}
                                           />
                                         ))}
-                                    </Box>
+                                      </Box>
+                                    )}
                                   </Box>
                                 }
                                 primaryTypographyProps={{ component: "div" }}

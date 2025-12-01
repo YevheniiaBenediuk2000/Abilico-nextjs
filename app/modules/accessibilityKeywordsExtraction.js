@@ -100,22 +100,21 @@ function ensureAccKeywordsBlock() {
     // Create a new div element for the keywords block
     block = document.createElement("div");
     block.id = "acc-keywords-block"; // Unique ID for easy querying later
-    block.className = "mb-3 d-none"; // Bootstrap classes: margin-bottom and initially hidden
+    block.className = "mb-4 d-none"; // Bootstrap classes: margin-bottom and initially hidden
     // Set the HTML content with heading and container for keyword chips
     block.innerHTML = `
       <h6 class="mb-2">Accessibility mentions in reviews</h6>
       <div id="acc-keywords-summary" class="d-flex flex-wrap gap-2"></div>
     `;
 
+    const reviewsList = document.getElementById("reviews-list");
+    const reviewForm = document.getElementById("review-form");
+
     // CRITICAL FIX: Check if reviewForm exists before trying to access its parentElement
     // elements.reviewForm can be null if the review form hasn't been rendered yet
-    if (elements.reviewForm && elements.reviewForm.parentElement) {
+    if (reviewForm && reviewForm.parentElement && reviewsList) {
       // Insert the new block right after the review form so keywords appear below it
-      // parentElement.insertBefore(newElement, referenceElement.nextSibling) places newElement after referenceElement
-      elements.reviewForm.parentElement.insertBefore(
-        block,
-        elements.reviewForm.nextSibling
-      );
+      reviewForm.parentElement.insertAdjacentElement("afterend", block);
     } else if (reviewsPane) {
       // Fallback: if review form doesn't exist, append to the reviews pane instead
       // This prevents the null pointer error and still allows keywords to display
