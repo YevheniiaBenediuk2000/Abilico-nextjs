@@ -492,6 +492,31 @@ function tooltipTextFromProps(p = {}) {
   return "Obstacle";
 }
 
+/**
+ * Create tooltip text with vote counts for an obstacle
+ * @param {Object} obstacle - The obstacle feature object
+ * @param {Object} voteStats - Vote statistics {confirm, issue, total}
+ * @returns {string} HTML string for tooltip
+ */
+function tooltipTextWithVotes(obstacle, voteStats = null) {
+  const title = tooltipTextFromProps(obstacle.properties || {});
+  
+  if (!voteStats || voteStats.total === 0) {
+    return title;
+  }
+  
+  return `
+    <div style="text-align: left;">
+      <strong>${title}</strong>
+      <div style="font-size: 0.85em; margin-top: 4px; color: #666;">
+        <div>✅ Confirmed: ${voteStats.confirm}</div>
+        <div>⚠️ Reported: ${voteStats.issue}</div>
+        <div style="margin-top: 2px; font-weight: bold;">Total: ${voteStats.total}</div>
+      </div>
+    </div>
+  `;
+}
+
 function attachBootstrapTooltip(layer, text) {
   // Vector layers (polygon/circle/line) are SVG paths; markers have icons.
   const el = layer.getElement?.() || layer._path || layer._icon;
@@ -513,7 +538,73 @@ function attachBootstrapTooltip(layer, text) {
     placement: "top",
     trigger: "hover focus",
     container: "body",
+    html: text.includes("<") || text.includes("</"), // Enable HTML if text contains HTML tags
   });
+}
+
+/**
+ * Attach tooltip to obstacle layer with vote counts loaded on hover
+ * @param {Object} layer - Leaflet layer
+ * @param {Object} obstacle - Obstacle feature object with place_id
+ */
+async function attachObstacleTooltip(layer, obstacle) {
+  const { getVoteStatistics } = await import("./api/placeVotes.js");
+  const el = layer.getElement?.() || layer._path || layer._icon;
+  if (!el) return;
+
+  // Dispose existing tooltip
+  if (layer._bsTooltip) {
+    layer._bsTooltip.dispose();
+    layer._bsTooltip = null;
+  }
+
+  const initialText = tooltipTextFromProps(obstacle.properties || {});
+  let voteStatsLoaded = false;
+  let voteStats = null;
+
+  // Create tooltip with initial text
+  el.setAttribute("data-bs-toggle", "tooltip");
+  el.setAttribute("data-bs-title", initialText);
+  el.setAttribute("aria-label", initialText);
+
+  layer._bsTooltip = new bootstrap.Tooltip(el, {
+    placement: "top",
+    trigger: "hover focus",
+    container: "body",
+    html: false,
+  });
+
+  // Load vote statistics on hover
+  const loadVoteStats = async () => {
+    if (voteStatsLoaded || !obstacle.place_id) return;
+    
+    try {
+      voteStatsLoaded = true;
+      voteStats = await getVoteStatistics(obstacle.place_id);
+      
+      // Update tooltip content if votes exist
+      if (voteStats && voteStats.total > 0 && layer._bsTooltip) {
+        const enhancedText = tooltipTextWithVotes(obstacle, voteStats);
+        
+        // Dispose and recreate tooltip with HTML enabled
+        layer._bsTooltip.dispose();
+        layer._bsTooltip = new bootstrap.Tooltip(el, {
+          placement: "top",
+          trigger: "hover focus",
+          container: "body",
+          html: true,
+          title: enhancedText,
+        });
+        layer._bsTooltip.show();
+      }
+    } catch (error) {
+      console.error("Failed to load vote statistics for tooltip:", error);
+      voteStatsLoaded = false; // Allow retry
+    }
+  };
+
+  // Load vote stats on mouseenter
+  el.addEventListener("mouseenter", loadVoteStats, { once: false });
 }
 
 async function openEditModalForLayer(layer) {
@@ -542,10 +633,13 @@ async function openEditModalForLayer(layer) {
 function hookLayerInteractions(layer, props) {
   // Ensure the element exists in the DOM before creating tooltip
   // (safe if we call after the layer is added to the map/featureGroup).
-  // Re-attach tooltip whenever the layer is re-added to the map
-  layer.once("add", () =>
-    attachBootstrapTooltip(layer, tooltipTextFromProps(props))
-  );
+  // Note: For obstacles, tooltip will be attached via attachObstacleTooltip
+  // For non-obstacles, we still attach the basic tooltip
+  if (!layer.options.obstacleId) {
+    layer.once("add", () =>
+      attachBootstrapTooltip(layer, tooltipTextFromProps(props))
+    );
+  }
 
   layer.off("click");
   layer.on("click", () => {
@@ -1563,6 +1657,10 @@ async function initDrawingObstacles() {
     layer.options.obstacleId = feature.id;
     drawnItems.addLayer(layer);
     hookLayerInteractions(layer, feature.properties);
+    // Attach tooltip with vote counts support after layer is added
+    layer.once("add", () => {
+      attachObstacleTooltip(layer, feature);
+    });
   });
 
   map.addLayer(drawnItems);
@@ -2107,10 +2205,7 @@ function setupObstacleEventHandlers() {
     };
 
     hookLayerInteractions(layerToAdd, featureToStore.properties);
-    attachBootstrapTooltip(
-      layerToAdd,
-      tooltipTextFromProps(featureToStore.properties)
-    );
+    // Will attach tooltip with vote counts after obstacle is saved and has place_id
 
     const key = showLoading("obstacles-put");
     try {
@@ -2126,6 +2221,8 @@ function setupObstacleEventHandlers() {
       layerToAdd.options.obstacleId = newObstacle.id;
 
       obstacleFeatures.push(newObstacle);
+      // Attach tooltip with vote counts support
+      attachObstacleTooltip(layerToAdd, newObstacle);
       console.log("✅ Inserted new obstacle:", newObstacle.id);
     } catch (err) {
       console.error("❌ Failed to save obstacle:", err);

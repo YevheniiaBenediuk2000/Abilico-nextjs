@@ -14,7 +14,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import WarningIcon from "@mui/icons-material/Warning";
 import EditIcon from "@mui/icons-material/Edit";
-import { placeVotes } from "../api/placeVotes";
+import { placeVotes, getVoteStatistics } from "../api/placeVotes";
 import { obstacleStorage } from "../api/obstacleStorage";
 import { ensurePlaceExists } from "../api/reviewStorage";
 import { toastError, toastSuccess } from "../utils/toast.mjs";
@@ -24,6 +24,7 @@ export default function ObstaclePopupDialog({ open, onClose, obstacle, onObstacl
   const [obstacleName, setObstacleName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [placeId, setPlaceId] = useState(null);
+  const [voteStats, setVoteStats] = useState(null);
 
   useEffect(() => {
     if (obstacle) {
@@ -34,12 +35,24 @@ export default function ObstaclePopupDialog({ open, onClose, obstacle, onObstacl
       // Check if obstacle already has a place_id
       if (obstacle.place_id) {
         setPlaceId(obstacle.place_id);
+        loadVoteStats(obstacle.place_id);
       } else if (obstacle.geometry) {
         // Try to find or create place_id from obstacle location
         findPlaceForObstacle();
       }
     }
   }, [obstacle]);
+
+  const loadVoteStats = async (pid) => {
+    if (!pid) return;
+    try {
+      const stats = await getVoteStatistics(pid);
+      setVoteStats(stats);
+    } catch (error) {
+      console.error("Failed to load vote statistics:", error);
+      setVoteStats({ confirm: 0, issue: 0, total: 0 });
+    }
+  };
 
   const findPlaceForObstacle = async () => {
     try {
@@ -73,6 +86,7 @@ export default function ObstaclePopupDialog({ open, onClose, obstacle, onObstacl
         );
         if (tempPlaceId) {
           setPlaceId(tempPlaceId);
+          loadVoteStats(tempPlaceId);
         }
       }
     } catch (error) {
@@ -101,6 +115,11 @@ export default function ObstaclePopupDialog({ open, onClose, obstacle, onObstacl
       
       if (onObstacleUpdate) {
         onObstacleUpdate(updatedObstacle);
+      }
+      
+      // Reload vote stats if we have place_id
+      if (placeId) {
+        await loadVoteStats(placeId);
       }
       
       setIsEditMode(false);
@@ -132,7 +151,11 @@ export default function ObstaclePopupDialog({ open, onClose, obstacle, onObstacl
           ? "Obstacle confirmed successfully"
           : "Issue reported successfully"
       );
-      onClose();
+      // Reload vote statistics after voting
+      if (placeId) {
+        await loadVoteStats(placeId);
+      }
+      // Don't close dialog - keep it open to show updated vote counts
     } catch (error) {
       // Check for duplicate vote error (multiple ways it might be formatted)
       const isDuplicateError =
@@ -210,9 +233,44 @@ export default function ObstaclePopupDialog({ open, onClose, obstacle, onObstacl
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Name
               </Typography>
-              <Typography variant="body1" sx={{ fontWeight: 500 }}>
+              <Typography variant="body1" sx={{ fontWeight: 500, mb: voteStats?.total > 0 ? 2 : 0 }}>
                 {obstacleName || "Obstacle"}
               </Typography>
+              
+              {/* Vote Statistics */}
+              {voteStats && voteStats.total > 0 && (
+                <Box
+                  sx={{
+                    mt: 2,
+                    p: 2,
+                    bgcolor: "background.paper",
+                    border: "1px solid",
+                    borderColor: "divider",
+                    borderRadius: 1,
+                  }}
+                >
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Votes
+                  </Typography>
+                  <Box sx={{ display: "flex", gap: 2, mt: 1 }}>
+                    <Box>
+                      <Typography variant="body2" color="success.main" sx={{ fontWeight: 500 }}>
+                        ✅ Confirmed: {voteStats.confirm}
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="body2" color="warning.main" sx={{ fontWeight: 500 }}>
+                        ⚠️ Reported: {voteStats.issue}
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="body2" color="text.primary" sx={{ fontWeight: 600 }}>
+                        Total: {voteStats.total}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              )}
             </Box>
           )}
         </Box>

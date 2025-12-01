@@ -197,3 +197,39 @@ export async function placeVotes(method = "POST", voteData) {
   }
 }
 
+/**
+ * Get vote statistics for a place (counts by vote type)
+ * @param {string} placeId - The place ID to get statistics for
+ * @returns {Promise<{confirm: number, issue: number, total: number}>}
+ */
+export async function getVoteStatistics(placeId) {
+  if (!placeId) {
+    return { confirm: 0, issue: 0, total: 0 };
+  }
+
+  try {
+    const votes = await placeVotes("GET", { place_id: placeId });
+    
+    const stats = {
+      confirm: 0,
+      issue: 0,
+      total: votes?.length || 0,
+    };
+
+    if (votes && Array.isArray(votes)) {
+      votes.forEach((vote) => {
+        if (vote.vote_type === "confirm") {
+          stats.confirm++;
+        } else if (vote.vote_type === "issue") {
+          stats.issue++;
+        }
+      });
+    }
+
+    return stats;
+  } catch (error) {
+    console.error("Failed to get vote statistics:", error);
+    return { confirm: 0, issue: 0, total: 0 };
+  }
+}
+
