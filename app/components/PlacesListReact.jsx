@@ -49,7 +49,7 @@ function getAccessibilityTier(tags = {}) {
 
   if (raw.includes("designated")) return "designated";
   if (raw === "yes" || raw.includes("true")) return "yes";
-  if (raw.includes("limited") || raw.includes("partial")) return "limited";
+  if (raw.includes("limited")) return "limited";
   if (raw === "no" || raw.includes("false")) return "no";
   return "unknown";
 }
@@ -1262,7 +1262,9 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
 
                     // Ensure unique key: use placeKey if available, otherwise fallback to idx
                     // Add idx to placeKey to ensure uniqueness even if placeKey is duplicated (shouldn't happen after filtering)
-                    const uniqueKey = item.placeKey ? `${item.placeKey}-${idx}` : `item-${idx}`;
+                    const uniqueKey = item.placeKey
+                      ? `${item.placeKey}-${idx}`
+                      : `item-${idx}`;
                     return (
                       <Box key={uniqueKey}>
                         <Divider component="li" />

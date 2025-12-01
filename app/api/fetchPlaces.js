@@ -144,7 +144,7 @@ function buildAccessibilityClauses(allowed) {
 
   if (allowed.has("limited")) {
     // IMPORTANT: use a normal capturing group, not (?:...)
-    KEYS.forEach((k) => clauses.add(`["${k}"~"^(limited|partial)$"]`));
+    KEYS.forEach((k) => clauses.add(`["${k}"~"^limited$"]`));
     // If you don't want to accept "partial", change to: ^limited$
   }
 
@@ -154,9 +154,7 @@ function buildAccessibilityClauses(allowed) {
 
   if (allowed.has("unknown")) {
     // wheelchairs present but value is not any of the recognized ones
-    clauses.add(
-      '["wheelchair"!~"^(designated|yes|true|limited|partial|no|false)$"]'
-    );
+    clauses.add('["wheelchair"!~"^(designated|yes|true|limited|no|false)$"]');
     // …or none of the relevant keys exist at all
     clauses.add(
       '[!"wheelchair"][!"toilets:wheelchair"][!"wheelchair:toilets"]'
