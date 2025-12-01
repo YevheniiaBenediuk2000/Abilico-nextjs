@@ -1,16 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
 import Button from "@mui/material/Button";
 import { getNextRegistrationStep } from "../utils/userPreferences";
+import { supabase } from "../api/supabaseClient";
 
-export const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
+export { supabase } from "../api/supabaseClient";
 
 export default function AuthPage() {
   const router = useRouter();
@@ -31,7 +28,7 @@ export default function AuthPage() {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_IN") {
         const userId = session?.user?.id;
-        
+
         // check if this user has verified TOTP
         const { data: factors } = await supabase.auth.mfa.listFactors();
         const totp = factors?.all?.find(
