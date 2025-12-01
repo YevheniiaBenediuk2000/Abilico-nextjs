@@ -26,6 +26,8 @@ import Alert from "@mui/material/Alert";
 import PlacesListReact from "./components/PlacesListReact";
 import ReviewForm from "./components/ReviewForm";
 import ObstaclePopupDialog from "./components/ObstaclePopupDialog";
+// Import cache clearing utilities (automatically exposes window.clearAllCaches, etc.)
+import "./utils/clearCache.mjs";
 
 function DetailsTabPanel({ value, active, children }) {
   const hidden = active !== value;

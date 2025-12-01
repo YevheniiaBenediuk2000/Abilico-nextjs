@@ -2051,6 +2051,27 @@ export function updateUser(user) {
   }
 }
 
+/**
+ * Clear in-memory caches (places cache, user preferences cache, etc.)
+ * Exposed globally so it can be called from clearCache utility
+ */
+export function clearMapCaches() {
+  // Clear places cache
+  placesCacheById.clear();
+  allPlacesFeatures = [];
+  
+  // Clear user preferences cache
+  userPrefsCache = [];
+  userPrefsLoaded = false;
+  
+  console.log("✅ Cleared in-memory map caches (places, user preferences)");
+}
+
+// Expose globally for cache clearing utility
+if (typeof window !== "undefined") {
+  window.clearMapCaches = clearMapCaches;
+}
+
 function setupObstacleEventHandlers() {
   if (obstacleEventHandlersSetup) return;
   obstacleEventHandlersSetup = true;
