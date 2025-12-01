@@ -575,9 +575,38 @@ function hookLayerInteractions(layer, props) {
         .openOn(map);
       return;
     }
-    // Logged-in users can edit
-    openEditModalForLayer(layer);
+    // Logged-in users - open obstacle dialog
+    const id = layer.options.obstacleId;
+    const idx = obstacleFeatures.findIndex((f) => f.id === id);
+    if (idx !== -1) {
+      const obstacle = obstacleFeatures[idx];
+      if (typeof window !== "undefined" && window.openObstacleDialog) {
+        window.openObstacleDialog(obstacle);
+      }
+    }
   });
+}
+
+function updateObstacleInMap(updatedObstacle) {
+  const idx = obstacleFeatures.findIndex((f) => f.id === updatedObstacle.id);
+  if (idx !== -1) {
+    obstacleFeatures[idx] = updatedObstacle;
+    
+    // Update the layer tooltip
+    let layerToUpdate = null;
+    drawnItems.eachLayer((layer) => {
+      if (layer.options.obstacleId === updatedObstacle.id) {
+        layerToUpdate = layer;
+      }
+    });
+    
+    if (layerToUpdate) {
+      attachBootstrapTooltip(
+        layerToUpdate,
+        tooltipTextFromProps(updatedObstacle.properties)
+      );
+    }
+  }
 }
 
 function toggleObstaclesByZoom() {
@@ -2279,6 +2308,7 @@ export async function initMap(user = null) {
   // Expose map on window for React components
   if (typeof window !== "undefined") {
     window.map = map;
+    window.updateObstacle = updateObstacleInMap;
   }
 
   const initialName = ls.get(BASEMAP_LS_KEY) || "OSM Greyscale";
