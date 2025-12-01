@@ -660,6 +660,14 @@ export default function MapContainer({
               >
                 Cancel
               </button>
+              <button
+                type="button"
+                className="btn btn-outline-primary"
+                id="obstacle-edit-btn"
+                style={{ display: "none" }}
+              >
+                Edit
+              </button>
               <button type="submit" className="btn btn-primary">
                 Save
               </button>

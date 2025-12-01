@@ -392,27 +392,95 @@ function showObstacleModal(initial = { title: "" }) {
   ensureObstacleModal();
   obstacleTitleInput.value = initial.title;
 
+  // Show Edit button if editing an existing obstacle (has initial title)
+  const editBtn = document.getElementById("obstacle-edit-btn");
+  const saveBtn = obstacleForm.querySelector('button[type="submit"]');
+  const isEditing = initial.title && initial.title.trim() !== "";
+
+  // If editing, start in view mode (read-only) with Edit button visible
+  // If creating new, input is editable and Edit button is hidden
+  if (isEditing) {
+    obstacleTitleInput.readOnly = true;
+    obstacleTitleInput.disabled = false; // Keep enabled but readonly for styling
+    obstacleTitleInput.style.backgroundColor = "#f5f5f5";
+    obstacleTitleInput.style.cursor = "not-allowed";
+    if (editBtn) {
+      editBtn.style.display = "inline-block";
+    }
+    if (saveBtn) {
+      saveBtn.style.display = "none";
+    }
+  } else {
+    obstacleTitleInput.readOnly = false;
+    obstacleTitleInput.style.backgroundColor = "";
+    obstacleTitleInput.style.cursor = "";
+    if (editBtn) {
+      editBtn.style.display = "none";
+    }
+    if (saveBtn) {
+      saveBtn.style.display = "inline-block";
+    }
+  }
+
   return new Promise((resolve) => {
     let saved = false;
+    let isEditMode = !isEditing; // Start in edit mode for new obstacles, view mode for existing
+
+    const enableEditMode = () => {
+      isEditMode = true;
+      obstacleTitleInput.readOnly = false;
+      obstacleTitleInput.style.backgroundColor = "";
+      obstacleTitleInput.style.cursor = "";
+      obstacleTitleInput.focus(); // Focus the input when entering edit mode
+      if (editBtn) {
+        editBtn.style.display = "none";
+      }
+      if (saveBtn) {
+        saveBtn.style.display = "inline-block";
+      }
+    };
 
     const onSubmit = (e) => {
       e.preventDefault();
+      if (!isEditMode && isEditing) {
+        // If in view mode, clicking form submit should enable edit mode
+        enableEditMode();
+        return;
+      }
       saved = true;
       const title = obstacleTitleInput.value.trim();
       obstacleModalInstance.hide();
       obstacleForm.removeEventListener("submit", onSubmit);
       modalEl.removeEventListener("hidden.bs.modal", onHidden);
+      if (editBtn) {
+        editBtn.removeEventListener("click", onEditClick);
+      }
       resolve({ title });
+    };
+
+    const onEditClick = (e) => {
+      e.preventDefault();
+      enableEditMode();
     };
 
     const modalEl = document.getElementById("obstacleModal");
     const onHidden = () => {
       obstacleForm.removeEventListener("submit", onSubmit);
       modalEl.removeEventListener("hidden.bs.modal", onHidden);
+      if (editBtn) {
+        editBtn.removeEventListener("click", onEditClick);
+      }
+      // Reset input styling when modal is closed
+      obstacleTitleInput.readOnly = false;
+      obstacleTitleInput.style.backgroundColor = "";
+      obstacleTitleInput.style.cursor = "";
       if (!saved) resolve(null);
     };
 
     obstacleForm.addEventListener("submit", onSubmit);
+    if (editBtn && isEditing) {
+      editBtn.addEventListener("click", onEditClick);
+    }
     modalEl.addEventListener("hidden.bs.modal", onHidden);
     obstacleModalInstance.show();
   });
