@@ -10,7 +10,7 @@ const CACHE_FILE = "osm_data_cache.json";
 const MODEL_SAVE_PATH = "public/models/accessibility_model";
 
 // Features to extract (one-hot encoding candidates)
-const FEATURE_KEYS = [
+export const FEATURE_KEYS = [
   "amenity",
   "shop",
   "tourism",

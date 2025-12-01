@@ -1,19 +1,11 @@
 import * as tf from "@tensorflow/tfjs";
+import { FEATURE_KEYS } from "../../scripts/train-accessibility-model.mjs";
 
 let model = null;
 let vocab = null;
 
 const MODEL_PATH = "/models/accessibility_model/model.json";
 const VOCAB_PATH = "/models/vocab.json";
-
-const FEATURE_KEYS = [
-  "amenity",
-  "shop",
-  "leisure",
-  "building",
-  "surface",
-  "entrance",
-];
 
 export async function loadModel() {
   if (!model) {
