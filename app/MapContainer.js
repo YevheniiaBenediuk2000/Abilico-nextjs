@@ -25,6 +25,9 @@ import Alert from "@mui/material/Alert";
 
 import PlacesListReact from "./components/PlacesListReact";
 import ReviewForm from "./components/ReviewForm";
+import ObstaclePopupDialog from "./components/ObstaclePopupDialog";
+// Import cache clearing utilities (automatically exposes window.clearAllCaches, etc.)
+import "./utils/clearCache.mjs";
 
 function DetailsTabPanel({ value, active, children }) {
   const hidden = active !== value;
@@ -145,6 +148,9 @@ export default function MapContainer({
   const [placePopupOpen, setPlacePopupOpen] = useState(false);
   const [placePopupTitle, setPlacePopupTitle] = useState("Details");
 
+  const [obstacleDialogOpen, setObstacleDialogOpen] = useState(false);
+  const [selectedObstacle, setSelectedObstacle] = useState(null);
+
   // Expose a global function so mapMain.js can open the details drawer
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -170,6 +176,16 @@ export default function MapContainer({
       };
       window.closePlacePopup = () => {
         setPlacePopupOpen(false);
+      };
+
+      // Obstacle popup dialog
+      window.openObstacleDialog = (obstacle) => {
+        setSelectedObstacle(obstacle);
+        setObstacleDialogOpen(true);
+      };
+      window.closeObstacleDialog = () => {
+        setObstacleDialogOpen(false);
+        setSelectedObstacle(null);
       };
     }
 
@@ -660,6 +676,14 @@ export default function MapContainer({
               >
                 Cancel
               </button>
+              <button
+                type="button"
+                className="btn btn-outline-primary"
+                id="obstacle-edit-btn"
+                style={{ display: "none" }}
+              >
+                Edit
+              </button>
               <button type="submit" className="btn btn-primary">
                 Save
               </button>
@@ -747,6 +771,22 @@ export default function MapContainer({
           </Card>
         </div>
       )}
+
+      {/* Obstacle Popup Dialog */}
+      <ObstaclePopupDialog
+        open={obstacleDialogOpen}
+        onClose={() => {
+          setObstacleDialogOpen(false);
+          setSelectedObstacle(null);
+        }}
+        obstacle={selectedObstacle}
+        onObstacleUpdate={(updatedObstacle) => {
+          // Update obstacle in mapMain if needed
+          if (typeof window !== "undefined" && window.updateObstacle) {
+            window.updateObstacle(updatedObstacle);
+          }
+        }}
+      />
     </div>
   );
 }
