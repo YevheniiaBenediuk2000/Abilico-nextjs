@@ -4,60 +4,61 @@ import Paper from "@mui/material/Paper";
 import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
 import Divider from "@mui/material/Divider";
-import Box from "@mui/material/Box";
+import { Button } from "@mui/material";
 
 export default function ZoomControlReact({ onZoomIn, onZoomOut }) {
-  const buttonSx = { py: 0.8, px: 0.8 };
+  const borderRadius = 1;
+  const commonButtonSx = {
+    minWidth: "36px",
+    width: "100%",
+    height: "36px",
+    color: "text.primary",
+    "&:hover": { bgcolor: "action.hover" },
+  };
 
   return (
-    <Paper>
-      <Box
+    <Paper
+      sx={{
+        border: "1px solid rgba(0,0,0,0.12)",
+      }}
+    >
+      <Button
         title="Zoom in"
-        component="button"
-        type="button"
-        aria-label="Zoom in"
         onClick={onZoomIn}
+        aria-label="Zoom in"
+        size="small"
         sx={{
-          ...buttonSx,
-          "&:hover": {
-            bgcolor: "grey.100",
-            borderTopLeftRadius: "4px",
-            borderTopRightRadius: "4px",
-          },
-          "&:active": {
-            bgcolor: "grey.200",
-            borderTopLeftRadius: "4px",
-            borderTopRightRadius: "4px",
-          },
+          ...commonButtonSx,
+          borderTopLeftRadius: (theme) =>
+            `calc(${theme.shape.borderRadius}px * ${borderRadius})`,
+          borderTopRightRadius: (theme) =>
+            `calc(${theme.shape.borderRadius}px * ${borderRadius})`,
+          borderBottomLeftRadius: 0,
+          borderBottomRightRadius: 0,
         }}
       >
-        <AddIcon fontSize="small" />
-      </Box>
+        <AddIcon />
+      </Button>
 
-      <Divider sx={{ borderColor: "rgba(0,0,0,0.4)" }} />
+      <Divider />
 
-      <Box
+      <Button
         title="Zoom out"
-        component="button"
-        type="button"
-        aria-label="Zoom out"
         onClick={onZoomOut}
+        aria-label="Zoom out"
+        size="small"
         sx={{
-          ...buttonSx,
-          "&:hover": {
-            bgcolor: "grey.100",
-            borderBottomLeftRadius: "4px",
-            borderBottomRightRadius: "4px",
-          },
-          "&:active": {
-            bgcolor: "grey.200",
-            borderBottomLeftRadius: "4px",
-            borderBottomRightRadius: "4px",
-          },
+          ...commonButtonSx,
+          borderTopLeftRadius: 0,
+          borderTopRightRadius: 0,
+          borderBottomLeftRadius: (theme) =>
+            `calc(${theme.shape.borderRadius}px * ${borderRadius})`,
+          borderBottomRightRadius: (theme) =>
+            `calc(${theme.shape.borderRadius}px * ${borderRadius})`,
         }}
       >
-        <RemoveIcon fontSize="small" />
-      </Box>
+        <RemoveIcon />
+      </Button>
     </Paper>
   );
 }
