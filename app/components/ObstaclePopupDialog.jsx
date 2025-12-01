@@ -134,11 +134,28 @@ export default function ObstaclePopupDialog({ open, onClose, obstacle, onObstacl
       );
       onClose();
     } catch (error) {
-      console.error("Error submitting vote:", error);
-      if (error.message?.includes("unique")) {
+      // Check for duplicate vote error (multiple ways it might be formatted)
+      const isDuplicateError =
+        error.code === "DUPLICATE_VOTE" ||
+        error.isDuplicate === true ||
+        error.message?.includes("already voted") ||
+        error.message?.includes("unique") ||
+        error.code === "23505" ||
+        error.code === "PGRST301" ||
+        (error.message && error.message.toLowerCase().includes("duplicate"));
+
+      if (isDuplicateError) {
+        // Don't log duplicate errors - they're expected
         toastError("You have already voted on this obstacle");
       } else {
-        toastError("Failed to submit vote. Please try again.");
+        // Only log unexpected errors
+        console.error("Error submitting vote:", {
+          message: error.message,
+          code: error.code,
+          error: error,
+        });
+        const errorMessage = error.message || "Failed to submit vote. Please try again.";
+        toastError(errorMessage);
       }
     } finally {
       setIsLoading(false);
@@ -160,7 +177,7 @@ export default function ObstaclePopupDialog({ open, onClose, obstacle, onObstacl
       }}
     >
       <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <Typography variant="h6">Obstacle Details</Typography>
+        Obstacle Details
         <IconButton
           aria-label="close"
           onClick={onClose}
