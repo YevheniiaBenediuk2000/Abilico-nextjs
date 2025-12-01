@@ -30,8 +30,11 @@ import MenuIcon from "@mui/icons-material/Menu";
 import SearchIcon from "@mui/icons-material/Search";
 import LogoutIcon from "@mui/icons-material/Logout";
 import PersonIcon from "@mui/icons-material/Person";
+import AddIcon from "@mui/icons-material/Add";
+import Tooltip from "@mui/material/Tooltip";
 
 import { queryClient } from "../queryClient";
+import AddPlaceDialog from "./AddPlaceDialog";
 
 // Helper function to get initials from email
 function getInitialsFromEmail(email) {
@@ -58,6 +61,7 @@ export default function MapLayout({ isDashboard = false, children }) {
   const [user, setUser] = useState(null);
   const [isPlacesListOpen, setIsPlacesListOpen] = useState(false);
   const [avatarMenuAnchor, setAvatarMenuAnchor] = useState(null);
+  const [addPlaceDialogOpen, setAddPlaceDialogOpen] = useState(false);
 
   // ✅ Track user session
   useEffect(() => {
@@ -70,6 +74,19 @@ export default function MapLayout({ isDashboard = false, children }) {
     });
 
     return () => subscription.unsubscribe();
+  }, []);
+
+  // ✅ Listen for dialog reopen event (after location selection)
+  useEffect(() => {
+    const handleReopen = (e) => {
+      // Reopen the dialog with the selected location
+      setAddPlaceDialogOpen(true);
+    };
+
+    window.addEventListener("add-place-dialog-reopen", handleReopen);
+    return () => {
+      window.removeEventListener("add-place-dialog-reopen", handleReopen);
+    };
   }, []);
 
   // ✅ Protect dashboard and check registration status
@@ -203,7 +220,7 @@ export default function MapLayout({ isDashboard = false, children }) {
               </Box>
             </Box>
 
-            {/* RIGHT: account area (always pushed to the right) */}
+            {/* RIGHT: Add button + account area (always pushed to the right) */}
             <Box
               sx={{
                 ml: "auto", // 👈 pushes this box to the far right
@@ -212,6 +229,40 @@ export default function MapLayout({ isDashboard = false, children }) {
                 gap: 1,
               }}
             >
+              {/* Add Place button - visible to all users */}
+              <Tooltip title="Add Place">
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <IconButton
+                    color="primary"
+                    aria-label="add place"
+                    onClick={() => setAddPlaceDialogOpen(true)}
+                    sx={{
+                      bgcolor: "#1976d2",
+                      color: "white",
+                      boxShadow: 2,
+                      width: 40,
+                      height: 40,
+                      "&:hover": {
+                        bgcolor: "#1565c0",
+                        boxShadow: 4,
+                      },
+                    }}
+                  >
+                    <AddIcon />
+                  </IconButton>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      display: { xs: "none", sm: "block" },
+                      color: "text.primary",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Add Place
+                  </Typography>
+                </Box>
+              </Tooltip>
+
               {!user ? (
                 <Button
                   variant="outlined"
@@ -296,6 +347,12 @@ export default function MapLayout({ isDashboard = false, children }) {
             />
           )}
         </main>
+
+        {/* Add Place Dialog */}
+        <AddPlaceDialog
+          open={addPlaceDialogOpen}
+          onClose={() => setAddPlaceDialogOpen(false)}
+        />
       </div>
     </QueryClientProvider>
   );

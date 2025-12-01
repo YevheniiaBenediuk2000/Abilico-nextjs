@@ -6,6 +6,7 @@ import {
   fetchPlaceGeometry,
   fetchPlaces,
 } from "./api/fetchPlaces.js";
+import { fetchUserPlaces } from "./api/fetchUserPlaces.js";
 import { fetchRoute } from "./api/fetchRoute.js";
 import { obstacleStorage } from "./api/obstacleStorage.js";
 import {
@@ -250,6 +251,13 @@ function isFeatureAllowedByTypeFilter(feature) {
 
 function placeKeyFromFeature(feature) {
   const p = feature.properties || {};
+  
+  // User-added places have id (UUID) and source = 'user', but no osm_id/osm_type
+  if (p.source === "user" && p.id) {
+    return `user/${p.id}`; // e.g. "user/uuid-here"
+  }
+  
+  // OSM places have osm_type and osm_id
   const osmType = p.osm_type || p.type;
   const osmId = p.osm_id || p.id;
 
@@ -569,6 +577,36 @@ async function refreshPlaces() {
 
     // If this response is for an old call, ignore it
     if (mySeq !== placesReqSeq) return;
+
+    // ✅ 3. Fetch user-added places from Supabase and merge them
+    // IMPORTANT: OSM places have priority - never overwrite them with user places
+    const userPlacesGeoJSON = await fetchUserPlaces(bounds);
+    if (userPlacesGeoJSON && userPlacesGeoJSON.features && userPlacesGeoJSON.features.length > 0) {
+      // Create a Set of existing OSM place keys to protect them
+      const osmKeys = new Set();
+      (geojson.features || []).forEach((f) => {
+        const p = f.properties || {};
+        // Only protect OSM places (those with osm_id and source !== 'user')
+        if (p.osm_id && p.source !== "user") {
+          const k = placeKeyFromFeature(f);
+          if (k) osmKeys.add(k);
+        }
+      });
+      
+      // Only add user places that don't conflict with existing OSM places
+      const uniqueUserPlaces = userPlacesGeoJSON.features.filter((f) => {
+        const k = placeKeyFromFeature(f);
+        if (!k) return false; // Skip if no valid key
+        if (osmKeys.has(k)) {
+          console.warn(`⚠️ Skipping user place that conflicts with OSM place: ${k}`);
+          return false; // Protect OSM places - skip user place
+        }
+        return true;
+      });
+      
+      // Merge user places with OSM places (OSM places are protected)
+      geojson.features = [...(geojson.features || []), ...uniqueUserPlaces];
+    }
 
     // ✅ 1) Merge fresh features into global cache
     const freshFeatures = geojson.features || [];
@@ -2170,6 +2208,11 @@ export async function initMap(user = null) {
   // ============= MAP INIT =============
   map = L.map("map", { zoomControl: false });
 
+  // Expose map on window for React components
+  if (typeof window !== "undefined") {
+    window.map = map;
+  }
+
   const initialName = ls.get(BASEMAP_LS_KEY) || "OSM Greyscale";
   currentBasemapLayer = baseLayers[initialName] || osm;
   currentBasemapLayer.addTo(map);
@@ -2268,6 +2311,8 @@ export async function initMap(user = null) {
     map.on("zoomend", toggleObstaclesByZoom);
     map.on("click", (e) => {
       if (drawState.editing || drawState.deleting) return;
+      // Don't show quick route popup if we're selecting location for adding a place
+      if (globals._isSelectingPlaceLocation) return;
       showQuickRoutePopup(e.latlng);
     });
   });
@@ -2456,6 +2501,24 @@ export async function initMap(user = null) {
       refreshPlaces(); // refresh will respect isFeatureAllowedByTypeFilter
     }
   });
+
+  // ✅ Listen for user-added place events to refresh the map
+  if (typeof window !== "undefined") {
+    window.addEventListener("user-place-added", (ev) => {
+      console.log("📍 User place added, refreshing map...", ev.detail);
+      // Invalidate cache to force fresh fetch including new user place
+      const bounds = map.getBounds();
+      const queryKey = [
+        "places",
+        serializeBounds(bounds),
+        map.getZoom(),
+        accessibilityKey(),
+      ];
+      queryClient.invalidateQueries({ queryKey });
+      // Refresh places on map
+      refreshPlaces();
+    });
+  }
 
   // 1) load user profile to get preferences
 

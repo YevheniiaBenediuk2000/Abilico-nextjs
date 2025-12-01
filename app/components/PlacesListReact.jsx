@@ -148,8 +148,15 @@ function derivePlaceInfo(feature, center) {
   const accColor = BADGE_COLOR_BY_TIER[accTier] || BADGE_COLOR_BY_TIER.unknown;
 
   // Stable-ish key for caching photos per place
+  // IMPORTANT: Must match placeKeyFromFeature() in mapMain.js format
+  // User-added places: "user/{uuid}"
+  // OSM places: "{osm_type}/{osm_id}"
   const placeKey =
+    // User-added places have source = 'user' and id (UUID)
+    (props.source === "user" && props.id && `user/${props.id}`) ||
+    // OSM places have osm_type and osm_id
     (props.osm_type && props.osm_id && `${props.osm_type}/${props.osm_id}`) ||
+    // Fallback: try id or feature.id
     (props.id && String(props.id)) ||
     (feature.id && String(feature.id)) ||
     null;
@@ -1075,7 +1082,20 @@ export default function PlacesListReact({ data, onSelect }) {
       });
     }
 
-    return filtered;
+    // Remove duplicates by placeKey to avoid React key conflicts
+    const seenKeys = new Set();
+    const uniqueFiltered = filtered.filter((item) => {
+      const key = item.placeKey;
+      if (!key) return true; // Keep items without keys (they'll use idx as fallback)
+      if (seenKeys.has(key)) {
+        console.warn(`⚠️ Skipping duplicate placeKey in list: ${key}`);
+        return false; // Skip duplicates
+      }
+      seenKeys.add(key);
+      return true;
+    });
+
+    return uniqueFiltered;
   }, [
     rawItems,
     activeTypeFilters,
@@ -1197,8 +1217,11 @@ export default function PlacesListReact({ data, onSelect }) {
                       ? keywordsByPlaceKey[item.placeKey]
                       : null;
 
+                    // Ensure unique key: use placeKey if available, otherwise fallback to idx
+                    // Add idx to placeKey to ensure uniqueness even if placeKey is duplicated (shouldn't happen after filtering)
+                    const uniqueKey = item.placeKey ? `${item.placeKey}-${idx}` : `item-${idx}`;
                     return (
-                      <Box key={item.placeKey || idx}>
+                      <Box key={uniqueKey}>
                         <Divider component="li" />
                         <ListItem disablePadding sx={{ alignItems: "stretch" }}>
                           <ListItemButton
