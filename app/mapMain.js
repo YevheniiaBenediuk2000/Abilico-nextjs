@@ -251,12 +251,12 @@ function isFeatureAllowedByTypeFilter(feature) {
 
 function placeKeyFromFeature(feature) {
   const p = feature.properties || {};
-  
+
   // User-added places have id (UUID) and source = 'user', but no osm_id/osm_type
   if (p.source === "user" && p.id) {
     return `user/${p.id}`; // e.g. "user/uuid-here"
   }
-  
+
   // OSM places have osm_type and osm_id
   const osmType = p.osm_type || p.type;
   const osmId = p.osm_id || p.id;
@@ -500,11 +500,11 @@ function tooltipTextFromProps(p = {}) {
  */
 function tooltipTextWithVotes(obstacle, voteStats = null) {
   const title = tooltipTextFromProps(obstacle.properties || {});
-  
+
   if (!voteStats || voteStats.total === 0) {
     return title;
   }
-  
+
   return `
     <div style="text-align: left;">
       <strong>${title}</strong>
@@ -577,15 +577,15 @@ async function attachObstacleTooltip(layer, obstacle) {
   // Load vote statistics on hover
   const loadVoteStats = async () => {
     if (voteStatsLoaded || !obstacle.place_id) return;
-    
+
     try {
       voteStatsLoaded = true;
       voteStats = await getVoteStatistics(obstacle.place_id);
-      
+
       // Update tooltip content if votes exist
       if (voteStats && voteStats.total > 0 && layer._bsTooltip) {
         const enhancedText = tooltipTextWithVotes(obstacle, voteStats);
-        
+
         // Dispose and recreate tooltip with HTML enabled
         layer._bsTooltip.dispose();
         layer._bsTooltip = new bootstrap.Tooltip(el, {
@@ -685,7 +685,7 @@ function updateObstacleInMap(updatedObstacle) {
   const idx = obstacleFeatures.findIndex((f) => f.id === updatedObstacle.id);
   if (idx !== -1) {
     obstacleFeatures[idx] = updatedObstacle;
-    
+
     // Update the layer tooltip
     let layerToUpdate = null;
     drawnItems.eachLayer((layer) => {
@@ -693,7 +693,7 @@ function updateObstacleInMap(updatedObstacle) {
         layerToUpdate = layer;
       }
     });
-    
+
     if (layerToUpdate) {
       attachBootstrapTooltip(
         layerToUpdate,
@@ -772,7 +772,11 @@ async function refreshPlaces() {
     // ✅ 3. Fetch user-added places from Supabase and merge them
     // IMPORTANT: OSM places have priority - never overwrite them with user places
     const userPlacesGeoJSON = await fetchUserPlaces(bounds);
-    if (userPlacesGeoJSON && userPlacesGeoJSON.features && userPlacesGeoJSON.features.length > 0) {
+    if (
+      userPlacesGeoJSON &&
+      userPlacesGeoJSON.features &&
+      userPlacesGeoJSON.features.length > 0
+    ) {
       // Create a Set of existing OSM place keys to protect them
       const osmKeys = new Set();
       (geojson.features || []).forEach((f) => {
@@ -783,18 +787,20 @@ async function refreshPlaces() {
           if (k) osmKeys.add(k);
         }
       });
-      
+
       // Only add user places that don't conflict with existing OSM places
       const uniqueUserPlaces = userPlacesGeoJSON.features.filter((f) => {
         const k = placeKeyFromFeature(f);
         if (!k) return false; // Skip if no valid key
         if (osmKeys.has(k)) {
-          console.warn(`⚠️ Skipping user place that conflicts with OSM place: ${k}`);
+          console.warn(
+            `⚠️ Skipping user place that conflicts with OSM place: ${k}`
+          );
           return false; // Protect OSM places - skip user place
         }
         return true;
       });
-      
+
       // Merge user places with OSM places (OSM places are protected)
       geojson.features = [...(geojson.features || []), ...uniqueUserPlaces];
     }
@@ -2052,101 +2058,6 @@ export function updateUser(user) {
       drawHelpAlertControl = null;
     }
   }
-  // ✅ Fix gray map issue: ensure basemap layer is still present and refresh map
-  if (map) {
-    setTimeout(() => {
-      if (!map || !map._container) {
-        console.warn("⚠️ Map container lost, page reload may be needed");
-        return;
-      }
-      // Check if map has any tile layers (basemap) that are actually rendering
-      let hasWorkingTileLayer = false;
-      try {
-        map.eachLayer((layer) => {
-          // Check if it's a tile layer and if it has a container (is actually rendered)
-          if (
-            (layer instanceof L.TileLayer || layer._url) &&
-            layer._container
-          ) {
-            hasWorkingTileLayer = true;
-          }
-        });
-      } catch (e) {
-        console.error("Error checking map layers:", e);
-      }
-
-      // If no working basemap found, create a fresh one
-      if (!hasWorkingTileLayer) {
-        console.log(
-          "🔄 No working basemap layer found, creating fresh layer..."
-        );
-
-        // Remove any broken layers first
-        const layersToRemove = [];
-        try {
-          map.eachLayer((layer) => {
-            if (layer instanceof L.TileLayer || layer._url) {
-              layersToRemove.push(layer);
-            }
-          });
-          layersToRemove.forEach((layer) => {
-            try {
-              map.removeLayer(layer);
-            } catch (e) {
-              // Ignore errors
-            }
-          });
-        } catch (e) {
-          console.warn("Error removing old layers:", e);
-        }
-
-        // Create a fresh basemap layer instance (can't reuse removed layers)
-        const initialName = ls.get(BASEMAP_LS_KEY) || "OSM Greyscale";
-        const referenceLayer =
-          baseLayers[initialName] || baseLayers["OSM Greyscale"];
-
-        // Get the URL and options from the reference layer
-        const url = referenceLayer._url || referenceLayer.options.url;
-        const options = {
-          maxZoom: referenceLayer.options.maxZoom,
-          attribution: referenceLayer.options.attribution,
-        };
-        // Create a completely new tile layer instance
-        const freshLayer = L.tileLayer(url, options);
-        freshLayer.addTo(map);
-        currentBasemapLayer = freshLayer;
-
-        console.log("✅ Fresh basemap layer added:", initialName);
-      }
-
-      // Invalidate size to fix any layout issues and force tile reload
-      try {
-        map.invalidateSize();
-        // Force map to redraw tiles
-        if (map._onResize) {
-          map._onResize();
-        }
-        // Trigger a view reset to reload tiles (only if map has been initialized)
-        try {
-          const center = map.getCenter();
-          const zoom = map.getZoom();
-          if (
-            center &&
-            center.lat !== undefined &&
-            center.lng !== undefined &&
-            zoom !== undefined
-          ) {
-            map.setView(center, zoom);
-          }
-        } catch (viewError) {
-          // Map might not have center/zoom set yet, that's okay
-          console.log("Map view not yet initialized, skipping view reset");
-        }
-      } catch (e) {
-        console.error("Error refreshing map:", e);
-      }
-    }, 250);
-  }
 }
 
 /**
@@ -2157,11 +2068,11 @@ export function clearMapCaches() {
   // Clear places cache
   placesCacheById.clear();
   allPlacesFeatures = [];
-  
+
   // Clear user preferences cache
   userPrefsCache = [];
   userPrefsLoaded = false;
-  
+
   console.log("✅ Cleared in-memory map caches (places, user preferences)");
 }
 
@@ -2430,6 +2341,7 @@ export async function initMap(user = null) {
   }
 
   const initialName = ls.get(BASEMAP_LS_KEY) || "OSM Greyscale";
+
   currentBasemapLayer = baseLayers[initialName] || osm;
   currentBasemapLayer.addTo(map);
 
