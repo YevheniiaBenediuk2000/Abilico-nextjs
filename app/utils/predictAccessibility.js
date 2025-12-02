@@ -1,45 +1,53 @@
 import * as tf from "@tensorflow/tfjs";
-import { FEATURE_KEYS } from "../../scripts/train-accessibility-model.mjs";
+import { parseNumber } from "../../scripts/train-accessibility-model.mjs";
 
 let model = null;
-let vocab = null;
+let schema = null;
 
 const MODEL_PATH = "/models/accessibility_model/model.json";
-const VOCAB_PATH = "/models/vocab.json";
+const SCHEMA_PATH = "/models/schema.json";
 
 export async function loadModel() {
-  if (!model) {
-    model = await tf.loadLayersModel(MODEL_PATH);
-  }
-  if (!vocab) {
-    const response = await fetch(VOCAB_PATH);
-    vocab = await response.json();
-  }
+  if (!model) model = await tf.loadLayersModel(MODEL_PATH);
+  if (!schema) schema = await (await fetch(SCHEMA_PATH)).json();
 }
 
-export async function predictAccessibility(feature) {
-  if (!model || !vocab) {
-    await loadModel();
-  }
-
+function encodeFeature(feature) {
   const props = feature.properties || {};
   const vector = [];
 
-  FEATURE_KEYS.forEach((key) => {
-    const val = props[key];
-    const keyVocab = vocab[key] || [];
+  // numeric
+  for (const key of schema.numericKeys) {
+    const x = parseNumber(props[key], key);
+    const { mean, std } = schema.numericStats[key];
+    const missing = x == null ? 1 : 0;
+    let z = x == null ? 0 : (x - mean) / std;
+    if (z > 5) z = 5;
+    if (z < -5) z = -5;
+    vector.push(z, missing);
+  }
 
-    // One-hot encode based on vocab
-    keyVocab.forEach((vocabVal) => {
-      vector.push(val === vocabVal ? 1 : 0);
-    });
-  });
+  // categorical
+  for (const key of schema.categoricalKeys) {
+    const keyVocab = schema.vocab[key] || [];
+    const raw = props[key];
+    const s = raw == null || raw === "" ? null : String(raw);
 
+    let token = "__MISSING__";
+    if (s) token = keyVocab.includes(s) ? s : "__OTHER__";
+    for (const v of keyVocab) vector.push(token === v ? 1 : 0);
+  }
+
+  return vector;
+}
+
+export async function predictAccessibility(feature) {
+  await loadModel();
+  const vector = encodeFeature(feature);
   const input = tf.tensor2d([vector]);
-  const prediction = model.predict(input);
-  const probabilities = await prediction.data();
+  const pred = model.predict(input);
+  const probabilities = await pred.data();
 
-  // Classes: 0 (No), 1 (Limited), 2 (Yes)
   const classes = ["no", "limited", "yes"];
   const maxIdx = probabilities.indexOf(Math.max(...probabilities));
 

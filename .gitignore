@@ -42,3 +42,5 @@ next-env.d.ts
 
 .onnx
 .cache/
+osm_data_cache.json
+osm_chunks/
