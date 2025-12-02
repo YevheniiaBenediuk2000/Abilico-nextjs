@@ -2,6 +2,8 @@ import * as tf from "@tensorflow/tfjs-node";
 import osmtogeojson from "osmtogeojson";
 import fs from "fs";
 import path from "path";
+import { Readable } from "stream";
+import { pipeline } from "stream/promises";
 
 // Configuration
 const OVERPASS_API_URL = "https://overpass-api.de/api/interpreter";
@@ -10,7 +12,7 @@ let CACHE_FILE = `osm_data_cache_${BBOX.replace(/,/g, "_")}.json`;
 // CACHE_FILE = "osm_data_cache.json";
 const CHUNKS_DIR = "osm_chunks";
 const MODEL_SAVE_PATH = "public/models/accessibility_model";
-const ONLY_USE_EXISTING_CHUNKS = true; // Set to true to skip fetching missing chunks
+const ONLY_USE_EXISTING_CHUNKS = false; // Set to true to skip fetching missing chunks
 
 export const NUMERIC_KEYS = ["width", "step_count", "incline", "level"];
 
@@ -333,13 +335,26 @@ async function fetchOSMData() {
               throw new Error(`Overpass API error: ${response.statusText}`);
             }
 
-            data = await response.json();
-            console.log(
-              `Fetched chunk ${currentChunk}/${totalChunks}. ${data.elements.length} elements from chunk.`
-            );
+            // Stream response to file to avoid memory issues
+            if (response.body) {
+              await pipeline(
+                Readable.fromWeb(response.body),
+                fs.createWriteStream(chunkFilePath)
+              );
+            } else {
+              // Fallback for environments where body might not be a stream (unlikely in Node 18+)
+              const buffer = await response.arrayBuffer();
+              fs.writeFileSync(chunkFilePath, Buffer.from(buffer));
+            }
 
-            // Save chunk immediately
-            fs.writeFileSync(chunkFilePath, JSON.stringify(data));
+            // Read back to verify and use
+            data = JSON.parse(fs.readFileSync(chunkFilePath, "utf-8"));
+
+            console.log(
+              `Fetched chunk ${currentChunk}/${totalChunks}. ${
+                data.elements ? data.elements.length : 0
+              } elements from chunk.`
+            );
 
             break; // Success
           } catch (error) {
