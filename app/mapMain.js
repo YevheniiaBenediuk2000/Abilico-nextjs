@@ -137,7 +137,11 @@ async function getUserAccessibilityPreferences() {
     } = await supabase.auth.getUser();
 
     if (userError) {
-      console.error("❌ Failed to get current user for prefs:", userError);
+      // Silently handle auth errors - user might not be logged in
+      console.debug("Auth check for prefs:", userError.message);
+      userPrefsCache = [];
+      userPrefsLoaded = true;
+      return userPrefsCache;
     }
 
     if (!user) {
