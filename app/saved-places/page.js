@@ -1,26 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../auth/page";
 import MapLayout from "../components/MapLayout";
+import PlacesListReact from "../components/PlacesListReact";
 
 import Box from "@mui/material/Box";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
 import Typography from "@mui/material/Typography";
 import CircularProgress from "@mui/material/CircularProgress";
-import IconButton from "@mui/material/IconButton";
-import FavoriteIcon from "@mui/icons-material/Favorite";
-import Tooltip from "@mui/material/Tooltip";
-import List from "@mui/material/List";
-import ListItem from "@mui/material/ListItem";
-import ListItemButton from "@mui/material/ListItemButton";
-import ListItemText from "@mui/material/ListItemText";
-import Divider from "@mui/material/Divider";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
-import Button from "@mui/material/Button";
 
 export default function SavedPlacesPage() {
   const router = useRouter();
@@ -72,7 +62,10 @@ export default function SavedPlacesPage() {
               lat,
               lon,
               place_type,
-              accessibility_status
+              accessibility_status,
+              osm_id,
+              accessibility_keywords,
+              photos
             )
           `
           )
@@ -95,42 +88,63 @@ export default function SavedPlacesPage() {
     loadSavedPlaces();
   }, [user]);
 
-  const handleUnsave = async (savedPlaceId, placeName) => {
-    try {
-      const { error } = await supabase
-        .from("saved_places")
-        .delete()
-        .eq("id", savedPlaceId);
+  // Convert saved places to GeoJSON features format for PlacesListReact
+  const placesData = useMemo(() => {
+    const features = savedPlaces
+      .filter((sp) => sp.place)
+      .map((savedPlace) => {
+        const place = savedPlace.place;
+        
+        // Build tags object from place data
+        const tags = {
+          id: place.id,
+          name: place.name,
+          "addr:city": place.city,
+          "addr:country": place.country,
+          amenity: place.place_type,
+          wheelchair: place.accessibility_status || "unknown",
+          accessibility_status: place.accessibility_status,
+          accessibility_keywords: place.accessibility_keywords,
+          photos: place.photos,
+          source: "user",
+          ...(place.osm_id && { osm_id: place.osm_id }),
+        };
 
-      if (error) {
-        console.error("Error unsaving place:", error);
-        setSnackbarMessage("Could not remove place. Please try again.");
-        setSnackbarOpen(true);
-        return;
-      }
+        return {
+          type: "Feature",
+          properties: {
+            ...tags,
+            tags: tags,
+          },
+          geometry: {
+            type: "Point",
+            coordinates: [place.lon, place.lat],
+          },
+        };
+      });
 
-      // Remove from local state
-      setSavedPlaces((prev) =>
-        prev.filter((sp) => sp.id !== savedPlaceId)
-      );
+    return {
+      features,
+      center: null, // No center needed for saved places
+      zoom: null,
+    };
+  }, [savedPlaces]);
 
-      setSnackbarMessage(`Removed ${placeName} from your saved places`);
-      setSnackbarOpen(true);
-    } catch (err) {
-      console.error("Error unsaving place:", err);
-      setSnackbarMessage("An unexpected error occurred. Please try again.");
-      setSnackbarOpen(true);
-    }
-  };
+  const handlePlaceSelect = (feature) => {
+    if (!feature || !feature.properties) return;
+    
+    const place = feature.properties;
+    const placeId = place.id;
+    const lat = feature.geometry?.coordinates?.[1];
+    const lon = feature.geometry?.coordinates?.[0];
 
-  const handlePlaceClick = async (place) => {
-    if (!place || !place.id) return;
+    if (!placeId || !lat || !lon) return;
 
     // Store place ID in sessionStorage so the main page can pick it up
     if (typeof window !== "undefined") {
-      sessionStorage.setItem("selectedPlaceId", place.id);
-      sessionStorage.setItem("selectedPlaceLat", place.lat.toString());
-      sessionStorage.setItem("selectedPlaceLon", place.lon.toString());
+      sessionStorage.setItem("selectedPlaceId", placeId);
+      sessionStorage.setItem("selectedPlaceLat", lat.toString());
+      sessionStorage.setItem("selectedPlaceLon", lon.toString());
       sessionStorage.setItem("selectedPlaceName", place.name || "Place Details");
     }
 
@@ -140,7 +154,7 @@ export default function SavedPlacesPage() {
 
   if (loading) {
     return (
-      <MapLayout>
+      <MapLayout hideSidebar>
         <Box
           sx={{
             display: "flex",
@@ -156,116 +170,63 @@ export default function SavedPlacesPage() {
   }
 
   return (
-    <MapLayout>
-      <Box sx={{ p: 3, maxWidth: 800, mx: "auto" }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Saved Places
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          {savedPlaces.length === 0
-            ? "You haven't saved any places yet."
-            : `You have ${savedPlaces.length} saved place${savedPlaces.length !== 1 ? "s" : ""}.`}
-        </Typography>
-
-        {savedPlaces.length === 0 ? (
-          <Card>
-            <CardContent sx={{ textAlign: "center", py: 6 }}>
-              <FavoriteIcon sx={{ fontSize: 64, color: "text.secondary", mb: 2 }} />
+    <MapLayout hideSidebar>
+      <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+        <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
+          <Typography variant="h6" component="h1">
+            Saved Places
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {savedPlaces.length === 0
+              ? "You haven't saved any places yet."
+              : `${savedPlaces.length} saved place${savedPlaces.length !== 1 ? "s" : ""}`}
+          </Typography>
+        </Box>
+        <Box sx={{ flex: 1, overflow: "auto" }}>
+          {placesData.features.length > 0 ? (
+            <PlacesListReact
+              data={placesData}
+              onSelect={handlePlaceSelect}
+              hideControls={true}
+            />
+          ) : (
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                minHeight: "50vh",
+                p: 3,
+                textAlign: "center",
+              }}
+            >
               <Typography variant="h6" color="text.secondary" gutterBottom>
                 No saved places yet
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              <Typography variant="body2" color="text.secondary">
                 Start exploring the map and save places you want to visit later.
               </Typography>
-              <Button
-                variant="contained"
-                onClick={() => router.push("/")}
-                sx={{ textTransform: "none" }}
-              >
-                Explore Map
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <List>
-              {savedPlaces.map((savedPlace, index) => {
-                const place = savedPlace.place;
-                if (!place) return null;
-
-                return (
-                  <div key={savedPlace.id}>
-                    <ListItem
-                      disablePadding
-                      secondaryAction={
-                        <Tooltip title="Remove from saved">
-                          <IconButton
-                            edge="end"
-                            aria-label="Remove from saved"
-                            onClick={() =>
-                              handleUnsave(savedPlace.id, place.name || "Place")
-                            }
-                            sx={{ color: "error.main" }}
-                          >
-                            <FavoriteIcon />
-                          </IconButton>
-                        </Tooltip>
-                      }
-                    >
-                      <ListItemButton onClick={() => handlePlaceClick(place)}>
-                        <ListItemText
-                          primary={place.name || "Unnamed Place"}
-                          secondary={
-                            <>
-                              {place.city && (
-                                <Typography
-                                  component="span"
-                                  variant="body2"
-                                  color="text.secondary"
-                                >
-                                  {place.city}
-                                  {place.country && `, ${place.country}`}
-                                </Typography>
-                              )}
-                              {place.place_type && (
-                                <Typography
-                                  component="span"
-                                  variant="body2"
-                                  color="text.secondary"
-                                  sx={{ display: "block", mt: 0.5 }}
-                                >
-                                  {place.place_type}
-                                </Typography>
-                              )}
-                            </>
-                          }
-                        />
-                      </ListItemButton>
-                    </ListItem>
-                    {index < savedPlaces.length - 1 && <Divider />}
-                  </div>
-                );
-              })}
-            </List>
-          </Card>
-        )}
-
-        <Snackbar
-          open={snackbarOpen}
-          autoHideDuration={4000}
-          onClose={() => setSnackbarOpen(false)}
-          anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-        >
-          <Alert
-            onClose={() => setSnackbarOpen(false)}
-            severity="success"
-            variant="filled"
-            sx={{ width: "100%" }}
-          >
-            {snackbarMessage}
-          </Alert>
-        </Snackbar>
+            </Box>
+          )}
+        </Box>
       </Box>
+
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={4000}
+        onClose={() => setSnackbarOpen(false)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert
+          onClose={() => setSnackbarOpen(false)}
+          severity="success"
+          variant="filled"
+          sx={{ width: "100%" }}
+        >
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
     </MapLayout>
   );
 }

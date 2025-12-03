@@ -410,7 +410,7 @@ function NestedPlaceTypeFilter({ items }) {
   );
 }
 
-export default function PlacesListReact({ data, onSelect }) {
+export default function PlacesListReact({ data, onSelect, hideControls = false }) {
   const { features = [], center, zoom } = data || {};
   const [sortBy, setSortBy] = useState("distance"); // "distance" | "name" | "bestForMe"
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -1118,20 +1118,22 @@ export default function PlacesListReact({ data, onSelect }) {
         justifyContent="space-between"
         gap={1}
       >
-        <Box>
-          <Typography sx={{ mb: 0.9 }} variant="subtitle1" fontWeight={600}>
-            Places in view
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {hasPlaces
-              ? `${items.length} place${items.length === 1 ? "" : "s"}`
-              : zoom && zoom < SHOW_PLACES_ZOOM
-              ? "Zoom in to see accessible places"
-              : "No places match your filters here"}
-          </Typography>
-        </Box>
+        {!hideControls && (
+          <Box>
+            <Typography sx={{ mb: 0.9 }} variant="subtitle1" fontWeight={600}>
+              Places in view
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {hasPlaces
+                ? `${items.length} place${items.length === 1 ? "" : "s"}`
+                : zoom && zoom < SHOW_PLACES_ZOOM
+                ? "Zoom in to see accessible places"
+                : "No places match your filters here"}
+            </Typography>
+          </Box>
+        )}
 
-        {rawItems.length > 0 && (
+        {!hideControls && rawItems.length > 0 && (
           <Box
             sx={{
               display: "flex",

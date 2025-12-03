@@ -57,12 +57,15 @@ function getAvatarColor(email) {
   return hash % 2 === 0 ? deepOrange[500] : deepPurple[500];
 }
 
-export default function MapLayout({ isDashboard = false, children }) {
+export default function MapLayout({ isDashboard = false, children, hideSidebar = false }) {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [isPlacesListOpen, setIsPlacesListOpen] = useState(false);
   const [avatarMenuAnchor, setAvatarMenuAnchor] = useState(null);
   const [addPlaceDialogOpen, setAddPlaceDialogOpen] = useState(false);
+
+  // Keep sidebar closed when hideSidebar is true
+  const effectiveIsPlacesListOpen = hideSidebar ? false : isPlacesListOpen;
 
   // ✅ Track user session
   useEffect(() => {
@@ -129,15 +132,17 @@ export default function MapLayout({ isDashboard = false, children }) {
           <Toolbar sx={{ gap: 2 }}>
             {/* LEFT: burger + logo */}
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <IconButton
-                size="large"
-                edge="start"
-                color="inherit"
-                aria-label="open places list"
-                onClick={() => setIsPlacesListOpen((prev) => !prev)}
-              >
-                <MenuIcon />
-              </IconButton>
+              {!hideSidebar && (
+                <IconButton
+                  size="large"
+                  edge="start"
+                  color="inherit"
+                  aria-label="open places list"
+                  onClick={() => setIsPlacesListOpen((prev) => !prev)}
+                >
+                  <MenuIcon />
+                </IconButton>
+              )}
 
               <Link
                 href="/"
@@ -354,7 +359,7 @@ export default function MapLayout({ isDashboard = false, children }) {
           ) : (
             <MapContainer
               user={user}
-              isPlacesListOpen={isPlacesListOpen}
+              isPlacesListOpen={effectiveIsPlacesListOpen}
               onPlacesListClose={() => setIsPlacesListOpen(false)}
             />
           )}
