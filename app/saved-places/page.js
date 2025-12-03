@@ -145,11 +145,12 @@ export default function SavedPlacesPage() {
       sessionStorage.setItem("selectedPlaceId", placeId);
       sessionStorage.setItem("selectedPlaceLat", lat.toString());
       sessionStorage.setItem("selectedPlaceLon", lon.toString());
-      sessionStorage.setItem("selectedPlaceName", place.name || "Place Details");
+      sessionStorage.setItem("selectedPlaceName", place.name || place.tags?.name || "Place Details");
+      sessionStorage.setItem("fromSavedPlaces", "true"); // Flag to indicate we came from saved places
     }
 
-    // Navigate to main page
-    router.push("/");
+    // Force full page reload to ensure map is fully initialized
+    window.location.href = "/";
   };
 
   if (loading) {

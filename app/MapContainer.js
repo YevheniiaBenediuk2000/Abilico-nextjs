@@ -309,7 +309,9 @@ export default function MapContainer({
         // Check if there's a place to select from saved places
         if (typeof window !== "undefined" && typeof sessionStorage !== "undefined") {
           const selectedPlaceId = sessionStorage.getItem("selectedPlaceId");
-          if (selectedPlaceId) {
+          const fromSavedPlaces = sessionStorage.getItem("fromSavedPlaces");
+          
+          if (selectedPlaceId && fromSavedPlaces) {
             const lat = parseFloat(sessionStorage.getItem("selectedPlaceLat"));
             const lon = parseFloat(sessionStorage.getItem("selectedPlaceLon"));
 
@@ -318,10 +320,40 @@ export default function MapContainer({
             sessionStorage.removeItem("selectedPlaceLat");
             sessionStorage.removeItem("selectedPlaceLon");
             sessionStorage.removeItem("selectedPlaceName");
+            sessionStorage.removeItem("fromSavedPlaces");
 
-            // Wait for map to be ready, then select the place using existing functionality
-            setTimeout(async () => {
+            // Wait for map to be fully ready (tiles loaded), then select the place
+            const selectPlaceWhenReady = async () => {
+              // Wait for both map and function to be available
+              if (!window.map || !window.selectPlaceFromListFeature) {
+                // If not ready, wait a bit and try again
+                setTimeout(selectPlaceWhenReady, 300);
+                return;
+              }
+
+              // Wait for map tiles to load (map 'load' event)
+              const waitForMapLoad = () => {
+                return new Promise((resolve) => {
+                  // Check if map has tiles loaded by checking if it has a center
+                  // and if the container has rendered tiles
+                  const hasTiles = window.map.getContainer().querySelector('img[src*="tile"]');
+                  
+                  if (hasTiles || window.map._loaded) {
+                    // Map already loaded
+                    resolve();
+                  } else {
+                    // Wait for load event
+                    window.map.once("load", resolve);
+                    // Fallback timeout after 5 seconds
+                    setTimeout(resolve, 5000);
+                  }
+                });
+              };
+
               try {
+                // Wait for map to finish loading tiles
+                await waitForMapLoad();
+
                 // Fetch place details from database
                 const { data: placeData, error } = await supabase
                   .from("places")
@@ -362,13 +394,14 @@ export default function MapContainer({
                 };
 
                 // Use existing selectPlaceFromListFeature function - it handles everything
-                if (window.selectPlaceFromListFeature) {
-                  await window.selectPlaceFromListFeature(feature);
-                }
+                await window.selectPlaceFromListFeature(feature);
               } catch (err) {
                 console.error("Error selecting place from saved:", err);
               }
-            }, 1000);
+            };
+
+            // Start waiting for map to be ready
+            selectPlaceWhenReady();
           }
         }
       }
