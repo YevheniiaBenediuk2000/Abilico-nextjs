@@ -36,6 +36,9 @@ import FormGroup from "@mui/material/FormGroup";
 import PlacesListReact from "./components/PlacesListReact";
 import ReviewForm from "./components/ReviewForm";
 import ObstaclePopupDialog from "./components/ObstaclePopupDialog";
+import { ensurePlaceExists } from "./api/reviewStorage.js";
+import globals from "./constants/globalVariables.js";
+import { toastError, toastSuccess } from "./utils/toast.mjs";
 // Import cache clearing utilities (automatically exposes window.clearAllCaches, etc.)
 import "./utils/clearCache.mjs";
 
@@ -243,7 +246,23 @@ export default function MapContainer({
 
   // Track user session changes
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null));
+    // Get initial user, handling errors gracefully
+    supabase.auth
+      .getUser()
+      .then(({ data, error }) => {
+        if (error) {
+          // Silently handle auth errors - user might not be logged in
+          console.debug("Auth check:", error.message);
+          setUser(null);
+        } else {
+          setUser(data?.user ?? null);
+        }
+      })
+      .catch((err) => {
+        // Handle any unexpected errors
+        console.debug("Auth check error:", err);
+        setUser(null);
+      });
 
     const {
       data: { subscription },
@@ -314,6 +333,166 @@ export default function MapContainer({
       typeof window.selectPlaceFromListFeature === "function"
     ) {
       window.selectPlaceFromListFeature(feature);
+    }
+  };
+
+  const handleSubmitInaccuracyReport = async () => {
+    try {
+      // Check if user is logged in
+      if (!user) {
+        toastError("Please log in to submit a report.");
+        return;
+      }
+
+      // Get or create place ID
+      let placeId = globals.detailsCtx.placeId;
+
+      if (!placeId) {
+        if (!globals.detailsCtx.tags || !globals.detailsCtx.latlng) {
+          toastError(
+            "Place information is missing. Please select a place again."
+          );
+          return;
+        }
+
+        // Normalize latlng
+        let normalizedLatlng = globals.detailsCtx.latlng;
+        if (normalizedLatlng && typeof normalizedLatlng === "object") {
+          if (
+            normalizedLatlng.lat !== undefined &&
+            normalizedLatlng.lng !== undefined
+          ) {
+            normalizedLatlng = {
+              lat: Number(normalizedLatlng.lat),
+              lng: Number(normalizedLatlng.lng),
+            };
+          }
+        }
+
+        if (!normalizedLatlng?.lat || !normalizedLatlng?.lng) {
+          toastError("Invalid location data. Please select a place again.");
+          return;
+        }
+
+        try {
+          placeId = await ensurePlaceExists(
+            globals.detailsCtx.tags,
+            normalizedLatlng
+          );
+
+          if (placeId) {
+            globals.detailsCtx.placeId = placeId;
+          }
+        } catch (ensureErr) {
+          console.error("Failed to ensure place exists:", ensureErr);
+          toastError(
+            `Could not create or find place: ${ensureErr.message || ensureErr}`
+          );
+          return;
+        }
+      }
+
+      if (!placeId) {
+        toastError("Could not determine place ID");
+        return;
+      }
+
+      // Map reason values to database values
+      const reasonMap = {
+        accessibility: "accessibility_info_wrong",
+        closed: "permanently_closed",
+        category: "wrong_type",
+        duplicate: "duplicate",
+        address: "location_wrong",
+        other: "other",
+      };
+
+      const mappedReason = reasonMap[selectedInaccuracyReason];
+      if (!mappedReason) {
+        toastError("Invalid reason selected");
+        return;
+      }
+
+      // Map accessibility issues to database values
+      const issueMap = {
+        entrance_not_accessible: "entrance_not_accessible",
+        steps_at_entrance: "steps_at_entrance",
+        no_accessible_toilet: "no_accessible_toilet",
+        ramp_too_steep: "ramp_too_steep",
+        door_too_narrow: "door_narrow_or_heavy",
+        other_accessibility: "other",
+      };
+
+      const mappedIssues =
+        selectedInaccuracyReason === "accessibility" &&
+        selectedSpecificIssues.length > 0
+          ? selectedSpecificIssues.map((issue) => issueMap[issue] || issue)
+          : null;
+
+      // Prepare report data
+      const reportData = {
+        place_id: placeId,
+        user_id: user.id,
+        reason: mappedReason,
+        accessibility_reality:
+          selectedInaccuracyReason === "accessibility" &&
+          selectedRealityStatus
+            ? selectedRealityStatus
+            : null,
+        accessibility_issues: mappedIssues,
+        comment: inaccuracyComment.trim() || null,
+      };
+
+      console.log("Submitting report data:", reportData);
+
+      // Submit report to Supabase
+      const { data, error } = await supabase
+        .from("place_reports")
+        .insert(reportData)
+        .select();
+
+      if (error) {
+        console.error("Failed to submit report:", error);
+        console.error("Error details:", {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        });
+        // Handle unique constraint violation (user already reported this place)
+        if (
+          error.code === "23505" ||
+          error.message?.includes("unique") ||
+          error.message?.includes("duplicate")
+        ) {
+          toastError("You have already submitted a report for this place.");
+        } else {
+          toastError(
+            `Could not submit report: ${error.message || "Please try again."}`
+          );
+        }
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        console.error("No data returned from insert");
+        toastError("Could not submit report. Please try again.");
+        return;
+      }
+
+      // Success
+      toastSuccess("Report submitted successfully. Thank you!");
+      
+      // Reset form and close modal
+      setInaccuracyModalOpen(false);
+      setSelectedInaccuracyReason("");
+      setInaccuracyScreen(1);
+      setSelectedRealityStatus("");
+      setSelectedSpecificIssues([]);
+      setInaccuracyComment("");
+    } catch (err) {
+      console.error("Error submitting report:", err);
+      toastError("An unexpected error occurred. Please try again.");
     }
   };
 
@@ -1257,20 +1436,7 @@ export default function MapContainer({
               </Button>
               <Button
                 variant="contained"
-                onClick={() => {
-                  // Placeholder for submit functionality
-                  // TODO: Submit the report with:
-                  // - selectedInaccuracyReason
-                  // - selectedRealityStatus (if accessibility)
-                  // - selectedSpecificIssues (if accessibility)
-                  // - inaccuracyComment
-                  setInaccuracyModalOpen(false);
-                  setSelectedInaccuracyReason("");
-                  setInaccuracyScreen(1);
-                  setSelectedRealityStatus("");
-                  setSelectedSpecificIssues([]);
-                  setInaccuracyComment("");
-                }}
+                onClick={handleSubmitInaccuracyReport}
                 sx={{ textTransform: "none" }}
               >
                 Submit report
