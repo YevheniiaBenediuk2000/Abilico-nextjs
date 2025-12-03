@@ -115,6 +115,7 @@ export default function SavedPlacesPage() {
           properties: {
             ...tags,
             tags: tags,
+            savedPlaceId: savedPlace.id, // Store the saved_places record ID for unsaving
           },
           geometry: {
             type: "Point",
@@ -153,6 +154,45 @@ export default function SavedPlacesPage() {
     window.location.href = "/";
   };
 
+  const handleUnsave = async (feature) => {
+    if (!feature || !feature.properties || !user) return;
+
+    const savedPlaceId = feature.properties.savedPlaceId;
+    const placeName = feature.properties.name || feature.properties.tags?.name || "Place";
+
+    if (!savedPlaceId) {
+      console.error("No savedPlaceId found in feature");
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("saved_places")
+        .delete()
+        .eq("id", savedPlaceId)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("Error unsaving place:", error);
+        setSnackbarMessage("Could not remove place. Please try again.");
+        setSnackbarOpen(true);
+        return;
+      }
+
+      // Remove from local state
+      setSavedPlaces((prev) =>
+        prev.filter((sp) => sp.id !== savedPlaceId)
+      );
+
+      setSnackbarMessage(`Removed ${placeName} from your saved places`);
+      setSnackbarOpen(true);
+    } catch (err) {
+      console.error("Error unsaving place:", err);
+      setSnackbarMessage("An unexpected error occurred. Please try again.");
+      setSnackbarOpen(true);
+    }
+  };
+
   if (loading) {
     return (
       <MapLayout hideSidebar>
@@ -188,6 +228,7 @@ export default function SavedPlacesPage() {
             <PlacesListReact
               data={placesData}
               onSelect={handlePlaceSelect}
+              onUnsave={handleUnsave}
               hideControls={true}
             />
           ) : (

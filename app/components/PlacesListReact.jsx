@@ -23,6 +23,8 @@ import IconButton from "@mui/material/IconButton";
 import CloseIcon from "@mui/icons-material/Close";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import FavoriteIcon from "@mui/icons-material/Favorite";
+import Tooltip from "@mui/material/Tooltip";
 import AccessibilityLegendReact from "./AccessibilityLegendReact";
 
 import {
@@ -410,7 +412,7 @@ function NestedPlaceTypeFilter({ items }) {
   );
 }
 
-export default function PlacesListReact({ data, onSelect, hideControls = false }) {
+export default function PlacesListReact({ data, onSelect, hideControls = false, onUnsave = null }) {
   const { features = [], center, zoom } = data || {};
   const [sortBy, setSortBy] = useState("distance"); // "distance" | "name" | "bestForMe"
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -1225,7 +1227,30 @@ export default function PlacesListReact({ data, onSelect, hideControls = false }
                     return (
                       <Box key={uniqueKey}>
                         <Divider component="li" />
-                        <ListItem disablePadding sx={{ alignItems: "stretch" }}>
+                        <ListItem 
+                          disablePadding 
+                          sx={{ alignItems: "stretch" }}
+                          secondaryAction={
+                            onUnsave && item.feature?.properties?.savedPlaceId ? (
+                              <Tooltip title="Remove from saved">
+                                <IconButton
+                                  edge="end"
+                                  aria-label="Remove from saved"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onUnsave(item.feature);
+                                  }}
+                                  sx={{ 
+                                    color: "error.main",
+                                    mr: 1
+                                  }}
+                                >
+                                  <FavoriteIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            ) : null
+                          }
+                        >
                           <ListItemButton
                             alignItems="flex-start"
                             onClick={() => onSelect?.(item.feature)}
