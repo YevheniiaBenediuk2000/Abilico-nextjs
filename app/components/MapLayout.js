@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -144,19 +143,24 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
                 </IconButton>
               )}
 
-              <Link
-                href="/"
-                style={{ textDecoration: "none", color: "inherit" }}
+              <Typography
+                variant="h6"
+                noWrap
+                component="div"
+                onClick={() => {
+                  // Force full page reload to ensure map initializes properly
+                  window.location.href = "/";
+                }}
+                sx={{ 
+                  display: { xs: "none", sm: "block" },
+                  cursor: "pointer",
+                  "&:hover": {
+                    opacity: 0.8
+                  }
+                }}
               >
-                <Typography
-                  variant="h6"
-                  noWrap
-                  component="div"
-                  sx={{ display: { xs: "none", sm: "block" } }}
-                >
-                  Abilico
-                </Typography>
-              </Link>
+                Abilico
+              </Typography>
             </Box>
 
             {/* CENTER: search bar, centered in available space */}
