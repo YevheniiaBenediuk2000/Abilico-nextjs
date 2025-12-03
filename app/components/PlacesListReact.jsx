@@ -412,7 +412,7 @@ function NestedPlaceTypeFilter({ items }) {
   );
 }
 
-export default function PlacesListReact({ data, onSelect, hideControls = false, onUnsave = null }) {
+export default function PlacesListReact({ data, onSelect, hideControls = false, onUnsave = null, isOpen = true }) {
   const { features = [], center, zoom } = data || {};
   const [sortBy, setSortBy] = useState("distance"); // "distance" | "name" | "bestForMe"
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -575,7 +575,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
 
   // Load thumbnails for the closest / first items
   useEffect(() => {
-    if (!rawItems.length) return;
+    if (!rawItems.length || !isOpen) return;
 
     let cancelled = false;
     // When hideControls is true (saved places), load photos for all places
@@ -641,7 +641,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
     return () => {
       cancelled = true;
     };
-  }, [rawItems]);
+  }, [rawItems, isOpen]);
 
   // ✅ Load user accessibility preferences (once) when Best for me is used
   useEffect(() => {

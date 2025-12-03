@@ -307,10 +307,13 @@ export default function MapContainer({
         window.updateMapUser = updateUser;
 
         // Check if there's a place to select from saved places
-        if (typeof window !== "undefined" && typeof sessionStorage !== "undefined") {
+        if (
+          typeof window !== "undefined" &&
+          typeof sessionStorage !== "undefined"
+        ) {
           const selectedPlaceId = sessionStorage.getItem("selectedPlaceId");
           const fromSavedPlaces = sessionStorage.getItem("fromSavedPlaces");
-          
+
           if (selectedPlaceId && fromSavedPlaces) {
             const lat = parseFloat(sessionStorage.getItem("selectedPlaceLat"));
             const lon = parseFloat(sessionStorage.getItem("selectedPlaceLon"));
@@ -336,8 +339,10 @@ export default function MapContainer({
                 return new Promise((resolve) => {
                   // Check if map has tiles loaded by checking if it has a center
                   // and if the container has rendered tiles
-                  const hasTiles = window.map.getContainer().querySelector('img[src*="tile"]');
-                  
+                  const hasTiles = window.map
+                    .getContainer()
+                    .querySelector('img[src*="tile"]');
+
                   if (hasTiles || window.map._loaded) {
                     // Map already loaded
                     resolve();
@@ -383,24 +388,30 @@ export default function MapContainer({
                 if (placeData.osm_id) {
                   let osmType = null;
                   let osmId = null;
-                  
+
                   // Extract osm_type and osm_id from osm_id field (format: "node/123" or "way/456")
-                  if (typeof placeData.osm_id === 'string' && placeData.osm_id.includes('/')) {
-                    const parts = placeData.osm_id.split('/');
+                  if (
+                    typeof placeData.osm_id === "string" &&
+                    placeData.osm_id.includes("/")
+                  ) {
+                    const parts = placeData.osm_id.split("/");
                     osmType = parts[0]; // "node", "way", or "relation"
                     osmId = parts[1];
                   }
 
                   if (osmType && osmId) {
                     // Map OSM type to Overpass format (N, W, R)
-                    const osmTypeMap = { node: 'N', way: 'W', relation: 'R' };
-                    const overpassType = osmTypeMap[osmType] || osmType.toUpperCase()[0];
-                    
+                    const osmTypeMap = { node: "N", way: "W", relation: "R" };
+                    const overpassType =
+                      osmTypeMap[osmType] || osmType.toUpperCase()[0];
+
                     try {
                       // Import and use fetchPlace to get full OSM tags
-                      const { fetchPlace } = await import("./api/fetchPlaces.js");
+                      const { fetchPlace } = await import(
+                        "./api/fetchPlaces.js"
+                      );
                       const osmTags = await fetchPlace(overpassType, osmId);
-                      
+
                       if (osmTags && Object.keys(osmTags).length > 0) {
                         // Merge OSM tags with database tags (OSM tags take precedence)
                         tags = { ...tags, ...osmTags };
@@ -408,7 +419,10 @@ export default function MapContainer({
                         tags.source = placeData.source || "osm";
                       }
                     } catch (fetchError) {
-                      console.warn("Failed to fetch OSM tags, using database data only:", fetchError);
+                      console.warn(
+                        "Failed to fetch OSM tags, using database data only:",
+                        fetchError
+                      );
                       // Continue with database tags only
                       tags.osm_id = placeData.osm_id;
                     }
@@ -427,9 +441,12 @@ export default function MapContainer({
                   properties: {
                     id: placeData.id,
                     osm_id: placeData.osm_id || null,
-                    osm_type: placeData.osm_id && typeof placeData.osm_id === 'string' && placeData.osm_id.includes('/') 
-                      ? placeData.osm_id.split('/')[0] 
-                      : null,
+                    osm_type:
+                      placeData.osm_id &&
+                      typeof placeData.osm_id === "string" &&
+                      placeData.osm_id.includes("/")
+                        ? placeData.osm_id.split("/")[0]
+                        : null,
                     name: placeData.name,
                     tags: tags,
                     source: tags.source || "user",
@@ -493,7 +510,10 @@ export default function MapContainer({
 
       // Skip if placeId is not a UUID (e.g., OSM ID like "node/123")
       const placeId = globals.detailsCtx.placeId;
-      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(placeId);
+      const isUUID =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          placeId
+        );
       if (!isUUID) {
         setIsPlaceSaved(false);
         setSavedPlaceId(null);
@@ -511,7 +531,10 @@ export default function MapContainer({
         // Handle errors - PGRST116 is "not found" which is expected
         if (error) {
           // Only log if it's a real error (not "not found" and has meaningful content)
-          if (error.code !== "PGRST116" && (error.message || Object.keys(error).length > 0)) {
+          if (
+            error.code !== "PGRST116" &&
+            (error.message || Object.keys(error).length > 0)
+          ) {
             // Only log if error has meaningful content
             const errorStr = error.message || JSON.stringify(error);
             if (errorStr && errorStr !== "{}" && errorStr !== "null") {
@@ -646,8 +669,7 @@ export default function MapContainer({
         user_id: user.id,
         reason: mappedReason,
         accessibility_reality:
-          selectedInaccuracyReason === "accessibility" &&
-          selectedRealityStatus
+          selectedInaccuracyReason === "accessibility" && selectedRealityStatus
             ? selectedRealityStatus
             : null,
         accessibility_issues: mappedIssues,
@@ -693,7 +715,7 @@ export default function MapContainer({
 
       // Success
       toastSuccess("Report submitted successfully. Thank you!");
-      
+
       // Reset form and close modal
       setInaccuracyModalOpen(false);
       setSelectedInaccuracyReason("");
@@ -721,7 +743,9 @@ export default function MapContainer({
 
     if (!placeId) {
       if (!globals.detailsCtx.tags || !globals.detailsCtx.latlng) {
-        toastError("Place information is missing. Please select a place again.");
+        toastError(
+          "Place information is missing. Please select a place again."
+        );
         return;
       }
 
@@ -875,6 +899,7 @@ export default function MapContainer({
           <PlacesListReact
             data={placesListData}
             onSelect={handlePlaceFromListSelect}
+            isOpen={isPlacesListOpen}
           />
         ) : (
           <Box sx={{ p: 2 }}>
@@ -1026,7 +1051,12 @@ export default function MapContainer({
                   mb: 1,
                 }}
               >
-                <Typography variant="h6" component="h2" noWrap sx={{ flex: 1, mr: 1 }}>
+                <Typography
+                  variant="h6"
+                  component="h2"
+                  noWrap
+                  sx={{ flex: 1, mr: 1 }}
+                >
                   {placePopupTitle}
                 </Typography>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
@@ -1515,8 +1545,16 @@ export default function MapContainer({
                   <Chip
                     label="🟩 Designated"
                     onClick={() => setSelectedRealityStatus("designated")}
-                    color={selectedRealityStatus === "designated" ? "primary" : "default"}
-                    variant={selectedRealityStatus === "designated" ? "filled" : "outlined"}
+                    color={
+                      selectedRealityStatus === "designated"
+                        ? "primary"
+                        : "default"
+                    }
+                    variant={
+                      selectedRealityStatus === "designated"
+                        ? "filled"
+                        : "outlined"
+                    }
                     sx={{
                       backgroundColor:
                         selectedRealityStatus === "designated"
@@ -1538,11 +1576,17 @@ export default function MapContainer({
                   <Chip
                     label="🟩 Yes"
                     onClick={() => setSelectedRealityStatus("yes")}
-                    color={selectedRealityStatus === "yes" ? "primary" : "default"}
-                    variant={selectedRealityStatus === "yes" ? "filled" : "outlined"}
+                    color={
+                      selectedRealityStatus === "yes" ? "primary" : "default"
+                    }
+                    variant={
+                      selectedRealityStatus === "yes" ? "filled" : "outlined"
+                    }
                     sx={{
                       backgroundColor:
-                        selectedRealityStatus === "yes" ? "#4caf50" : "transparent",
+                        selectedRealityStatus === "yes"
+                          ? "#4caf50"
+                          : "transparent",
                       color:
                         selectedRealityStatus === "yes" ? "white" : "inherit",
                       borderColor: "#4caf50",
@@ -1557,15 +1601,25 @@ export default function MapContainer({
                   <Chip
                     label="🟨 Limited"
                     onClick={() => setSelectedRealityStatus("limited")}
-                    color={selectedRealityStatus === "limited" ? "primary" : "default"}
-                    variant={selectedRealityStatus === "limited" ? "filled" : "outlined"}
+                    color={
+                      selectedRealityStatus === "limited"
+                        ? "primary"
+                        : "default"
+                    }
+                    variant={
+                      selectedRealityStatus === "limited"
+                        ? "filled"
+                        : "outlined"
+                    }
                     sx={{
                       backgroundColor:
                         selectedRealityStatus === "limited"
                           ? "#ff9800"
                           : "transparent",
                       color:
-                        selectedRealityStatus === "limited" ? "white" : "inherit",
+                        selectedRealityStatus === "limited"
+                          ? "white"
+                          : "inherit",
                       borderColor: "#ff9800",
                       "&:hover": {
                         backgroundColor:
@@ -1578,11 +1632,17 @@ export default function MapContainer({
                   <Chip
                     label="🟥 No"
                     onClick={() => setSelectedRealityStatus("no")}
-                    color={selectedRealityStatus === "no" ? "primary" : "default"}
-                    variant={selectedRealityStatus === "no" ? "filled" : "outlined"}
+                    color={
+                      selectedRealityStatus === "no" ? "primary" : "default"
+                    }
+                    variant={
+                      selectedRealityStatus === "no" ? "filled" : "outlined"
+                    }
                     sx={{
                       backgroundColor:
-                        selectedRealityStatus === "no" ? "#f44336" : "transparent",
+                        selectedRealityStatus === "no"
+                          ? "#f44336"
+                          : "transparent",
                       color:
                         selectedRealityStatus === "no" ? "white" : "inherit",
                       borderColor: "#f44336",
@@ -1606,7 +1666,9 @@ export default function MapContainer({
                   <FormControlLabel
                     control={
                       <Checkbox
-                        checked={selectedSpecificIssues.includes("entrance_not_accessible")}
+                        checked={selectedSpecificIssues.includes(
+                          "entrance_not_accessible"
+                        )}
                         onChange={(e) => {
                           if (e.target.checked) {
                             setSelectedSpecificIssues([
@@ -1629,7 +1691,9 @@ export default function MapContainer({
                   <FormControlLabel
                     control={
                       <Checkbox
-                        checked={selectedSpecificIssues.includes("steps_at_entrance")}
+                        checked={selectedSpecificIssues.includes(
+                          "steps_at_entrance"
+                        )}
                         onChange={(e) => {
                           if (e.target.checked) {
                             setSelectedSpecificIssues([
@@ -1652,7 +1716,9 @@ export default function MapContainer({
                   <FormControlLabel
                     control={
                       <Checkbox
-                        checked={selectedSpecificIssues.includes("no_accessible_toilet")}
+                        checked={selectedSpecificIssues.includes(
+                          "no_accessible_toilet"
+                        )}
                         onChange={(e) => {
                           if (e.target.checked) {
                             setSelectedSpecificIssues([
@@ -1675,7 +1741,9 @@ export default function MapContainer({
                   <FormControlLabel
                     control={
                       <Checkbox
-                        checked={selectedSpecificIssues.includes("ramp_too_steep")}
+                        checked={selectedSpecificIssues.includes(
+                          "ramp_too_steep"
+                        )}
                         onChange={(e) => {
                           if (e.target.checked) {
                             setSelectedSpecificIssues([
@@ -1698,7 +1766,9 @@ export default function MapContainer({
                   <FormControlLabel
                     control={
                       <Checkbox
-                        checked={selectedSpecificIssues.includes("door_too_narrow")}
+                        checked={selectedSpecificIssues.includes(
+                          "door_too_narrow"
+                        )}
                         onChange={(e) => {
                           if (e.target.checked) {
                             setSelectedSpecificIssues([
@@ -1721,7 +1791,9 @@ export default function MapContainer({
                   <FormControlLabel
                     control={
                       <Checkbox
-                        checked={selectedSpecificIssues.includes("other_accessibility")}
+                        checked={selectedSpecificIssues.includes(
+                          "other_accessibility"
+                        )}
                         onChange={(e) => {
                           if (e.target.checked) {
                             setSelectedSpecificIssues([
