@@ -7,10 +7,6 @@
 const isBrowser =
   typeof window !== "undefined" && typeof document !== "undefined";
 
-if (isBrowser) {
-  window.MAPILLARY_TOKEN = process.env.MAPILLARY_TOKEN;
-}
-
 let mainPhotoWrapper = null;
 let mainPhotoImg = null;
 let photosGrid = null;
@@ -35,12 +31,17 @@ const COMMONS_API = "https://commons.wikimedia.org/w/api.php?origin=*";
 const MAPILLARY_GRAPH = "https://graph.mapillary.com";
 
 function getMapillaryToken() {
-  return (
-    MAPILLARY_TOKEN ||
-    (typeof localStorage !== "undefined" &&
-      localStorage.getItem("MAPILLARY_TOKEN")) ||
-    null
-  );
+  // Try Next.js public env var first
+  // We access process.env.NEXT_PUBLIC_MAPILLARY_TOKEN directly so Next.js can replace it at build time.
+  if (process.env.NEXT_PUBLIC_MAPILLARY_TOKEN) {
+    return process.env.NEXT_PUBLIC_MAPILLARY_TOKEN;
+  }
+  // Fall back to localStorage
+  if (typeof localStorage !== "undefined") {
+    const stored = localStorage.getItem("MAPILLARY_TOKEN");
+    if (stored) return stored;
+  }
+  return null;
 }
 
 /** Accepts:
@@ -714,6 +715,63 @@ async function commonsGeoSearch({ lat, lng }, radiusM = 8, limit = 100) {
   return dropIconsPreferPhotos(items);
 }
 
+async function mapillaryGeoSearch({ lat, lng }, radiusM = 14, limit = 20) {
+  const token = getMapillaryToken();
+  if (!token) return [];
+
+  // 1 deg lat ~= 111111 meters
+  // 1 deg lon ~= 111111 * cos(lat) meters
+  const latDelta = radiusM / 111111;
+  const lonDelta = radiusM / (111111 * Math.cos(lat * (Math.PI / 180)));
+
+  const minLon = lng - lonDelta;
+  const maxLon = lng + lonDelta;
+  const minLat = lat - latDelta;
+  const maxLat = lat + latDelta;
+  const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
+
+  const fields = [
+    "id",
+    "thumb_2048_url",
+    "thumb_1024_url",
+    "thumb_original_url",
+    "captured_at",
+  ].join(",");
+
+  const url = `${MAPILLARY_GRAPH}/images?fields=${encodeURIComponent(
+    fields
+  )}&bbox=${encodeURIComponent(
+    bbox
+  )}&limit=${limit}&access_token=${encodeURIComponent(token)}`;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const data = await res.json();
+    const images = data.data || [];
+
+    return images
+      .map((img) => {
+        const src =
+          img.thumb_1024_url || img.thumb_2048_url || img.thumb_original_url;
+        if (!src) return null;
+
+        return {
+          src,
+          thumb: src,
+          title: `Mapillary ${img.id}`,
+          credit: "Mapillary contributors (CC BY-SA 4.0)",
+          source: "Mapillary (nearby)",
+          pageUrl: `https://www.mapillary.com/app/?pKey=${img.id}`,
+          captured_at: img.captured_at,
+        };
+      })
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 function commonsTitleFromValue(v) {
   if (!v) return null;
   let t = String(v).trim();
@@ -807,6 +865,7 @@ export async function resolvePlacePhotos(tags, latlng) {
   // Add nearby Commons geosearch if we have coordinates
   if (latlng) {
     tasks.push(commonsGeoSearch(latlng).catch(() => []));
+    tasks.push(mapillaryGeoSearch(latlng).catch(() => []));
   }
 
   // Panoramax / Mapillary support

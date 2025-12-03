@@ -44,3 +44,11 @@ next-env.d.ts
 .cache/
 osm_data_cache.json
 osm_chunks/
+planet-latest.osm.pbf
+planet-wheelchair.geojson
+cache/
+osm_data_cache_-90_-180_90_180.json
+planet-wheelchair.osm.pbf
+planet-latest.osm.pbf
+wheelchair_xgboost_3class.pkl
+ukraine_wheelchair_nodes.geojson

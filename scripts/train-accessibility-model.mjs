@@ -12,7 +12,7 @@ let CACHE_FILE = `osm_data_cache_${BBOX.replace(/,/g, "_")}.json`;
 // CACHE_FILE = "osm_data_cache.json";
 const CHUNKS_DIR = "osm_chunks";
 const MODEL_SAVE_PATH = "public/models/accessibility_model";
-const ONLY_USE_EXISTING_CHUNKS = false; // Set to true to skip fetching missing chunks
+const ONLY_USE_EXISTING_CHUNKS = true; // Set to true to skip fetching missing chunks
 
 export const NUMERIC_KEYS = ["width", "step_count", "incline", "level"];
 
@@ -94,8 +94,14 @@ function stratifiedSplitIndices(labels, valFrac = 0.2) {
       [idxs[i], idxs[j]] = [idxs[j], idxs[i]];
     }
     const nVal = Math.floor(idxs.length * valFrac);
-    valIdx.push(...idxs.slice(0, nVal));
-    trainIdx.push(...idxs.slice(nVal));
+    // Avoid spread operator for large arrays to prevent stack overflow
+    for (let k = 0; k < idxs.length; k++) {
+      if (k < nVal) {
+        valIdx.push(idxs[k]);
+      } else {
+        trainIdx.push(idxs[k]);
+      }
+    }
   }
 
   return { trainIdx, valIdx };
@@ -263,8 +269,8 @@ async function fetchOSMData() {
 
   console.log("Fetching OSM data in chunks...");
   const [s, w, n, e] = BBOX.split(",").map(Number);
-  const latStep = 6;
-  const lonStep = 6;
+  const latStep = 2;
+  const lonStep = 2;
 
   const totalChunks =
     Math.ceil((n - s) / latStep) * Math.ceil((e - w) / lonStep);
@@ -309,8 +315,6 @@ async function fetchOSMData() {
     [out:json][timeout:90000];
     (
       node["wheelchair"](${bbox});
-      way["wheelchair"](${bbox});
-      relation["wheelchair"](${bbox});
     );
     out body;
     >;
@@ -508,6 +512,7 @@ async function trainModel(xTrain, yTrain, xVal, yVal) {
 
   await model.fit(xsTrain, ysTrain, {
     epochs: 50,
+    batchSize: 512, // Increased from default 32 to speed up training
     validationData: [xsVal, ysVal],
     shuffle: true,
     classWeight,
