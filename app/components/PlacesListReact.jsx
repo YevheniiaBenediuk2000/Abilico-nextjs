@@ -578,7 +578,9 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
     if (!rawItems.length) return;
 
     let cancelled = false;
-    const MAX_PLACES_WITH_PHOTOS = 24;
+    // When hideControls is true (saved places), load photos for all places
+    // Otherwise, limit to first 24 for performance
+    const MAX_PLACES_WITH_PHOTOS = hideControls ? rawItems.length : 24;
 
     (async () => {
       const candidates = rawItems
@@ -593,11 +595,32 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
         if (photoCacheRef.current[key] !== undefined) continue;
 
         try {
-          const photos = await resolvePlacePhotos(item.tags, item.latlng);
-          if (cancelled) return;
+          // First, check if photos are already in the database (from tags.photos)
+          const dbPhotos = item.tags?.photos;
+          let first = null;
 
-          const first =
-            Array.isArray(photos) && photos.length ? photos[0] : null;
+          if (dbPhotos && Array.isArray(dbPhotos) && dbPhotos.length > 0) {
+            // Use the first photo from database
+            const photoUrl = dbPhotos[0];
+            // Handle both string URLs and objects with url/src properties
+            if (typeof photoUrl === "string") {
+              first = { src: photoUrl, thumb: photoUrl };
+            } else if (photoUrl && (photoUrl.url || photoUrl.src || photoUrl.thumb)) {
+              first = {
+                src: photoUrl.url || photoUrl.src || photoUrl.thumb,
+                thumb: photoUrl.thumb || photoUrl.url || photoUrl.src,
+                title: photoUrl.title || photoUrl.caption || null,
+              };
+            }
+          }
+
+          // If no database photos, try to fetch from external sources
+          if (!first) {
+            const photos = await resolvePlacePhotos(item.tags, item.latlng);
+            if (cancelled) return;
+
+            first = Array.isArray(photos) && photos.length ? photos[0] : null;
+          }
 
           setPhotoByKey((prev) => {
             if (prev[key] !== undefined) return prev;

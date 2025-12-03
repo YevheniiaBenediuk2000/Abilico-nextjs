@@ -55,17 +55,7 @@ export default function SavedPlacesPage() {
             id,
             created_at,
             place:places (
-              id,
-              name,
-              city,
-              country,
-              lat,
-              lon,
-              place_type,
-              accessibility_status,
-              osm_id,
-              accessibility_keywords,
-              photos
+              *
             )
           `
           )
@@ -89,37 +79,119 @@ export default function SavedPlacesPage() {
   }, [user]);
 
   // Convert saved places to GeoJSON features format for PlacesListReact
+  // For OSM places, we need to preserve ALL OSM tags (not just reconstruct)
+  // For user places, use the same format as fetchUserPlaces.js
   const placesData = useMemo(() => {
     const features = savedPlaces
       .filter((sp) => sp.place)
       .map((savedPlace) => {
         const place = savedPlace.place;
         
-        // Build tags object from place data
-        const tags = {
-          id: place.id,
-          name: place.name,
-          "addr:city": place.city,
-          "addr:country": place.country,
-          amenity: place.place_type,
-          wheelchair: place.accessibility_status || "unknown",
-          accessibility_status: place.accessibility_status,
-          accessibility_keywords: place.accessibility_keywords,
-          photos: place.photos,
-          source: "user",
-          ...(place.osm_id && { osm_id: place.osm_id }),
-        };
+        // Extract osm_type and osm_id if it exists
+        let osmType = null;
+        let osmId = null;
+        if (place.osm_id) {
+          if (typeof place.osm_id === 'string' && place.osm_id.includes('/')) {
+            const parts = place.osm_id.split('/');
+            osmType = parts[0];
+            osmId = parts[1];
+          }
+        }
 
+        // If this is an OSM place (has osm_id), we need to use the actual OSM tags
+        // The database only stores basic fields, but OSM places have full tag data
+        // For now, we'll use what we have and let renderDetails fetch full OSM tags when needed
+        // But we need to preserve the structure so it can be fetched
+        
+        let tags = {};
+        
+        // For OSM places, start with basic info - full tags will be fetched by renderDetails
+        if (osmId && osmType) {
+          // OSM place - use minimal tags, renderDetails will fetch full OSM tags
+          tags = {
+            id: place.id,
+            name: place.name,
+            osm_id: place.osm_id,
+            source: place.source || "osm",
+          };
+          
+          // Add database fields that might override OSM
+          if (place.city) tags["addr:city"] = place.city;
+          if (place.country) tags["addr:country"] = place.country;
+          if (place.accessibility_status) tags.wheelchair = place.accessibility_status;
+          if (place.photos && Array.isArray(place.photos)) tags.photos = place.photos;
+        } else {
+          // User-added place - use same format as fetchUserPlaces.js
+          tags = {
+            name: place.name,
+            place_type: place.place_type,
+            source: place.source || "user",
+            id: place.id,
+          };
+
+          // Map place_type to OSM-style tags
+          if (place.place_type) {
+            const typeToTag = {
+              hotel: { tourism: "hotel" },
+              restaurant: { amenity: "restaurant" },
+              cafe: { amenity: "cafe" },
+              hospital: { amenity: "hospital" },
+              pharmacy: { amenity: "pharmacy" },
+              library: { amenity: "library" },
+              school: { amenity: "school" },
+              park: { leisure: "park" },
+              toilet: { amenity: "toilets" },
+              parking: { amenity: "parking" },
+              shop: { shop: "general" },
+              stop: { public_transport: "stop_position" },
+              shelter: { amenity: "shelter" },
+              housing: { amenity: "residential" },
+              other: {},
+            };
+
+            const tagMapping = typeToTag[place.place_type];
+            if (tagMapping) {
+              Object.assign(tags, tagMapping);
+            } else {
+              tags.amenity = place.place_type;
+            }
+          }
+
+          // Add address fields
+          if (place.city) tags["addr:city"] = place.city;
+          if (place.country) tags["addr:country"] = place.country;
+          if (place.accessibility_comments) tags.accessibility_comments = place.accessibility_comments;
+          if (place.photos && Array.isArray(place.photos)) tags.photos = place.photos;
+
+          // Add accessibility tags
+          if (place.accessibility_keywords && typeof place.accessibility_keywords === 'object') {
+            const accKw = place.accessibility_keywords;
+            if (accKw.wheelchair) tags.wheelchair = accKw.wheelchair;
+            if (accKw.step_free_entrance) tags["entrance:step_free"] = accKw.step_free_entrance;
+            if (accKw.accessible_toilet) tags["toilets:wheelchair"] = accKw.accessible_toilet;
+          }
+          
+          if (!tags.wheelchair && place.accessibility_status) {
+            tags.wheelchair = place.accessibility_status;
+          }
+        }
+
+        // Create GeoJSON feature
         return {
           type: "Feature",
-          properties: {
-            ...tags,
-            tags: tags,
-            savedPlaceId: savedPlace.id, // Store the saved_places record ID for unsaving
-          },
           geometry: {
             type: "Point",
             coordinates: [place.lon, place.lat],
+          },
+          properties: {
+            id: place.id,
+            osm_id: place.osm_id || null,
+            osm_type: osmType,
+            name: place.name,
+            tags: tags,
+            source: place.source || (osmId ? "osm" : "user"),
+            place_type: place.place_type,
+            savedPlaceId: savedPlace.id,
           },
         };
       });

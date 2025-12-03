@@ -366,8 +366,8 @@ export default function MapContainer({
                   return;
                 }
 
-                // Construct feature object matching the format expected by selectPlaceFromListFeature
-                const tags = {
+                // Start with database tags
+                let tags = {
                   id: placeData.id,
                   name: placeData.name,
                   city: placeData.city,
@@ -377,15 +377,63 @@ export default function MapContainer({
                   accessibility_keywords: placeData.accessibility_keywords,
                   photos: placeData.photos,
                   source: placeData.source || "user",
-                  amenity: placeData.place_type,
-                  ...(placeData.osm_id && { osm_id: placeData.osm_id }),
                 };
+
+                // If this is an OSM place, fetch full OSM tags from Overpass
+                if (placeData.osm_id) {
+                  let osmType = null;
+                  let osmId = null;
+                  
+                  // Extract osm_type and osm_id from osm_id field (format: "node/123" or "way/456")
+                  if (typeof placeData.osm_id === 'string' && placeData.osm_id.includes('/')) {
+                    const parts = placeData.osm_id.split('/');
+                    osmType = parts[0]; // "node", "way", or "relation"
+                    osmId = parts[1];
+                  }
+
+                  if (osmType && osmId) {
+                    // Map OSM type to Overpass format (N, W, R)
+                    const osmTypeMap = { node: 'N', way: 'W', relation: 'R' };
+                    const overpassType = osmTypeMap[osmType] || osmType.toUpperCase()[0];
+                    
+                    try {
+                      // Import and use fetchPlace to get full OSM tags
+                      const { fetchPlace } = await import("./api/fetchPlaces.js");
+                      const osmTags = await fetchPlace(overpassType, osmId);
+                      
+                      if (osmTags && Object.keys(osmTags).length > 0) {
+                        // Merge OSM tags with database tags (OSM tags take precedence)
+                        tags = { ...tags, ...osmTags };
+                        tags.osm_id = placeData.osm_id;
+                        tags.source = placeData.source || "osm";
+                      }
+                    } catch (fetchError) {
+                      console.warn("Failed to fetch OSM tags, using database data only:", fetchError);
+                      // Continue with database tags only
+                      tags.osm_id = placeData.osm_id;
+                    }
+                  } else {
+                    tags.osm_id = placeData.osm_id;
+                  }
+                }
+
+                // For user-added places, add amenity from place_type
+                if (placeData.source === "user" && placeData.place_type) {
+                  tags.amenity = placeData.place_type;
+                }
 
                 const feature = {
                   type: "Feature",
                   properties: {
-                    ...tags,
+                    id: placeData.id,
+                    osm_id: placeData.osm_id || null,
+                    osm_type: placeData.osm_id && typeof placeData.osm_id === 'string' && placeData.osm_id.includes('/') 
+                      ? placeData.osm_id.split('/')[0] 
+                      : null,
+                    name: placeData.name,
                     tags: tags,
+                    source: tags.source || "user",
+                    place_type: placeData.place_type,
                   },
                   geometry: {
                     type: "Point",
