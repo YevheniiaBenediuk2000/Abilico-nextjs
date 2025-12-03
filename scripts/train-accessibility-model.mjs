@@ -426,16 +426,36 @@ function meanStd(values) {
   return { mean, std };
 }
 
-async function trainModel(xTrain, yTrain, xVal, yVal) {
+function* makeIterator(examples, schema, batchSize, shuffle) {
+  const indices = Array.from({ length: examples.length }, (_, i) => i);
+  if (shuffle) {
+    for (let i = indices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+  }
+
+  for (let i = 0; i < examples.length; i += batchSize) {
+    const batchIndices = indices.slice(i, i + batchSize);
+    const features = [];
+    const labels = [];
+    for (const idx of batchIndices) {
+      const ex = examples[idx];
+      features.push(encodePropsWithSchema(ex.props, schema));
+      labels.push(ex.label);
+    }
+
+    if (features.length === 0) continue;
+
+    const xs = tf.tensor2d(features);
+    const ys = tf.oneHot(tf.tensor1d(labels, "int32"), 3);
+
+    yield { xs, ys };
+  }
+}
+
+async function trainModel(trainDataset, valDataset, inputDim, classWeight) {
   console.log("Training model...");
-
-  const xsTrain = tf.tensor2d(xTrain);
-  const ysTrain = tf.oneHot(tf.tensor1d(yTrain, "int32"), 3);
-
-  const xsVal = tf.tensor2d(xVal);
-  const ysVal = tf.oneHot(tf.tensor1d(yVal, "int32"), 3);
-
-  const classWeight = computeClassWeights(yTrain);
   console.log("Class weights:", classWeight);
 
   const model = tf.sequential();
@@ -443,7 +463,7 @@ async function trainModel(xTrain, yTrain, xVal, yVal) {
     tf.layers.dense({
       units: 256,
       activation: "relu",
-      inputShape: [xTrain[0].length],
+      inputShape: [inputDim],
     })
   );
   model.add(tf.layers.batchNormalization());
@@ -510,11 +530,9 @@ async function trainModel(xTrain, yTrain, xVal, yVal) {
     minDelta: 0.001,
   });
 
-  await model.fit(xsTrain, ysTrain, {
+  await model.fitDataset(trainDataset, {
     epochs: 50,
-    batchSize: 512, // Increased from default 32 to speed up training
-    validationData: [xsVal, ysVal],
-    shuffle: true,
+    validationData: valDataset,
     classWeight,
     callbacks: [saveBestEarlyStop],
   });
@@ -549,20 +567,33 @@ async function main() {
       JSON.stringify(schema)
     );
 
-    // Encode with fixed schema
-    const { features: xTrain, labels: yTrain } = encodeExamples(
-      trainExamples,
-      schema
+    // Calculate input dimension
+    const dummy = encodePropsWithSchema(trainExamples[0].props, schema);
+    const inputDim = dummy.length;
+
+    // Compute class weights
+    const trainLabels = trainExamples.map((e) => e.label);
+    const classWeight = computeClassWeights(trainLabels);
+
+    // Create datasets
+    const batchSize = 512;
+    const trainDataset = tf.data.generator(() =>
+      makeIterator(trainExamples, schema, batchSize, true)
     );
-    const { features: xVal, labels: yVal } = encodeExamples(
-      valExamples,
-      schema
+    const valDataset = tf.data.generator(() =>
+      makeIterator(valExamples, schema, batchSize, false)
     );
 
     console.log(
-      `Training on ${xTrain.length} samples. Validating on ${xVal.length}.`
+      `Training on ${trainExamples.length} samples. Validating on ${valExamples.length}.`
     );
-    const model = await trainModel(xTrain, yTrain, xVal, yVal);
+
+    const model = await trainModel(
+      trainDataset,
+      valDataset,
+      inputDim,
+      classWeight
+    );
 
     await model.save(`file://${MODEL_SAVE_PATH}`);
     console.log(`Model saved to ${MODEL_SAVE_PATH}`);
@@ -595,16 +626,34 @@ async function main() {
       return { perClass, macroF1 };
     }
 
-    async function evalOnVal(model, xVal, yVal) {
-      const xs = tf.tensor2d(xVal);
-      const probs = model.predict(xs);
-      const pred = probs.argMax(1);
-      const yPred = Array.from(pred.dataSync());
-      xs.dispose();
-      probs.dispose();
-      pred.dispose();
+    async function evalOnVal(model, examples, schema) {
+      const batchSize = 1024;
+      const allYTrue = [];
+      const allYPred = [];
 
-      const cm = confusionMatrix(yVal, yPred, 3);
+      console.log("Evaluating on validation set...");
+
+      for (let i = 0; i < examples.length; i += batchSize) {
+        const batch = examples.slice(i, i + batchSize);
+        const features = batch.map((ex) =>
+          encodePropsWithSchema(ex.props, schema)
+        );
+        const labels = batch.map((ex) => ex.label);
+
+        const xs = tf.tensor2d(features);
+        const probs = model.predict(xs);
+        const preds = probs.argMax(1).dataSync();
+
+        xs.dispose();
+        probs.dispose();
+
+        for (let j = 0; j < labels.length; j++) {
+          allYTrue.push(labels[j]);
+          allYPred.push(preds[j]);
+        }
+      }
+
+      const cm = confusionMatrix(allYTrue, allYPred, 3);
       const rep = classificationReport(cm);
       console.log("Confusion matrix [true][pred]:", cm);
       console.log("Macro F1:", rep.macroF1.toFixed(3));
@@ -620,7 +669,7 @@ async function main() {
       );
     }
 
-    await evalOnVal(model, xVal, yVal);
+    await evalOnVal(model, valExamples, schema);
   } catch (error) {
     console.error("Error:", error);
   }
