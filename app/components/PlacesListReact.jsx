@@ -455,6 +455,8 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
   }, [photoByKey]);
 
   const [photosOnly, setPhotosOnly] = useState(() => {
+    // Disable photosOnly filter when hideControls is true (e.g., saved places page)
+    if (hideControls) return false;
     if (typeof window === "undefined") return false;
     try {
       return window.localStorage.getItem(PHOTOS_ONLY_LS_KEY) === "1";
@@ -464,6 +466,8 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
   });
 
   useEffect(() => {
+    // Don't update localStorage when hideControls is true
+    if (hideControls) return;
     if (typeof window === "undefined") return;
     try {
       if (photosOnly) {
@@ -474,13 +478,18 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
     } catch {
       // ignore storage errors
     }
-  }, [photosOnly]);
+  }, [photosOnly, hideControls]);
 
   // raw items (with type metadata)
   const rawItems = useMemo(() => {
     const base = (features || []).map((f) => derivePlaceInfo(f, center));
     if (!base.length) return [];
     const sorted = [...base];
+
+    // When hideControls is true, don't sort (show in original order)
+    if (hideControls) {
+      return sorted;
+    }
 
     if (sortBy === "distance") {
       sorted.sort((a, b) => {
@@ -983,13 +992,18 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
   }, [sortBy, features, center, userPrefs, scoresByPlaceKey]);
 
   // Place-type filter state for *list* (mirrors NestedPlaceTypeFilter localStorage)
+  // Disable filters when hideControls is true (e.g., saved places page)
   const [activeTypeFilters, setActiveTypeFilters] = useState(() => {
+    if (hideControls) return null; // No filters when controls are hidden
     const fromLs = loadInitialTypeFilter();
     return fromLs;
   });
 
   // Listen to filter changes broadcast from the nested filter component
   useEffect(() => {
+    // Don't listen to filter changes when hideControls is true
+    if (hideControls) return;
+    
     const handler = (ev) => {
       // we don't actually use the compact "active" list here, we just reload from LS
       const fromLs = loadInitialTypeFilter();
@@ -998,7 +1012,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
     document.addEventListener("placeTypeFilterChanged", handler);
     return () =>
       document.removeEventListener("placeTypeFilterChanged", handler);
-  }, []);
+  }, [hideControls]);
 
   // Apply place-type filters to rawItems
   const items = useMemo(() => {
@@ -1046,7 +1060,8 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
     }
 
     // 👇 NEW: keep only places where we already found at least one photo
-    if (photosOnly) {
+    // Skip this filter when hideControls is true
+    if (photosOnly && !hideControls) {
       filtered = filtered.filter((item) => {
         if (!item.placeKey) return false;
         const photo = photoByKey[item.placeKey];
@@ -1056,7 +1071,8 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
 
     // 👇 NEW: when Best for me is active:
     // keep ONLY places that have multi-level ratings AND belong to the detected city
-    if (sortBy === "bestForMe") {
+    // Skip this filter when hideControls is true
+    if (sortBy === "bestForMe" && !hideControls) {
       filtered = filtered.filter((item) => {
         const scoreData = scoresByPlaceKey[item.placeKey];
         if (!scoreData || !scoreData.perCategory) return false;

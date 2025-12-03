@@ -443,24 +443,47 @@ export default function MapContainer({
         return;
       }
 
+      // Skip if placeId is not a UUID (e.g., OSM ID like "node/123")
+      const placeId = globals.detailsCtx.placeId;
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(placeId);
+      if (!isUUID) {
+        setIsPlaceSaved(false);
+        setSavedPlaceId(null);
+        return;
+      }
+
       try {
         const { data, error } = await supabase
           .from("saved_places")
           .select("id")
           .eq("user_id", user.id)
-          .eq("place_id", globals.detailsCtx.placeId)
+          .eq("place_id", placeId)
           .maybeSingle();
 
-        if (error && error.code !== "PGRST116") {
-          // PGRST116 is "not found" which is fine
-          console.error("Error checking saved place:", error);
+        // Handle errors - PGRST116 is "not found" which is expected
+        if (error) {
+          // Only log if it's a real error (not "not found" and has meaningful content)
+          if (error.code !== "PGRST116" && (error.message || Object.keys(error).length > 0)) {
+            // Only log if error has meaningful content
+            const errorStr = error.message || JSON.stringify(error);
+            if (errorStr && errorStr !== "{}" && errorStr !== "null") {
+              console.error("Error checking saved place:", error);
+            }
+          }
+          setIsPlaceSaved(false);
+          setSavedPlaceId(null);
           return;
         }
 
         setIsPlaceSaved(!!data);
         setSavedPlaceId(data?.id || null);
       } catch (err) {
-        console.error("Error checking saved place:", err);
+        // Only log if error has meaningful content
+        if (err && (err.message || err.toString() !== "{}")) {
+          console.error("Error checking saved place:", err);
+        }
+        setIsPlaceSaved(false);
+        setSavedPlaceId(null);
       }
     };
 
