@@ -22,6 +22,16 @@ import CloseIcon from "@mui/icons-material/Close";
 import Drawer from "@mui/material/Drawer";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
+import Radio from "@mui/material/Radio";
+import RadioGroup from "@mui/material/RadioGroup";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Chip from "@mui/material/Chip";
+import Checkbox from "@mui/material/Checkbox";
+import FormGroup from "@mui/material/FormGroup";
 
 import PlacesListReact from "./components/PlacesListReact";
 import ReviewForm from "./components/ReviewForm";
@@ -150,6 +160,13 @@ export default function MapContainer({
 
   const [obstacleDialogOpen, setObstacleDialogOpen] = useState(false);
   const [selectedObstacle, setSelectedObstacle] = useState(null);
+
+  const [inaccuracyModalOpen, setInaccuracyModalOpen] = useState(false);
+  const [selectedInaccuracyReason, setSelectedInaccuracyReason] = useState("");
+  const [inaccuracyScreen, setInaccuracyScreen] = useState(1); // 1 = reason selection, 2 = accessibility details, 3 = details
+  const [selectedRealityStatus, setSelectedRealityStatus] = useState("");
+  const [selectedSpecificIssues, setSelectedSpecificIssues] = useState([]);
+  const [inaccuracyComment, setInaccuracyComment] = useState("");
 
   // Expose a global function so mapMain.js can open the details drawer
   useEffect(() => {
@@ -637,6 +654,23 @@ export default function MapContainer({
                 </div>
               </div>
             </CardContent>
+            <CardActions sx={{ justifyContent: "flex-end", px: 2, pb: 2 }}>
+              <Button
+                variant="text"
+                size="small"
+                onClick={() => {
+                  setInaccuracyModalOpen(true);
+                  setInaccuracyScreen(1);
+                  setSelectedInaccuracyReason("");
+                  setSelectedRealityStatus("");
+                  setSelectedSpecificIssues([]);
+                  setInaccuracyComment("");
+                }}
+                sx={{ textTransform: "none" }}
+              >
+                Found an inaccuracy?
+              </Button>
+            </CardActions>
           </Card>
         </div>
       </Box>
@@ -787,6 +821,464 @@ export default function MapContainer({
           }
         }}
       />
+
+      {/* Inaccuracy Report Modal */}
+      <Dialog
+        open={inaccuracyModalOpen}
+        onClose={() => {
+          setInaccuracyModalOpen(false);
+          setSelectedInaccuracyReason("");
+          setInaccuracyScreen(1);
+          setSelectedRealityStatus("");
+          setSelectedSpecificIssues([]);
+          setInaccuracyComment("");
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        {inaccuracyScreen === 1 ? (
+          <>
+            <DialogTitle>Choose what's wrong</DialogTitle>
+            <DialogContent>
+              <RadioGroup
+                value={selectedInaccuracyReason}
+                onChange={(e) => setSelectedInaccuracyReason(e.target.value)}
+              >
+                <FormControlLabel
+                  value="accessibility"
+                  control={<Radio />}
+                  label={
+                    <Box>
+                      <Typography variant="body1">
+                        Accessibility info is wrong
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Wheelchair access different from what's shown
+                      </Typography>
+                    </Box>
+                  }
+                  sx={{ alignItems: "flex-start", mb: 2 }}
+                />
+                <FormControlLabel
+                  value="closed"
+                  control={<Radio />}
+                  label={
+                    <Box>
+                      <Typography variant="body1">
+                        Place is permanently closed
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        No longer exists / moved
+                      </Typography>
+                    </Box>
+                  }
+                  sx={{ alignItems: "flex-start", mb: 2 }}
+                />
+                <FormControlLabel
+                  value="category"
+                  control={<Radio />}
+                  label={
+                    <Box>
+                      <Typography variant="body1">
+                        Wrong category/type of place
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        E.g. shown as café but it's a bank
+                      </Typography>
+                    </Box>
+                  }
+                  sx={{ alignItems: "flex-start", mb: 2 }}
+                />
+                <FormControlLabel
+                  value="duplicate"
+                  control={<Radio />}
+                  label={
+                    <Box>
+                      <Typography variant="body1">Duplicate place</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Same place listed twice
+                      </Typography>
+                    </Box>
+                  }
+                  sx={{ alignItems: "flex-start", mb: 2 }}
+                />
+                <FormControlLabel
+                  value="address"
+                  control={<Radio />}
+                  label={
+                    <Box>
+                      <Typography variant="body1">
+                        Address/location is wrong
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Pin is far away from the real entrance
+                      </Typography>
+                    </Box>
+                  }
+                  sx={{ alignItems: "flex-start", mb: 2 }}
+                />
+                <FormControlLabel
+                  value="other"
+                  control={<Radio />}
+                  label={
+                    <Box>
+                      <Typography variant="body1">Other</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Something else is wrong
+                      </Typography>
+                    </Box>
+                  }
+                  sx={{ alignItems: "flex-start" }}
+                />
+              </RadioGroup>
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2 }}>
+              <Button
+                onClick={() => {
+                  setInaccuracyModalOpen(false);
+                  setSelectedInaccuracyReason("");
+                  setInaccuracyScreen(1);
+                  setSelectedRealityStatus("");
+                  setSelectedSpecificIssues([]);
+                  setInaccuracyComment("");
+                }}
+                sx={{ textTransform: "none" }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                onClick={() => {
+                  if (selectedInaccuracyReason === "accessibility") {
+                    setInaccuracyScreen(2);
+                  } else {
+                    // Skip Screen 2 for non-accessibility reasons, go to Screen 3
+                    setInaccuracyScreen(3);
+                  }
+                }}
+                disabled={!selectedInaccuracyReason}
+                sx={{ textTransform: "none" }}
+              >
+                Next
+              </Button>
+            </DialogActions>
+          </>
+        ) : inaccuracyScreen === 2 ? (
+          <>
+            <DialogTitle>Accessibility reality</DialogTitle>
+            <DialogContent>
+              <Typography variant="subtitle1" sx={{ mb: 3 }}>
+                What's wrong with the accessibility info?
+              </Typography>
+
+              {/* Reality selector */}
+              <Box sx={{ mb: 4 }}>
+                <Typography variant="body2" sx={{ mb: 1.5 }}>
+                  Reality selector
+                </Typography>
+                <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                  <Chip
+                    label="🟩 Designated"
+                    onClick={() => setSelectedRealityStatus("designated")}
+                    color={selectedRealityStatus === "designated" ? "primary" : "default"}
+                    variant={selectedRealityStatus === "designated" ? "filled" : "outlined"}
+                    sx={{
+                      backgroundColor:
+                        selectedRealityStatus === "designated"
+                          ? "#4caf50"
+                          : "transparent",
+                      color:
+                        selectedRealityStatus === "designated"
+                          ? "white"
+                          : "inherit",
+                      borderColor: "#4caf50",
+                      "&:hover": {
+                        backgroundColor:
+                          selectedRealityStatus === "designated"
+                            ? "#4caf50"
+                            : "rgba(76, 175, 80, 0.1)",
+                      },
+                    }}
+                  />
+                  <Chip
+                    label="🟩 Yes"
+                    onClick={() => setSelectedRealityStatus("yes")}
+                    color={selectedRealityStatus === "yes" ? "primary" : "default"}
+                    variant={selectedRealityStatus === "yes" ? "filled" : "outlined"}
+                    sx={{
+                      backgroundColor:
+                        selectedRealityStatus === "yes" ? "#4caf50" : "transparent",
+                      color:
+                        selectedRealityStatus === "yes" ? "white" : "inherit",
+                      borderColor: "#4caf50",
+                      "&:hover": {
+                        backgroundColor:
+                          selectedRealityStatus === "yes"
+                            ? "#4caf50"
+                            : "rgba(76, 175, 80, 0.1)",
+                      },
+                    }}
+                  />
+                  <Chip
+                    label="🟨 Limited"
+                    onClick={() => setSelectedRealityStatus("limited")}
+                    color={selectedRealityStatus === "limited" ? "primary" : "default"}
+                    variant={selectedRealityStatus === "limited" ? "filled" : "outlined"}
+                    sx={{
+                      backgroundColor:
+                        selectedRealityStatus === "limited"
+                          ? "#ff9800"
+                          : "transparent",
+                      color:
+                        selectedRealityStatus === "limited" ? "white" : "inherit",
+                      borderColor: "#ff9800",
+                      "&:hover": {
+                        backgroundColor:
+                          selectedRealityStatus === "limited"
+                            ? "#ff9800"
+                            : "rgba(255, 152, 0, 0.1)",
+                      },
+                    }}
+                  />
+                  <Chip
+                    label="🟥 No"
+                    onClick={() => setSelectedRealityStatus("no")}
+                    color={selectedRealityStatus === "no" ? "primary" : "default"}
+                    variant={selectedRealityStatus === "no" ? "filled" : "outlined"}
+                    sx={{
+                      backgroundColor:
+                        selectedRealityStatus === "no" ? "#f44336" : "transparent",
+                      color:
+                        selectedRealityStatus === "no" ? "white" : "inherit",
+                      borderColor: "#f44336",
+                      "&:hover": {
+                        backgroundColor:
+                          selectedRealityStatus === "no"
+                            ? "#f44336"
+                            : "rgba(244, 67, 54, 0.1)",
+                      },
+                    }}
+                  />
+                </Box>
+              </Box>
+
+              {/* Specific issues */}
+              <Box>
+                <Typography variant="body2" sx={{ mb: 1.5 }}>
+                  Specific issues
+                </Typography>
+                <FormGroup>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={selectedSpecificIssues.includes("entrance_not_accessible")}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedSpecificIssues([
+                              ...selectedSpecificIssues,
+                              "entrance_not_accessible",
+                            ]);
+                          } else {
+                            setSelectedSpecificIssues(
+                              selectedSpecificIssues.filter(
+                                (issue) => issue !== "entrance_not_accessible"
+                              )
+                            );
+                          }
+                        }}
+                      />
+                    }
+                    label="Entrance not wheelchair accessible"
+                    sx={{ mb: 1 }}
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={selectedSpecificIssues.includes("steps_at_entrance")}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedSpecificIssues([
+                              ...selectedSpecificIssues,
+                              "steps_at_entrance",
+                            ]);
+                          } else {
+                            setSelectedSpecificIssues(
+                              selectedSpecificIssues.filter(
+                                (issue) => issue !== "steps_at_entrance"
+                              )
+                            );
+                          }
+                        }}
+                      />
+                    }
+                    label="There are steps at the entrance"
+                    sx={{ mb: 1 }}
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={selectedSpecificIssues.includes("no_accessible_toilet")}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedSpecificIssues([
+                              ...selectedSpecificIssues,
+                              "no_accessible_toilet",
+                            ]);
+                          } else {
+                            setSelectedSpecificIssues(
+                              selectedSpecificIssues.filter(
+                                (issue) => issue !== "no_accessible_toilet"
+                              )
+                            );
+                          }
+                        }}
+                      />
+                    }
+                    label="No accessible toilet"
+                    sx={{ mb: 1 }}
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={selectedSpecificIssues.includes("ramp_too_steep")}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedSpecificIssues([
+                              ...selectedSpecificIssues,
+                              "ramp_too_steep",
+                            ]);
+                          } else {
+                            setSelectedSpecificIssues(
+                              selectedSpecificIssues.filter(
+                                (issue) => issue !== "ramp_too_steep"
+                              )
+                            );
+                          }
+                        }}
+                      />
+                    }
+                    label="Ramp is too steep / unusable"
+                    sx={{ mb: 1 }}
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={selectedSpecificIssues.includes("door_too_narrow")}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedSpecificIssues([
+                              ...selectedSpecificIssues,
+                              "door_too_narrow",
+                            ]);
+                          } else {
+                            setSelectedSpecificIssues(
+                              selectedSpecificIssues.filter(
+                                (issue) => issue !== "door_too_narrow"
+                              )
+                            );
+                          }
+                        }}
+                      />
+                    }
+                    label="Door is too narrow / heavy"
+                    sx={{ mb: 1 }}
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={selectedSpecificIssues.includes("other_accessibility")}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedSpecificIssues([
+                              ...selectedSpecificIssues,
+                              "other_accessibility",
+                            ]);
+                          } else {
+                            setSelectedSpecificIssues(
+                              selectedSpecificIssues.filter(
+                                (issue) => issue !== "other_accessibility"
+                              )
+                            );
+                          }
+                        }}
+                      />
+                    }
+                    label="Other accessibility issue"
+                  />
+                </FormGroup>
+              </Box>
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2 }}>
+              <Button
+                onClick={() => {
+                  setInaccuracyScreen(1);
+                }}
+                sx={{ textTransform: "none" }}
+              >
+                Back
+              </Button>
+              <Button
+                variant="contained"
+                onClick={() => {
+                  setInaccuracyScreen(3);
+                }}
+                sx={{ textTransform: "none" }}
+              >
+                Next
+              </Button>
+            </DialogActions>
+          </>
+        ) : (
+          <>
+            <DialogTitle>Add details (optional)</DialogTitle>
+            <DialogContent>
+              <TextField
+                multiline
+                rows={4}
+                fullWidth
+                placeholder="Example: Main entrance has 3 stairs and no ramp. Side entrance is accessible but usually locked."
+                value={inaccuracyComment}
+                onChange={(e) => setInaccuracyComment(e.target.value)}
+                sx={{ mt: 1 }}
+              />
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2 }}>
+              <Button
+                onClick={() => {
+                  if (selectedInaccuracyReason === "accessibility") {
+                    setInaccuracyScreen(2);
+                  } else {
+                    setInaccuracyScreen(1);
+                  }
+                }}
+                sx={{ textTransform: "none" }}
+              >
+                Back
+              </Button>
+              <Button
+                variant="contained"
+                onClick={() => {
+                  // Placeholder for submit functionality
+                  // TODO: Submit the report with:
+                  // - selectedInaccuracyReason
+                  // - selectedRealityStatus (if accessibility)
+                  // - selectedSpecificIssues (if accessibility)
+                  // - inaccuracyComment
+                  setInaccuracyModalOpen(false);
+                  setSelectedInaccuracyReason("");
+                  setInaccuracyScreen(1);
+                  setSelectedRealityStatus("");
+                  setSelectedSpecificIssues([]);
+                  setInaccuracyComment("");
+                }}
+                sx={{ textTransform: "none" }}
+              >
+                Submit report
+              </Button>
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
     </div>
   );
 }
