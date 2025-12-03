@@ -23,6 +23,8 @@ import IconButton from "@mui/material/IconButton";
 import CloseIcon from "@mui/icons-material/Close";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import FavoriteIcon from "@mui/icons-material/Favorite";
+import Tooltip from "@mui/material/Tooltip";
 import AccessibilityLegendReact from "./AccessibilityLegendReact";
 
 import {
@@ -410,7 +412,7 @@ function NestedPlaceTypeFilter({ items }) {
   );
 }
 
-export default function PlacesListReact({ data, onSelect }) {
+export default function PlacesListReact({ data, onSelect, hideControls = false, onUnsave = null }) {
   const { features = [], center, zoom } = data || {};
   const [sortBy, setSortBy] = useState("distance"); // "distance" | "name" | "bestForMe"
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -453,6 +455,8 @@ export default function PlacesListReact({ data, onSelect }) {
   }, [photoByKey]);
 
   const [photosOnly, setPhotosOnly] = useState(() => {
+    // Disable photosOnly filter when hideControls is true (e.g., saved places page)
+    if (hideControls) return false;
     if (typeof window === "undefined") return false;
     try {
       return window.localStorage.getItem(PHOTOS_ONLY_LS_KEY) === "1";
@@ -462,6 +466,8 @@ export default function PlacesListReact({ data, onSelect }) {
   });
 
   useEffect(() => {
+    // Don't update localStorage when hideControls is true
+    if (hideControls) return;
     if (typeof window === "undefined") return;
     try {
       if (photosOnly) {
@@ -472,13 +478,18 @@ export default function PlacesListReact({ data, onSelect }) {
     } catch {
       // ignore storage errors
     }
-  }, [photosOnly]);
+  }, [photosOnly, hideControls]);
 
   // raw items (with type metadata)
   const rawItems = useMemo(() => {
     const base = (features || []).map((f) => derivePlaceInfo(f, center));
     if (!base.length) return [];
     const sorted = [...base];
+
+    // When hideControls is true, don't sort (show in original order)
+    if (hideControls) {
+      return sorted;
+    }
 
     if (sortBy === "distance") {
       sorted.sort((a, b) => {
@@ -567,7 +578,9 @@ export default function PlacesListReact({ data, onSelect }) {
     if (!rawItems.length) return;
 
     let cancelled = false;
-    const MAX_PLACES_WITH_PHOTOS = 24;
+    // When hideControls is true (saved places), load photos for all places
+    // Otherwise, limit to first 24 for performance
+    const MAX_PLACES_WITH_PHOTOS = hideControls ? rawItems.length : 24;
 
     (async () => {
       const candidates = rawItems
@@ -582,11 +595,32 @@ export default function PlacesListReact({ data, onSelect }) {
         if (photoCacheRef.current[key] !== undefined) continue;
 
         try {
-          const photos = await resolvePlacePhotos(item.tags, item.latlng);
-          if (cancelled) return;
+          // First, check if photos are already in the database (from tags.photos)
+          const dbPhotos = item.tags?.photos;
+          let first = null;
 
-          const first =
-            Array.isArray(photos) && photos.length ? photos[0] : null;
+          if (dbPhotos && Array.isArray(dbPhotos) && dbPhotos.length > 0) {
+            // Use the first photo from database
+            const photoUrl = dbPhotos[0];
+            // Handle both string URLs and objects with url/src properties
+            if (typeof photoUrl === "string") {
+              first = { src: photoUrl, thumb: photoUrl };
+            } else if (photoUrl && (photoUrl.url || photoUrl.src || photoUrl.thumb)) {
+              first = {
+                src: photoUrl.url || photoUrl.src || photoUrl.thumb,
+                thumb: photoUrl.thumb || photoUrl.url || photoUrl.src,
+                title: photoUrl.title || photoUrl.caption || null,
+              };
+            }
+          }
+
+          // If no database photos, try to fetch from external sources
+          if (!first) {
+            const photos = await resolvePlacePhotos(item.tags, item.latlng);
+            if (cancelled) return;
+
+            first = Array.isArray(photos) && photos.length ? photos[0] : null;
+          }
 
           setPhotoByKey((prev) => {
             if (prev[key] !== undefined) return prev;
@@ -981,13 +1015,18 @@ export default function PlacesListReact({ data, onSelect }) {
   }, [sortBy, features, center, userPrefs, scoresByPlaceKey]);
 
   // Place-type filter state for *list* (mirrors NestedPlaceTypeFilter localStorage)
+  // Disable filters when hideControls is true (e.g., saved places page)
   const [activeTypeFilters, setActiveTypeFilters] = useState(() => {
+    if (hideControls) return null; // No filters when controls are hidden
     const fromLs = loadInitialTypeFilter();
     return fromLs;
   });
 
   // Listen to filter changes broadcast from the nested filter component
   useEffect(() => {
+    // Don't listen to filter changes when hideControls is true
+    if (hideControls) return;
+    
     const handler = (ev) => {
       // we don't actually use the compact "active" list here, we just reload from LS
       const fromLs = loadInitialTypeFilter();
@@ -996,7 +1035,7 @@ export default function PlacesListReact({ data, onSelect }) {
     document.addEventListener("placeTypeFilterChanged", handler);
     return () =>
       document.removeEventListener("placeTypeFilterChanged", handler);
-  }, []);
+  }, [hideControls]);
 
   // Apply place-type filters to rawItems
   const items = useMemo(() => {
@@ -1044,7 +1083,8 @@ export default function PlacesListReact({ data, onSelect }) {
     }
 
     // 👇 NEW: keep only places where we already found at least one photo
-    if (photosOnly) {
+    // Skip this filter when hideControls is true
+    if (photosOnly && !hideControls) {
       filtered = filtered.filter((item) => {
         if (!item.placeKey) return false;
         const photo = photoByKey[item.placeKey];
@@ -1054,7 +1094,8 @@ export default function PlacesListReact({ data, onSelect }) {
 
     // 👇 NEW: when Best for me is active:
     // keep ONLY places that have multi-level ratings AND belong to the detected city
-    if (sortBy === "bestForMe") {
+    // Skip this filter when hideControls is true
+    if (sortBy === "bestForMe" && !hideControls) {
       filtered = filtered.filter((item) => {
         const scoreData = scoresByPlaceKey[item.placeKey];
         if (!scoreData || !scoreData.perCategory) return false;
@@ -1118,20 +1159,22 @@ export default function PlacesListReact({ data, onSelect }) {
         justifyContent="space-between"
         gap={1}
       >
-        <Box>
-          <Typography sx={{ mb: 0.9 }} variant="subtitle1" fontWeight={600}>
-            Places in view
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {hasPlaces
-              ? `${items.length} place${items.length === 1 ? "" : "s"}`
-              : zoom && zoom < SHOW_PLACES_ZOOM
-              ? "Zoom in to see accessible places"
-              : "No places match your filters here"}
-          </Typography>
-        </Box>
+        {!hideControls && (
+          <Box>
+            <Typography sx={{ mb: 0.9 }} variant="subtitle1" fontWeight={600}>
+              Places in view
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {hasPlaces
+                ? `${items.length} place${items.length === 1 ? "" : "s"}`
+                : zoom && zoom < SHOW_PLACES_ZOOM
+                ? "Zoom in to see accessible places"
+                : "No places match your filters here"}
+            </Typography>
+          </Box>
+        )}
 
-        {rawItems.length > 0 && (
+        {!hideControls && rawItems.length > 0 && (
           <Box
             sx={{
               display: "flex",
@@ -1223,7 +1266,30 @@ export default function PlacesListReact({ data, onSelect }) {
                     return (
                       <Box key={uniqueKey}>
                         <Divider component="li" />
-                        <ListItem disablePadding sx={{ alignItems: "stretch" }}>
+                        <ListItem 
+                          disablePadding 
+                          sx={{ alignItems: "stretch" }}
+                          secondaryAction={
+                            onUnsave && item.feature?.properties?.savedPlaceId ? (
+                              <Tooltip title="Remove from saved">
+                                <IconButton
+                                  edge="end"
+                                  aria-label="Remove from saved"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onUnsave(item.feature);
+                                  }}
+                                  sx={{ 
+                                    color: "error.main",
+                                    mr: 1
+                                  }}
+                                >
+                                  <FavoriteIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            ) : null
+                          }
+                        >
                           <ListItemButton
                             alignItems="flex-start"
                             onClick={() => onSelect?.(item.feature)}

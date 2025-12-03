@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -30,6 +29,7 @@ import MenuIcon from "@mui/icons-material/Menu";
 import SearchIcon from "@mui/icons-material/Search";
 import LogoutIcon from "@mui/icons-material/Logout";
 import PersonIcon from "@mui/icons-material/Person";
+import FavoriteIcon from "@mui/icons-material/Favorite";
 import AddIcon from "@mui/icons-material/Add";
 import Tooltip from "@mui/material/Tooltip";
 
@@ -56,12 +56,15 @@ function getAvatarColor(email) {
   return hash % 2 === 0 ? deepOrange[500] : deepPurple[500];
 }
 
-export default function MapLayout({ isDashboard = false, children }) {
+export default function MapLayout({ isDashboard = false, children, hideSidebar = false }) {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [isPlacesListOpen, setIsPlacesListOpen] = useState(false);
   const [avatarMenuAnchor, setAvatarMenuAnchor] = useState(null);
   const [addPlaceDialogOpen, setAddPlaceDialogOpen] = useState(false);
+
+  // Keep sidebar closed when hideSidebar is true
+  const effectiveIsPlacesListOpen = hideSidebar ? false : isPlacesListOpen;
 
   // ✅ Track user session
   useEffect(() => {
@@ -128,29 +131,36 @@ export default function MapLayout({ isDashboard = false, children }) {
           <Toolbar sx={{ gap: 2 }}>
             {/* LEFT: burger + logo */}
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <IconButton
-                size="large"
-                edge="start"
-                color="inherit"
-                aria-label="open places list"
-                onClick={() => setIsPlacesListOpen((prev) => !prev)}
-              >
-                <MenuIcon />
-              </IconButton>
-
-              <Link
-                href="/"
-                style={{ textDecoration: "none", color: "inherit" }}
-              >
-                <Typography
-                  variant="h6"
-                  noWrap
-                  component="div"
-                  sx={{ display: { xs: "none", sm: "block" } }}
+              {!hideSidebar && (
+                <IconButton
+                  size="large"
+                  edge="start"
+                  color="inherit"
+                  aria-label="open places list"
+                  onClick={() => setIsPlacesListOpen((prev) => !prev)}
                 >
-                  Abilico
-                </Typography>
-              </Link>
+                  <MenuIcon />
+                </IconButton>
+              )}
+
+              <Typography
+                variant="h6"
+                noWrap
+                component="div"
+                onClick={() => {
+                  // Force full page reload to ensure map initializes properly
+                  window.location.href = "/";
+                }}
+                sx={{ 
+                  display: { xs: "none", sm: "block" },
+                  cursor: "pointer",
+                  "&:hover": {
+                    opacity: 0.8
+                  }
+                }}
+              >
+                Abilico
+              </Typography>
             </Box>
 
             {/* CENTER: search bar, centered in available space */}
@@ -308,6 +318,17 @@ export default function MapLayout({ isDashboard = false, children }) {
                       </ListItemIcon>
                       Profile
                     </MenuItem>
+                    <MenuItem
+                      onClick={() => {
+                        setAvatarMenuAnchor(null);
+                        router.push("/saved-places");
+                      }}
+                    >
+                      <ListItemIcon>
+                        <FavoriteIcon fontSize="small" />
+                      </ListItemIcon>
+                      Saved places
+                    </MenuItem>
                     <Divider />
                     <MenuItem
                       onClick={async () => {
@@ -342,7 +363,7 @@ export default function MapLayout({ isDashboard = false, children }) {
           ) : (
             <MapContainer
               user={user}
-              isPlacesListOpen={isPlacesListOpen}
+              isPlacesListOpen={effectiveIsPlacesListOpen}
               onPlacesListClose={() => setIsPlacesListOpen(false)}
             />
           )}

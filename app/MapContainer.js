@@ -19,6 +19,9 @@ import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import IconButton from "@mui/material/IconButton";
 import CloseIcon from "@mui/icons-material/Close";
+import FavoriteIcon from "@mui/icons-material/Favorite";
+import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
+import Tooltip from "@mui/material/Tooltip";
 import Drawer from "@mui/material/Drawer";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
@@ -171,6 +174,11 @@ export default function MapContainer({
   const [selectedSpecificIssues, setSelectedSpecificIssues] = useState([]);
   const [inaccuracyComment, setInaccuracyComment] = useState("");
 
+  const [isPlaceSaved, setIsPlaceSaved] = useState(false);
+  const [savedPlaceId, setSavedPlaceId] = useState(null);
+  const [saveSnackbarOpen, setSaveSnackbarOpen] = useState(false);
+  const [saveSnackbarMessage, setSaveSnackbarMessage] = useState("");
+
   // Expose a global function so mapMain.js can open the details drawer
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -297,6 +305,153 @@ export default function MapContainer({
         await initMap(user); // <— pass user to initMap
         // Store updateUser function globally so we can call it when user changes
         window.updateMapUser = updateUser;
+
+        // Check if there's a place to select from saved places
+        if (typeof window !== "undefined" && typeof sessionStorage !== "undefined") {
+          const selectedPlaceId = sessionStorage.getItem("selectedPlaceId");
+          const fromSavedPlaces = sessionStorage.getItem("fromSavedPlaces");
+          
+          if (selectedPlaceId && fromSavedPlaces) {
+            const lat = parseFloat(sessionStorage.getItem("selectedPlaceLat"));
+            const lon = parseFloat(sessionStorage.getItem("selectedPlaceLon"));
+
+            // Clear sessionStorage
+            sessionStorage.removeItem("selectedPlaceId");
+            sessionStorage.removeItem("selectedPlaceLat");
+            sessionStorage.removeItem("selectedPlaceLon");
+            sessionStorage.removeItem("selectedPlaceName");
+            sessionStorage.removeItem("fromSavedPlaces");
+
+            // Wait for map to be fully ready (tiles loaded), then select the place
+            const selectPlaceWhenReady = async () => {
+              // Wait for both map and function to be available
+              if (!window.map || !window.selectPlaceFromListFeature) {
+                // If not ready, wait a bit and try again
+                setTimeout(selectPlaceWhenReady, 300);
+                return;
+              }
+
+              // Wait for map tiles to load (map 'load' event)
+              const waitForMapLoad = () => {
+                return new Promise((resolve) => {
+                  // Check if map has tiles loaded by checking if it has a center
+                  // and if the container has rendered tiles
+                  const hasTiles = window.map.getContainer().querySelector('img[src*="tile"]');
+                  
+                  if (hasTiles || window.map._loaded) {
+                    // Map already loaded
+                    resolve();
+                  } else {
+                    // Wait for load event
+                    window.map.once("load", resolve);
+                    // Fallback timeout after 5 seconds
+                    setTimeout(resolve, 5000);
+                  }
+                });
+              };
+
+              try {
+                // Wait for map to finish loading tiles
+                await waitForMapLoad();
+
+                // Fetch place details from database
+                const { data: placeData, error } = await supabase
+                  .from("places")
+                  .select("*")
+                  .eq("id", selectedPlaceId)
+                  .single();
+
+                if (error || !placeData) {
+                  console.error("Error fetching place:", error);
+                  return;
+                }
+
+                // Start with database tags
+                let tags = {
+                  id: placeData.id,
+                  name: placeData.name,
+                  city: placeData.city,
+                  country: placeData.country,
+                  place_type: placeData.place_type,
+                  accessibility_status: placeData.accessibility_status,
+                  accessibility_keywords: placeData.accessibility_keywords,
+                  photos: placeData.photos,
+                  source: placeData.source || "user",
+                };
+
+                // If this is an OSM place, fetch full OSM tags from Overpass
+                if (placeData.osm_id) {
+                  let osmType = null;
+                  let osmId = null;
+                  
+                  // Extract osm_type and osm_id from osm_id field (format: "node/123" or "way/456")
+                  if (typeof placeData.osm_id === 'string' && placeData.osm_id.includes('/')) {
+                    const parts = placeData.osm_id.split('/');
+                    osmType = parts[0]; // "node", "way", or "relation"
+                    osmId = parts[1];
+                  }
+
+                  if (osmType && osmId) {
+                    // Map OSM type to Overpass format (N, W, R)
+                    const osmTypeMap = { node: 'N', way: 'W', relation: 'R' };
+                    const overpassType = osmTypeMap[osmType] || osmType.toUpperCase()[0];
+                    
+                    try {
+                      // Import and use fetchPlace to get full OSM tags
+                      const { fetchPlace } = await import("./api/fetchPlaces.js");
+                      const osmTags = await fetchPlace(overpassType, osmId);
+                      
+                      if (osmTags && Object.keys(osmTags).length > 0) {
+                        // Merge OSM tags with database tags (OSM tags take precedence)
+                        tags = { ...tags, ...osmTags };
+                        tags.osm_id = placeData.osm_id;
+                        tags.source = placeData.source || "osm";
+                      }
+                    } catch (fetchError) {
+                      console.warn("Failed to fetch OSM tags, using database data only:", fetchError);
+                      // Continue with database tags only
+                      tags.osm_id = placeData.osm_id;
+                    }
+                  } else {
+                    tags.osm_id = placeData.osm_id;
+                  }
+                }
+
+                // For user-added places, add amenity from place_type
+                if (placeData.source === "user" && placeData.place_type) {
+                  tags.amenity = placeData.place_type;
+                }
+
+                const feature = {
+                  type: "Feature",
+                  properties: {
+                    id: placeData.id,
+                    osm_id: placeData.osm_id || null,
+                    osm_type: placeData.osm_id && typeof placeData.osm_id === 'string' && placeData.osm_id.includes('/') 
+                      ? placeData.osm_id.split('/')[0] 
+                      : null,
+                    name: placeData.name,
+                    tags: tags,
+                    source: tags.source || "user",
+                    place_type: placeData.place_type,
+                  },
+                  geometry: {
+                    type: "Point",
+                    coordinates: [placeData.lon || lon, placeData.lat || lat],
+                  },
+                };
+
+                // Use existing selectPlaceFromListFeature function - it handles everything
+                await window.selectPlaceFromListFeature(feature);
+              } catch (err) {
+                console.error("Error selecting place from saved:", err);
+              }
+            };
+
+            // Start waiting for map to be ready
+            selectPlaceWhenReady();
+          }
+        }
       }
     })();
 
@@ -326,6 +481,62 @@ export default function MapContainer({
       }
     };
   }, []);
+
+  // Check if current place is saved when place popup opens or place changes
+  useEffect(() => {
+    const checkIfPlaceSaved = async () => {
+      if (!placePopupOpen || !user || !globals.detailsCtx.placeId) {
+        setIsPlaceSaved(false);
+        setSavedPlaceId(null);
+        return;
+      }
+
+      // Skip if placeId is not a UUID (e.g., OSM ID like "node/123")
+      const placeId = globals.detailsCtx.placeId;
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(placeId);
+      if (!isUUID) {
+        setIsPlaceSaved(false);
+        setSavedPlaceId(null);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("saved_places")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("place_id", placeId)
+          .maybeSingle();
+
+        // Handle errors - PGRST116 is "not found" which is expected
+        if (error) {
+          // Only log if it's a real error (not "not found" and has meaningful content)
+          if (error.code !== "PGRST116" && (error.message || Object.keys(error).length > 0)) {
+            // Only log if error has meaningful content
+            const errorStr = error.message || JSON.stringify(error);
+            if (errorStr && errorStr !== "{}" && errorStr !== "null") {
+              console.error("Error checking saved place:", error);
+            }
+          }
+          setIsPlaceSaved(false);
+          setSavedPlaceId(null);
+          return;
+        }
+
+        setIsPlaceSaved(!!data);
+        setSavedPlaceId(data?.id || null);
+      } catch (err) {
+        // Only log if error has meaningful content
+        if (err && (err.message || err.toString() !== "{}")) {
+          console.error("Error checking saved place:", err);
+        }
+        setIsPlaceSaved(false);
+        setSavedPlaceId(null);
+      }
+    };
+
+    checkIfPlaceSaved();
+  }, [placePopupOpen, user, globals.detailsCtx.placeId]);
 
   const handlePlaceFromListSelect = (feature) => {
     if (
@@ -492,6 +703,129 @@ export default function MapContainer({
       setInaccuracyComment("");
     } catch (err) {
       console.error("Error submitting report:", err);
+      toastError("An unexpected error occurred. Please try again.");
+    }
+  };
+
+  const handleToggleSavePlace = async () => {
+    // Check if user is logged in
+    if (!user) {
+      // Show login dialog - we'll need to handle this
+      // For now, redirect to auth page
+      router.push("/auth");
+      return;
+    }
+
+    // Get or create place ID
+    let placeId = globals.detailsCtx.placeId;
+
+    if (!placeId) {
+      if (!globals.detailsCtx.tags || !globals.detailsCtx.latlng) {
+        toastError("Place information is missing. Please select a place again.");
+        return;
+      }
+
+      // Normalize latlng
+      let normalizedLatlng = globals.detailsCtx.latlng;
+      if (normalizedLatlng && typeof normalizedLatlng === "object") {
+        if (
+          normalizedLatlng.lat !== undefined &&
+          normalizedLatlng.lng !== undefined
+        ) {
+          normalizedLatlng = {
+            lat: Number(normalizedLatlng.lat),
+            lng: Number(normalizedLatlng.lng),
+          };
+        }
+      }
+
+      if (!normalizedLatlng?.lat || !normalizedLatlng?.lng) {
+        toastError("Invalid location data. Please select a place again.");
+        return;
+      }
+
+      try {
+        placeId = await ensurePlaceExists(
+          globals.detailsCtx.tags,
+          normalizedLatlng
+        );
+
+        if (placeId) {
+          globals.detailsCtx.placeId = placeId;
+        }
+      } catch (ensureErr) {
+        console.error("Failed to ensure place exists:", ensureErr);
+        toastError(
+          `Could not create or find place: ${ensureErr.message || ensureErr}`
+        );
+        return;
+      }
+    }
+
+    if (!placeId) {
+      toastError("Could not determine place ID");
+      return;
+    }
+
+    try {
+      if (isPlaceSaved && savedPlaceId) {
+        // Unsave the place
+        const { error } = await supabase
+          .from("saved_places")
+          .delete()
+          .eq("id", savedPlaceId);
+
+        if (error) {
+          console.error("Failed to unsave place:", error);
+          toastError("Could not remove place from saved. Please try again.");
+          return;
+        }
+
+        setIsPlaceSaved(false);
+        setSavedPlaceId(null);
+        setSaveSnackbarMessage("Removed from your saved places");
+        setSaveSnackbarOpen(true);
+      } else {
+        // Save the place
+        const { data, error } = await supabase
+          .from("saved_places")
+          .insert({
+            user_id: user.id,
+            place_id: placeId,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error("Failed to save place:", error);
+          if (error.code === "23505" || error.message?.includes("unique")) {
+            // Already saved, just update state
+            const { data: existing } = await supabase
+              .from("saved_places")
+              .select("id")
+              .eq("user_id", user.id)
+              .eq("place_id", placeId)
+              .single();
+
+            if (existing) {
+              setIsPlaceSaved(true);
+              setSavedPlaceId(existing.id);
+              setSaveSnackbarMessage("Saved to your places");
+              setSaveSnackbarOpen(true);
+            }
+          } else {
+            toastError("Could not save place. Please try again.");
+          }
+          return;
+        }
+
+        setIsPlaceSaved(true);
+        setSavedPlaceId(data?.id || null);
+        setSaveSnackbarMessage("Saved to your places");
+        setSaveSnackbarOpen(true);
+      }
+    } catch (err) {
+      console.error("Error toggling save place:", err);
       toastError("An unexpected error occurred. Please try again.");
     }
   };
@@ -692,25 +1026,47 @@ export default function MapContainer({
                   mb: 1,
                 }}
               >
-                <Typography variant="h6" component="h2" noWrap>
+                <Typography variant="h6" component="h2" noWrap sx={{ flex: 1, mr: 1 }}>
                   {placePopupTitle}
                 </Typography>
-                <IconButton
-                  aria-label="Close place details"
-                  size="small"
-                  onClick={() => {
-                    setPlacePopupOpen(false);
-                    if (
-                      typeof window !== "undefined" &&
-                      typeof window.restoreDestinationSearchBarHome ===
-                        "function"
-                    ) {
-                      window.restoreDestinationSearchBarHome();
-                    }
-                  }}
-                >
-                  <CloseIcon fontSize="small" />
-                </IconButton>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Tooltip
+                    title={isPlaceSaved ? "Remove from saved" : "Save place"}
+                  >
+                    <IconButton
+                      aria-label={
+                        isPlaceSaved ? "Remove from saved" : "Save place"
+                      }
+                      size="small"
+                      onClick={handleToggleSavePlace}
+                      sx={{
+                        color: isPlaceSaved ? "error.main" : "action.active",
+                      }}
+                    >
+                      {isPlaceSaved ? (
+                        <FavoriteIcon fontSize="small" />
+                      ) : (
+                        <FavoriteBorderIcon fontSize="small" />
+                      )}
+                    </IconButton>
+                  </Tooltip>
+                  <IconButton
+                    aria-label="Close place details"
+                    size="small"
+                    onClick={() => {
+                      setPlacePopupOpen(false);
+                      if (
+                        typeof window !== "undefined" &&
+                        typeof window.restoreDestinationSearchBarHome ===
+                          "function"
+                      ) {
+                        window.restoreDestinationSearchBarHome();
+                      }
+                    }}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </Box>
               </Box>
 
               {/* MAIN PHOTO – moved from drawer */}
@@ -1445,6 +1801,38 @@ export default function MapContainer({
           </>
         )}
       </Dialog>
+
+      {/* Save/Unsave Snackbar */}
+      <Snackbar
+        open={saveSnackbarOpen}
+        autoHideDuration={4000}
+        onClose={() => setSaveSnackbarOpen(false)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert
+          onClose={() => setSaveSnackbarOpen(false)}
+          severity="success"
+          variant="filled"
+          sx={{ width: "100%" }}
+          action={
+            isPlaceSaved ? (
+              <Button
+                color="inherit"
+                size="small"
+                onClick={() => {
+                  setSaveSnackbarOpen(false);
+                  router.push("/saved-places");
+                }}
+                sx={{ textTransform: "none" }}
+              >
+                View saved
+              </Button>
+            ) : null
+          }
+        >
+          {saveSnackbarMessage}
+        </Alert>
+      </Snackbar>
     </div>
   );
 }
