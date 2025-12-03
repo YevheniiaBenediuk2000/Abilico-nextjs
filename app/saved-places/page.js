@@ -123,38 +123,19 @@ export default function SavedPlacesPage() {
     }
   };
 
-  const handlePlaceClick = (place) => {
-    if (!place) return;
+  const handlePlaceClick = async (place) => {
+    if (!place || !place.id) return;
 
-    // Navigate to map and select the place
+    // Store place ID in sessionStorage so the main page can pick it up
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("selectedPlaceId", place.id);
+      sessionStorage.setItem("selectedPlaceLat", place.lat.toString());
+      sessionStorage.setItem("selectedPlaceLon", place.lon.toString());
+      sessionStorage.setItem("selectedPlaceName", place.name || "Place Details");
+    }
+
+    // Navigate to main page
     router.push("/");
-    
-    // Use a delay to ensure the map is loaded, then create a feature and select it
-    setTimeout(() => {
-      if (typeof window !== "undefined" && window.selectPlaceFromListFeature) {
-        // Create a feature-like object from the place data
-        const feature = {
-          type: "Feature",
-          properties: {
-            id: place.id,
-            name: place.name,
-            city: place.city,
-            country: place.country,
-            place_type: place.place_type,
-            accessibility_status: place.accessibility_status,
-            source: "user", // or "osm" depending on your data
-          },
-          geometry: {
-            type: "Point",
-            coordinates: [place.lon, place.lat],
-          },
-        };
-        window.selectPlaceFromListFeature(feature);
-      } else if (typeof window !== "undefined" && window.openPlacePopup) {
-        // Fallback: open place popup with name
-        window.openPlacePopup(place.name || "Place Details");
-      }
-    }, 500);
   };
 
   if (loading) {

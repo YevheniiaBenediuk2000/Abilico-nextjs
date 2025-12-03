@@ -305,6 +305,72 @@ export default function MapContainer({
         await initMap(user); // <— pass user to initMap
         // Store updateUser function globally so we can call it when user changes
         window.updateMapUser = updateUser;
+
+        // Check if there's a place to select from saved places
+        if (typeof window !== "undefined" && typeof sessionStorage !== "undefined") {
+          const selectedPlaceId = sessionStorage.getItem("selectedPlaceId");
+          if (selectedPlaceId) {
+            const lat = parseFloat(sessionStorage.getItem("selectedPlaceLat"));
+            const lon = parseFloat(sessionStorage.getItem("selectedPlaceLon"));
+
+            // Clear sessionStorage
+            sessionStorage.removeItem("selectedPlaceId");
+            sessionStorage.removeItem("selectedPlaceLat");
+            sessionStorage.removeItem("selectedPlaceLon");
+            sessionStorage.removeItem("selectedPlaceName");
+
+            // Wait for map to be ready, then select the place using existing functionality
+            setTimeout(async () => {
+              try {
+                // Fetch place details from database
+                const { data: placeData, error } = await supabase
+                  .from("places")
+                  .select("*")
+                  .eq("id", selectedPlaceId)
+                  .single();
+
+                if (error || !placeData) {
+                  console.error("Error fetching place:", error);
+                  return;
+                }
+
+                // Construct feature object matching the format expected by selectPlaceFromListFeature
+                const tags = {
+                  id: placeData.id,
+                  name: placeData.name,
+                  city: placeData.city,
+                  country: placeData.country,
+                  place_type: placeData.place_type,
+                  accessibility_status: placeData.accessibility_status,
+                  accessibility_keywords: placeData.accessibility_keywords,
+                  photos: placeData.photos,
+                  source: placeData.source || "user",
+                  amenity: placeData.place_type,
+                  ...(placeData.osm_id && { osm_id: placeData.osm_id }),
+                };
+
+                const feature = {
+                  type: "Feature",
+                  properties: {
+                    ...tags,
+                    tags: tags,
+                  },
+                  geometry: {
+                    type: "Point",
+                    coordinates: [placeData.lon || lon, placeData.lat || lat],
+                  },
+                };
+
+                // Use existing selectPlaceFromListFeature function - it handles everything
+                if (window.selectPlaceFromListFeature) {
+                  await window.selectPlaceFromListFeature(feature);
+                }
+              } catch (err) {
+                console.error("Error selecting place from saved:", err);
+              }
+            }, 1000);
+          }
+        }
       }
     })();
 
