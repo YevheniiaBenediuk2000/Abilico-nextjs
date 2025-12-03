@@ -19,6 +19,9 @@ import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import IconButton from "@mui/material/IconButton";
 import CloseIcon from "@mui/icons-material/Close";
+import FavoriteIcon from "@mui/icons-material/Favorite";
+import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
+import Tooltip from "@mui/material/Tooltip";
 import Drawer from "@mui/material/Drawer";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
@@ -170,6 +173,11 @@ export default function MapContainer({
   const [selectedRealityStatus, setSelectedRealityStatus] = useState("");
   const [selectedSpecificIssues, setSelectedSpecificIssues] = useState([]);
   const [inaccuracyComment, setInaccuracyComment] = useState("");
+
+  const [isPlaceSaved, setIsPlaceSaved] = useState(false);
+  const [savedPlaceId, setSavedPlaceId] = useState(null);
+  const [saveSnackbarOpen, setSaveSnackbarOpen] = useState(false);
+  const [saveSnackbarMessage, setSaveSnackbarMessage] = useState("");
 
   // Expose a global function so mapMain.js can open the details drawer
   useEffect(() => {
@@ -326,6 +334,39 @@ export default function MapContainer({
       }
     };
   }, []);
+
+  // Check if current place is saved when place popup opens or place changes
+  useEffect(() => {
+    const checkIfPlaceSaved = async () => {
+      if (!placePopupOpen || !user || !globals.detailsCtx.placeId) {
+        setIsPlaceSaved(false);
+        setSavedPlaceId(null);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("saved_places")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("place_id", globals.detailsCtx.placeId)
+          .maybeSingle();
+
+        if (error && error.code !== "PGRST116") {
+          // PGRST116 is "not found" which is fine
+          console.error("Error checking saved place:", error);
+          return;
+        }
+
+        setIsPlaceSaved(!!data);
+        setSavedPlaceId(data?.id || null);
+      } catch (err) {
+        console.error("Error checking saved place:", err);
+      }
+    };
+
+    checkIfPlaceSaved();
+  }, [placePopupOpen, user, globals.detailsCtx.placeId]);
 
   const handlePlaceFromListSelect = (feature) => {
     if (
@@ -492,6 +533,129 @@ export default function MapContainer({
       setInaccuracyComment("");
     } catch (err) {
       console.error("Error submitting report:", err);
+      toastError("An unexpected error occurred. Please try again.");
+    }
+  };
+
+  const handleToggleSavePlace = async () => {
+    // Check if user is logged in
+    if (!user) {
+      // Show login dialog - we'll need to handle this
+      // For now, redirect to auth page
+      router.push("/auth");
+      return;
+    }
+
+    // Get or create place ID
+    let placeId = globals.detailsCtx.placeId;
+
+    if (!placeId) {
+      if (!globals.detailsCtx.tags || !globals.detailsCtx.latlng) {
+        toastError("Place information is missing. Please select a place again.");
+        return;
+      }
+
+      // Normalize latlng
+      let normalizedLatlng = globals.detailsCtx.latlng;
+      if (normalizedLatlng && typeof normalizedLatlng === "object") {
+        if (
+          normalizedLatlng.lat !== undefined &&
+          normalizedLatlng.lng !== undefined
+        ) {
+          normalizedLatlng = {
+            lat: Number(normalizedLatlng.lat),
+            lng: Number(normalizedLatlng.lng),
+          };
+        }
+      }
+
+      if (!normalizedLatlng?.lat || !normalizedLatlng?.lng) {
+        toastError("Invalid location data. Please select a place again.");
+        return;
+      }
+
+      try {
+        placeId = await ensurePlaceExists(
+          globals.detailsCtx.tags,
+          normalizedLatlng
+        );
+
+        if (placeId) {
+          globals.detailsCtx.placeId = placeId;
+        }
+      } catch (ensureErr) {
+        console.error("Failed to ensure place exists:", ensureErr);
+        toastError(
+          `Could not create or find place: ${ensureErr.message || ensureErr}`
+        );
+        return;
+      }
+    }
+
+    if (!placeId) {
+      toastError("Could not determine place ID");
+      return;
+    }
+
+    try {
+      if (isPlaceSaved && savedPlaceId) {
+        // Unsave the place
+        const { error } = await supabase
+          .from("saved_places")
+          .delete()
+          .eq("id", savedPlaceId);
+
+        if (error) {
+          console.error("Failed to unsave place:", error);
+          toastError("Could not remove place from saved. Please try again.");
+          return;
+        }
+
+        setIsPlaceSaved(false);
+        setSavedPlaceId(null);
+        setSaveSnackbarMessage("Removed from your saved places");
+        setSaveSnackbarOpen(true);
+      } else {
+        // Save the place
+        const { data, error } = await supabase
+          .from("saved_places")
+          .insert({
+            user_id: user.id,
+            place_id: placeId,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error("Failed to save place:", error);
+          if (error.code === "23505" || error.message?.includes("unique")) {
+            // Already saved, just update state
+            const { data: existing } = await supabase
+              .from("saved_places")
+              .select("id")
+              .eq("user_id", user.id)
+              .eq("place_id", placeId)
+              .single();
+
+            if (existing) {
+              setIsPlaceSaved(true);
+              setSavedPlaceId(existing.id);
+              setSaveSnackbarMessage("Saved to your places");
+              setSaveSnackbarOpen(true);
+            }
+          } else {
+            toastError("Could not save place. Please try again.");
+          }
+          return;
+        }
+
+        setIsPlaceSaved(true);
+        setSavedPlaceId(data?.id || null);
+        setSaveSnackbarMessage("Saved to your places");
+        setSaveSnackbarOpen(true);
+      }
+    } catch (err) {
+      console.error("Error toggling save place:", err);
       toastError("An unexpected error occurred. Please try again.");
     }
   };
@@ -692,25 +856,47 @@ export default function MapContainer({
                   mb: 1,
                 }}
               >
-                <Typography variant="h6" component="h2" noWrap>
+                <Typography variant="h6" component="h2" noWrap sx={{ flex: 1, mr: 1 }}>
                   {placePopupTitle}
                 </Typography>
-                <IconButton
-                  aria-label="Close place details"
-                  size="small"
-                  onClick={() => {
-                    setPlacePopupOpen(false);
-                    if (
-                      typeof window !== "undefined" &&
-                      typeof window.restoreDestinationSearchBarHome ===
-                        "function"
-                    ) {
-                      window.restoreDestinationSearchBarHome();
-                    }
-                  }}
-                >
-                  <CloseIcon fontSize="small" />
-                </IconButton>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Tooltip
+                    title={isPlaceSaved ? "Remove from saved" : "Save place"}
+                  >
+                    <IconButton
+                      aria-label={
+                        isPlaceSaved ? "Remove from saved" : "Save place"
+                      }
+                      size="small"
+                      onClick={handleToggleSavePlace}
+                      sx={{
+                        color: isPlaceSaved ? "error.main" : "action.active",
+                      }}
+                    >
+                      {isPlaceSaved ? (
+                        <FavoriteIcon fontSize="small" />
+                      ) : (
+                        <FavoriteBorderIcon fontSize="small" />
+                      )}
+                    </IconButton>
+                  </Tooltip>
+                  <IconButton
+                    aria-label="Close place details"
+                    size="small"
+                    onClick={() => {
+                      setPlacePopupOpen(false);
+                      if (
+                        typeof window !== "undefined" &&
+                        typeof window.restoreDestinationSearchBarHome ===
+                          "function"
+                      ) {
+                        window.restoreDestinationSearchBarHome();
+                      }
+                    }}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </Box>
               </Box>
 
               {/* MAIN PHOTO – moved from drawer */}
@@ -1445,6 +1631,38 @@ export default function MapContainer({
           </>
         )}
       </Dialog>
+
+      {/* Save/Unsave Snackbar */}
+      <Snackbar
+        open={saveSnackbarOpen}
+        autoHideDuration={4000}
+        onClose={() => setSaveSnackbarOpen(false)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert
+          onClose={() => setSaveSnackbarOpen(false)}
+          severity="success"
+          variant="filled"
+          sx={{ width: "100%" }}
+          action={
+            isPlaceSaved ? (
+              <Button
+                color="inherit"
+                size="small"
+                onClick={() => {
+                  setSaveSnackbarOpen(false);
+                  router.push("/saved-places");
+                }}
+                sx={{ textTransform: "none" }}
+              >
+                View saved
+              </Button>
+            ) : null
+          }
+        >
+          {saveSnackbarMessage}
+        </Alert>
+      </Snackbar>
     </div>
   );
 }

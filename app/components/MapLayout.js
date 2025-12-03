@@ -30,6 +30,7 @@ import MenuIcon from "@mui/icons-material/Menu";
 import SearchIcon from "@mui/icons-material/Search";
 import LogoutIcon from "@mui/icons-material/Logout";
 import PersonIcon from "@mui/icons-material/Person";
+import FavoriteIcon from "@mui/icons-material/Favorite";
 import AddIcon from "@mui/icons-material/Add";
 import Tooltip from "@mui/material/Tooltip";
 
@@ -307,6 +308,17 @@ export default function MapLayout({ isDashboard = false, children }) {
                         <PersonIcon fontSize="small" />
                       </ListItemIcon>
                       Profile
+                    </MenuItem>
+                    <MenuItem
+                      onClick={() => {
+                        setAvatarMenuAnchor(null);
+                        router.push("/saved-places");
+                      }}
+                    >
+                      <ListItemIcon>
+                        <FavoriteIcon fontSize="small" />
+                      </ListItemIcon>
+                      Saved places
                     </MenuItem>
                     <Divider />
                     <MenuItem
