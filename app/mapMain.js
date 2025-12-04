@@ -922,7 +922,7 @@ if (typeof window !== "undefined") {
   window.restoreDestinationSearchBarHome = restoreDestinationSearchBarHome;
 }
 
-function renderReviewsList() {
+async function renderReviewsList() {
   const listEl = elements.reviewsList;
   if (!listEl) return;
 
@@ -935,6 +935,10 @@ function renderReviewsList() {
     listEl.appendChild(emptyMsg);
     return;
   }
+
+  // Load user's accessibility preferences to highlight matching categories
+  const userPreferences = await getUserAccessibilityPreferences();
+  const userPrefsSet = new Set(userPreferences || []);
 
   globals.reviews.forEach((review) => {
     const li = document.createElement("li");
@@ -1255,7 +1259,7 @@ function renderReviewsList() {
 
       // Category ratings details section (if review has category_ratings)
       const categoryRatings = review.category_ratings;
-      if (categoryRatings && typeof categoryRatings === 'object' && Object.keys(categoryRatings).length > 0) {
+      if (categoryRatings && typeof categoryRatings === 'object' && !Array.isArray(categoryRatings) && categoryRatings !== null && Object.keys(categoryRatings).length > 0) {
         const detailsContainer = document.createElement("div");
         detailsContainer.className = "mt-2 mb-2";
 
@@ -1282,10 +1286,22 @@ function renderReviewsList() {
           if (typeof rating === 'number' && rating >= 1 && rating <= 5) {
             const categoryItem = document.createElement("div");
             categoryItem.className = "d-flex justify-content-between align-items-center";
+            
+            // Check if this category is in user's preferences
+            const isUserPreference = userPrefsSet.has(categoryId);
+            
+            // Apply highlighting style if it matches user preferences
+            if (isUserPreference) {
+              categoryItem.style.backgroundColor = "#e3f2fd"; // Light blue background
+              categoryItem.style.padding = "4px 8px";
+              categoryItem.style.borderRadius = "4px";
+              categoryItem.style.borderLeft = "3px solid #2196f3"; // Blue left border
+            }
 
             // Category label
             const label = document.createElement("span");
-            label.className = "text-muted";
+            label.className = isUserPreference ? "fw-semibold" : "text-muted";
+            label.style.color = isUserPreference ? "#1976d2" : ""; // Blue text for user preferences
             label.textContent = ACCESSIBILITY_CATEGORY_LABELS[categoryId] || categoryId;
 
             // Rating display (stars)
