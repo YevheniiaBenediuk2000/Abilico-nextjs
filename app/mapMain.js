@@ -43,6 +43,7 @@ import {
 import { ZoomMuiControl } from "./leaflet-controls/ZoomMuiControl.mjs";
 import { queryClient } from "./queryClient.js";
 import { computePlaceScores } from "./api/placeRatings.js";
+import { ACCESSIBILITY_CATEGORY_LABELS } from "./constants/accessibilityCategories.js";
 
 import { makePoiIcon } from "./icons/makePoiIcon.mjs";
 import { supabase } from "./api/supabaseClient.js";
@@ -1250,6 +1251,112 @@ function renderReviewsList() {
         noContentP.className = "mb-1 text-muted fst-italic";
         noContentP.textContent = "No comment provided.";
         li.appendChild(noContentP);
+      }
+
+      // Category ratings details section (if review has category_ratings)
+      const categoryRatings = review.category_ratings;
+      if (categoryRatings && typeof categoryRatings === 'object' && Object.keys(categoryRatings).length > 0) {
+        const detailsContainer = document.createElement("div");
+        detailsContainer.className = "mt-2 mb-2";
+
+        // Create a button to toggle details visibility
+        const detailsBtn = document.createElement("button");
+        detailsBtn.type = "button";
+        detailsBtn.className = "btn btn-link btn-sm p-0 text-decoration-none";
+        detailsBtn.style.fontSize = "0.875rem";
+        detailsBtn.innerHTML = '<span class="details-icon">▶</span> Show category details';
+        detailsBtn.setAttribute("aria-expanded", "false");
+        detailsBtn.setAttribute("aria-label", "Toggle category rating details");
+
+        // Create collapsible details content
+        const detailsContent = document.createElement("div");
+        detailsContent.className = "mt-2";
+        detailsContent.style.fontSize = "0.875rem";
+        detailsContent.style.display = "none"; // Initially hidden
+
+        // Create list of category ratings
+        const categoryList = document.createElement("div");
+        categoryList.className = "d-flex flex-column gap-1";
+
+        Object.entries(categoryRatings).forEach(([categoryId, rating]) => {
+          if (typeof rating === 'number' && rating >= 1 && rating <= 5) {
+            const categoryItem = document.createElement("div");
+            categoryItem.className = "d-flex justify-content-between align-items-center";
+
+            // Category label
+            const label = document.createElement("span");
+            label.className = "text-muted";
+            label.textContent = ACCESSIBILITY_CATEGORY_LABELS[categoryId] || categoryId;
+
+            // Rating display (stars)
+            const ratingDisplay = document.createElement("div");
+            ratingDisplay.className = "d-flex align-items-center gap-1";
+
+            const starsContainer = document.createElement("span");
+            starsContainer.className = "text-warning";
+            starsContainer.style.fontSize = "0.9rem";
+
+            // Add filled stars
+            for (let i = 0; i < Math.floor(rating); i++) {
+              const star = document.createElement("span");
+              star.textContent = "★";
+              star.setAttribute("aria-hidden", "true");
+              starsContainer.appendChild(star);
+            }
+
+            // Add half star if needed
+            if (rating % 1 >= 0.5) {
+              const halfStar = document.createElement("span");
+              halfStar.textContent = "☆";
+              halfStar.style.opacity = "0.5";
+              halfStar.setAttribute("aria-hidden", "true");
+              starsContainer.appendChild(halfStar);
+            }
+
+            // Add empty stars
+            const totalStars = Math.ceil(rating);
+            for (let i = totalStars; i < 5; i++) {
+              const emptyStar = document.createElement("span");
+              emptyStar.textContent = "☆";
+              emptyStar.style.opacity = "0.3";
+              emptyStar.setAttribute("aria-hidden", "true");
+              starsContainer.appendChild(emptyStar);
+            }
+
+            const ratingText = document.createElement("span");
+            ratingText.className = "text-muted ms-1";
+            ratingText.style.fontSize = "0.8rem";
+            ratingText.textContent = rating;
+
+            ratingDisplay.appendChild(starsContainer);
+            ratingDisplay.appendChild(ratingText);
+            categoryItem.appendChild(label);
+            categoryItem.appendChild(ratingDisplay);
+            categoryList.appendChild(categoryItem);
+          }
+        });
+
+        detailsContent.appendChild(categoryList);
+        detailsContainer.appendChild(detailsBtn);
+        detailsContainer.appendChild(detailsContent);
+        li.appendChild(detailsContainer);
+
+        // Toggle functionality
+        detailsBtn.addEventListener("click", () => {
+          const isExpanded = detailsBtn.getAttribute("aria-expanded") === "true";
+
+          if (isExpanded) {
+            // Collapse
+            detailsContent.style.display = "none";
+            detailsBtn.setAttribute("aria-expanded", "false");
+            detailsBtn.innerHTML = '<span class="details-icon">▶</span> Show category details';
+          } else {
+            // Expand
+            detailsContent.style.display = "block";
+            detailsBtn.setAttribute("aria-expanded", "true");
+            detailsBtn.innerHTML = '<span class="details-icon">▼</span> Hide category details';
+          }
+        });
       }
 
       // Meta + actions row

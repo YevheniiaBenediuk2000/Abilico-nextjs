@@ -271,11 +271,13 @@ function NestedPlaceTypeFilter({ items }) {
 
   // Persist & notify mapMain
   useEffect(() => {
+    if (!selection || typeof selection !== 'object') return;
     saveTypeFilter(selection);
 
     // Build payload for non-React consumers
     const active = [];
     Object.entries(selection).forEach(([groupLabel, subs]) => {
+      if (!subs || typeof subs !== 'object') return;
       Object.entries(subs).forEach(([subLabel, isOn]) => {
         if (!isOn) return;
         active.push({ groupLabel, subLabel });
@@ -292,20 +294,23 @@ function NestedPlaceTypeFilter({ items }) {
 
   // group-level helpers
   const isGroupAllChecked = (groupLabel) => {
-    const subs = selection[groupLabel];
+    if (!selection || typeof selection !== 'object') return false;
+    const subs = selection[groupLabel] || {};
     const values = Object.values(subs);
     if (!values.length) return false;
     return values.every(Boolean);
   };
 
   const isGroupSomeChecked = (groupLabel) => {
-    const subs = selection[groupLabel];
+    if (!selection || typeof selection !== 'object') return false;
+    const subs = selection[groupLabel] || {};
     const values = Object.values(subs);
     return values.some(Boolean);
   };
 
   const toggleGroup = (groupLabel) => {
     setSelection((prev) => {
+      if (!prev || typeof prev !== 'object') return {};
       const next = { ...prev };
       const subs = next[groupLabel] || {};
       const allChecked = Object.values(subs).every(Boolean);
@@ -319,13 +324,16 @@ function NestedPlaceTypeFilter({ items }) {
   };
 
   const toggleSub = (groupLabel, subLabel) => {
-    setSelection((prev) => ({
-      ...prev,
-      [groupLabel]: {
-        ...(prev[groupLabel] || {}),
-        [subLabel]: !(prev[groupLabel]?.[subLabel] ?? true),
-      },
-    }));
+    setSelection((prev) => {
+      if (!prev || typeof prev !== 'object') return {};
+      return {
+        ...prev,
+        [groupLabel]: {
+          ...(prev[groupLabel] || {}),
+          [subLabel]: !(prev[groupLabel]?.[subLabel] ?? true),
+        },
+      };
+    });
   };
 
   if (!Object.keys(tree).length) return null;
@@ -422,6 +430,8 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
   const [userPrefs, setUserPrefs] = useState([]);
   const [scoresByPlaceKey, setScoresByPlaceKey] = useState({});
   const [loadingBestForMe, setLoadingBestForMe] = useState(false);
+
+  const [bestForMeCityPlaces, setBestForMeCityPlaces] = useState([]);
 
   const [photoByKey, setPhotoByKey] = useState({});
   const photoCacheRef = useRef({});
@@ -984,6 +994,18 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
                     reviewsCount: reviewsForPlace.length,
                   });
                 }
+                
+                // after the loop over byPlace.values()
+                if (!cancelled) {
+                  setBestForMeCityPlaces(cityPlacesWithScores);
+                }
+                
+                console.log("🏙️ BestForMe – ALL multi-level places in city", {
+                  detectedCity,
+                  viewportCenter: center || null,
+                  totalPlacesWithMultiLevel: cityPlacesWithScores.length,
+                  places: cityPlacesWithScores,
+                });
 
                 // 🔽 4) Final log: ALL places in that city with multi-level rankings
                 console.log("🏙️ BestForMe – ALL multi-level places in city", {
