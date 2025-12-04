@@ -271,11 +271,13 @@ function NestedPlaceTypeFilter({ items }) {
 
   // Persist & notify mapMain
   useEffect(() => {
+    if (!selection || typeof selection !== 'object') return;
     saveTypeFilter(selection);
 
     // Build payload for non-React consumers
     const active = [];
     Object.entries(selection).forEach(([groupLabel, subs]) => {
+      if (!subs || typeof subs !== 'object') return;
       Object.entries(subs).forEach(([subLabel, isOn]) => {
         if (!isOn) return;
         active.push({ groupLabel, subLabel });
@@ -292,6 +294,7 @@ function NestedPlaceTypeFilter({ items }) {
 
   // group-level helpers
   const isGroupAllChecked = (groupLabel) => {
+    if (!selection || typeof selection !== 'object') return false;
     const subs = selection[groupLabel] || {};
     const values = Object.values(subs);
     if (!values.length) return false;
@@ -299,6 +302,7 @@ function NestedPlaceTypeFilter({ items }) {
   };
 
   const isGroupSomeChecked = (groupLabel) => {
+    if (!selection || typeof selection !== 'object') return false;
     const subs = selection[groupLabel] || {};
     const values = Object.values(subs);
     return values.some(Boolean);
@@ -306,6 +310,7 @@ function NestedPlaceTypeFilter({ items }) {
 
   const toggleGroup = (groupLabel) => {
     setSelection((prev) => {
+      if (!prev || typeof prev !== 'object') return {};
       const next = { ...prev };
       const subs = next[groupLabel] || {};
       const allChecked = Object.values(subs).every(Boolean);
@@ -319,13 +324,16 @@ function NestedPlaceTypeFilter({ items }) {
   };
 
   const toggleSub = (groupLabel, subLabel) => {
-    setSelection((prev) => ({
-      ...prev,
-      [groupLabel]: {
-        ...(prev[groupLabel] || {}),
-        [subLabel]: !(prev[groupLabel]?.[subLabel] ?? true),
-      },
-    }));
+    setSelection((prev) => {
+      if (!prev || typeof prev !== 'object') return {};
+      return {
+        ...prev,
+        [groupLabel]: {
+          ...(prev[groupLabel] || {}),
+          [subLabel]: !(prev[groupLabel]?.[subLabel] ?? true),
+        },
+      };
+    });
   };
 
   if (!Object.keys(tree).length) return null;
@@ -1139,75 +1147,16 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
 
     // Remove duplicates by placeKey to avoid React key conflicts
     const seenKeys = new Set();
-    let uniqueFiltered = filtered.filter((item) => {
+    const uniqueFiltered = filtered.filter((item) => {
       const key = item.placeKey;
-      if (!key) return true;
+      if (!key) return true; // Keep items without keys (they'll use idx as fallback)
       if (seenKeys.has(key)) {
         console.warn(`⚠️ Skipping duplicate placeKey in list: ${key}`);
-        return false;
+        return false; // Skip duplicates
       }
       seenKeys.add(key);
       return true;
     });
-
-    // 🔁 Fallback for Best for me:
-    // if we have NO items from the current viewport,
-    // but we *do* have bestForMeCityPlaces from the DB,
-    // build a list from those so the user sees something.
-    if (
-      sortBy === "bestForMe" &&
-      !hideControls &&
-      uniqueFiltered.length === 0 &&
-      bestForMeCityPlaces.length > 0
-    ) {
-      uniqueFiltered = bestForMeCityPlaces.map((entry, idx) => {
-        const lat = entry.lat ?? null;
-        const lon = entry.lon ?? null;
-        const hasCoord =
-          typeof lat === "number" &&
-          !Number.isNaN(lat) &&
-          typeof lon === "number" &&
-          !Number.isNaN(lon);
-
-        const distKm =
-          center && hasCoord
-            ? haversineKm(center.lat, center.lng, lat, lon)
-            : null;
-
-        // Build a minimal synthetic feature so derivePlaceInfo-style fields exist
-        const fakeFeature = {
-          type: "Feature",
-          geometry: hasCoord
-            ? { type: "Point", coordinates: [lon, lat] }
-            : null,
-          properties: {
-            id: entry.placeId,
-            name: entry.placeName,
-            city: entry.city,
-            // keep source as DB/saved; you can tweak if you like
-            source: "user",
-          },
-        };
-
-        // Reuse the same shape as rawItems entries
-        return {
-          feature: fakeFeature,
-          tags: fakeFeature.properties,
-          name: entry.placeName,
-          category: entry.category || "Place",
-          address: entry.address || "",
-          distKm,
-          accTier: "unknown",
-          accColor: BADGE_COLOR_BY_TIER.unknown,
-          typeMajor: "other",
-          typeSub: "other",
-          // make a stable key; we don't have osm_type/osm_id here,
-          // so use the placeId from DB
-          placeKey: `db/${entry.placeId}`,
-          latlng: hasCoord ? { lat, lng: lon } : null,
-        };
-      });
-    }
 
     return uniqueFiltered;
   }, [
@@ -1218,7 +1167,6 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
     sortBy,
     scoresByPlaceKey,
     currentBestForMeCity,
-    bestForMeCityPlaces, // ✅ add this dependency
   ]);
 
   const hasPlaces = items.length > 0;
