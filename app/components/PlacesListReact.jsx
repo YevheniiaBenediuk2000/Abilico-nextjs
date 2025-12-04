@@ -292,14 +292,14 @@ function NestedPlaceTypeFilter({ items }) {
 
   // group-level helpers
   const isGroupAllChecked = (groupLabel) => {
-    const subs = selection[groupLabel];
+    const subs = selection[groupLabel] || {};
     const values = Object.values(subs);
     if (!values.length) return false;
     return values.every(Boolean);
   };
 
   const isGroupSomeChecked = (groupLabel) => {
-    const subs = selection[groupLabel];
+    const subs = selection[groupLabel] || {};
     const values = Object.values(subs);
     return values.some(Boolean);
   };
