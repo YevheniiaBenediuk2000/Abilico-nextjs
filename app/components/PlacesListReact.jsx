@@ -25,9 +25,9 @@ import FilterListIcon from "@mui/icons-material/FilterList";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import Tooltip from "@mui/material/Tooltip";
-import Select from "@mui/material/Select";
+import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
-import FormControl from "@mui/material/FormControl";
+import SwapVertIcon from "@mui/icons-material/SwapVert";
 import AccessibilityLegendReact from "./AccessibilityLegendReact";
 
 import {
@@ -427,6 +427,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
   const { features = [], center, zoom } = data || {};
   const [sortBy, setSortBy] = useState("distance"); // "distance" | "name" | "bestForMe"
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [sortAnchorEl, setSortAnchorEl] = useState(null);
   // ✅ NEW: remember which city Best for me resolved to
   const [currentBestForMeCity, setCurrentBestForMeCity] = useState(null);
   // ✅ NEW: user prefs + scores
@@ -1203,8 +1204,8 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
           <Box
             sx={{
               display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-end",
+              flexDirection: "row",
+              alignItems: "center",
               gap: 1,
             }}
           >
@@ -1216,28 +1217,19 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
               startIcon={<FilterListIcon />}
               onClick={() => setFiltersOpen(true)}
             >
-              Filters
+              Filter
             </Button>
 
-            {/* Sort by dropdown */}
-            <FormControl size="small" sx={{ minWidth: 150 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5 }}>
-                SORT BY
-              </Typography>
-              <Select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                displayEmpty
-                sx={{
-                  height: 32,
-                  fontSize: "0.875rem",
-                }}
-              >
-                <MenuItem value="distance">Distance</MenuItem>
-                <MenuItem value="name">Name</MenuItem>
-                <MenuItem value="bestForMe">Best for me</MenuItem>
-              </Select>
-            </FormControl>
+            {/* Sort Button */}
+            <Button
+              variant="outlined"
+              color="inherit"
+              size="small"
+              startIcon={<SwapVertIcon />}
+              onClick={(e) => setSortAnchorEl(e.currentTarget)}
+            >
+              Sort
+            </Button>
           </Box>
         )}
       </Box>
@@ -1512,6 +1504,41 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
           </Box>
         </DialogContent>
       </Dialog>
+
+      {/* Sort Menu */}
+      <Menu
+        anchorEl={sortAnchorEl}
+        open={Boolean(sortAnchorEl)}
+        onClose={() => setSortAnchorEl(null)}
+      >
+        <MenuItem
+          selected={sortBy === "distance"}
+          onClick={() => {
+            setSortBy("distance");
+            setSortAnchorEl(null);
+          }}
+        >
+          Distance
+        </MenuItem>
+        <MenuItem
+          selected={sortBy === "name"}
+          onClick={() => {
+            setSortBy("name");
+            setSortAnchorEl(null);
+          }}
+        >
+          Name
+        </MenuItem>
+        <MenuItem
+          selected={sortBy === "bestForMe"}
+          onClick={() => {
+            setSortBy("bestForMe");
+            setSortAnchorEl(null);
+          }}
+        >
+          Best for me
+        </MenuItem>
+      </Menu>
     </>
   );
 }
