@@ -437,6 +437,7 @@ export async function recomputePlaceAccessibilityKeywords(
       }
       // Create pairs of labels and their corresponding scores
       // Filter to only include keywords above the confidence threshold
+      console.log("😡😡😡😡😡😡 out:", out);
       return out.labels
         .map((label, i) => ({ label, score: out.scores[i] })) // Pair label with its score
         .filter(

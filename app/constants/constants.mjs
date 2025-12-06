@@ -43,15 +43,18 @@ export const ACCESSIBILITY_KEYWORDS_CLASSIFICATION_THRESHOLD = 0.985;
 
 export const ACCESSIBILITY_LABELS_IN_REVIEWS = [
   // Entrance & approach
-  "step-free entrance",
-  "steps at entrance",
   "ramp at entrance",
+  "no ramp",
+
   "automatic door",
+  "heavy door",
+
   "wide doorway",
   "narrow doorway",
 
   // Interior circulation
   "elevator available",
+  "no elevator",
   "elevator out of order",
 
   // Restrooms
