@@ -59,10 +59,6 @@ export const CATEGORICAL_KEYS = [
   "ramp:wheelchair",
   "access",
   "lit",
-  // --- NEW: Engineered Features ---
-  "has_steps",
-  "is_steep",
-  "is_narrow",
 ];
 const TOP_N_VALUES = 50; // Keep top N most common values for each key
 
@@ -71,33 +67,13 @@ const LABEL_MAP = { yes: 2, designated: 2, limited: 1, no: 0 };
 
 // --- NEW: build examples first (props + label), then split, then fit schema on train only ---
 
-function enrichProps(props) {
-  const newProps = { ...props };
-
-  // Steps: if step_count > 0 => has_steps=yes
-  const steps = parseNumber(props.step_count, "step_count");
-  if (steps != null && steps > 0) newProps.has_steps = "yes";
-
-  // Incline: if > 6% => is_steep=yes
-  const incline = parseNumber(props.incline, "incline");
-  if (incline != null && Math.abs(incline) > 0.06) newProps.is_steep = "yes";
-
-  // Width: if < 90cm => is_narrow=yes
-  const width = parseNumber(props.width, "width");
-  if (width != null && width < 0.9) newProps.is_narrow = "yes";
-
-  return newProps;
-}
-
 function buildExamples(geojson) {
   const examples = [];
   geojson.features.forEach((f) => {
     const props = f.properties || {};
     const wheelchair = props.wheelchair;
     if (!LABEL_MAP.hasOwnProperty(wheelchair)) return;
-
-    const enriched = enrichProps(props);
-    examples.push({ props: enriched, label: LABEL_MAP[wheelchair] });
+    examples.push({ props, label: LABEL_MAP[wheelchair] });
   });
   return examples;
 }
@@ -267,55 +243,11 @@ function computeClassWeights(labels, alpha = 1.0) {
   const weights = {};
   for (const k of Object.keys(counts)) {
     const c = counts[k];
-    // Avoid division by zero
-    if (c === 0) {
-      weights[k] = 1.0;
-      continue;
-    }
+
     const w = total / (nClasses * c);
     weights[k] = Math.pow(w, alpha);
   }
   return weights;
-}
-
-function oversample(examples) {
-  const byLabel = { 0: [], 1: [], 2: [] };
-  examples.forEach((ex) => byLabel[ex.label].push(ex));
-
-  const maxCount = Math.max(
-    byLabel[0].length,
-    byLabel[1].length,
-    byLabel[2].length
-  );
-
-  const balanced = [];
-
-  [0, 1, 2].forEach((label) => {
-    const items = byLabel[label];
-    if (items.length === 0) return;
-
-    // Add original items
-    // balanced.push(...items); // Caused stack overflow
-    for (const item of items) {
-      balanced.push(item);
-    }
-
-    // Add random duplicates to reach maxCount
-    const needed = maxCount - items.length;
-    for (let i = 0; i < needed; i++) {
-      const randomItem = items[Math.floor(Math.random() * items.length)];
-      // Shallow copy is enough since props are not mutated after this
-      balanced.push({ ...randomItem });
-    }
-  });
-
-  // Shuffle
-  for (let i = balanced.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [balanced[i], balanced[j]] = [balanced[j], balanced[i]];
-  }
-
-  return balanced;
 }
 
 async function fetchOSMData() {
@@ -609,12 +541,6 @@ async function trainModel(trainDataset, valDataset, inputDim, classWeight) {
   return { model, history };
 }
 
-function countLabels(examples) {
-  const counts = { 0: 0, 1: 0, 2: 0 };
-  examples.forEach((e) => counts[e.label]++);
-  return counts;
-}
-
 async function main() {
   try {
     const osmData = await fetchOSMData();
@@ -629,7 +555,7 @@ async function main() {
     const allLabels = examples.map((e) => e.label);
     const { trainIdx, valIdx } = stratifiedSplitIndices(allLabels, 0.2);
 
-    let trainExamples = trainIdx.map((i) => examples[i]);
+    const trainExamples = trainIdx.map((i) => examples[i]);
     const valExamples = valIdx.map((i) => examples[i]);
 
     // Fit schema on TRAIN ONLY (no leakage)
@@ -646,23 +572,9 @@ async function main() {
     const dummy = encodePropsWithSchema(trainExamples[0].props, schema);
     const inputDim = dummy.length;
 
-    // Compute class weights on ORIGINAL distribution (before oversampling)
-    // We use alpha=1.0 for stronger weighting
-    // And we can manually boost them further if needed
-    const trainLabelsOriginal = trainExamples.map((e) => e.label);
-    // const classWeight = computeClassWeights(trainLabelsOriginal, 1.0);
-
-    // Manual boost as requested: "double them" for 0 and 1
-    const classWeight = {
-      0: 2.5, // High penalty for False Positives (Safety)
-      1: 3.0, // Very high penalty for missing Limited (Hardest class)
-      2: 1.0, // Baseline
-    };
-
-    // Oversample TRAIN set to balance classes
-    console.log("Original train counts:", countLabels(trainExamples));
-    trainExamples = oversample(trainExamples);
-    console.log("Oversampled train counts:", countLabels(trainExamples));
+    // Compute class weights
+    const trainLabels = trainExamples.map((e) => e.label);
+    const classWeight = computeClassWeights(trainLabels);
 
     // Create datasets
     const batchSize = 512;
