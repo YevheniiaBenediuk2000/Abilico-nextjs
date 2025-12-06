@@ -25,6 +25,9 @@ import FilterListIcon from "@mui/icons-material/FilterList";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import Tooltip from "@mui/material/Tooltip";
+import Select from "@mui/material/Select";
+import MenuItem from "@mui/material/MenuItem";
+import FormControl from "@mui/material/FormControl";
 import AccessibilityLegendReact from "./AccessibilityLegendReact";
 
 import {
@@ -1216,32 +1219,25 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
               Filters
             </Button>
 
-            {/* horizontal Sort by row */}
-            <Stack direction="row" spacing={0.5} alignItems="center">
-              <Typography variant="caption" color="text.secondary">
-                Sort by
+            {/* Sort by dropdown */}
+            <FormControl size="small" sx={{ minWidth: 150 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5 }}>
+                SORT BY
               </Typography>
-              <Stack direction="row" spacing={0.5}>
-                <Chip
-                  size="small"
-                  label="Distance"
-                  variant={sortBy === "distance" ? "filled" : "outlined"}
-                  onClick={() => setSortBy("distance")}
-                />
-                <Chip
-                  size="small"
-                  label="Name"
-                  variant={sortBy === "name" ? "filled" : "outlined"}
-                  onClick={() => setSortBy("name")}
-                />
-                <Chip
-                  size="small"
-                  label="Best for me"
-                  variant={sortBy === "bestForMe" ? "filled" : "outlined"}
-                  onClick={() => setSortBy("bestForMe")}
-                />
-              </Stack>
-            </Stack>
+              <Select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                displayEmpty
+                sx={{
+                  height: 32,
+                  fontSize: "0.875rem",
+                }}
+              >
+                <MenuItem value="distance">Distance</MenuItem>
+                <MenuItem value="name">Name</MenuItem>
+                <MenuItem value="bestForMe">Best for me</MenuItem>
+              </Select>
+            </FormControl>
           </Box>
         )}
       </Box>
