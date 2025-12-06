@@ -425,7 +425,7 @@ function NestedPlaceTypeFilter({ items }) {
 
 export default function PlacesListReact({ data, onSelect, hideControls = false, onUnsave = null, isOpen = true }) {
   const { features = [], center, zoom } = data || {};
-  const [sortBy, setSortBy] = useState("distance"); // "distance" | "name" | "bestForMe"
+  const [sortBy, setSortBy] = useState("distance"); // "distance" | "name" | "accessibility" | "bestForMe"
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sortAnchorEl, setSortAnchorEl] = useState(null);
   // ✅ NEW: remember which city Best for me resolved to
@@ -514,6 +514,17 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
       });
     } else if (sortBy === "name") {
       sorted.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortBy === "accessibility") {
+      // Sort by accessibility tier: designated > yes > limited > no > unknown
+      const tierOrder = { designated: 0, yes: 1, limited: 2, no: 3, unknown: 4 };
+      sorted.sort((a, b) => {
+        const orderA = tierOrder[a.accTier] ?? 4;
+        const orderB = tierOrder[b.accTier] ?? 4;
+        if (orderA === orderB) {
+          return a.name.localeCompare(b.name); // tie-break by name
+        }
+        return orderA - orderB;
+      });
     } else if (sortBy === "bestForMe") {
       sorted.sort((a, b) => {
         const scoreAData = scoresByPlaceKey[a.placeKey] || {};
@@ -1528,6 +1539,15 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
           }}
         >
           Name
+        </MenuItem>
+        <MenuItem
+          selected={sortBy === "accessibility"}
+          onClick={() => {
+            setSortBy("accessibility");
+            setSortAnchorEl(null);
+          }}
+        >
+          Accessibility Status
         </MenuItem>
         <MenuItem
           selected={sortBy === "bestForMe"}
