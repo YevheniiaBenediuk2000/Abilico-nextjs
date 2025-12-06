@@ -425,7 +425,7 @@ function NestedPlaceTypeFilter({ items }) {
 
 export default function PlacesListReact({ data, onSelect, hideControls = false, onUnsave = null, isOpen = true }) {
   const { features = [], center, zoom } = data || {};
-  const [sortBy, setSortBy] = useState("distance"); // "distance" | "name" | "accessibility" | "bestForMe"
+  const [sortBy, setSortBy] = useState("distance"); // "distance" | "name" | "accessibility" | "overall" | "bestForMe"
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sortAnchorEl, setSortAnchorEl] = useState(null);
   // ✅ NEW: remember which city Best for me resolved to
@@ -524,6 +524,31 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
           return a.name.localeCompare(b.name); // tie-break by name
         }
         return orderA - orderB;
+      });
+    } else if (sortBy === "overall") {
+      // Sort by overall rating (highest first - best practice)
+      sorted.sort((a, b) => {
+        const scoreAData = scoresByPlaceKey[a.placeKey] || {};
+        const scoreBData = scoresByPlaceKey[b.placeKey] || {};
+
+        const scoreA = scoreAData.globalScore ?? null;
+        const scoreB = scoreBData.globalScore ?? null;
+
+        // Places with ratings come first
+        if (scoreA == null && scoreB == null) return 0;
+        if (scoreA == null) return 1; // no rating goes to bottom
+        if (scoreB == null) return -1; // no rating goes to bottom
+
+        // Higher score = better → sort descending
+        if (scoreA === scoreB) {
+          // tie-break by distance (closer first)
+          if (a.distKm == null && b.distKm == null) return 0;
+          if (a.distKm == null) return 1;
+          if (b.distKm == null) return -1;
+          return a.distKm - b.distKm;
+        }
+
+        return scoreB - scoreA;
       });
     } else if (sortBy === "bestForMe") {
       sorted.sort((a, b) => {
@@ -1051,6 +1076,98 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
     };
   }, [sortBy, features, center, userPrefs, scoresByPlaceKey]);
 
+  // ✅ Load overall ratings when sorting by overall
+  useEffect(() => {
+    if (sortBy !== "overall") return;
+
+    if (!features || features.length === 0) return;
+
+    let cancelled = false;
+
+    async function loadOverallRatings() {
+      try {
+        const baseItems = (features || []).map((f) =>
+          derivePlaceInfo(f, center)
+        );
+
+        const candidates = baseItems.filter(
+          (item) => item.placeKey && item.latlng
+        );
+
+        for (const item of candidates) {
+          if (cancelled) break;
+
+          const key = item.placeKey;
+
+          // Skip if we already have scores for this place
+          if (scoresByPlaceKey[key] !== undefined) continue;
+
+          try {
+            let placeId;
+            try {
+              placeId = await ensurePlaceExists(item.tags, item.latlng);
+            } catch (err) {
+              console.warn(
+                "⚠️ Overall rating: could not ensure place exists for",
+                key,
+                err?.message ?? err
+              );
+              continue;
+            }
+
+            if (!placeId) continue;
+
+            let reviews = [];
+            try {
+              reviews = await reviewStorage("GET", { place_id: placeId });
+            } catch (err) {
+              console.error(
+                "❌ reviewStorage(GET) failed for place",
+                key,
+                err?.message ?? err
+              );
+              continue;
+            }
+
+            try {
+              const { globalScore } = computePlaceScores(reviews || [], []);
+
+              if (!cancelled) {
+                setScoresByPlaceKey((prev) => {
+                  if (prev[key] !== undefined) return prev;
+                  return {
+                    ...prev,
+                    [key]: { globalScore, personalScore: null },
+                  };
+                });
+              }
+            } catch (err) {
+              console.error(
+                "❌ computePlaceScores failed for place",
+                key,
+                err?.message ?? err
+              );
+              continue;
+            }
+          } catch (err) {
+            console.error(
+              "❌ Unexpected failure in loadOverallRatings for place",
+              key,
+              err?.message ?? err
+            );
+          }
+        }
+      } catch (err) {
+        console.error("❌ Error loading overall ratings:", err);
+      }
+    }
+
+    loadOverallRatings();
+    return () => {
+      cancelled = true;
+    };
+  }, [sortBy, features, center, scoresByPlaceKey]);
+
   // Place-type filter state for *list* (mirrors NestedPlaceTypeFilter localStorage)
   // Disable filters when hideControls is true (e.g., saved places page)
   const [activeTypeFilters, setActiveTypeFilters] = useState(() => {
@@ -1548,6 +1665,15 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
           }}
         >
           Accessibility Status
+        </MenuItem>
+        <MenuItem
+          selected={sortBy === "overall"}
+          onClick={() => {
+            setSortBy("overall");
+            setSortAnchorEl(null);
+          }}
+        >
+          Overall Rating
         </MenuItem>
         <MenuItem
           selected={sortBy === "bestForMe"}
