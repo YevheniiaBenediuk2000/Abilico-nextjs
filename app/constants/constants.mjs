@@ -22,12 +22,12 @@ export const pRetryConfig = { retries: 3, factor: 2, minTimeout: 400 };
 export const placeClusterConfig = {
   chunkedLoading: true,
   maxClusterRadius: (zoom) => {
-    if (zoom === 18) {
+    if (zoom >= 18) {
       return 15;
     }
-    return 40;
+    return 0;
   },
-  // disableClusteringAtZoom: 14,
+  // disableClusteringAtZoom: 13,
   spiderfyOnMaxZoom: true,
 };
 
