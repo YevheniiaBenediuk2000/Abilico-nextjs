@@ -267,8 +267,8 @@ function selectorsForZoom(
 // 0 = no cap
 function limitForZoom(zoom) {
   if (zoom >= 17) return 0;
-  if (zoom >= 15) return 300; // mid zoom
-  return 120; // far zoom
+  if (zoom >= 15) return 5000; // mid zoom
+  return 2000; // far zoom
 }
 
 let placesAbortController = null;
