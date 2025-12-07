@@ -198,8 +198,6 @@ const AMENITY_FOCUS_LOW = [
   "pharmacy",
   "arts_centre",
   "courthouse",
-  "bank",
-  "atm",
   "place_of_worship",
   "post_office",
   "townhall",
@@ -209,8 +207,6 @@ const TOURISM_FOCUS_LOWEST = ["museum", "attraction"];
 
 const TOURISM_FOCUS_LOW = [
   ...TOURISM_FOCUS_LOWEST,
-  "viewpoint",
-  "aquarium",
   "hotel",
   "hostel",
   "zoo",
