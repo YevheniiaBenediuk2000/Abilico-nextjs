@@ -60,6 +60,11 @@ import {
 
 import { recomputePlaceAccessibilityKeywords } from "./modules/accessibilityKeywordsExtraction.js";
 import globals from "./constants/globalVariables.js";
+import {
+  clearPlacesCache,
+  loadPlacesFromCache,
+  savePlacesToCache,
+} from "./utils/placesPersistence.js";
 
 // DEBUG: confirm import really works
 // console.log("🔍 computePlaceScores import is:", computePlaceScores);
@@ -2222,6 +2227,7 @@ export function clearMapCaches() {
   // Clear places cache
   placesCacheById.clear();
   allPlacesFeatures = [];
+  clearPlacesCache();
 
   // Clear user preferences cache
   userPrefsCache = [];
@@ -2369,6 +2375,23 @@ function setupObstacleEventHandlers() {
 export async function initMap(user = null) {
   currentUser = user;
   obstacleEventHandlersSetup = false; // Reset on map init
+
+  // Load places from IndexedDB
+  try {
+    const cachedPlaces = await loadPlacesFromCache();
+    if (cachedPlaces && cachedPlaces.length > 0) {
+      cachedPlaces.forEach((item) => {
+        if (item.id && item.feature) {
+          placesCacheById.set(item.id, item.feature);
+        }
+      });
+      // Update allPlacesFeatures
+      allPlacesFeatures = Array.from(placesCacheById.values());
+      console.log(`Loaded ${cachedPlaces.length} places from cache.`);
+    }
+  } catch (err) {
+    console.warn("Failed to load places from cache:", err);
+  }
 
   // ✅ Create a Photon-based geocoder instance from Leaflet-Control-Geocoder.
   // This object normally has `geocode()` (search by name) and `reverse()` (get name from coordinates),
@@ -2854,13 +2877,19 @@ async function fetchPlacesSmart(bounds, zoom, options) {
   if (missingIds.length > 0) {
     const newGeoJSON = await fetchPlacesByIds(missingIds);
     if (newGeoJSON && newGeoJSON.features) {
+      const newItemsToCache = [];
       for (const f of newGeoJSON.features) {
         const k = placeKeyFromFeature(f);
         if (k) {
           // Update global cache
           placesCacheById.set(k, f);
           foundFeatures.push(f);
+          newItemsToCache.push({ id: k, feature: f });
         }
+      }
+      // Save to IndexedDB
+      if (newItemsToCache.length > 0) {
+        savePlacesToCache(newItemsToCache);
       }
     }
   }
