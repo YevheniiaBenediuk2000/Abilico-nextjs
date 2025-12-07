@@ -276,6 +276,7 @@ function selectorsForZoom(
 
   const LOW_15 = [
     `node["amenity"]["amenity"~"^(${AMENITY_FOCUS_LOW.join("|")})$"]`,
+    `node["tourism"]["tourism"~"^(${TOURISM_FOCUS_LOW.join("|")})$"]`,
   ];
 
   const LOWEST = [
