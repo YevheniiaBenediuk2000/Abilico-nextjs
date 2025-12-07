@@ -1674,9 +1674,17 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
         .replace(/\b\w/g, (c) => c.toUpperCase());
     }
 
-    const displayValue = String(value)
-      .replace(/[_:]/g, " ")
-      .replace(/\b\w/g, (c) => c.toUpperCase());
+    let displayValue = String(value).trim();
+    // Check if it looks like a URL (starts with http/https)
+    if (/^https?:\/\//i.test(displayValue)) {
+      // Render as link, preserving the original URL
+      displayValue = `<a href="${displayValue}" target="_blank" rel="noopener nofollow ugc" style="word-break: break-all;">${displayValue}</a>`;
+    } else {
+      // Apply existing transformation for non-URL text
+      displayValue = displayValue
+        .replace(/[_:]/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+    }
 
     item.innerHTML = `
     <div class="me-2">
