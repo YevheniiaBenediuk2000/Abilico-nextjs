@@ -171,7 +171,20 @@ function buildAccessibilityClauses(allowed) {
   return Array.from(clauses);
 }
 
-const AMENITY_FOCUS_LOWEST = ["hospital", "cinema", "police"];
+const AMENITY_FOCUS_LOWEST = [
+  "bank",
+  "pharmacy",
+  "hospital",
+  "clinic",
+  "library",
+  "university",
+  "college",
+  "school",
+  "theatre",
+  "cinema",
+  "police",
+  "post_office",
+];
 
 const AMENITY_FOCUS_LOW = [
   // bigger / civic / fewer items
@@ -191,6 +204,8 @@ const AMENITY_FOCUS_LOW = [
   "post_office",
   "townhall",
 ];
+
+const TOURISM_FOCUS_LOWEST = ["museum", "zoo", "viewpoint", "hotel"];
 
 const TOURISM_FOCUS_LOW = [
   "attraction",
@@ -265,6 +280,7 @@ function selectorsForZoom(
 
   const LOWEST = [
     `node["amenity"]["amenity"~"^(${AMENITY_FOCUS_LOWEST.join("|")})$"]`,
+    `node["tourism"]["tourism"~"^(${TOURISM_FOCUS_LOWEST.join("|")})$"]`,
   ];
 
   // Heuristic bands — tweak to taste
