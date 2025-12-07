@@ -172,7 +172,6 @@ function buildAccessibilityClauses(allowed) {
 }
 
 const AMENITY_FOCUS_LOWEST = [
-  "bank",
   "pharmacy",
   "hospital",
   "clinic",
@@ -183,7 +182,6 @@ const AMENITY_FOCUS_LOWEST = [
   "theatre",
   "cinema",
   "police",
-  "post_office",
 ];
 
 const AMENITY_FOCUS_LOW = [
@@ -205,7 +203,7 @@ const AMENITY_FOCUS_LOW = [
   "townhall",
 ];
 
-const TOURISM_FOCUS_LOWEST = ["museum", "zoo", "viewpoint", "hotel"];
+const TOURISM_FOCUS_LOWEST = ["museum"];
 
 const TOURISM_FOCUS_LOW = [
   "attraction",
