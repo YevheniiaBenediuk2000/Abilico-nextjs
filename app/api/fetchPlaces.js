@@ -8,6 +8,11 @@ const OVERPASS_ENDPOINTS = [
   "https://overpass.kumi.systems/api/interpreter",
 ];
 
+const HEADERS = {
+  "User-Agent":
+    "Abilico/1.0 (https://github.com/YevheniiaBenediuk2000/Abilico)",
+};
+
 let placeGeometryAbortController = null;
 
 export async function fetchPlaceGeometry(osmType, osmId) {
@@ -20,7 +25,7 @@ export async function fetchPlaceGeometry(osmType, osmId) {
   const type = { N: "node", W: "way", R: "relation" }[osmType];
 
   const query = `
-    [out:json];
+    [out:json][timeout:25];
     ${type}(${osmId});
     out geom;
   `;
@@ -34,6 +39,7 @@ export async function fetchPlaceGeometry(osmType, osmId) {
         try {
           const response = await fetch(endpoint, {
             method: "POST",
+            headers: HEADERS,
             body: query,
             signal,
           });
@@ -80,7 +86,7 @@ export async function fetchPlace(osmType, osmId) {
   const type = { N: "node", W: "way", R: "relation" }[osmType];
 
   const query = `
-    [out:json];
+    [out:json][timeout:25];
     ${type}(${osmId});
     out center tags;
   `;
@@ -93,6 +99,7 @@ export async function fetchPlace(osmType, osmId) {
         try {
           const response = await fetch(endpoint, {
             method: "POST",
+            headers: HEADERS,
             body: query,
             signal,
           });
@@ -343,6 +350,7 @@ export async function fetchPlaces(bounds, zoom, options) {
           // console.log("📡 POST →", endpoint, "query:", query.slice(0, 300));
           const response = await fetch(endpoint, {
             method: "POST",
+            headers: HEADERS,
             body: query,
             signal,
           });

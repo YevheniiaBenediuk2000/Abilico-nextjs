@@ -7,6 +7,10 @@ import { pipeline } from "stream/promises";
 
 // Configuration
 const OVERPASS_API_URL = "https://overpass-api.de/api/interpreter";
+const HEADERS = {
+  "User-Agent":
+    "Abilico/1.0 (https://github.com/YevheniiaBenediuk2000/Abilico)",
+};
 const BBOX = "-90,-180,90,180"; // World
 let CACHE_FILE = `osm_data_cache_${BBOX.replace(/,/g, "_")}.json`;
 // CACHE_FILE = "osm_data_cache.json";
@@ -313,7 +317,7 @@ async function fetchOSMData() {
         const bbox = `${south},${west},${north},${east}`;
 
         const query = `
-    [out:json][timeout:90000];
+    [out:json][timeout:3600];
     (
       node["wheelchair"](${bbox});
     );
@@ -327,6 +331,7 @@ async function fetchOSMData() {
           try {
             const response = await fetch(OVERPASS_API_URL, {
               method: "POST",
+              headers: HEADERS,
               body: query,
             });
 
