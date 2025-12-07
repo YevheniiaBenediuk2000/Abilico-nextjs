@@ -171,43 +171,48 @@ function buildAccessibilityClauses(allowed) {
   return Array.from(clauses);
 }
 
-const AMENITY_FOCUS_LOWEST = ["hospital", "social_facility"];
+const AMENITY_FOCUS_LOWEST = [
+  "hospital",
+  "university",
+  "theatre",
+  "cinema",
+  "marketplace",
+  "police",
+  "social_facility",
+  "library",
+  "college",
+  "school",
+  "community_centre",
+];
 
 const AMENITY_FOCUS_LOW = [
   ...AMENITY_FOCUS_LOWEST,
-  "doctors",
-  "restaurant",
-  "cafe",
   "fast_food",
-  "marketplace",
+  "cafe",
+  "restaurant",
+  "fire_station",
+  "doctors",
   "toilets",
   "parking",
   "clinic",
   "pharmacy",
-  "community_centre",
   "arts_centre",
   "courthouse",
-  "library",
-  "theatre",
-  "cinema",
   "bank",
   "atm",
-  "university",
-  "college",
-  "school",
   "place_of_worship",
-  "police",
   "post_office",
   "townhall",
 ];
 
+const TOURISM_FOCUS_LOWEST = ["museum", "attraction"];
+
 const TOURISM_FOCUS_LOW = [
-  "museum",
-  "aquarium",
+  ...TOURISM_FOCUS_LOWEST,
   "viewpoint",
+  "aquarium",
   "hotel",
   "hostel",
-  "attraction",
   "zoo",
   "theme_park",
   "gallery",
@@ -215,14 +220,9 @@ const TOURISM_FOCUS_LOW = [
 
 const LEISURE_FOCUS_LOW = ["sports_centre", "swimming_pool", "fitness_centre"];
 
-const SHOP_FOCUS_LOWEST = ["mall", "department_store"];
+const SHOP_FOCUS_LOWEST = ["mall", "department_store", "supermarket"];
 
-const SHOP_FOCUS_LOW = [
-  ...SHOP_FOCUS_LOWEST,
-  "supermarket",
-  "bakery",
-  "convenience",
-];
+const SHOP_FOCUS_LOW = [...SHOP_FOCUS_LOWEST, "bakery", "convenience"];
 
 // Build the base selectors depending on zoom
 function selectorsForZoom(
@@ -274,6 +274,7 @@ function selectorsForZoom(
 
   const LOWEST = [
     `node["amenity"]["amenity"~"^(${AMENITY_FOCUS_LOWEST.join("|")})$"]`,
+    `node["tourism"]["tourism"~"^(${TOURISM_FOCUS_LOWEST.join("|")})$"]`,
     `node["shop"]["shop"~"^(${SHOP_FOCUS_LOWEST.join("|")})$"]`,
   ];
 
