@@ -422,3 +422,172 @@ export async function fetchPlaces(bounds, zoom, options) {
 
   console.error("Places fetch failed on all Overpass endpoints:", lastError);
 }
+
+let placeIdsAbortController = null;
+
+export async function fetchPlaceIds(bounds, zoom, options) {
+  const { accessibilityFilter } = options;
+
+  const showNoPlaces = zoom < SHOW_PLACES_ZOOM;
+  if (showNoPlaces) {
+    return [];
+  }
+
+  if (placeIdsAbortController) {
+    placeIdsAbortController.abort();
+  }
+  placeIdsAbortController = new AbortController();
+  const { signal } = placeIdsAbortController;
+
+  const s = bounds.getSouth();
+  const w = bounds.getWest();
+  const n = bounds.getNorth();
+  const e = bounds.getEast();
+  const boundingBox = `${s},${w},${n},${e}`;
+
+  const AMENITY_EXCLUDED =
+    "bench|waste_basket|bicycle_parking|vending_machine|fountain|ice_cream|grit_bin|drinking_water|give_box|parcel_locker|water_point|recycling|waste_basket|waste_disposal";
+  const LEISURE_EXCLUDED = "park|picnic_table";
+  const MAN_MADE_EXCLUDED =
+    "surveillance|pump|pipeline|pier|groyne|flagpole|embankment|dyke|clearcut|cutline";
+  const MILITARY_EXCLUDED = "trench";
+
+  if (accessibilityFilter.size === 0) {
+    return [];
+  }
+
+  const baseSelectors = selectorsForZoom(zoom, {
+    AMENITY_EXCLUDED,
+    LEISURE_EXCLUDED,
+    MAN_MADE_EXCLUDED,
+    MILITARY_EXCLUDED,
+  });
+
+  const accClauses = buildAccessibilityClauses(accessibilityFilter);
+
+  const queryParts = [];
+  for (const base of baseSelectors) {
+    if (accClauses.length === 1 && accClauses[0] === "") {
+      queryParts.push(`${base}(${boundingBox})`);
+    } else {
+      for (const clause of accClauses) {
+        queryParts.push(`${base}${clause}(${boundingBox})`);
+      }
+    }
+  }
+
+  const query = `
+    [out:json][timeout:25];
+    (
+      ${queryParts.join(";\n      ")};
+    );
+    out ids;
+  `;
+
+  let lastError = null;
+
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      return await pRetry(async () => {
+        try {
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: HEADERS,
+            body: query,
+            signal,
+          });
+
+          if (!response.ok) {
+            throw new Error(`Overpass error ${response.status} @ ${endpoint}`);
+          }
+
+          const data = await response.json();
+          return data.elements || [];
+        } catch (error) {
+          if (error?.name === "AbortError") {
+            return [];
+          }
+          throw error;
+        }
+      }, pRetryConfig);
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        return [];
+      }
+      lastError = error;
+      if (
+        !error?.message?.includes("504") &&
+        !error?.message?.includes("timeout")
+      ) {
+        console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
+      }
+    }
+  }
+
+  if (lastError?.name === "AbortError") {
+    return [];
+  }
+
+  console.error("Place IDs fetch failed on all Overpass endpoints:", lastError);
+  return [];
+}
+
+export async function fetchPlacesByIds(ids) {
+  if (!ids || ids.length === 0)
+    return { type: "FeatureCollection", features: [] };
+
+  // Group by type
+  const nodes = ids.filter((i) => i.type === "node").map((i) => i.id);
+  const ways = ids.filter((i) => i.type === "way").map((i) => i.id);
+  const relations = ids.filter((i) => i.type === "relation").map((i) => i.id);
+
+  const queryParts = [];
+  if (nodes.length) queryParts.push(`node(id:${nodes.join(",")})`);
+  if (ways.length) queryParts.push(`way(id:${ways.join(",")})`);
+  if (relations.length) queryParts.push(`relation(id:${relations.join(",")})`);
+
+  if (queryParts.length === 0)
+    return { type: "FeatureCollection", features: [] };
+
+  const query = `
+    [out:json][timeout:25];
+    (
+      ${queryParts.join(";\n      ")};
+    );
+    out center tags;
+  `;
+
+  let lastError = null;
+
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      return await pRetry(async () => {
+        try {
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: HEADERS,
+            body: query,
+          });
+
+          if (!response.ok) {
+            throw new Error(`Overpass error ${response.status} @ ${endpoint}`);
+          }
+
+          const data = await response.json();
+          return osmtogeojson(data);
+        } catch (error) {
+          throw error;
+        }
+      }, pRetryConfig);
+    } catch (error) {
+      lastError = error;
+      console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
+    }
+  }
+
+  console.error(
+    "Places fetch by IDs failed on all Overpass endpoints:",
+    lastError
+  );
+  return { type: "FeatureCollection", features: [] };
+}

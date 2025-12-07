@@ -4,7 +4,8 @@ import elements from "./constants/domElements.js";
 import {
   fetchPlace,
   fetchPlaceGeometry,
-  fetchPlaces,
+  fetchPlaceIds,
+  fetchPlacesByIds,
 } from "./api/fetchPlaces.js";
 import { fetchUserPlaces } from "./api/fetchUserPlaces.js";
 import { fetchRoute } from "./api/fetchRoute.js";
@@ -263,8 +264,22 @@ function placeKeyFromFeature(feature) {
   }
 
   // OSM places have osm_type and osm_id
-  const osmType = p.osm_type || p.type;
-  const osmId = p.osm_id || p.id;
+  let osmType = p.osm_type || p.type;
+  let osmId = p.osm_id || p.id;
+
+  // Fallback: try to parse from feature.id (e.g. "node/123")
+  if ((!osmType || !osmId) && feature.id && typeof feature.id === "string") {
+    const parts = feature.id.split("/");
+    if (parts.length === 2) {
+      const t = parts[0];
+      const i = parts[1];
+      if (t === "node") osmType = "N";
+      else if (t === "way") osmType = "W";
+      else if (t === "relation") osmType = "R";
+
+      if (osmType) osmId = i;
+    }
+  }
 
   if (!osmType || !osmId) return null;
   return `${osmType}/${osmId}`; // e.g. "N/123456789"
@@ -767,7 +782,7 @@ async function refreshPlaces() {
     if (!geojson) {
       geojson = await queryClient.fetchQuery({
         queryKey,
-        queryFn: () => fetchPlaces(bounds, zoom, { accessibilityFilter }),
+        queryFn: () => fetchPlacesSmart(bounds, zoom, { accessibilityFilter }),
       });
     }
 
@@ -1259,7 +1274,13 @@ async function renderReviewsList() {
 
       // Category ratings details section (if review has category_ratings)
       const categoryRatings = review.category_ratings;
-      if (categoryRatings && typeof categoryRatings === 'object' && !Array.isArray(categoryRatings) && categoryRatings !== null && Object.keys(categoryRatings).length > 0) {
+      if (
+        categoryRatings &&
+        typeof categoryRatings === "object" &&
+        !Array.isArray(categoryRatings) &&
+        categoryRatings !== null &&
+        Object.keys(categoryRatings).length > 0
+      ) {
         const detailsContainer = document.createElement("div");
         detailsContainer.className = "mt-2 mb-2";
 
@@ -1268,7 +1289,8 @@ async function renderReviewsList() {
         detailsBtn.type = "button";
         detailsBtn.className = "btn btn-link btn-sm p-0 text-decoration-none";
         detailsBtn.style.fontSize = "0.875rem";
-        detailsBtn.innerHTML = '<span class="details-icon">▶</span> Show category details';
+        detailsBtn.innerHTML =
+          '<span class="details-icon">▶</span> Show category details';
         detailsBtn.setAttribute("aria-expanded", "false");
         detailsBtn.setAttribute("aria-label", "Toggle category rating details");
 
@@ -1283,13 +1305,14 @@ async function renderReviewsList() {
         categoryList.className = "d-flex flex-column gap-1";
 
         Object.entries(categoryRatings).forEach(([categoryId, rating]) => {
-          if (typeof rating === 'number' && rating >= 1 && rating <= 5) {
+          if (typeof rating === "number" && rating >= 1 && rating <= 5) {
             const categoryItem = document.createElement("div");
-            categoryItem.className = "d-flex justify-content-between align-items-center";
-            
+            categoryItem.className =
+              "d-flex justify-content-between align-items-center";
+
             // Check if this category is in user's preferences
             const isUserPreference = userPrefsSet.has(categoryId);
-            
+
             // Apply highlighting style if it matches user preferences
             if (isUserPreference) {
               categoryItem.style.backgroundColor = "#e3f2fd"; // Light blue background
@@ -1302,7 +1325,8 @@ async function renderReviewsList() {
             const label = document.createElement("span");
             label.className = isUserPreference ? "fw-semibold" : "text-muted";
             label.style.color = isUserPreference ? "#1976d2" : ""; // Blue text for user preferences
-            label.textContent = ACCESSIBILITY_CATEGORY_LABELS[categoryId] || categoryId;
+            label.textContent =
+              ACCESSIBILITY_CATEGORY_LABELS[categoryId] || categoryId;
 
             // Rating display (stars)
             const ratingDisplay = document.createElement("div");
@@ -1359,18 +1383,21 @@ async function renderReviewsList() {
 
         // Toggle functionality
         detailsBtn.addEventListener("click", () => {
-          const isExpanded = detailsBtn.getAttribute("aria-expanded") === "true";
+          const isExpanded =
+            detailsBtn.getAttribute("aria-expanded") === "true";
 
           if (isExpanded) {
             // Collapse
             detailsContent.style.display = "none";
             detailsBtn.setAttribute("aria-expanded", "false");
-            detailsBtn.innerHTML = '<span class="details-icon">▶</span> Show category details';
+            detailsBtn.innerHTML =
+              '<span class="details-icon">▶</span> Show category details';
           } else {
             // Expand
             detailsContent.style.display = "block";
             detailsBtn.setAttribute("aria-expanded", "true");
-            detailsBtn.innerHTML = '<span class="details-icon">▼</span> Hide category details';
+            detailsBtn.innerHTML =
+              '<span class="details-icon">▼</span> Hide category details';
           }
         });
       }
@@ -2802,4 +2829,41 @@ export async function initMap(user = null) {
 
   // ratingMap["N/123456"].personal_score -> personalised rating for that place
   // ratingMap["N/123456"].avg_overall   -> global average
+}
+
+// ID-first fetching strategy: 1. fetch IDs, 2. fetch details for missing IDs
+async function fetchPlacesSmart(bounds, zoom, options) {
+  // 1. Fetch IDs (lightweight)
+  const ids = await fetchPlaceIds(bounds, zoom, options);
+
+  const missingIds = [];
+  const foundFeatures = [];
+
+  for (const item of ids) {
+    const typeChar =
+      item.type === "node" ? "N" : item.type === "way" ? "W" : "R";
+    const key = `${typeChar}/${item.id}`;
+    if (placesCacheById.has(key)) {
+      foundFeatures.push(placesCacheById.get(key));
+    } else {
+      missingIds.push(item);
+    }
+  }
+
+  // 2. Fetch missing details (only for what's not in cache)
+  if (missingIds.length > 0) {
+    const newGeoJSON = await fetchPlacesByIds(missingIds);
+    if (newGeoJSON && newGeoJSON.features) {
+      for (const f of newGeoJSON.features) {
+        const k = placeKeyFromFeature(f);
+        if (k) {
+          // Update global cache
+          placesCacheById.set(k, f);
+          foundFeatures.push(f);
+        }
+      }
+    }
+  }
+
+  return { type: "FeatureCollection", features: foundFeatures };
 }
