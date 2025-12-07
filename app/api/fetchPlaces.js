@@ -171,6 +171,17 @@ function buildAccessibilityClauses(allowed) {
   return Array.from(clauses);
 }
 
+const AMENITY_FOCUS_LOWEST = [
+  "pharmacy",
+  "hospital",
+  "clinic",
+  "theatre",
+  "cinema",
+  "place_of_worship",
+  "police",
+  "townhall",
+];
+
 const AMENITY_FOCUS_LOW = [
   // bigger / civic / fewer items
   "bank",
@@ -257,10 +268,20 @@ function selectorsForZoom(
     `node["historic"]`,
   ];
 
+  const LOW_15 = [
+    `node["amenity"]["amenity"~"^(${AMENITY_FOCUS_LOW.join("|")})$"]`,
+  ];
+
+  const LOWEST = [
+    `node["amenity"]["amenity"~"^(${AMENITY_FOCUS_LOWEST.join("|")})$"]`,
+  ];
+
   // Heuristic bands — tweak to taste
-  if (zoom >= 17) return FULL;
-  if (zoom >= 15) return MID;
-  return LOW; // zoom < 15
+  if (zoom >= 18) return FULL;
+  if (zoom >= 17) return MID;
+  if (zoom >= 16) return LOW;
+  if (zoom >= 15) return LOW_15;
+  return LOWEST; // zoom < 15
 }
 
 // Optional: cap results at lower zooms (Overpass supports a numeric limit on `out`)
