@@ -25,6 +25,9 @@ import FilterListIcon from "@mui/icons-material/FilterList";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import Tooltip from "@mui/material/Tooltip";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import SwapVertIcon from "@mui/icons-material/SwapVert";
 import AccessibilityLegendReact from "./AccessibilityLegendReact";
 
 import {
@@ -422,8 +425,9 @@ function NestedPlaceTypeFilter({ items }) {
 
 export default function PlacesListReact({ data, onSelect, hideControls = false, onUnsave = null, isOpen = true }) {
   const { features = [], center, zoom } = data || {};
-  const [sortBy, setSortBy] = useState("distance"); // "distance" | "name" | "bestForMe"
+  const [sortBy, setSortBy] = useState("distance"); // "distance" | "name" | "accessibility" | "overall" | "bestForMe"
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [sortAnchorEl, setSortAnchorEl] = useState(null);
   // ✅ NEW: remember which city Best for me resolved to
   const [currentBestForMeCity, setCurrentBestForMeCity] = useState(null);
   // ✅ NEW: user prefs + scores
@@ -510,6 +514,42 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
       });
     } else if (sortBy === "name") {
       sorted.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortBy === "accessibility") {
+      // Sort by accessibility tier: designated > yes > limited > no > unknown
+      const tierOrder = { designated: 0, yes: 1, limited: 2, no: 3, unknown: 4 };
+      sorted.sort((a, b) => {
+        const orderA = tierOrder[a.accTier] ?? 4;
+        const orderB = tierOrder[b.accTier] ?? 4;
+        if (orderA === orderB) {
+          return a.name.localeCompare(b.name); // tie-break by name
+        }
+        return orderA - orderB;
+      });
+    } else if (sortBy === "overall") {
+      // Sort by overall rating (highest first - best practice)
+      sorted.sort((a, b) => {
+        const scoreAData = scoresByPlaceKey[a.placeKey] || {};
+        const scoreBData = scoresByPlaceKey[b.placeKey] || {};
+
+        const scoreA = scoreAData.globalScore ?? null;
+        const scoreB = scoreBData.globalScore ?? null;
+
+        // Places with ratings come first
+        if (scoreA == null && scoreB == null) return 0;
+        if (scoreA == null) return 1; // no rating goes to bottom
+        if (scoreB == null) return -1; // no rating goes to bottom
+
+        // Higher score = better → sort descending
+        if (scoreA === scoreB) {
+          // tie-break by distance (closer first)
+          if (a.distKm == null && b.distKm == null) return 0;
+          if (a.distKm == null) return 1;
+          if (b.distKm == null) return -1;
+          return a.distKm - b.distKm;
+        }
+
+        return scoreB - scoreA;
+      });
     } else if (sortBy === "bestForMe") {
       sorted.sort((a, b) => {
         const scoreAData = scoresByPlaceKey[a.placeKey] || {};
@@ -1036,6 +1076,98 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
     };
   }, [sortBy, features, center, userPrefs, scoresByPlaceKey]);
 
+  // ✅ Load overall ratings when sorting by overall
+  useEffect(() => {
+    if (sortBy !== "overall") return;
+
+    if (!features || features.length === 0) return;
+
+    let cancelled = false;
+
+    async function loadOverallRatings() {
+      try {
+        const baseItems = (features || []).map((f) =>
+          derivePlaceInfo(f, center)
+        );
+
+        const candidates = baseItems.filter(
+          (item) => item.placeKey && item.latlng
+        );
+
+        for (const item of candidates) {
+          if (cancelled) break;
+
+          const key = item.placeKey;
+
+          // Skip if we already have scores for this place
+          if (scoresByPlaceKey[key] !== undefined) continue;
+
+          try {
+            let placeId;
+            try {
+              placeId = await ensurePlaceExists(item.tags, item.latlng);
+            } catch (err) {
+              console.warn(
+                "⚠️ Overall rating: could not ensure place exists for",
+                key,
+                err?.message ?? err
+              );
+              continue;
+            }
+
+            if (!placeId) continue;
+
+            let reviews = [];
+            try {
+              reviews = await reviewStorage("GET", { place_id: placeId });
+            } catch (err) {
+              console.error(
+                "❌ reviewStorage(GET) failed for place",
+                key,
+                err?.message ?? err
+              );
+              continue;
+            }
+
+            try {
+              const { globalScore } = computePlaceScores(reviews || [], []);
+
+              if (!cancelled) {
+                setScoresByPlaceKey((prev) => {
+                  if (prev[key] !== undefined) return prev;
+                  return {
+                    ...prev,
+                    [key]: { globalScore, personalScore: null },
+                  };
+                });
+              }
+            } catch (err) {
+              console.error(
+                "❌ computePlaceScores failed for place",
+                key,
+                err?.message ?? err
+              );
+              continue;
+            }
+          } catch (err) {
+            console.error(
+              "❌ Unexpected failure in loadOverallRatings for place",
+              key,
+              err?.message ?? err
+            );
+          }
+        }
+      } catch (err) {
+        console.error("❌ Error loading overall ratings:", err);
+      }
+    }
+
+    loadOverallRatings();
+    return () => {
+      cancelled = true;
+    };
+  }, [sortBy, features, center, scoresByPlaceKey]);
+
   // Place-type filter state for *list* (mirrors NestedPlaceTypeFilter localStorage)
   // Disable filters when hideControls is true (e.g., saved places page)
   const [activeTypeFilters, setActiveTypeFilters] = useState(() => {
@@ -1200,8 +1332,8 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
           <Box
             sx={{
               display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-end",
+              flexDirection: "row",
+              alignItems: "center",
               gap: 1,
             }}
           >
@@ -1213,35 +1345,19 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
               startIcon={<FilterListIcon />}
               onClick={() => setFiltersOpen(true)}
             >
-              Filters
+              Filter
             </Button>
 
-            {/* horizontal Sort by row */}
-            <Stack direction="row" spacing={0.5} alignItems="center">
-              <Typography variant="caption" color="text.secondary">
-                Sort by
-              </Typography>
-              <Stack direction="row" spacing={0.5}>
-                <Chip
-                  size="small"
-                  label="Distance"
-                  variant={sortBy === "distance" ? "filled" : "outlined"}
-                  onClick={() => setSortBy("distance")}
-                />
-                <Chip
-                  size="small"
-                  label="Name"
-                  variant={sortBy === "name" ? "filled" : "outlined"}
-                  onClick={() => setSortBy("name")}
-                />
-                <Chip
-                  size="small"
-                  label="Best for me"
-                  variant={sortBy === "bestForMe" ? "filled" : "outlined"}
-                  onClick={() => setSortBy("bestForMe")}
-                />
-              </Stack>
-            </Stack>
+            {/* Sort Button */}
+            <Button
+              variant="outlined"
+              color="inherit"
+              size="small"
+              startIcon={<SwapVertIcon />}
+              onClick={(e) => setSortAnchorEl(e.currentTarget)}
+            >
+              Sort
+            </Button>
           </Box>
         )}
       </Box>
@@ -1516,6 +1632,59 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
           </Box>
         </DialogContent>
       </Dialog>
+
+      {/* Sort Menu */}
+      <Menu
+        anchorEl={sortAnchorEl}
+        open={Boolean(sortAnchorEl)}
+        onClose={() => setSortAnchorEl(null)}
+      >
+        <MenuItem
+          selected={sortBy === "distance"}
+          onClick={() => {
+            setSortBy("distance");
+            setSortAnchorEl(null);
+          }}
+        >
+          Distance
+        </MenuItem>
+        <MenuItem
+          selected={sortBy === "name"}
+          onClick={() => {
+            setSortBy("name");
+            setSortAnchorEl(null);
+          }}
+        >
+          Name
+        </MenuItem>
+        <MenuItem
+          selected={sortBy === "accessibility"}
+          onClick={() => {
+            setSortBy("accessibility");
+            setSortAnchorEl(null);
+          }}
+        >
+          Accessibility Status
+        </MenuItem>
+        <MenuItem
+          selected={sortBy === "overall"}
+          onClick={() => {
+            setSortBy("overall");
+            setSortAnchorEl(null);
+          }}
+        >
+          Overall Rating
+        </MenuItem>
+        <MenuItem
+          selected={sortBy === "bestForMe"}
+          onClick={() => {
+            setSortBy("bestForMe");
+            setSortAnchorEl(null);
+          }}
+        >
+          Best for me
+        </MenuItem>
+      </Menu>
     </>
   );
 }
