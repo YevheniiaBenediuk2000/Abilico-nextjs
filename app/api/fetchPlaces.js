@@ -171,16 +171,7 @@ function buildAccessibilityClauses(allowed) {
   return Array.from(clauses);
 }
 
-const AMENITY_FOCUS_LOWEST = [
-  "pharmacy",
-  "hospital",
-  "clinic",
-  "theatre",
-  "cinema",
-  "place_of_worship",
-  "police",
-  "townhall",
-];
+const AMENITY_FOCUS_LOWEST = ["hospital", "theatre", "cinema", "police"];
 
 const AMENITY_FOCUS_LOW = [
   // bigger / civic / fewer items
