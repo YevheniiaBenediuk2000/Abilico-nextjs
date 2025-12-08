@@ -238,7 +238,7 @@ export function parseNumber(raw, key) {
   return Number.isFinite(x) ? x : null;
 }
 
-function computeClassWeights(labels, alpha = 1.0) {
+function computeClassWeights(labels, alpha = 0.5) {
   const counts = { 0: 0, 1: 0, 2: 0 };
   labels.forEach((l) => counts[l]++);
   const total = labels.length;
