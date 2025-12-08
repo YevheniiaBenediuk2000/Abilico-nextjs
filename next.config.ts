@@ -4,9 +4,7 @@ const nextConfig: NextConfig = {
   // Optional; keep if you’re using standalone output
   // output: 'standalone',
 
-  experimental: {
-    serverComponentsExternalPackages: ["sharp", "onnxruntime-node"],
-  },
+  serverExternalPackages: ["sharp", "onnxruntime-node"],
 };
 
 export default nextConfig;
