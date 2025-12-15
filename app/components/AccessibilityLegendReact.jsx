@@ -6,13 +6,20 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
 
 import { BADGE_COLOR_BY_TIER } from "../constants/constants.mjs";
 
 const ACCESSIBILITY_FILTER_LS_KEY = "ui.placeAccessibility.filter";
 const ALL_TIERS = ["designated", "yes", "limited", "unknown", "no"];
+
+// Display labels for accessibility tiers
+const TIER_LABELS = {
+  designated: "Designated",
+  yes: "Wheelchair accessible",
+  limited: "Limited",
+  unknown: "Unknown",
+  no: "No",
+};
 
 function getInitialSelection() {
   if (typeof window === "undefined") return ALL_TIERS;
@@ -59,25 +66,23 @@ export default function AccessibilityLegendReact() {
     );
   };
 
-  // Map tier colors to actual hex values for background colors
-  const TIER_BG_COLORS = {
-    designated: "rgba(22, 163, 74, 0.15)", // #16a34a with opacity
-    yes: "rgba(108, 194, 74, 0.15)", // #6cc24a with opacity
-    limited: "rgba(255, 193, 7, 0.15)", // amber/yellow with opacity
-    unknown: "rgba(108, 117, 125, 0.15)", // slate/gray with opacity
-    no: "rgba(220, 53, 69, 0.15)", // red with opacity
+  // Map tier colors to actual hex values for solid backgrounds (for accessibility contrast)
+  const TIER_SOLID_COLORS = {
+    designated: "#16a34a", // green
+    yes: "#6cc24a", // green (darker)
+    limited: "#ffc107", // amber/yellow (Bootstrap warning)
+    unknown: "#6c757d", // slate/gray (Bootstrap tertiary)
+    no: "#dc3545", // red (Bootstrap danger)
   };
 
-  const getTierColor = (tier) => {
-    return TIER_BG_COLORS[tier] || TIER_BG_COLORS.unknown;
+  const getTierSolidColor = (tier) => {
+    return TIER_SOLID_COLORS[tier] || TIER_SOLID_COLORS.unknown;
   };
 
   const getTierBorderColor = (tier, isSelected) => {
     const color = BADGE_COLOR_BY_TIER[tier] || BADGE_COLOR_BY_TIER.unknown;
     if (isSelected) {
-      // For CSS variables, we'll use the color directly and let CSS handle it
-      // For hex colors, use them directly
-      return color;
+      return getTierSolidColor(tier);
     }
     return "rgba(0,0,0,0.12)";
   };
@@ -100,60 +105,40 @@ export default function AccessibilityLegendReact() {
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
         {ALL_TIERS.map((tier) => {
           const isSelected = selected.includes(tier);
-          const color = BADGE_COLOR_BY_TIER[tier] || BADGE_COLOR_BY_TIER.unknown;
-          const bgColor = getTierColor(tier);
+          const solidColor = getTierSolidColor(tier);
           const borderColor = getTierBorderColor(tier, isSelected);
+          const label = TIER_LABELS[tier] || tier;
 
           return (
             <Chip
               key={tier}
-              icon={
-                isSelected ? (
-                  <CheckCircleIcon
-                    sx={{
-                      fontSize: 18,
-                      color: color,
-                    }}
-                  />
-                ) : (
-                  <RadioButtonUncheckedIcon
-                    sx={{
-                      fontSize: 18,
-                      color: color,
-                      opacity: 0.6,
-                    }}
-                  />
-                )
-              }
               label={
                 <Typography
                   variant="body2"
                   sx={{
-                    textTransform: "capitalize",
-                    fontSize: "0.875rem",
+                    fontSize: "0.8125rem",
                     fontWeight: isSelected ? 500 : 400,
-                    color: "text.primary",
+                    color: isSelected ? "white" : "text.primary",
                   }}
                 >
-                  {tier}
+                  {label}
                 </Typography>
               }
               onClick={() => toggleTier(tier)}
               sx={{
-                height: 36,
-                bgcolor: isSelected ? bgColor : "transparent",
+                height: 28,
+                bgcolor: isSelected ? solidColor : "transparent",
+                color: isSelected ? "white" : "text.primary",
                 border: `1px solid ${borderColor}`,
-                borderRadius: 1,
+                borderRadius: 3,
                 cursor: "pointer",
                 "&:hover": {
-                  bgcolor: isSelected ? bgColor : "action.hover",
-                  borderColor: color,
-                },
-                "& .MuiChip-icon": {
-                  marginLeft: 1,
+                  bgcolor: isSelected ? solidColor : "action.hover",
+                  borderColor: solidColor,
+                  opacity: isSelected ? 0.9 : 1,
                 },
                 "& .MuiChip-label": {
-                  paddingLeft: 1,
+                  paddingLeft: 1.5,
                   paddingRight: 1.5,
                 },
               }}
