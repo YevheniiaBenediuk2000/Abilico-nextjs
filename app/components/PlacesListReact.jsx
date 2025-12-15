@@ -2127,29 +2127,40 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
               Filters
             </Typography>
             <Box display="flex" alignItems="center" gap={1}>
-              <Link
-                component="button"
-                variant="body2"
+              <Button
+                variant="text"
+                size="small"
                 onClick={clearAllFilters}
                 sx={{
-                  cursor: "pointer",
-                  textDecoration: "none",
                   color: "primary.main",
-                  fontWeight: 400,
+                  fontWeight: 500,
                   fontSize: "0.875rem",
+                  textTransform: "none",
+                  minWidth: "auto",
+                  px: 1.5,
+                  py: 0.5,
+                  borderRadius: 1.5,
                   "&:hover": {
-                    textDecoration: "underline",
+                    bgcolor: "action.hover",
+                    textDecoration: "none",
                   },
                 }}
               >
                 Reset
-              </Link>
+              </Button>
             <IconButton
               aria-label="close"
               onClick={() => setFiltersOpen(false)}
-              sx={{ color: (theme) => theme.palette.grey[500] }}
-            >
-              <CloseIcon />
+                size="small"
+                sx={{
+                  color: "text.secondary",
+                  "&:hover": {
+                    bgcolor: "action.hover",
+                    color: "text.primary",
+                  },
+                }}
+              >
+                <CloseIcon fontSize="small" />
             </IconButton>
             </Box>
           </Box>
