@@ -27,6 +27,7 @@ import EmailIcon from "@mui/icons-material/Email";
 import LockIcon from "@mui/icons-material/Lock";
 import AccessibilityNewIcon from "@mui/icons-material/AccessibilityNew";
 import EditIcon from "@mui/icons-material/Edit";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Grid from "@mui/material/Grid";
@@ -90,6 +91,7 @@ export default function ProfilePage() {
   const [nameLoading, setNameLoading] = useState(false);
   const [nameError, setNameError] = useState("");
   const [showDisable2FADialog, setShowDisable2FADialog] = useState(false);
+  const [errorDialog, setErrorDialog] = useState({ open: false, title: "", message: "" });
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -188,17 +190,58 @@ export default function ProfilePage() {
 
   // Handle setting up 2FA
   const handleSetupMFA = async () => {
-    const { data, error } = await supabase.auth.mfa.enroll({
-      factorType: "totp",
-    });
-    if (error) {
-      alert("❌ Failed to start 2FA setup");
-      console.error(error);
-      return;
+    try {
+      // First, check for existing unverified factors and clean them up
+      const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
+      if (listError) {
+        console.error("Error listing factors:", listError);
+      } else {
+        // Find and unenroll any unverified TOTP factors
+        const unverifiedFactors = factors?.all?.filter(
+          (f) => f.factor_type === "totp" && f.status !== "verified"
+        );
+        
+        if (unverifiedFactors && unverifiedFactors.length > 0) {
+          for (const factor of unverifiedFactors) {
+            try {
+              await supabase.auth.mfa.unenroll({ factorId: factor.id });
+            } catch (unenrollErr) {
+              console.warn("Failed to unenroll unverified factor:", unenrollErr);
+            }
+          }
+        }
+      }
+
+      // Now enroll a new factor
+      const { data, error } = await supabase.auth.mfa.enroll({
+        factorType: "totp",
+      });
+      
+      if (error) {
+        setErrorDialog({
+          open: true,
+          title: "Failed to Start 2FA Setup",
+          message: error.message || "An error occurred while setting up 2FA. Please try again.",
+        });
+        console.error("2FA enrollment error:", error);
+        // Refresh MFA status to ensure toggle reflects actual state
+        await refreshMFAStatus();
+        return;
+      }
+      
+      currentFactorId = data.id;
+      setQrCode(data.totp.qr_code);
+      setShow2FASetup(true);
+    } catch (error) {
+      setErrorDialog({
+        open: true,
+        title: "Failed to Start 2FA Setup",
+        message: error.message || "An unexpected error occurred. Please try again.",
+      });
+      console.error("2FA setup error:", error);
+      // Refresh MFA status to ensure toggle reflects actual state
+      await refreshMFAStatus();
     }
-    currentFactorId = data.id;
-    setQrCode(data.totp.qr_code);
-    setShow2FASetup(true);
   };
 
   // Handle disabling 2FA (opens confirmation dialog)
@@ -214,7 +257,11 @@ export default function ProfilePage() {
       // Get all factors for the user
       const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
       if (listError) {
-        alert("❌ Failed to fetch 2FA factors");
+        setErrorDialog({
+          open: true,
+          title: "Failed to Fetch 2FA Factors",
+          message: listError.message || "Unable to retrieve your 2FA settings. Please try again.",
+        });
         console.error(listError);
         return;
       }
@@ -225,7 +272,11 @@ export default function ProfilePage() {
       );
 
       if (!verifiedTotp) {
-        alert("⚠️ No verified 2FA factor found");
+        setErrorDialog({
+          open: true,
+          title: "No 2FA Factor Found",
+          message: "No verified 2FA factor was found on your account.",
+        });
         return;
       }
 
@@ -235,18 +286,31 @@ export default function ProfilePage() {
       });
 
       if (unenrollError) {
-        alert("❌ Failed to disable 2FA");
+        setErrorDialog({
+          open: true,
+          title: "Failed to Disable 2FA",
+          message: unenrollError.message || "Unable to disable 2FA. Please try again.",
+        });
         console.error(unenrollError);
         return;
       }
 
-      alert("✅ 2FA has been disabled");
+      // Show success message
+      setErrorDialog({
+        open: true,
+        title: "2FA Disabled",
+        message: "Two-factor authentication has been successfully disabled.",
+      });
       
       // Refresh MFA status and session
       await refreshMFAStatus();
       await supabase.auth.refreshSession();
     } catch (error) {
-      alert("❌ An error occurred while disabling 2FA");
+      setErrorDialog({
+        open: true,
+        title: "Error Disabling 2FA",
+        message: error.message || "An unexpected error occurred. Please try again.",
+      });
       console.error(error);
     }
   };
@@ -254,7 +318,11 @@ export default function ProfilePage() {
   // Handle verifying 2FA code
   const handleVerify2FA = async () => {
     if (!currentFactorId) {
-      alert('⚠️ Please start 2FA setup first.');
+      setErrorDialog({
+        open: true,
+        title: "Setup Required",
+        message: "Please start 2FA setup first by toggling the switch.",
+      });
       return;
     }
 
@@ -264,7 +332,11 @@ export default function ProfilePage() {
       });
     if (challengeErr) {
       console.error("Challenge failed:", challengeErr);
-      alert("❌ Challenge creation failed.");
+      setErrorDialog({
+        open: true,
+        title: "Verification Failed",
+        message: challengeErr.message || "Unable to create verification challenge. Please try again.",
+      });
       return;
     }
 
@@ -275,9 +347,17 @@ export default function ProfilePage() {
     });
 
     if (verifyErr) {
-      alert("❌ Wrong code");
+      setErrorDialog({
+        open: true,
+        title: "Invalid Code",
+        message: "The code you entered is incorrect. Please try again.",
+      });
     } else {
-      alert("✅ 2FA verified and enabled!");
+      setErrorDialog({
+        open: true,
+        title: "2FA Enabled",
+        message: "Two-factor authentication has been successfully enabled!",
+      });
       setShow2FASetup(false);
       setTotpCode("");
       await refreshMFAStatus();
@@ -1059,13 +1139,6 @@ export default function ProfilePage() {
                       />
                       <Box sx={{ display: "flex", gap: 2 }}>
                         <Button
-                          variant="contained"
-                          color="success"
-                          onClick={handleVerify2FA}
-                        >
-                          Verify Code
-                        </Button>
-                        <Button
                           variant="outlined"
                           onClick={() => {
                             setShow2FASetup(false);
@@ -1075,6 +1148,13 @@ export default function ProfilePage() {
                           }}
                         >
                           Cancel
+                        </Button>
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          onClick={handleVerify2FA}
+                        >
+                          Verify Code
                         </Button>
                       </Box>
                     </Box>
@@ -1228,6 +1308,93 @@ export default function ProfilePage() {
                   }}
                 >
                   Disable
+                </Button>
+              </Box>
+            </Box>
+          </Box>
+        </DialogContent>
+      </Dialog>
+
+      {/* Error/Success Dialog */}
+      <Dialog
+        open={errorDialog.open}
+        onClose={() => setErrorDialog({ open: false, title: "", message: "" })}
+        maxWidth="sm"
+        fullWidth
+        sx={{
+          "& .MuiDialog-container": {
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          },
+        }}
+        PaperProps={{
+          sx: {
+            borderRadius: DIALOG_BORDER_RADIUS,
+            boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+            margin: "auto",
+            maxHeight: "90vh",
+          },
+        }}
+      >
+        <DialogContent sx={{ p: 3, pb: 2 }}>
+          <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
+            {/* Error Icon */}
+            <Box
+              sx={{
+                flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <ErrorOutlineIcon
+                sx={{
+                  fontSize: 48,
+                  color: errorDialog.title.includes("Enabled") || errorDialog.title.includes("Disabled") 
+                    ? "success.main" 
+                    : "error.main",
+                }}
+              />
+            </Box>
+            
+            {/* Text Content */}
+            <Box sx={{ flex: 1 }}>
+              <Typography
+                variant="h6"
+                sx={{
+                  fontWeight: 600,
+                  mb: 1,
+                  color: "text.primary",
+                }}
+              >
+                {errorDialog.title}
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  mb: 3,
+                }}
+              >
+                {errorDialog.message}
+              </Typography>
+              
+              {/* Action Button */}
+              <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+                <Button
+                  variant="contained"
+                  color={errorDialog.title.includes("Enabled") || errorDialog.title.includes("Disabled") 
+                    ? "success" 
+                    : "primary"}
+                  onClick={() => setErrorDialog({ open: false, title: "", message: "" })}
+                  sx={{
+                    textTransform: "none",
+                    px: 3,
+                    py: 0.75,
+                  }}
+                >
+                  OK
                 </Button>
               </Box>
             </Box>
