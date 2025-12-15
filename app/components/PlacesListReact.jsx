@@ -912,6 +912,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sortAnchorEl, setSortAnchorEl] = useState(null);
   const [filterResetKey, setFilterResetKey] = useState(0); // Key to force re-render of filter components
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   // ✅ NEW: remember which city Best for me resolved to
   const [currentBestForMeCity, setCurrentBestForMeCity] = useState(null);
   // ✅ NEW: user prefs + scores
@@ -2196,6 +2197,100 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
                 }
               />
             </Box>
+          </Box>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Confirmation Dialog */}
+      <Dialog
+        open={resetConfirmOpen}
+        onClose={() => setResetConfirmOpen(false)}
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            minWidth: 400,
+          },
+        }}
+      >
+        <DialogContent
+          sx={{
+            pt: 3,
+            pb: 2,
+            px: 3,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <Box
+            sx={{
+              width: 64,
+              height: 64,
+              borderRadius: "50%",
+              bgcolor: "warning.light",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          />
+          <Box sx={{ textAlign: "center" }}>
+            <Typography
+              variant="h6"
+              sx={{
+                fontWeight: 600,
+                color: "text.primary",
+                mb: 1,
+              }}
+            >
+              Reset Filters?
+            </Typography>
+            <Typography
+              variant="body2"
+              sx={{
+                color: "text.secondary",
+              }}
+            >
+              Are you sure you want to reset all filters? This will clear your accessibility and place type selections.
+            </Typography>
+          </Box>
+          <Box
+            sx={{
+              display: "flex",
+              gap: 1.5,
+              width: "100%",
+              mt: 1,
+            }}
+          >
+            <Button
+              variant="outlined"
+              fullWidth
+              onClick={() => setResetConfirmOpen(false)}
+              sx={{
+                borderRadius: 2,
+                textTransform: "none",
+                py: 1,
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              fullWidth
+              color="primary"
+              onClick={() => {
+                clearAllFilters();
+                setResetConfirmOpen(false);
+              }}
+              sx={{
+                borderRadius: 2,
+                textTransform: "none",
+                py: 1,
+              }}
+            >
+              Reset
+            </Button>
           </Box>
         </DialogContent>
       </Dialog>

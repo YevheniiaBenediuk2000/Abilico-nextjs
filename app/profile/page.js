@@ -20,6 +20,8 @@ import Switch from "@mui/material/Switch";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
+import Dialog from "@mui/material/Dialog";
+import DialogContent from "@mui/material/DialogContent";
 import SecurityIcon from "@mui/icons-material/Security";
 import EmailIcon from "@mui/icons-material/Email";
 import LockIcon from "@mui/icons-material/Lock";
@@ -86,6 +88,7 @@ export default function ProfilePage() {
   const [surname, setSurname] = useState("");
   const [nameLoading, setNameLoading] = useState(false);
   const [nameError, setNameError] = useState("");
+  const [showDisable2FADialog, setShowDisable2FADialog] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -197,8 +200,15 @@ export default function ProfilePage() {
     setShow2FASetup(true);
   };
 
-  // Handle disabling 2FA
-  const handleDisableMFA = async () => {
+  // Handle disabling 2FA (opens confirmation dialog)
+  const handleDisableMFA = () => {
+    setShowDisable2FADialog(true);
+  };
+
+  // Confirm and disable 2FA
+  const confirmDisableMFA = async () => {
+    setShowDisable2FADialog(false);
+    
     try {
       // Get all factors for the user
       const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
@@ -215,11 +225,6 @@ export default function ProfilePage() {
 
       if (!verifiedTotp) {
         alert("⚠️ No verified 2FA factor found");
-        return;
-      }
-
-      // Confirm before disabling
-      if (!confirm("Are you sure you want to disable 2FA? This will reduce your account security.")) {
         return;
       }
 
@@ -994,12 +999,13 @@ export default function ProfilePage() {
                         <Switch
                           checked={has2FA}
                           onChange={async (e) => {
-                            if (e.target.checked) {
+                            const newValue = e.target.checked;
+                            if (newValue) {
                               // Enable 2FA
                               await handleSetupMFA();
                             } else {
-                              // Disable 2FA
-                              await handleDisableMFA();
+                              // Disable 2FA - show confirmation dialog
+                              handleDisableMFA();
                             }
                           }}
                           color="primary"
@@ -1132,6 +1138,95 @@ export default function ProfilePage() {
           }}
         />
       )}
+
+      {/* Disable Two-Factor Authentication Confirmation Dialog */}
+      <Dialog
+        open={showDisable2FADialog}
+        onClose={() => setShowDisable2FADialog(false)}
+        maxWidth="sm"
+        fullWidth
+        sx={{
+          "& .MuiDialog-container": {
+            alignItems: "center",
+          },
+        }}
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+            m: 2,
+          },
+        }}
+      >
+        <DialogContent sx={{ p: 3, pb: 2 }}>
+          <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
+            {/* Yellow Circle Icon */}
+            <Box
+              sx={{
+                width: 72,
+                height: 72,
+                borderRadius: "50%",
+                backgroundColor: "#ffc107",
+                flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            />
+            
+            {/* Text Content */}
+            <Box sx={{ flex: 1 }}>
+              <Typography
+                variant="h6"
+                sx={{
+                  fontWeight: 600,
+                  mb: 1,
+                  color: "text.primary",
+                }}
+              >
+                Disable Two-Factor Authentication?
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  mb: 3,
+                }}
+              >
+                Are you sure you want to disable Two-Factor Authentication? This will reduce your account security.
+              </Typography>
+              
+              {/* Action Buttons */}
+              <Box sx={{ display: "flex", gap: 1.5, justifyContent: "flex-end" }}>
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  onClick={() => setShowDisable2FADialog(false)}
+                  sx={{
+                    textTransform: "none",
+                    px: 3,
+                    py: 0.75,
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={confirmDisableMFA}
+                  sx={{
+                    textTransform: "none",
+                    px: 3,
+                    py: 0.75,
+                  }}
+                >
+                  Disable
+                </Button>
+              </Box>
+            </Box>
+          </Box>
+        </DialogContent>
+      </Dialog>
     </MapLayout>
   );
 }
