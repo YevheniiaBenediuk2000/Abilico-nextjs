@@ -1051,7 +1051,7 @@ export default function ProfilePage() {
                       <TextField
                         fullWidth
                         label="Enter 6-digit code"
-                        placeholder="123456"
+                        placeholder=""
                         value={totpCode}
                         onChange={(e) => setTotpCode(e.target.value)}
                         sx={{ mb: 2 }}

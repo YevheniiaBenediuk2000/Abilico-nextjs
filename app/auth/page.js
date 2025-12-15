@@ -111,7 +111,7 @@ export default function AuthPage() {
             value={totpCode}
             onChange={(e) => setTotpCode(e.target.value)}
             className="form-control my-2"
-            placeholder="123456"
+            placeholder=""
           />
           <Button
             onClick={handleVerify}
