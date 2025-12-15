@@ -160,7 +160,7 @@ export default function AuthPage() {
           background: "#ffffff",
         }}
       >
-      {!pendingMFA && mounted ? (
+      {!pendingMFA ? (
           <Box
             sx={{
               display: "flex",
@@ -211,6 +211,7 @@ export default function AuthPage() {
                     height: "auto",
                     objectFit: "contain",
                     transform: "scaleX(-1)",
+                    ml: 12,
                   }}
                 />
               </Box>
@@ -249,50 +250,52 @@ export default function AuthPage() {
                   flexDirection: "column",
                 }}
               >
-                <Auth
-                  supabaseClient={supabase}
-                  appearance={{
-                    theme: ThemeSupa,
-                    variables: {
-                      default: {
-                        colors: {
-                          brand: "#0a3f89",
-                          brandAccent: "#0a3f89",
-                          inputText: "#000000",
-                          inputLabelText: "#000000",
-                          inputPlaceholder: "#9e9e9e",
-                          inputBorder: "rgba(0, 0, 0, 0.23)",
-                          inputBorderHover: "rgba(0, 0, 0, 0.5)",
-                          inputBorderFocus: "#0a3f89",
-                          messageText: "#000000",
-                          messageTextDanger: "#d32f2f",
-                          anchorTextColor: "#0a3f89",
-                          anchorTextHoverColor: "#082d63",
-                        },
-                        space: {
-                          inputPadding: "16px",
-                          buttonPadding: "16px",
-                        },
-                        fontSizes: {
-                          baseBodySize: "16px",
-                          baseInputSize: "16px",
-                          labelText: "16px",
-                        },
-                        radii: {
-                          borderRadiusButton: "8px",
-                          buttonBorderRadius: "8px",
-                          inputBorderRadius: "8px",
+                {mounted && (
+                  <Auth
+                    supabaseClient={supabase}
+                    appearance={{
+                      theme: ThemeSupa,
+                      variables: {
+                        default: {
+                          colors: {
+                            brand: "#0a3f89",
+                            brandAccent: "#0a3f89",
+                            inputText: "#000000",
+                            inputLabelText: "#000000",
+                            inputPlaceholder: "#9e9e9e",
+                            inputBorder: "rgba(0, 0, 0, 0.23)",
+                            inputBorderHover: "rgba(0, 0, 0, 0.5)",
+                            inputBorderFocus: "#0a3f89",
+                            messageText: "#000000",
+                            messageTextDanger: "#d32f2f",
+                            anchorTextColor: "#0a3f89",
+                            anchorTextHoverColor: "#082d63",
+                          },
+                          space: {
+                            inputPadding: "16px",
+                            buttonPadding: "16px",
+                          },
+                          fontSizes: {
+                            baseBodySize: "16px",
+                            baseInputSize: "16px",
+                            labelText: "16px",
+                          },
+                          radii: {
+                            borderRadiusButton: "8px",
+                            buttonBorderRadius: "8px",
+                            inputBorderRadius: "8px",
+                          },
                         },
                       },
-                    },
-                  }}
-                  providers={["google"]}
-                  redirectTo={redirectTo}
-                />
+                    }}
+                    providers={["google"]}
+                    redirectTo={redirectTo}
+                  />
+                )}
               </Box>
             </Box>
           </Box>
-      ) : !pendingMFA ? null : (
+      ) : (
         <Box
           sx={{
             width: "100%",

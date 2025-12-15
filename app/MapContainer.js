@@ -219,6 +219,15 @@ export default function MapContainer({
         await initMap(user); // <— pass user to initMap
         // Store updateUser function globally so we can call it when user changes
         window.updateMapUser = updateUser;
+        
+        // ✅ Fix gray map issue: invalidate size after map initialization
+        // This ensures tiles load properly after navigation/authentication
+        if (window.map) {
+          // Use setTimeout to ensure DOM is fully rendered
+          setTimeout(() => {
+            window.map.invalidateSize();
+          }, 100);
+        }
 
         // Check if there's a place to select from saved places
         if (
@@ -397,6 +406,32 @@ export default function MapContainer({
       window.updateMapUser(user);
     }
   }, [user]);
+
+  // ✅ Fix gray map issue: invalidate size when component mounts or after navigation
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.map) return;
+
+    // Invalidate size after a short delay to ensure DOM is ready
+    const timeoutId = setTimeout(() => {
+      if (window.map) {
+        window.map.invalidateSize();
+      }
+    }, 200);
+
+    // Also handle window resize events
+    const handleResize = () => {
+      if (window.map) {
+        window.map.invalidateSize();
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []); // Run once on mount
 
   // Allow non-React modules (fetchPhotos.mjs, etc.) to switch tabs
   useEffect(() => {

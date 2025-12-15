@@ -79,6 +79,16 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       setUser(session?.user ?? null);
       
+      // ✅ Fix gray map issue: invalidate size after authentication
+      if (event === "SIGNED_IN" && typeof window !== "undefined" && window.map) {
+        // After 2FA login, the map needs to refresh its size
+        setTimeout(() => {
+          if (window.map) {
+            window.map.invalidateSize();
+          }
+        }, 300);
+      }
+      
       // Force map refresh on logout to clear user-specific state
       if (event === "SIGNED_OUT") {
         // Clear any user-specific caches

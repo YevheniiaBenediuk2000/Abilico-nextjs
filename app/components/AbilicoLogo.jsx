@@ -2,11 +2,13 @@
 
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
+import { useRouter } from "next/navigation";
 import { PRIMARY_BLUE } from "../constants/constants.mjs";
 
 /**
  * Reusable Abilico Logo Component
  * Displays the logo image with "ABILICO" text below it
+ * Clickable - redirects to the main map page
  * 
  * @param {Object} props
  * @param {number} [props.logoHeight=48] - Height of the logo image in pixels
@@ -24,13 +26,21 @@ export default function AbilicoLogo({
   fontSize = "14px",
   sx = {},
 }) {
+  const router = useRouter();
+
+  const handleClick = () => {
+    router.push("/");
+  };
+
   return (
     <Box
+      onClick={handleClick}
       sx={{
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
+        cursor: "pointer",
         ...sx,
       }}
     >

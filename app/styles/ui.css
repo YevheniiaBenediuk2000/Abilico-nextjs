@@ -307,12 +307,13 @@
 }
 
 /* Label styling */
-[data-theme="default"] label {
-  font-size: 20px !important;
+[data-theme="default"] label,
+.supabase-auth-ui_ui-label {
+  font-size: 14px !important;
   color: #000000 !important;
   margin-bottom: 0.5rem !important;
   display: block !important;
-  font-weight: 700 !important;
+  font-weight: 500 !important;
   text-align: left !important;
 }
 
@@ -341,14 +342,16 @@
 }
 
 /* Link styling */
-[data-theme="default"] a {
+[data-theme="default"] a,
+.supabase-auth-ui_ui-anchor {
   color: #0a3f89 !important;
   text-decoration: none !important;
-  font-size: 12px !important;
+  font-size: 14px !important;
   transition: color 0.2s ease !important;
 }
 
-[data-theme="default"] a:hover {
+[data-theme="default"] a:hover,
+.supabase-auth-ui_ui-anchor:hover {
   color: #082d63 !important;
   text-decoration: none !important;
 }
@@ -383,7 +386,9 @@
 }
 
 /* Google button styling */
-[data-theme="default"] button[type="button"]:not([type="submit"]) {
+[data-theme="default"] button[type="button"]:not([type="submit"]),
+[data-theme="default"] button[class*="google"],
+[data-theme="default"] button[class*="provider"] {
   background-color: #ffffff !important;
   color: #000000 !important;
   border: 1.5px solid rgba(0, 0, 0, 0.23) !important;
@@ -393,7 +398,7 @@
   width: 100% !important;
   margin-bottom: 1rem !important;
   text-transform: none !important;
-  font-weight: 400 !important;
+  font-weight: 500 !important;
 }
 
 [data-theme="default"] button[type="button"]:not([type="submit"]):hover {
