@@ -1,26 +1,39 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
+import { ThemeProvider } from "@mui/material/styles";
 import Button from "@mui/material/Button";
+import Box from "@mui/material/Box";
+import Card from "@mui/material/Card";
+import Typography from "@mui/material/Typography";
+import TextField from "@mui/material/TextField";
+import LockIcon from "@mui/icons-material/Lock";
 import { getNextRegistrationStep } from "../utils/userPreferences";
 import { supabase } from "../api/supabaseClient";
+import { toastError, toastSuccess } from "../utils/toast.mjs";
+import { DIALOG_BORDER_RADIUS } from "../constants/constants.mjs";
+import ToastHost from "../components/ToastHost";
+import AbilicoLogo from "../components/AbilicoLogo";
+import { theme } from "../theme/theme";
 
 export { supabase } from "../api/supabaseClient";
 
 export default function AuthPage() {
   const router = useRouter();
   const [pendingMFA, setPendingMFA] = useState(null);
-  const [totpCode, setTotpCode] = useState("");
-  const [redirectTo, setRedirectTo] = useState("");
+  const [totpCode, setTotpCode] = useState(["", "", "", "", "", ""]);
+  const [mounted, setMounted] = useState(false);
+  const inputRefs = useRef([]);
 
-  // Set redirect URL on client side only - redirect to callback page for proper handling
+  // Set mounted state on client side only to prevent hydration mismatch
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      setRedirectTo(`${window.location.origin}/auth/callback`);
-    }
+    setMounted(true);
   }, []);
+
+  // Get redirect URL - only use on client side
+  const redirectTo = mounted ? `${typeof window !== "undefined" ? window.location.origin : ""}/auth/callback` : "";
 
   useEffect(() => {
     const {
@@ -61,20 +74,73 @@ export default function AuthPage() {
     return () => subscription.unsubscribe();
   }, [router]);
 
+  // Auto-focus first input when 2FA screen appears
+  useEffect(() => {
+    if (pendingMFA) {
+      setTimeout(() => {
+        inputRefs.current[0]?.focus();
+      }, 100);
+    }
+  }, [pendingMFA]);
+
+  const handleDigitChange = (index, value) => {
+    // Only allow single digit
+    if (value.length > 1) return;
+    
+    const newCode = [...totpCode];
+    newCode[index] = value;
+    setTotpCode(newCode);
+
+    // Auto-focus next input
+    if (value && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleKeyDown = (index, e) => {
+    // Handle backspace
+    if (e.key === "Backspace" && !totpCode[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData("text").slice(0, 6);
+    const newCode = pastedData.split("").concat(Array(6 - pastedData.length).fill(""));
+    setTotpCode(newCode.slice(0, 6));
+    // Focus the last filled input or first empty
+    const lastFilledIndex = Math.min(pastedData.length - 1, 5);
+    inputRefs.current[lastFilledIndex]?.focus();
+  };
+
   const handleVerify = async () => {
     if (!pendingMFA) return;
+
+    const code = totpCode.join("");
+    if (code.length !== 6) {
+      toastError("Please enter a complete 6-digit code.");
+      return;
+    }
 
     const { error } = await supabase.auth.mfa.verify({
       factorId: pendingMFA.factorId,
       challengeId: pendingMFA.challengeId,
-      code: totpCode,
+      code: code,
     });
 
     if (error) {
       console.error("Verify failed:", error);
-      alert("❌ Wrong code");
+      toastError("The code you entered is incorrect. Please try again.", {
+        title: "Invalid Code",
+      });
+      // Clear inputs on error
+      setTotpCode(["", "", "", "", "", ""]);
+      inputRefs.current[0]?.focus();
     } else {
-      alert("✅ 2FA verified!");
+      toastSuccess("Two-factor authentication verified successfully!", {
+        title: "2FA Verified",
+      });
       // Check registration status before redirecting
       const {
         data: { user },
@@ -84,45 +150,288 @@ export default function AuthPage() {
     }
   };
 
+
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        marginTop: "10vh",
-      }}
-    >
-      {!pendingMFA ? (
-        redirectTo && (
-          <Auth
-            supabaseClient={supabase}
-            appearance={{ theme: ThemeSupa }}
-            providers={["google"]}
-            redirectTo={redirectTo}
-          />
-        )
-      ) : (
-        <div className="card p-3" style={{ maxWidth: 400 }}>
-          <h5>Two-Factor Authentication</h5>
-          <p>Enter the 6-digit code from your Authenticator app:</p>
-          <input
-            type="text"
-            value={totpCode}
-            onChange={(e) => setTotpCode(e.target.value)}
-            className="form-control my-2"
-            placeholder=""
-          />
-          <Button
-            onClick={handleVerify}
-            variant="contained"
-            color="success"
-            fullWidth
+    <ThemeProvider theme={theme}>
+      <Box
+        sx={{
+          minHeight: "100vh",
+          display: "flex",
+          background: "#ffffff",
+        }}
+      >
+      {!pendingMFA && mounted ? (
+          <Box
+            sx={{
+              display: "flex",
+              width: "100%",
+              minHeight: "100vh",
+            }}
           >
-            Verify
-          </Button>
-        </div>
+            {/* Left Side - Logo and Illustration */}
+            <Box
+              sx={{
+                flex: 1,
+                display: { xs: "none", md: "flex" },
+                flexDirection: "column",
+                alignItems: "flex-start",
+                justifyContent: "flex-start",
+                p: 4,
+                position: "relative",
+                background: "#ffffff",
+              }}
+            >
+              {/* Logo at top left */}
+              <AbilicoLogo
+                logoHeight={48}
+                sx={{ mb: 4 }}
+              />
+              
+              {/* Illustration */}
+              <Box
+                sx={{
+                  position: "absolute",
+                  top: "50%",
+                  left: 0,
+                  right: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transform: "translateY(-50%)",
+                  p: 4,
+                  pl: 6,
+                }}
+              >
+                <Box
+                  component="img"
+                  src="/illustrations/registration-welcome-wheelchair-transparent-background.png"
+                  alt="Welcome illustration"
+                  sx={{
+                    maxWidth: "100%",
+                    height: "auto",
+                    objectFit: "contain",
+                    transform: "scaleX(-1)",
+                  }}
+                />
+              </Box>
+            </Box>
+
+            {/* Right Side - Auth Form */}
+            <Box
+              sx={{
+                flex: { xs: 1, md: 1 },
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                p: { xs: 3, md: 6 },
+                background: "#ffffff",
+                minHeight: "100vh",
+              }}
+            >
+              {/* Mobile Logo */}
+              <Box
+                sx={{
+                  display: { xs: "block", md: "none" },
+                  mb: 4,
+                  alignSelf: "flex-start",
+                }}
+              >
+                <AbilicoLogo logoHeight={40} />
+              </Box>
+
+              {/* Auth Form Container */}
+              <Box
+                sx={{
+                  width: "100%",
+                  maxWidth: "440px",
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                <Auth
+                  supabaseClient={supabase}
+                  appearance={{
+                    theme: ThemeSupa,
+                    variables: {
+                      default: {
+                        colors: {
+                          brand: "#0a3f89",
+                          brandAccent: "#0a3f89",
+                          inputText: "#000000",
+                          inputLabelText: "#000000",
+                          inputPlaceholder: "#9e9e9e",
+                          inputBorder: "rgba(0, 0, 0, 0.23)",
+                          inputBorderHover: "rgba(0, 0, 0, 0.5)",
+                          inputBorderFocus: "#0a3f89",
+                          messageText: "#000000",
+                          messageTextDanger: "#d32f2f",
+                          anchorTextColor: "#0a3f89",
+                          anchorTextHoverColor: "#082d63",
+                        },
+                        space: {
+                          inputPadding: "16px",
+                          buttonPadding: "16px",
+                        },
+                        fontSizes: {
+                          baseBodySize: "16px",
+                          baseInputSize: "16px",
+                          labelText: "16px",
+                        },
+                        radii: {
+                          borderRadiusButton: "8px",
+                          buttonBorderRadius: "8px",
+                          inputBorderRadius: "8px",
+                        },
+                      },
+                    },
+                  }}
+                  providers={["google"]}
+                  redirectTo={redirectTo}
+                />
+              </Box>
+            </Box>
+          </Box>
+      ) : !pendingMFA ? null : (
+        <Box
+          sx={{
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            p: 2,
+          }}
+        >
+          <Card
+            sx={{
+              maxWidth: 440,
+              width: "100%",
+              p: 4,
+              borderRadius: DIALOG_BORDER_RADIUS,
+              boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
+            {/* Padlock Icon */}
+            <Box
+              sx={{
+                width: 64,
+                height: 64,
+                borderRadius: "50%",
+                bgcolor: "primary.main",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                mb: 3,
+              }}
+            >
+              <LockIcon sx={{ fontSize: 32, color: "white" }} />
+            </Box>
+
+            {/* Title */}
+            <Typography
+              variant="h5"
+              sx={{
+                fontWeight: 700,
+                mb: 1,
+                color: "text.primary",
+                textAlign: "center",
+              }}
+            >
+              Two-Factor Authentication
+            </Typography>
+
+            {/* Instructions */}
+            <Typography
+              variant="body2"
+              sx={{
+                color: "text.secondary",
+                mb: 4,
+                textAlign: "center",
+              }}
+            >
+              Enter the 6-digit code from your Authenticator app
+            </Typography>
+
+            {/* 6-Digit Input Boxes */}
+            <Box
+              sx={{
+                display: "flex",
+                gap: 1.5,
+                mb: 3,
+                justifyContent: "center",
+                width: "100%",
+              }}
+              onPaste={handlePaste}
+            >
+              {totpCode.map((digit, index) => (
+                <TextField
+                  key={index}
+                  inputRef={(el) => (inputRefs.current[index] = el)}
+                  value={digit}
+                  onChange={(e) => handleDigitChange(index, e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(index, e)}
+                  inputProps={{
+                    maxLength: 1,
+                    style: {
+                      textAlign: "center",
+                      fontSize: "1.5rem",
+                      fontWeight: 600,
+                      padding: "12px 0",
+                    },
+                  }}
+                  sx={{
+                    width: 56,
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: 2,
+                      "& fieldset": {
+                        borderWidth: 2,
+                        borderColor: digit
+                          ? "primary.main"
+                          : "rgba(0, 0, 0, 0.23)",
+                      },
+                      "&:hover fieldset": {
+                        borderColor: "primary.main",
+                      },
+                      "&.Mui-focused fieldset": {
+                        borderColor: "primary.main",
+                        borderWidth: 2,
+                      },
+                    },
+                  }}
+                />
+              ))}
+            </Box>
+
+            {/* Verify Button */}
+            <Button
+              onClick={handleVerify}
+              variant="contained"
+              color="primary"
+              fullWidth
+              sx={{
+                mb: 2,
+                py: 1.5,
+                borderRadius: 2,
+                textTransform: "none",
+                fontSize: "1rem",
+                fontWeight: 600,
+              }}
+            >
+              Verify
+            </Button>
+
+            {/* Abilico Logo/Branding */}
+            <AbilicoLogo sx={{ mt: 2 }} />
+          </Card>
+        </Box>
       )}
-    </div>
+      
+      {/* Toast Notifications */}
+      <ToastHost />
+      </Box>
+    </ThemeProvider>
   );
 }

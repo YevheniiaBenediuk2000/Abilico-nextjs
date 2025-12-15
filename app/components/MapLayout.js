@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider } from "@mui/material/styles";
 import { useRouter } from "next/navigation";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "../styles/ui.css";
@@ -10,6 +11,7 @@ import "../styles/poi-badge.css";
 import MapContainer from "../MapContainer";
 import { supabase } from "../auth/page";
 import { getNextRegistrationStep } from "../utils/userPreferences";
+import { theme } from "../theme/theme";
 
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
@@ -36,6 +38,7 @@ import Tooltip from "@mui/material/Tooltip";
 import { queryClient } from "../queryClient";
 import AddPlaceDialog from "./AddPlaceDialog";
 import ToastHost from "./ToastHost";
+import { PRIMARY_BLUE } from "../constants/constants.mjs";
 
 // Helper function to get initials from email
 function getInitialsFromEmail(email) {
@@ -73,12 +76,28 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       setUser(session?.user ?? null);
+      
+      // Force map refresh on logout to clear user-specific state
+      if (event === "SIGNED_OUT") {
+        // Clear any user-specific caches
+        if (typeof window !== "undefined" && window.clearAllCaches) {
+          window.clearAllCaches();
+        }
+        
+        // Force map refresh by reloading the page if we're on the map page
+        if (!isDashboard && !hideSidebar) {
+          // Small delay to ensure logout completes
+          setTimeout(() => {
+            window.location.reload();
+          }, 100);
+        }
+      }
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [isDashboard, hideSidebar]);
 
   // ✅ Listen for dialog reopen event (after location selection)
   useEffect(() => {
@@ -116,8 +135,9 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
   }, [isDashboard, user, router]);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <div className="d-flex flex-column min-vh-100">
+    <ThemeProvider theme={theme}>
+      <QueryClientProvider client={queryClient}>
+        <div className="d-flex flex-column min-vh-100">
         {/* === MUI AppBar with burger + search + account === */}
         <AppBar
           elevation={1}
@@ -249,7 +269,7 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
                 onClick={() => setAddPlaceDialogOpen(true)}
                 aria-label="add place"
                 sx={{
-                  bgcolor: "#1976d2",
+                  bgcolor: PRIMARY_BLUE,
                   color: "white",
                   borderRadius: "25px",
                   px: 2,
@@ -259,7 +279,8 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
                   fontSize: "0.875rem",
                   boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
                   "&:hover": {
-                    bgcolor: "#1565c0",
+                    bgcolor: PRIMARY_BLUE,
+                    opacity: 0.9,
                     boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
                   },
                 }}
@@ -329,7 +350,18 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
                         setAvatarMenuAnchor(null);
                         await supabase.auth.signOut();
                         setUser(null);
-                        if (isDashboard) router.push("/");
+                        
+                        // Clear caches on logout
+                        if (typeof window !== "undefined" && window.clearAllCaches) {
+                          window.clearAllCaches();
+                        }
+                        
+                        if (isDashboard) {
+                          router.push("/");
+                        } else {
+                          // Force page reload to refresh map state
+                          window.location.reload();
+                        }
                       }}
                       sx={{
                         color: "error.main",
@@ -371,7 +403,8 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
 
         {/* Global Toast Notifications */}
         <ToastHost />
-      </div>
-    </QueryClientProvider>
+        </div>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }
