@@ -32,6 +32,7 @@ import SwapVertIcon from "@mui/icons-material/SwapVert";
 import Link from "@mui/material/Link";
 import Paper from "@mui/material/Paper";
 import AccessibilityLegendReact from "./AccessibilityLegendReact";
+import { iconFor } from "../icons/makiIconFor.mjs";
 
 import {
   BADGE_COLOR_BY_TIER,
@@ -236,6 +237,20 @@ const GROUP_ICON_MAP = {
 };
 
 const makiIconUrl = (name) => `/icons/maki/${encodeURIComponent(name)}.svg`;
+
+// Map group labels back to major keys for icon lookup
+const GROUP_TO_MAJOR_KEY = {
+  Amenities: "amenity",
+  Shops: "shop",
+  Tourism: "tourism",
+  Leisure: "leisure",
+  Office: "office",
+  Historic: "historic",
+  Other: "other",
+  Healthcare: "healthcare",
+  Natural: "natural",
+  Sport: "sport",
+};
 
 function loadInitialTypeFilter() {
   if (typeof window === "undefined") return null;
@@ -495,39 +510,74 @@ function NestedPlaceTypeFilter({ items }) {
                 >
                   {Object.keys(subs)
                     .sort()
-                    .map((subLabel) => (
-                      <FormControlLabel
-                        key={subLabel}
-                        control={
-                          <Checkbox
-                            size="small"
-                            checked={selection[groupLabel]?.[subLabel] ?? true}
-                            onChange={() => toggleSub(groupLabel, subLabel)}
-                          />
-                        }
-                        label={
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              fontSize: "0.875rem",
-                              color: "text.secondary",
-                            }}
-                          >
-                            {subLabel.charAt(0).toUpperCase() +
-                              subLabel.slice(1)}
-                          </Typography>
-                        }
-                        sx={{
-                          py: 0.25,
-                          px: 0.5,
-                          m: 0,
-                          borderRadius: 0.5,
-                          "&:hover": {
-                            bgcolor: "action.hover",
-                          },
-                        }}
-                      />
-                    ))}
+                    .map((subLabel) => {
+                      // Get the raw OSM value from the Set (first one if multiple)
+                      const rawValues = Array.from(subs[subLabel]);
+                      const rawValue = rawValues[0] || subLabel.replace(/\s/g, "_");
+                      
+                      // Map group label to major key
+                      const majorKey = GROUP_TO_MAJOR_KEY[groupLabel] || "other";
+                      
+                      // Create tags object for iconFor function
+                      const tags = { [majorKey]: rawValue };
+                      
+                      // Get icon URL using existing logic
+                      const iconUrl = iconFor(tags);
+                      
+                      return (
+                        <FormControlLabel
+                          key={subLabel}
+                          control={
+                            <Checkbox
+                              size="small"
+                              checked={selection[groupLabel]?.[subLabel] ?? true}
+                              onChange={() => toggleSub(groupLabel, subLabel)}
+                            />
+                          }
+                          label={
+                            <Box
+                              display="flex"
+                              alignItems="center"
+                              gap={0.75}
+                            >
+                              {iconUrl && (
+                                <Box
+                                  component="img"
+                                  src={iconUrl}
+                                  alt={subLabel}
+                                  sx={{
+                                    width: 16,
+                                    height: 16,
+                                    objectFit: "contain",
+                                    flexShrink: 0,
+                                    opacity: 0.7,
+                                  }}
+                                />
+                              )}
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  fontSize: "0.875rem",
+                                  color: "text.secondary",
+                                }}
+                              >
+                                {subLabel.charAt(0).toUpperCase() +
+                                  subLabel.slice(1)}
+                              </Typography>
+                            </Box>
+                          }
+                          sx={{
+                            py: 0.25,
+                            px: 0.5,
+                            m: 0,
+                            borderRadius: 0.5,
+                            "&:hover": {
+                              bgcolor: "action.hover",
+                            },
+                          }}
+                        />
+                      );
+                    })}
                 </Box>
               </AccordionDetails>
             </Accordion>
