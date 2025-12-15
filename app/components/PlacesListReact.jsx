@@ -28,6 +28,7 @@ import Tooltip from "@mui/material/Tooltip";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import SwapVertIcon from "@mui/icons-material/SwapVert";
+import Link from "@mui/material/Link";
 import AccessibilityLegendReact from "./AccessibilityLegendReact";
 
 import {
@@ -215,6 +216,24 @@ function buildTypeTree(items) {
 // localStorage key for place-type filter
 const PLACE_TYPE_FILTER_LS_KEY = "ui.placeType.filter";
 const PHOTOS_ONLY_LS_KEY = "ui.placeList.photosOnly";
+const ACCESSIBILITY_FILTER_LS_KEY = "ui.placeAccessibility.filter";
+const ALL_ACCESSIBILITY_TIERS = ["designated", "yes", "limited", "unknown", "no"];
+
+// Mapping from group labels to MAKI icon names
+const GROUP_ICON_MAP = {
+  Amenities: "information",
+  Shops: "shop",
+  Tourism: "attraction",
+  Leisure: "park",
+  Office: "commercial",
+  Historic: "monument",
+  Other: "information",
+  Healthcare: "hospital",
+  Natural: "park",
+  Sport: "pitch",
+};
+
+const makiIconUrl = (name) => `/icons/maki/${encodeURIComponent(name)}.svg`;
 
 function loadInitialTypeFilter() {
   if (typeof window === "undefined") return null;
@@ -385,9 +404,28 @@ function NestedPlaceTypeFilter({ items }) {
                     />
                   }
                   label={
-                    <Typography variant="body2" fontWeight={500}>
-                      {groupLabel}
-                    </Typography>
+                    <Box
+                      display="flex"
+                      alignItems="center"
+                      gap={1}
+                    >
+                      {GROUP_ICON_MAP[groupLabel] && (
+                        <Box
+                          component="img"
+                          src={makiIconUrl(GROUP_ICON_MAP[groupLabel])}
+                          alt={groupLabel}
+                          sx={{
+                            width: 20,
+                            height: 20,
+                            objectFit: "contain",
+                            flexShrink: 0,
+                          }}
+                        />
+                      )}
+                      <Typography variant="body2" fontWeight={500}>
+                        {groupLabel}
+                      </Typography>
+                    </Box>
                   }
                 />
               </AccordionSummary>
@@ -428,6 +466,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
   const [sortBy, setSortBy] = useState("distance"); // "distance" | "name" | "accessibility" | "overall" | "bestForMe"
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sortAnchorEl, setSortAnchorEl] = useState(null);
+  const [filterResetKey, setFilterResetKey] = useState(0); // Key to force re-render of filter components
   // ✅ NEW: remember which city Best for me resolved to
   const [currentBestForMeCity, setCurrentBestForMeCity] = useState(null);
   // ✅ NEW: user prefs + scores
@@ -478,6 +517,39 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
       return false;
     }
   });
+
+  // Clear all filters function
+  const clearAllFilters = () => {
+    if (typeof window === "undefined") return;
+
+    try {
+      // Clear accessibility filters - set to all tiers
+      window.localStorage.setItem(
+        ACCESSIBILITY_FILTER_LS_KEY,
+        JSON.stringify(ALL_ACCESSIBILITY_TIERS)
+      );
+      // Dispatch event to notify AccessibilityLegendReact and mapMain
+      document.dispatchEvent(
+        new CustomEvent("accessibilityFilterChanged", {
+          detail: ALL_ACCESSIBILITY_TIERS,
+        })
+      );
+
+      // Clear place type filters - remove from localStorage (will default to all checked)
+      window.localStorage.removeItem(PLACE_TYPE_FILTER_LS_KEY);
+      // Update local state to null (which means all filters are on)
+      setActiveTypeFilters(null);
+
+      // Clear photos only filter
+      window.localStorage.removeItem(PHOTOS_ONLY_LS_KEY);
+      setPhotosOnly(false);
+
+      // Force re-render of filter components (they will rebuild with defaults and dispatch events)
+      setFilterResetKey((prev) => prev + 1);
+    } catch (err) {
+      console.error("Failed to clear filters:", err);
+    }
+  };
 
   useEffect(() => {
     // Don't update localStorage when hideControls is true
@@ -1589,25 +1661,42 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
             justifyContent="space-between"
           >
             <Typography variant="h6">Filters</Typography>
-            <IconButton
-              aria-label="close"
-              onClick={() => setFiltersOpen(false)}
-              sx={{ color: (theme) => theme.palette.grey[500] }}
-            >
-              <CloseIcon />
-            </IconButton>
+            <Box display="flex" alignItems="center" gap={1}>
+              <Link
+                component="button"
+                variant="body2"
+                onClick={clearAllFilters}
+                sx={{
+                  cursor: "pointer",
+                  textDecoration: "none",
+                  color: "primary.main",
+                  "&:hover": {
+                    textDecoration: "underline",
+                  },
+                }}
+              >
+                Clear all
+              </Link>
+              <IconButton
+                aria-label="close"
+                onClick={() => setFiltersOpen(false)}
+                sx={{ color: (theme) => theme.palette.grey[500] }}
+              >
+                <CloseIcon />
+              </IconButton>
+            </Box>
           </Box>
         </DialogTitle>
         <DialogContent>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pt: 1 }}>
             {/* Place Accessibility Filters */}
-            <Box>
+            <Box key={`accessibility-${filterResetKey}`}>
               <AccessibilityLegendReact />
             </Box>
 
             {/* Place Type Filters */}
             {rawItems.length > 0 && (
-              <Box>
+              <Box key={`place-type-${filterResetKey}`}>
                 <NestedPlaceTypeFilter items={rawItems} />
               </Box>
             )}
