@@ -15,6 +15,7 @@ import AccordionSummary from "@mui/material/AccordionSummary";
 import AccordionDetails from "@mui/material/AccordionDetails";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
+import Switch from "@mui/material/Switch";
 import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
@@ -1442,7 +1443,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
               {zoom && zoom < SHOW_PLACES_ZOOM
                 ? "Zoom in on the map to load accessible points of interest."
                 : photosOnly
-                ? 'No places with photos here yet. Try moving the map, zooming in, or turning off "Only with photos".'
+                ? 'No places with photos here yet. Try moving the map, zooming in, or turning off "Only places with photos".'
                 : "Try moving the map or adjusting the accessibility / type filters."}
             </Typography>
           </Box>
@@ -1675,7 +1676,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
                   },
                 }}
               >
-                Clear all
+                Reset
               </Link>
               <IconButton
                 aria-label="close"
@@ -1705,7 +1706,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
             <Box>
               <FormControlLabel
                 control={
-                  <Checkbox
+                  <Switch
                     size="small"
                     checked={photosOnly}
                     onChange={(e) => setPhotosOnly(e.target.checked)}
@@ -1713,7 +1714,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
                 }
                 label={
                   <Typography variant="body2" color="text.secondary">
-                    Only with photos
+                    Only places with photos
                   </Typography>
                 }
               />
