@@ -30,6 +30,7 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import SwapVertIcon from "@mui/icons-material/SwapVert";
 import Link from "@mui/material/Link";
+import Paper from "@mui/material/Paper";
 import AccessibilityLegendReact from "./AccessibilityLegendReact";
 
 import {
@@ -363,11 +364,21 @@ function NestedPlaceTypeFilter({ items }) {
 
   return (
     <Box mb={1.5}>
-      <Typography variant="caption" color="text.secondary">
-        Filter by place type
+      <Typography
+        variant="overline"
+        sx={{
+          color: "primary.main",
+          fontWeight: 600,
+          letterSpacing: 1,
+          fontSize: "0.7rem",
+          mb: 1.5,
+          display: "block",
+        }}
+      >
+        FILTER BY PLACE TYPE
       </Typography>
-      <Box
-        mt={0.5}
+      <Paper
+        elevation={0}
         sx={{
           border: "1px solid rgba(0,0,0,0.12)",
           borderRadius: 1,
@@ -378,6 +389,12 @@ function NestedPlaceTypeFilter({ items }) {
           const allChecked = isGroupAllChecked(groupLabel);
           const someChecked = isGroupSomeChecked(groupLabel);
           const groupChecked = allChecked;
+          
+          // Count selected subcategories
+          const selectedCount = Object.values(selection[groupLabel] || {})
+            .filter(Boolean).length;
+          const totalCount = Object.keys(subs).length;
+          
           return (
             <Accordion
               key={groupLabel}
@@ -385,12 +402,27 @@ function NestedPlaceTypeFilter({ items }) {
               elevation={0}
               square
               defaultExpanded={false}
+              sx={{
+                "&:before": {
+                  display: "none",
+                },
+                "&:not(:last-child)": {
+                  borderBottom: "1px solid rgba(0,0,0,0.08)",
+                },
+              }}
             >
               <AccordionSummary
                 expandIcon={<ExpandMoreIcon fontSize="small" />}
                 sx={{
-                  minHeight: 36,
-                  "& .MuiAccordionSummary-content": { my: 0 },
+                  minHeight: 48,
+                  px: 2,
+                  "& .MuiAccordionSummary-content": {
+                    my: 1,
+                    alignItems: "center",
+                  },
+                  "&:hover": {
+                    backgroundColor: "action.hover",
+                  },
                 }}
               >
                 <FormControlLabel
@@ -402,13 +434,15 @@ function NestedPlaceTypeFilter({ items }) {
                       checked={groupChecked}
                       indeterminate={!allChecked && someChecked}
                       onChange={() => toggleGroup(groupLabel)}
+                      sx={{ mr: 1 }}
                     />
                   }
                   label={
                     <Box
                       display="flex"
                       alignItems="center"
-                      gap={1}
+                      gap={1.5}
+                      flex={1}
                     >
                       {GROUP_ICON_MAP[groupLabel] && (
                         <Box
@@ -420,17 +454,38 @@ function NestedPlaceTypeFilter({ items }) {
                             height: 20,
                             objectFit: "contain",
                             flexShrink: 0,
+                            opacity: 0.7,
                           }}
                         />
                       )}
                       <Typography variant="body2" fontWeight={500}>
                         {groupLabel}
                       </Typography>
+                      {selectedCount < totalCount && (
+                        <Chip
+                          label={`${selectedCount} selected`}
+                          size="small"
+                          sx={{
+                            height: 20,
+                            fontSize: "0.65rem",
+                            ml: "auto",
+                            bgcolor: "action.selected",
+                            color: "text.secondary",
+                            fontWeight: 400,
+                          }}
+                        />
+                      )}
                     </Box>
                   }
                 />
               </AccordionSummary>
-              <AccordionDetails sx={{ py: 0.5 }}>
+              <AccordionDetails
+                sx={{
+                  py: 1,
+                  px: 2,
+                  bgcolor: "grey.50",
+                }}
+              >
                 <Stack spacing={0.5}>
                   {Object.keys(subs)
                     .sort()
@@ -445,11 +500,26 @@ function NestedPlaceTypeFilter({ items }) {
                           />
                         }
                         label={
-                          <Typography variant="body2">
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontSize: "0.875rem",
+                              color: "text.secondary",
+                            }}
+                          >
                             {subLabel.charAt(0).toUpperCase() +
                               subLabel.slice(1)}
                           </Typography>
                         }
+                        sx={{
+                          py: 0.25,
+                          "&:hover": {
+                            bgcolor: "action.hover",
+                            borderRadius: 0.5,
+                            mx: -0.5,
+                            px: 0.5,
+                          },
+                        }}
                       />
                     ))}
                 </Stack>
@@ -457,7 +527,7 @@ function NestedPlaceTypeFilter({ items }) {
             </Accordion>
           );
         })}
-      </Box>
+      </Paper>
     </Box>
   );
 }
