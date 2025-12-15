@@ -35,6 +35,7 @@ import Tooltip from "@mui/material/Tooltip";
 
 import { queryClient } from "../queryClient";
 import AddPlaceDialog from "./AddPlaceDialog";
+import ToastHost from "./ToastHost";
 
 // Helper function to get initials from email
 function getInitialsFromEmail(email) {
@@ -367,6 +368,9 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
           open={addPlaceDialogOpen}
           onClose={() => setAddPlaceDialogOpen(false)}
         />
+
+        {/* Global Toast Notifications */}
+        <ToastHost />
       </div>
     </QueryClientProvider>
   );
