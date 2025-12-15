@@ -1147,14 +1147,17 @@ export default function ProfilePage() {
         fullWidth
         sx={{
           "& .MuiDialog-container": {
+            display: "flex",
             alignItems: "center",
+            justifyContent: "center",
           },
         }}
         PaperProps={{
           sx: {
             borderRadius: 2,
             boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-            m: 2,
+            margin: "auto",
+            maxHeight: "90vh",
           },
         }}
       >
@@ -1163,16 +1166,26 @@ export default function ProfilePage() {
             {/* Yellow Circle Icon */}
             <Box
               sx={{
-                width: 72,
-                height: 72,
+                width: 96,
+                height: 96,
                 borderRadius: "50%",
-                backgroundColor: "#ffc107",
+                backgroundColor: "#f4e271",
                 flexShrink: 0,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
               }}
-            />
+            >
+              <img
+                src="/icons/dog-icons/sad.png"
+                alt="Sad dog icon"
+                style={{
+                  width: "64px",
+                  height: "64px",
+                  objectFit: "contain",
+                }}
+              />
+            </Box>
             
             {/* Text Content */}
             <Box sx={{ flex: 1 }}>
