@@ -524,55 +524,57 @@ function NestedPlaceTypeFilter({ items }) {
                       // Get icon URL using existing logic
                       const iconUrl = iconFor(tags);
                       
+                      const isSelected = selection[groupLabel]?.[subLabel] ?? true;
+                      
                       return (
-                        <FormControlLabel
+                        <Chip
                           key={subLabel}
-                          control={
-                            <Checkbox
-                              size="small"
-                              checked={selection[groupLabel]?.[subLabel] ?? true}
-                              onChange={() => toggleSub(groupLabel, subLabel)}
-                            />
+                          icon={
+                            iconUrl ? (
+                              <Box
+                                component="img"
+                                src={iconUrl}
+                                alt={subLabel}
+                                sx={{
+                                  width: 16,
+                                  height: 16,
+                                  objectFit: "contain",
+                                }}
+                              />
+                            ) : undefined
                           }
                           label={
-                            <Box
-                              display="flex"
-                              alignItems="center"
-                              gap={0.75}
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                fontSize: "0.875rem",
+                                color: "text.primary",
+                              }}
                             >
-                              {iconUrl && (
-                                <Box
-                                  component="img"
-                                  src={iconUrl}
-                                  alt={subLabel}
-                                  sx={{
-                                    width: 16,
-                                    height: 16,
-                                    objectFit: "contain",
-                                    flexShrink: 0,
-                                    opacity: 0.7,
-                                  }}
-                                />
-                              )}
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  fontSize: "0.875rem",
-                                  color: "text.secondary",
-                                }}
-                              >
-                                {subLabel.charAt(0).toUpperCase() +
-                                  subLabel.slice(1)}
-                              </Typography>
-                            </Box>
+                              {subLabel.charAt(0).toUpperCase() +
+                                subLabel.slice(1)}
+                            </Typography>
                           }
+                          onClick={() => toggleSub(groupLabel, subLabel)}
                           sx={{
-                            py: 0.25,
-                            px: 0.5,
-                            m: 0,
-                            borderRadius: 0.5,
+                            height: 32,
+                            bgcolor: isSelected ? "primary.main" : "transparent",
+                            color: isSelected ? "white" : "text.primary",
+                            border: `1px solid ${isSelected ? "primary.main" : "rgba(0,0,0,0.12)"}`,
+                            borderRadius: 1,
+                            cursor: "pointer",
                             "&:hover": {
-                              bgcolor: "action.hover",
+                              bgcolor: isSelected ? "primary.dark" : "action.hover",
+                              borderColor: isSelected ? "primary.dark" : "primary.main",
+                            },
+                            "& .MuiChip-icon": {
+                              marginLeft: 1,
+                              opacity: isSelected ? 1 : 0.7,
+                              filter: isSelected ? "brightness(0) invert(1)" : "none",
+                            },
+                            "& .MuiChip-label": {
+                              paddingLeft: iconUrl ? 0.5 : 1,
+                              paddingRight: 1.5,
                             },
                           }}
                         />
