@@ -439,7 +439,7 @@ function NestedPlaceTypeFilter({ items }) {
                 sx={{
                   display: "flex",
                   flexDirection: hasExpanded ? "column" : "row",
-                  gap: 1.5,
+                  gap: 2,
                   justifyContent: hasExpanded ? "flex-start" : "center",
                   flexWrap: "wrap",
                   width: "100%",
@@ -558,11 +558,12 @@ function NestedPlaceTypeFilter({ items }) {
                         sx={{
                           display: "flex",
                           flexWrap: "wrap",
-                          gap: 0.5,
+                          gap: 0.75,
                           justifyContent: "flex-start",
                           alignContent: "flex-start",
                           width: "100%",
                           mt: 0.5,
+                          pl: 1.5,
                         }}
                       >
                       {Object.keys(subs)
@@ -572,27 +573,33 @@ function NestedPlaceTypeFilter({ items }) {
                           const rawValue = rawValues[0] || subLabel.replace(/\s/g, "_");
                           const majorKey = GROUP_TO_MAJOR_KEY[groupLabel] || "other";
                           const tags = { [majorKey]: rawValue };
-                          const iconUrl = iconFor(tags);
+                          let iconUrl = iconFor(tags);
+                          // Fallback to information icon if iconFor returns null/undefined
+                          if (!iconUrl) {
+                            iconUrl = "/icons/maki/information.svg";
+                          }
                           const isSelected = selection[groupLabel]?.[subLabel] ?? true;
                           
                           return (
                             <Chip
                               key={subLabel}
                               icon={
-                                iconUrl ? (
-                                  <Box
-                                    component="img"
-                                    src={iconUrl}
-                                    alt={subLabel}
-                                    sx={{
-                                      width: 14,
-                                      height: 14,
-                                      objectFit: "contain",
-                                      display: "block",
-                                      flexShrink: 0,
-                                    }}
-                                  />
-                                ) : undefined
+                                <Box
+                                  component="img"
+                                  src={iconUrl}
+                                  alt={subLabel}
+                                  sx={{
+                                    width: 14,
+                                    height: 14,
+                                    objectFit: "contain",
+                                    display: "block",
+                                    flexShrink: 0,
+                                  }}
+                                  onError={(e) => {
+                                    // Fallback to information icon if image fails to load
+                                    e.target.src = "/icons/maki/information.svg";
+                                  }}
+                    />
                   }
                   label={
                                 <Typography
@@ -672,7 +679,7 @@ function NestedPlaceTypeFilter({ items }) {
                 sx={{
                   display: "flex",
                   flexDirection: hasExpanded ? "column" : "row",
-                  gap: 1.5,
+                  gap: 2,
                   justifyContent: hasExpanded ? "flex-start" : "center",
                   flexWrap: "wrap",
                   width: "100%",
@@ -790,11 +797,12 @@ function NestedPlaceTypeFilter({ items }) {
                         sx={{
                           display: "flex",
                           flexWrap: "wrap",
-                          gap: 0.5,
+                          gap: 0.75,
                           justifyContent: "flex-start",
                           alignContent: "flex-start",
                           width: "100%",
                           mt: 0.5,
+                          pl: 1.5,
                         }}
                       >
                   {Object.keys(subs)
@@ -804,27 +812,33 @@ function NestedPlaceTypeFilter({ items }) {
                           const rawValue = rawValues[0] || subLabel.replace(/\s/g, "_");
                           const majorKey = GROUP_TO_MAJOR_KEY[groupLabel] || "other";
                           const tags = { [majorKey]: rawValue };
-                          const iconUrl = iconFor(tags);
+                          let iconUrl = iconFor(tags);
+                          // Fallback to information icon if iconFor returns null/undefined
+                          if (!iconUrl) {
+                            iconUrl = "/icons/maki/information.svg";
+                          }
                           const isSelected = selection[groupLabel]?.[subLabel] ?? true;
                           
                           return (
                             <Chip
                         key={subLabel}
                               icon={
-                                iconUrl ? (
-                                  <Box
-                                    component="img"
-                                    src={iconUrl}
-                                    alt={subLabel}
-                                    sx={{
-                                      width: 14,
-                                      height: 14,
-                                      objectFit: "contain",
-                                      display: "block",
-                                      flexShrink: 0,
-                                    }}
-                                  />
-                                ) : undefined
+                                <Box
+                                  component="img"
+                                  src={iconUrl}
+                                  alt={subLabel}
+                                  sx={{
+                                    width: 14,
+                                    height: 14,
+                                    objectFit: "contain",
+                                    display: "block",
+                                    flexShrink: 0,
+                                  }}
+                                  onError={(e) => {
+                                    // Fallback to information icon if image fails to load
+                                    e.target.src = "/icons/maki/information.svg";
+                                  }}
+                          />
                         }
                         label={
                                 <Typography
