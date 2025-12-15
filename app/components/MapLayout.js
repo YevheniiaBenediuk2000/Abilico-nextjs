@@ -83,8 +83,12 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
       if (event === "SIGNED_IN" && typeof window !== "undefined" && window.map) {
         // After 2FA login, the map needs to refresh its size
         setTimeout(() => {
-          if (window.map) {
-            window.map.invalidateSize();
+          if (window.map && typeof window.map.invalidateSize === "function") {
+            try {
+              window.map.invalidateSize();
+            } catch (error) {
+              console.warn("Failed to invalidate map size after sign in:", error);
+            }
           }
         }, 300);
       }

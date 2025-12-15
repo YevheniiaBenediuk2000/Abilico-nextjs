@@ -222,10 +222,14 @@ export default function MapContainer({
         
         // ✅ Fix gray map issue: invalidate size after map initialization
         // This ensures tiles load properly after navigation/authentication
-        if (window.map) {
+        if (window.map && typeof window.map.invalidateSize === "function") {
           // Use setTimeout to ensure DOM is fully rendered
           setTimeout(() => {
-            window.map.invalidateSize();
+            try {
+              window.map.invalidateSize();
+            } catch (error) {
+              console.warn("Failed to invalidate map size after init:", error);
+            }
           }, 100);
         }
 
@@ -409,20 +413,27 @@ export default function MapContainer({
 
   // ✅ Fix gray map issue: invalidate size when component mounts or after navigation
   useEffect(() => {
-    if (typeof window === "undefined" || !window.map) return;
+    if (typeof window === "undefined") return;
+
+    // Helper function to safely call invalidateSize
+    const safeInvalidateSize = () => {
+      if (window.map && typeof window.map.invalidateSize === "function") {
+        try {
+          window.map.invalidateSize();
+        } catch (error) {
+          console.warn("Failed to invalidate map size:", error);
+        }
+      }
+    };
 
     // Invalidate size after a short delay to ensure DOM is ready
     const timeoutId = setTimeout(() => {
-      if (window.map) {
-        window.map.invalidateSize();
-      }
+      safeInvalidateSize();
     }, 200);
 
     // Also handle window resize events
     const handleResize = () => {
-      if (window.map) {
-        window.map.invalidateSize();
-      }
+      safeInvalidateSize();
     };
 
     window.addEventListener("resize", handleResize);

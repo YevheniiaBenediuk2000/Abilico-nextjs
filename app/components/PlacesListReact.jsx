@@ -348,7 +348,8 @@ function NestedPlaceTypeFilter({ items }) {
   // group-level helpers
   const isGroupAllChecked = (groupLabel) => {
     if (!selection || typeof selection !== 'object') return false;
-    const subs = selection[groupLabel] || {};
+    const subs = selection[groupLabel];
+    if (!subs || typeof subs !== 'object') return false;
     const values = Object.values(subs);
     if (!values.length) return false;
     return values.every(Boolean);
@@ -356,7 +357,8 @@ function NestedPlaceTypeFilter({ items }) {
 
   const isGroupSomeChecked = (groupLabel) => {
     if (!selection || typeof selection !== 'object') return false;
-    const subs = selection[groupLabel] || {};
+    const subs = selection[groupLabel];
+    if (!subs || typeof subs !== 'object') return false;
     const values = Object.values(subs);
     return values.some(Boolean);
   };
@@ -365,7 +367,8 @@ function NestedPlaceTypeFilter({ items }) {
     setSelection((prev) => {
       if (!prev || typeof prev !== 'object') return {};
       const next = { ...prev };
-      const subs = next[groupLabel] || {};
+      const subs = next[groupLabel];
+      if (!subs || typeof subs !== 'object') return next;
       const allChecked = Object.values(subs).every(Boolean);
       const newSubs = {};
       Object.keys(subs).forEach((subLabel) => {
@@ -451,8 +454,10 @@ function NestedPlaceTypeFilter({ items }) {
           const groupChecked = allChecked;
                 
                 // Count selected subcategories
-                const selectedCount = Object.values((selection && selection[groupLabel]) || {})
-                  .filter(Boolean).length;
+                const groupSelection = selection && selection[groupLabel];
+                const selectedCount = (groupSelection && typeof groupSelection === 'object' 
+                  ? Object.values(groupSelection) 
+                  : []).filter(Boolean).length;
                 const totalCount = Object.keys(subs).length;
                 
           return (
@@ -691,8 +696,10 @@ function NestedPlaceTypeFilter({ items }) {
                 const groupChecked = allChecked;
                 
                 // Count selected subcategories
-                const selectedCount = Object.values((selection && selection[groupLabel]) || {})
-                  .filter(Boolean).length;
+                const groupSelection = selection && selection[groupLabel];
+                const selectedCount = (groupSelection && typeof groupSelection === 'object' 
+                  ? Object.values(groupSelection) 
+                  : []).filter(Boolean).length;
                 const totalCount = Object.keys(subs).length;
                 
                 return (
