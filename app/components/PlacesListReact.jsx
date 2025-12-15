@@ -1974,8 +1974,8 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
                                   loading="lazy"
                                   sx={{
                                     mt: "6px",
-                                    width: 64,
-                                    height: 64,
+                                    width: 96,
+                                    height: 96,
                                     borderRadius: 1,
                                     objectFit: "cover",
                                     flexShrink: 0,
