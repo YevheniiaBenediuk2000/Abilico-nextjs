@@ -436,63 +436,84 @@ function NestedPlaceTypeFilter({ items }) {
                     alignItems: "center",
                   },
                   "&:hover": {
-                    backgroundColor: "action.hover",
+                    backgroundColor: "transparent",
                   },
                 }}
               >
-                <FormControlLabel
-                  onClick={(e) => e.stopPropagation()}
-                  onFocus={(e) => e.stopPropagation()}
-                  control={
-                    <Checkbox
-                      size="small"
-                      checked={groupChecked}
-                      indeterminate={!allChecked && someChecked}
-                      onChange={() => toggleGroup(groupLabel)}
-                      sx={{ mr: 1 }}
-                    />
-                  }
-                  label={
-                    <Box
-                      display="flex"
-                      alignItems="center"
-                      gap={1.5}
-                      flex={1}
+                <Box
+                  display="flex"
+                  alignItems="center"
+                  gap={1}
+                  flex={1}
+                >
+                  <Box
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleGroup(groupLabel);
+                    }}
+                    sx={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 0.75,
+                      cursor: "pointer",
+                      py: 0.5,
+                      px: 1.25,
+                      borderRadius: 3,
+                      bgcolor: groupChecked
+                        ? "primary.main"
+                        : "transparent",
+                      border: `1px solid ${
+                        groupChecked ? "primary.main" : "rgba(0,0,0,0.12)"
+                      }`,
+                      transition: "all 0.2s ease-in-out",
+                      "&:hover": {
+                        bgcolor: groupChecked
+                          ? "primary.dark"
+                          : "action.hover",
+                        borderColor: "primary.main",
+                      },
+                    }}
+                  >
+                    {GROUP_ICON_MAP[groupLabel] && (
+                      <Box
+                        component="img"
+                        src={makiIconUrl(GROUP_ICON_MAP[groupLabel])}
+                        alt={groupLabel}
+                        sx={{
+                          width: 16,
+                          height: 16,
+                          objectFit: "contain",
+                          flexShrink: 0,
+                          opacity: groupChecked ? 1 : 0.7,
+                          filter: groupChecked ? "brightness(0) invert(1)" : "none",
+                        }}
+                      />
+                    )}
+                    <Typography
+                      variant="body2"
+                      fontWeight={500}
+                      sx={{
+                        color: groupChecked ? "white" : "text.primary",
+                        fontSize: "0.875rem",
+                      }}
                     >
-                      {GROUP_ICON_MAP[groupLabel] && (
-                        <Box
-                          component="img"
-                          src={makiIconUrl(GROUP_ICON_MAP[groupLabel])}
-                          alt={groupLabel}
-                          sx={{
-                            width: 20,
-                            height: 20,
-                            objectFit: "contain",
-                            flexShrink: 0,
-                            opacity: 0.7,
-                          }}
-                        />
-                      )}
-                      <Typography variant="body2" fontWeight={500}>
-                        {groupLabel}
-                      </Typography>
-                      {selectedCount < totalCount && (
-                        <Chip
-                          label={`${selectedCount} selected`}
-                          size="small"
-                          sx={{
-                            height: 20,
-                            fontSize: "0.65rem",
-                            ml: "auto",
-                            bgcolor: "action.selected",
-                            color: "text.secondary",
-                            fontWeight: 400,
-                          }}
-                        />
-                      )}
-                    </Box>
-                  }
-                />
+                      {groupLabel}
+                    </Typography>
+                  </Box>
+                  {selectedCount < totalCount && (
+                    <Chip
+                      label={`${selectedCount} selected`}
+                      size="small"
+                      sx={{
+                        height: 18,
+                        fontSize: "0.65rem",
+                        bgcolor: "action.selected",
+                        color: "text.secondary",
+                        fontWeight: 400,
+                      }}
+                    />
+                  )}
+                </Box>
               </AccordionSummary>
               <AccordionDetails
                 sx={{
@@ -536,9 +557,11 @@ function NestedPlaceTypeFilter({ items }) {
                                 src={iconUrl}
                                 alt={subLabel}
                                 sx={{
-                                  width: 16,
-                                  height: 16,
+                                  width: 14,
+                                  height: 14,
                                   objectFit: "contain",
+                                  display: "block",
+                                  flexShrink: 0,
                                 }}
                               />
                             ) : undefined
@@ -547,8 +570,9 @@ function NestedPlaceTypeFilter({ items }) {
                             <Typography
                               variant="body2"
                               sx={{
-                                fontSize: "0.875rem",
-                                color: "text.primary",
+                                fontSize: "0.8125rem",
+                                color: isSelected ? "white" : "text.primary",
+                                whiteSpace: "nowrap",
                               }}
                             >
                               {subLabel.charAt(0).toUpperCase() +
@@ -557,24 +581,38 @@ function NestedPlaceTypeFilter({ items }) {
                           }
                           onClick={() => toggleSub(groupLabel, subLabel)}
                           sx={{
-                            height: 32,
-                            bgcolor: isSelected ? "primary.main" : "transparent",
+                            height: 28,
+                            bgcolor: isSelected
+                              ? "primary.main"
+                              : "transparent",
                             color: isSelected ? "white" : "text.primary",
-                            border: `1px solid ${isSelected ? "primary.main" : "rgba(0,0,0,0.12)"}`,
-                            borderRadius: 1,
+                            border: `1px solid ${
+                              isSelected ? "primary.main" : "rgba(0,0,0,0.12)"
+                            }`,
+                            borderRadius: 3,
                             cursor: "pointer",
                             "&:hover": {
-                              bgcolor: isSelected ? "primary.dark" : "action.hover",
-                              borderColor: isSelected ? "primary.dark" : "primary.main",
+                              bgcolor: isSelected
+                                ? "primary.dark"
+                                : "action.hover",
+                              borderColor: "primary.main",
                             },
                             "& .MuiChip-icon": {
-                              marginLeft: 1,
+                              marginLeft: 0.75,
+                              marginRight: 0.5,
                               opacity: isSelected ? 1 : 0.7,
                               filter: isSelected ? "brightness(0) invert(1)" : "none",
+                              width: 14,
+                              height: 14,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
                             },
                             "& .MuiChip-label": {
-                              paddingLeft: iconUrl ? 0.5 : 1,
-                              paddingRight: 1.5,
+                              paddingLeft: iconUrl ? 0 : 0.75,
+                              paddingRight: 1,
+                              display: "flex",
+                              alignItems: "center",
                             },
                           }}
                         />

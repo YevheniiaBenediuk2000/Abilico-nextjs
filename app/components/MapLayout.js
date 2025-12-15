@@ -243,6 +243,7 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
               <Button
                 variant="contained"
                 color="primary"
+                size="small"
                 startIcon={<AddIcon />}
                 onClick={() => setAddPlaceDialogOpen(true)}
                 aria-label="add place"
@@ -250,10 +251,11 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
                   bgcolor: "#1976d2",
                   color: "white",
                   borderRadius: "25px",
-                  px: 2.5,
-                  py: 1,
+                  px: 2,
+                  py: 0.75,
                   textTransform: "none",
                   fontWeight: 500,
+                  fontSize: "0.875rem",
                   boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
                   "&:hover": {
                     bgcolor: "#1565c0",
