@@ -36,6 +36,7 @@ import AccessibilityPreferencesEditor from "../components/AccessibilityPreferenc
 import HomeAreaEditor from "../components/HomeAreaEditor";
 import DisabilityTypesEditor from "../components/DisabilityTypesEditor";
 import { ACCESSIBILITY_CATEGORY_LABELS } from "../constants/accessibilityCategories";
+import { DIALOG_BORDER_RADIUS } from "../constants/constants.mjs";
 
 const DISABILITY_TYPES = [
   { id: "wheelchair", label: "Wheelchair User" },
@@ -1154,7 +1155,7 @@ export default function ProfilePage() {
         }}
         PaperProps={{
           sx: {
-            borderRadius: 2,
+            borderRadius: DIALOG_BORDER_RADIUS,
             boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
             margin: "auto",
             maxHeight: "90vh",
@@ -1163,26 +1164,19 @@ export default function ProfilePage() {
       >
         <DialogContent sx={{ p: 3, pb: 2 }}>
           <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
-            {/* Yellow Circle Icon */}
+            {/* Warning Icon */}
             <Box
               sx={{
-                width: 96,
-                height: 96,
-                borderRadius: "50%",
-                backgroundColor: "#f4e271",
                 flexShrink: 0,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              <img
-                src="/icons/dog-icons/sad.png"
-                alt="Sad dog icon"
-                style={{
-                  width: "64px",
-                  height: "64px",
-                  objectFit: "contain",
+              <SecurityIcon
+                sx={{
+                  fontSize: 48,
+                  color: "rgba(0, 0, 0, 0.87)",
                 }}
               />
             </Box>

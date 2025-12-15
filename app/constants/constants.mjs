@@ -41,6 +41,9 @@ export const BADGE_COLOR_BY_TIER = {
 
 export const ACCESSIBILITY_KEYWORDS_CLASSIFICATION_THRESHOLD = 0.985;
 
+// UI Constants
+export const DIALOG_BORDER_RADIUS = 3; // MUI spacing unit (24px) - more rounded dialogs
+
 export const ACCESSIBILITY_LABELS_IN_REVIEWS = [
   // Entrance & approach
   "step-free entrance",
