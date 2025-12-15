@@ -410,7 +410,7 @@ function NestedPlaceTypeFilter({ items }) {
         elevation={0}
         sx={{
           border: "1px solid rgba(0,0,0,0.12)",
-          borderRadius: 2,
+          borderRadius: 3,
           overflow: "hidden",
         }}
       >
@@ -419,7 +419,7 @@ function NestedPlaceTypeFilter({ items }) {
             display: "flex",
             flexDirection: "column",
             gap: 2,
-            p: 2,
+            p: 2.5,
           }}
         >
           {/* First row: Amenities, Tourism, Shops */}
@@ -429,13 +429,20 @@ function NestedPlaceTypeFilter({ items }) {
             );
             if (firstRowCategories.length === 0) return null;
             
+            // Check if any category in this row is expanded
+            const hasExpanded = firstRowCategories.some(
+              (label) => expanded[label]
+            );
+            
             return (
               <Box
                 sx={{
                   display: "flex",
-                  flexDirection: "row",
+                  flexDirection: hasExpanded ? "column" : "row",
                   gap: 1.5,
-                  justifyContent: "center",
+                  justifyContent: hasExpanded ? "flex-start" : "center",
+                  flexWrap: "wrap",
+                  width: "100%",
                 }}
               >
                 {firstRowCategories.map((groupLabel) => {
@@ -455,7 +462,8 @@ function NestedPlaceTypeFilter({ items }) {
                       display: "flex",
                       flexDirection: "column",
                       gap: 0.75,
-                      flex: "0 1 auto",
+                      flex: hasExpanded ? "1 1 100%" : "0 1 auto",
+                      width: hasExpanded ? "100%" : "auto",
                     }}
                   >
                     <Box
@@ -551,6 +559,10 @@ function NestedPlaceTypeFilter({ items }) {
                           display: "flex",
                           flexWrap: "wrap",
                           gap: 0.5,
+                          justifyContent: "flex-start",
+                          alignContent: "flex-start",
+                          width: "100%",
+                          mt: 0.5,
                         }}
                       >
                       {Object.keys(subs)
@@ -650,13 +662,20 @@ function NestedPlaceTypeFilter({ items }) {
             );
             if (secondRowCategories.length === 0) return null;
             
+            // Check if any category in this row is expanded
+            const hasExpanded = secondRowCategories.some(
+              (label) => expanded[label]
+            );
+            
             return (
               <Box
                 sx={{
                   display: "flex",
-                  flexDirection: "row",
+                  flexDirection: hasExpanded ? "column" : "row",
                   gap: 1.5,
-                  justifyContent: secondRowCategories.length === 2 ? "center" : "flex-start",
+                  justifyContent: hasExpanded ? "flex-start" : "center",
+                  flexWrap: "wrap",
+                  width: "100%",
                 }}
               >
                 {secondRowCategories.map((groupLabel) => {
@@ -676,7 +695,8 @@ function NestedPlaceTypeFilter({ items }) {
                       display: "flex",
                       flexDirection: "column",
                       gap: 1,
-                      flex: "0 1 auto",
+                      flex: hasExpanded ? "1 1 100%" : "0 1 auto",
+                      width: hasExpanded ? "100%" : "auto",
                     }}
                   >
                     <Box
@@ -771,6 +791,10 @@ function NestedPlaceTypeFilter({ items }) {
                           display: "flex",
                           flexWrap: "wrap",
                           gap: 0.5,
+                          justifyContent: "flex-start",
+                          alignContent: "flex-start",
+                          width: "100%",
+                          mt: 0.5,
                         }}
                       >
                   {Object.keys(subs)
@@ -2060,6 +2084,12 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
         onClose={() => setFiltersOpen(false)}
         maxWidth="sm"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 4,
+            minHeight: "60vh",
+          },
+        }}
       >
         <DialogTitle
           sx={{

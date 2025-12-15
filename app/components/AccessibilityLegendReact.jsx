@@ -87,6 +87,17 @@ export default function AccessibilityLegendReact() {
     return "rgba(0,0,0,0.12)";
   };
 
+  // Helper to convert hex to rgba with opacity
+  const hexToRgba = (hex, opacity) => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  };
+
+  const firstRowTiers = ["designated", "yes", "limited"];
+  const secondRowTiers = ["unknown", "no"];
+
   return (
     <Box mb={1.5}>
       <Typography
@@ -102,50 +113,125 @@ export default function AccessibilityLegendReact() {
       >
         PLACE ACCESSIBILITY
       </Typography>
-      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-        {ALL_TIERS.map((tier) => {
-          const isSelected = selected.includes(tier);
-          const solidColor = getTierSolidColor(tier);
-          const borderColor = getTierBorderColor(tier, isSelected);
-          const label = TIER_LABELS[tier] || tier;
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 1.5,
+        }}
+      >
+        {/* First row: Designated, Wheelchair accessible, Limited */}
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "row",
+            gap: 1,
+            justifyContent: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          {firstRowTiers.map((tier) => {
+            const isSelected = selected.includes(tier);
+            const solidColor = getTierSolidColor(tier);
+            const label = TIER_LABELS[tier] || tier;
 
-          return (
-            <Chip
-              key={tier}
-              label={
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontSize: "0.8125rem",
-                    fontWeight: isSelected ? 500 : 400,
-                    color: isSelected ? "white" : "text.primary",
-                  }}
-                >
-                  {label}
-                </Typography>
-              }
-              onClick={() => toggleTier(tier)}
-              sx={{
-                height: 28,
-                bgcolor: isSelected ? solidColor : "transparent",
-                color: isSelected ? "white" : "text.primary",
-                border: `1px solid ${borderColor}`,
-                borderRadius: 3,
-                cursor: "pointer",
-                "&:hover": {
-                  bgcolor: isSelected ? solidColor : "action.hover",
-                  borderColor: solidColor,
-                  opacity: isSelected ? 0.9 : 1,
-                },
-                "& .MuiChip-label": {
-                  paddingLeft: 1.5,
-                  paddingRight: 1.5,
-                },
-              }}
-            />
-          );
-        })}
-      </Stack>
+            return (
+              <Chip
+                key={tier}
+                label={
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontSize: "0.8125rem",
+                      fontWeight: isSelected ? 500 : 400,
+                      color: "white",
+                    }}
+                  >
+                    {label}
+                  </Typography>
+                }
+                onClick={() => toggleTier(tier)}
+                sx={{
+                  height: 28,
+                  bgcolor: isSelected
+                    ? hexToRgba(solidColor, 0.7)
+                    : hexToRgba(solidColor, 0.3),
+                  color: "white",
+                  border: `1px solid ${isSelected ? solidColor : hexToRgba(solidColor, 0.5)}`,
+                  borderRadius: 3,
+                  cursor: "pointer",
+                  "&:hover": {
+                    bgcolor: isSelected
+                      ? hexToRgba(solidColor, 0.8)
+                      : hexToRgba(solidColor, 0.4),
+                    borderColor: solidColor,
+                  },
+                  "& .MuiChip-label": {
+                    paddingLeft: 1.5,
+                    paddingRight: 1.5,
+                  },
+                }}
+              />
+            );
+          })}
+        </Box>
+
+        {/* Second row: Unknown, No */}
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "row",
+            gap: 1,
+            justifyContent: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          {secondRowTiers.map((tier) => {
+            const isSelected = selected.includes(tier);
+            const solidColor = getTierSolidColor(tier);
+            const label = TIER_LABELS[tier] || tier;
+
+            return (
+              <Chip
+                key={tier}
+                label={
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontSize: "0.8125rem",
+                      fontWeight: isSelected ? 500 : 400,
+                      color: "white",
+                    }}
+                  >
+                    {label}
+                  </Typography>
+                }
+                onClick={() => toggleTier(tier)}
+                sx={{
+                  height: 28,
+                  bgcolor: isSelected
+                    ? hexToRgba(solidColor, 0.7)
+                    : hexToRgba(solidColor, 0.3),
+                  color: "white",
+                  border: `1px solid ${isSelected ? solidColor : hexToRgba(solidColor, 0.5)}`,
+                  borderRadius: 3,
+                  cursor: "pointer",
+                  "&:hover": {
+                    bgcolor: isSelected
+                      ? hexToRgba(solidColor, 0.8)
+                      : hexToRgba(solidColor, 0.4),
+                    borderColor: solidColor,
+                  },
+                  "& .MuiChip-label": {
+                    paddingLeft: 1.5,
+                    paddingRight: 1.5,
+                  },
+                }}
+              />
+            );
+          })}
+        </Box>
+      </Box>
     </Box>
   );
 }
