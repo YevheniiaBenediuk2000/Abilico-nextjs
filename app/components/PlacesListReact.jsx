@@ -10,9 +10,6 @@ import ListItemText from "@mui/material/ListItemText";
 import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
-import Accordion from "@mui/material/Accordion";
-import AccordionSummary from "@mui/material/AccordionSummary";
-import AccordionDetails from "@mui/material/AccordionDetails";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Switch from "@mui/material/Switch";
@@ -23,7 +20,6 @@ import DialogContent from "@mui/material/DialogContent";
 import IconButton from "@mui/material/IconButton";
 import CloseIcon from "@mui/icons-material/Close";
 import FilterListIcon from "@mui/icons-material/FilterList";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import Tooltip from "@mui/material/Tooltip";
 import Menu from "@mui/material/Menu";
@@ -31,6 +27,8 @@ import MenuItem from "@mui/material/MenuItem";
 import SwapVertIcon from "@mui/icons-material/SwapVert";
 import Link from "@mui/material/Link";
 import Paper from "@mui/material/Paper";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import AccessibilityLegendReact from "./AccessibilityLegendReact";
 import { iconFor } from "../icons/makiIconFor.mjs";
 
@@ -290,6 +288,22 @@ function NestedPlaceTypeFilter({ items }) {
     return state;
   }, [tree]);
 
+  // Track which categories are expanded
+  const [expanded, setExpanded] = useState(() => {
+    const expandedState = {};
+    Object.keys(tree).forEach((groupLabel) => {
+      expandedState[groupLabel] = false; // Start collapsed
+    });
+    return expandedState;
+  });
+
+  const toggleExpanded = (groupLabel) => {
+    setExpanded((prev) => ({
+      ...prev,
+      [groupLabel]: !prev[groupLabel],
+    }));
+  };
+
   const [selection, setSelection] = useState(() => {
     const fromLs = loadInitialTypeFilter();
     if (!fromLs) return defaultState;
@@ -396,233 +410,459 @@ function NestedPlaceTypeFilter({ items }) {
         elevation={0}
         sx={{
           border: "1px solid rgba(0,0,0,0.12)",
-          borderRadius: 1,
+          borderRadius: 2,
           overflow: "hidden",
         }}
       >
-        {Object.entries(tree).map(([groupLabel, subs]) => {
-          const allChecked = isGroupAllChecked(groupLabel);
-          const someChecked = isGroupSomeChecked(groupLabel);
-          const groupChecked = allChecked;
-          
-          // Count selected subcategories
-          const selectedCount = Object.values(selection[groupLabel] || {})
-            .filter(Boolean).length;
-          const totalCount = Object.keys(subs).length;
-          
-          return (
-            <Accordion
-              key={groupLabel}
-              disableGutters
-              elevation={0}
-              square
-              defaultExpanded={false}
-              sx={{
-                "&:before": {
-                  display: "none",
-                },
-                "&:not(:last-child)": {
-                  borderBottom: "1px solid rgba(0,0,0,0.08)",
-                },
-              }}
-            >
-              <AccordionSummary
-                expandIcon={<ExpandMoreIcon fontSize="small" />}
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+            p: 2,
+          }}
+        >
+          {/* First row: Amenities, Tourism, Shops */}
+          {(() => {
+            const firstRowCategories = ["Amenities", "Tourism", "Shops"].filter(
+              (label) => tree[label]
+            );
+            if (firstRowCategories.length === 0) return null;
+            
+            return (
+              <Box
                 sx={{
-                  minHeight: 48,
-                  px: 2,
-                  "& .MuiAccordionSummary-content": {
-                    my: 1,
-                    alignItems: "center",
-                  },
-                  "&:hover": {
-                    backgroundColor: "transparent",
-                  },
+                  display: "flex",
+                  flexDirection: "row",
+                  gap: 1.5,
+                  justifyContent: "center",
                 }}
               >
-                <Box
-                  display="flex"
-                  alignItems="center"
-                  gap={1}
-                  flex={1}
-                >
+                {firstRowCategories.map((groupLabel) => {
+                const subs = tree[groupLabel];
+          const allChecked = isGroupAllChecked(groupLabel);
+          const groupChecked = allChecked;
+                
+                // Count selected subcategories
+                const selectedCount = Object.values((selection && selection[groupLabel]) || {})
+                  .filter(Boolean).length;
+                const totalCount = Object.keys(subs).length;
+                
+          return (
                   <Box
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleGroup(groupLabel);
-                    }}
+              key={groupLabel}
                     sx={{
-                      display: "inline-flex",
-                      alignItems: "center",
+                      display: "flex",
+                      flexDirection: "column",
                       gap: 0.75,
-                      cursor: "pointer",
-                      py: 0.5,
-                      px: 1.25,
-                      borderRadius: 3,
-                      bgcolor: groupChecked
-                        ? "primary.main"
-                        : "transparent",
-                      border: `1px solid ${
-                        groupChecked ? "primary.main" : "rgba(0,0,0,0.12)"
-                      }`,
-                      transition: "all 0.2s ease-in-out",
-                      "&:hover": {
-                        bgcolor: groupChecked
-                          ? "primary.dark"
-                          : "action.hover",
-                        borderColor: "primary.main",
-                      },
+                      flex: "0 1 auto",
                     }}
                   >
-                    {GROUP_ICON_MAP[groupLabel] && (
-                      <Box
-                        component="img"
-                        src={makiIconUrl(GROUP_ICON_MAP[groupLabel])}
-                        alt={groupLabel}
-                        sx={{
-                          width: 16,
-                          height: 16,
-                          objectFit: "contain",
-                          flexShrink: 0,
-                          opacity: groupChecked ? 1 : 0.7,
-                          filter: groupChecked ? "brightness(0) invert(1)" : "none",
-                        }}
-                      />
-                    )}
-                    <Typography
-                      variant="body2"
-                      fontWeight={500}
-                      sx={{
-                        color: groupChecked ? "white" : "text.primary",
-                        fontSize: "0.875rem",
-                      }}
+                    <Box
+                      display="flex"
+                      alignItems="center"
+                      gap={1}
+                      justifyContent="space-between"
                     >
-                      {groupLabel}
-                    </Typography>
-                  </Box>
-                  {selectedCount < totalCount && (
-                    <Chip
-                      label={`${selectedCount} selected`}
-                      size="small"
-                      sx={{
-                        height: 18,
-                        fontSize: "0.65rem",
-                        bgcolor: "action.selected",
-                        color: "text.secondary",
-                        fontWeight: 400,
-                      }}
-                    />
-                  )}
-                </Box>
-              </AccordionSummary>
-              <AccordionDetails
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <Box
+                          onClick={() => toggleGroup(groupLabel)}
                 sx={{
-                  py: 1,
-                  px: 2,
-                  bgcolor: "grey.50",
-                }}
-              >
-                <Box
-                  sx={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: 0.5,
-                  }}
-                >
-                  {Object.keys(subs)
-                    .sort()
-                    .map((subLabel) => {
-                      // Get the raw OSM value from the Set (first one if multiple)
-                      const rawValues = Array.from(subs[subLabel]);
-                      const rawValue = rawValues[0] || subLabel.replace(/\s/g, "_");
-                      
-                      // Map group label to major key
-                      const majorKey = GROUP_TO_MAJOR_KEY[groupLabel] || "other";
-                      
-                      // Create tags object for iconFor function
-                      const tags = { [majorKey]: rawValue };
-                      
-                      // Get icon URL using existing logic
-                      const iconUrl = iconFor(tags);
-                      
-                      const isSelected = selection[groupLabel]?.[subLabel] ?? true;
-                      
-                      return (
-                        <Chip
-                          key={subLabel}
-                          icon={
-                            iconUrl ? (
-                              <Box
-                                component="img"
-                                src={iconUrl}
-                                alt={subLabel}
-                                sx={{
-                                  width: 14,
-                                  height: 14,
-                                  objectFit: "contain",
-                                  display: "block",
-                                  flexShrink: 0,
-                                }}
-                              />
-                            ) : undefined
-                          }
-                          label={
-                            <Typography
-                              variant="body2"
-                              sx={{
-                                fontSize: "0.8125rem",
-                                color: isSelected ? "white" : "text.primary",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              {subLabel.charAt(0).toUpperCase() +
-                                subLabel.slice(1)}
-                            </Typography>
-                          }
-                          onClick={() => toggleSub(groupLabel, subLabel)}
-                          sx={{
-                            height: 28,
-                            bgcolor: isSelected
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 0.75,
+                            cursor: "pointer",
+                            py: 0.5,
+                            px: 1.25,
+                            borderRadius: 3,
+                            bgcolor: groupChecked
                               ? "primary.main"
                               : "transparent",
-                            color: isSelected ? "white" : "text.primary",
                             border: `1px solid ${
-                              isSelected ? "primary.main" : "rgba(0,0,0,0.12)"
+                              groupChecked ? "primary.main" : "rgba(0,0,0,0.12)"
                             }`,
-                            borderRadius: 3,
-                            cursor: "pointer",
+                            transition: "all 0.2s ease-in-out",
                             "&:hover": {
-                              bgcolor: isSelected
+                              bgcolor: groupChecked
                                 ? "primary.dark"
                                 : "action.hover",
                               borderColor: "primary.main",
                             },
-                            "& .MuiChip-icon": {
-                              marginLeft: 0.75,
-                              marginRight: 0.5,
-                              opacity: isSelected ? 1 : 0.7,
-                              filter: isSelected ? "brightness(0) invert(1)" : "none",
-                              width: 14,
-                              height: 14,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                            },
-                            "& .MuiChip-label": {
-                              paddingLeft: iconUrl ? 0 : 0.75,
-                              paddingRight: 1,
-                              display: "flex",
-                              alignItems: "center",
-                            },
+                          }}
+                        >
+                          {GROUP_ICON_MAP[groupLabel] && (
+                            <Box
+                              component="img"
+                              src={makiIconUrl(GROUP_ICON_MAP[groupLabel])}
+                              alt={groupLabel}
+                              sx={{
+                                width: 16,
+                                height: 16,
+                                objectFit: "contain",
+                                flexShrink: 0,
+                                opacity: groupChecked ? 1 : 0.7,
+                                filter: groupChecked ? "brightness(0) invert(1)" : "none",
+                              }}
+                            />
+                          )}
+                          <Typography
+                            variant="body2"
+                            fontWeight={500}
+                            sx={{
+                              color: groupChecked ? "white" : "text.primary",
+                              fontSize: "0.875rem",
+                            }}
+                          >
+                            {groupLabel}
+                          </Typography>
+                        </Box>
+                        {selectedCount < totalCount && (
+                          <Chip
+                            label={`${selectedCount} selected`}
+                      size="small"
+                            sx={{
+                              height: 18,
+                              fontSize: "0.65rem",
+                              bgcolor: "action.selected",
+                              color: "text.secondary",
+                              fontWeight: 400,
+                            }}
+                          />
+                        )}
+                      </Box>
+                      <IconButton
+                        size="small"
+                        onClick={() => toggleExpanded(groupLabel)}
+                        sx={{
+                          p: 0.5,
+                          color: "text.secondary",
+                        }}
+                      >
+                        {expanded[groupLabel] ? (
+                          <KeyboardArrowUpIcon fontSize="small" />
+                        ) : (
+                          <KeyboardArrowDownIcon fontSize="small" />
+                        )}
+                      </IconButton>
+                    </Box>
+                    {expanded[groupLabel] && (
+                      <Box
+                        sx={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: 0.5,
+                        }}
+                      >
+                      {Object.keys(subs)
+                        .sort()
+                        .map((subLabel) => {
+                          const rawValues = Array.from(subs[subLabel]);
+                          const rawValue = rawValues[0] || subLabel.replace(/\s/g, "_");
+                          const majorKey = GROUP_TO_MAJOR_KEY[groupLabel] || "other";
+                          const tags = { [majorKey]: rawValue };
+                          const iconUrl = iconFor(tags);
+                          const isSelected = selection[groupLabel]?.[subLabel] ?? true;
+                          
+                          return (
+                            <Chip
+                              key={subLabel}
+                              icon={
+                                iconUrl ? (
+                                  <Box
+                                    component="img"
+                                    src={iconUrl}
+                                    alt={subLabel}
+                                    sx={{
+                                      width: 14,
+                                      height: 14,
+                                      objectFit: "contain",
+                                      display: "block",
+                                      flexShrink: 0,
+                                    }}
+                                  />
+                                ) : undefined
+                  }
+                  label={
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    fontSize: "0.8125rem",
+                                    color: isSelected ? "white" : "text.primary",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {subLabel.charAt(0).toUpperCase() +
+                                    subLabel.slice(1)}
+                    </Typography>
+                  }
+                              onClick={() => toggleSub(groupLabel, subLabel)}
+                              sx={{
+                                height: 28,
+                                bgcolor: isSelected
+                                  ? "primary.main"
+                                  : "transparent",
+                                color: isSelected ? "white" : "text.primary",
+                                border: `1px solid ${
+                                  isSelected ? "primary.main" : "rgba(0,0,0,0.12)"
+                                }`,
+                                borderRadius: 3,
+                                cursor: "pointer",
+                                "&:hover": {
+                                  bgcolor: isSelected
+                                    ? "primary.dark"
+                                    : "action.hover",
+                                  borderColor: "primary.main",
+                                },
+                                "& .MuiChip-icon": {
+                                  marginLeft: 0.75,
+                                  marginRight: 0.5,
+                                  opacity: isSelected ? 1 : 0.7,
+                                  filter: isSelected ? "brightness(0) invert(1)" : "none",
+                                  width: 14,
+                                  height: 14,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                },
+                                "& .MuiChip-label": {
+                                  paddingLeft: iconUrl ? 0 : 0.75,
+                                  paddingRight: 1,
+                                  display: "flex",
+                                  alignItems: "center",
+                                },
+                              }}
+                            />
+                          );
+                        })}
+                      </Box>
+                    )}
+                  </Box>
+                );
+                })}
+              </Box>
+            );
+          })()}
+          
+          {/* Second row: Leisure, Historic (centered) */}
+          {(() => {
+            const secondRowCategories = ["Leisure", "Historic"].filter(
+              (label) => tree[label]
+            );
+            if (secondRowCategories.length === 0) return null;
+            
+            return (
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: "row",
+                  gap: 1.5,
+                  justifyContent: secondRowCategories.length === 2 ? "center" : "flex-start",
+                }}
+              >
+                {secondRowCategories.map((groupLabel) => {
+                const subs = tree[groupLabel];
+                const allChecked = isGroupAllChecked(groupLabel);
+                const groupChecked = allChecked;
+                
+                // Count selected subcategories
+                const selectedCount = Object.values((selection && selection[groupLabel]) || {})
+                  .filter(Boolean).length;
+                const totalCount = Object.keys(subs).length;
+                
+                return (
+                  <Box
+                    key={groupLabel}
+                    sx={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 1,
+                      flex: "0 1 auto",
+                    }}
+                  >
+                    <Box
+                      display="flex"
+                      alignItems="center"
+                      gap={0.5}
+                    >
+                      <Box
+                        onClick={() => toggleGroup(groupLabel)}
+                        sx={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 0.75,
+                          cursor: "pointer",
+                          py: 0.5,
+                          px: 1.25,
+                          borderRadius: 3,
+                          bgcolor: groupChecked
+                            ? "primary.main"
+                            : "transparent",
+                          border: `1px solid ${
+                            groupChecked ? "primary.main" : "rgba(0,0,0,0.12)"
+                          }`,
+                          transition: "all 0.2s ease-in-out",
+                          "&:hover": {
+                            bgcolor: groupChecked
+                              ? "primary.dark"
+                              : "action.hover",
+                            borderColor: "primary.main",
+                          },
+                        }}
+                      >
+                        {GROUP_ICON_MAP[groupLabel] && (
+                          <Box
+                            component="img"
+                            src={makiIconUrl(GROUP_ICON_MAP[groupLabel])}
+                            alt={groupLabel}
+                            sx={{
+                              width: 16,
+                              height: 16,
+                              objectFit: "contain",
+                              flexShrink: 0,
+                              opacity: groupChecked ? 1 : 0.7,
+                              filter: groupChecked ? "brightness(0) invert(1)" : "none",
+                            }}
+                          />
+                        )}
+                        <Typography
+                          variant="body2"
+                          fontWeight={500}
+                          sx={{
+                            color: groupChecked ? "white" : "text.primary",
+                            fontSize: "0.875rem",
+                          }}
+                        >
+                          {groupLabel}
+                        </Typography>
+                      </Box>
+                      <IconButton
+                        size="small"
+                        onClick={() => toggleExpanded(groupLabel)}
+                        sx={{
+                          p: 0.25,
+                          color: "text.secondary",
+                          ml: -0.5,
+                        }}
+                      >
+                        {expanded[groupLabel] ? (
+                          <KeyboardArrowUpIcon fontSize="small" />
+                        ) : (
+                          <KeyboardArrowDownIcon fontSize="small" />
+                        )}
+                      </IconButton>
+                      {selectedCount < totalCount && (
+                        <Chip
+                          label={`${selectedCount} selected`}
+                          size="small"
+                          sx={{
+                            height: 18,
+                            fontSize: "0.65rem",
+                            bgcolor: "action.selected",
+                            color: "text.secondary",
+                            fontWeight: 400,
+                            ml: 0.5,
                           }}
                         />
-                      );
-                    })}
-                </Box>
-              </AccordionDetails>
-            </Accordion>
+                      )}
+                    </Box>
+                    {expanded[groupLabel] && (
+                      <Box
+                        sx={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: 0.5,
+                        }}
+                      >
+                  {Object.keys(subs)
+                    .sort()
+                        .map((subLabel) => {
+                          const rawValues = Array.from(subs[subLabel]);
+                          const rawValue = rawValues[0] || subLabel.replace(/\s/g, "_");
+                          const majorKey = GROUP_TO_MAJOR_KEY[groupLabel] || "other";
+                          const tags = { [majorKey]: rawValue };
+                          const iconUrl = iconFor(tags);
+                          const isSelected = selection[groupLabel]?.[subLabel] ?? true;
+                          
+                          return (
+                            <Chip
+                        key={subLabel}
+                              icon={
+                                iconUrl ? (
+                                  <Box
+                                    component="img"
+                                    src={iconUrl}
+                                    alt={subLabel}
+                                    sx={{
+                                      width: 14,
+                                      height: 14,
+                                      objectFit: "contain",
+                                      display: "block",
+                                      flexShrink: 0,
+                                    }}
+                                  />
+                                ) : undefined
+                        }
+                        label={
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    fontSize: "0.8125rem",
+                                    color: isSelected ? "white" : "text.primary",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                            {subLabel.charAt(0).toUpperCase() +
+                              subLabel.slice(1)}
+                          </Typography>
+                        }
+                              onClick={() => toggleSub(groupLabel, subLabel)}
+                              sx={{
+                                height: 28,
+                                bgcolor: isSelected
+                                  ? "primary.main"
+                                  : "transparent",
+                                color: isSelected ? "white" : "text.primary",
+                                border: `1px solid ${
+                                  isSelected ? "primary.main" : "rgba(0,0,0,0.12)"
+                                }`,
+                                borderRadius: 3,
+                                cursor: "pointer",
+                                "&:hover": {
+                                  bgcolor: isSelected
+                                    ? "primary.dark"
+                                    : "action.hover",
+                                  borderColor: "primary.main",
+                                },
+                                "& .MuiChip-icon": {
+                                  marginLeft: 0.75,
+                                  marginRight: 0.5,
+                                  opacity: isSelected ? 1 : 0.7,
+                                  filter: isSelected ? "brightness(0) invert(1)" : "none",
+                                  width: 14,
+                                  height: 14,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                },
+                                "& .MuiChip-label": {
+                                  paddingLeft: iconUrl ? 0 : 0.75,
+                                  paddingRight: 1,
+                                  display: "flex",
+                                  alignItems: "center",
+                                },
+                              }}
+                            />
           );
         })}
+      </Box>
+                    )}
+                  </Box>
+                );
+                })}
+              </Box>
+            );
+          })()}
+        </Box>
       </Paper>
     </Box>
   );
@@ -1860,13 +2100,13 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
               >
                 Reset
               </Link>
-              <IconButton
-                aria-label="close"
-                onClick={() => setFiltersOpen(false)}
-                sx={{ color: (theme) => theme.palette.grey[500] }}
-              >
-                <CloseIcon />
-              </IconButton>
+            <IconButton
+              aria-label="close"
+              onClick={() => setFiltersOpen(false)}
+              sx={{ color: (theme) => theme.palette.grey[500] }}
+            >
+              <CloseIcon />
+            </IconButton>
             </Box>
           </Box>
         </DialogTitle>
