@@ -367,7 +367,7 @@ function NestedPlaceTypeFilter({ items }) {
       <Typography
         variant="overline"
         sx={{
-          color: "primary.main",
+          color: "text.primary",
           fontWeight: 600,
           letterSpacing: 1,
           fontSize: "0.7rem",
@@ -486,7 +486,13 @@ function NestedPlaceTypeFilter({ items }) {
                   bgcolor: "grey.50",
                 }}
               >
-                <Stack spacing={0.5}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 0.5,
+                  }}
+                >
                   {Object.keys(subs)
                     .sort()
                     .map((subLabel) => (
@@ -513,16 +519,16 @@ function NestedPlaceTypeFilter({ items }) {
                         }
                         sx={{
                           py: 0.25,
+                          px: 0.5,
+                          m: 0,
+                          borderRadius: 0.5,
                           "&:hover": {
                             bgcolor: "action.hover",
-                            borderRadius: 0.5,
-                            mx: -0.5,
-                            px: 0.5,
                           },
                         }}
                       />
                     ))}
-                </Stack>
+                </Box>
               </AccordionDetails>
             </Accordion>
           );
@@ -1725,13 +1731,27 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>
+        <DialogTitle
+          sx={{
+            pb: 1.5,
+            borderBottom: "1px solid rgba(0,0,0,0.12)",
+          }}
+        >
           <Box
             display="flex"
-            alignItems="center"
+            alignItems="flex-start"
             justifyContent="space-between"
           >
-            <Typography variant="h6">Filters</Typography>
+            <Typography
+              variant="h6"
+              sx={{
+                fontWeight: 700,
+                color: "text.primary",
+                fontSize: "1.25rem",
+              }}
+            >
+              Filters
+            </Typography>
             <Box display="flex" alignItems="center" gap={1}>
               <Link
                 component="button"
@@ -1741,6 +1761,8 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
                   cursor: "pointer",
                   textDecoration: "none",
                   color: "primary.main",
+                  fontWeight: 400,
+                  fontSize: "0.875rem",
                   "&:hover": {
                     textDecoration: "underline",
                   },
