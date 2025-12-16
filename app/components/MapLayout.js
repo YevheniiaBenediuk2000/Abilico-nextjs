@@ -240,38 +240,31 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
               }}
             >
               {/* Add Place button - visible to all users */}
-              <Tooltip title="Add Place">
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <IconButton
-                    color="primary"
-                    aria-label="add place"
-                    onClick={() => setAddPlaceDialogOpen(true)}
-                    sx={{
-                      bgcolor: "#1976d2",
-                      color: "white",
-                      boxShadow: 2,
-                      width: 40,
-                      height: 40,
-                      "&:hover": {
-                        bgcolor: "#1565c0",
-                        boxShadow: 4,
-                      },
-                    }}
-                  >
-                    <AddIcon />
-                  </IconButton>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      display: { xs: "none", sm: "block" },
-                      color: "text.primary",
-                      fontWeight: 500,
-                    }}
-                  >
-                    Add Place
-                  </Typography>
-                </Box>
-              </Tooltip>
+              <Button
+                variant="contained"
+                color="primary"
+                size="small"
+                startIcon={<AddIcon />}
+                onClick={() => setAddPlaceDialogOpen(true)}
+                aria-label="add place"
+                sx={{
+                  bgcolor: "#1976d2",
+                  color: "white",
+                  borderRadius: "25px",
+                  px: 2,
+                  py: 0.75,
+                  textTransform: "none",
+                  fontWeight: 500,
+                  fontSize: "0.875rem",
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+                  "&:hover": {
+                    bgcolor: "#1565c0",
+                    boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
+                  },
+                }}
+              >
+                Add place
+              </Button>
 
               {!user ? (
                 <Button

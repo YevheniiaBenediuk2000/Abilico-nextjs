@@ -28,7 +28,7 @@ const AMENITY_TO_MAKI = {
     doctors:"doctor", dentist:"dentist", blood_bank:"blood-bank",
     // money/admin/safety
     bank:"bank", atm:"bank", bureau_de_change:"bank",
-    post_office:"post", parcel_locker:"post", police:"police",
+    post_office:"post", post_box:"post", parcel_locker:"post", police:"police",
     courthouse:"town-hall", townhall:"town-hall",
     // food & drink
     cafe:"cafe", restaurant:"restaurant", fast_food:"fast-food",
@@ -37,13 +37,14 @@ const AMENITY_TO_MAKI = {
     toilets:"toilet", drinking_water:"drinking-water", water_point:"drinking-water",
     // mobility
     fuel:"fuel", charging_station:"charging-station",
-    car_rental:"car-rental", parking:"parking",
+    car_rental:"car-rental", car_sharing:"car-rental", parking:"parking",
     parking_entrance:"parking-garage", parking_space:"parking",
     // learning & culture
     library:"library", theatre:"theatre", cinema:"cinema",
     arts_centre:"art-gallery", marketplace:"shop",
     university:"college", college:"college", school:"school",
     kindergarten:"school", childcare:"school",
+    language_school:"school", community_centre:"town-hall",
     // worship
     place_of_worship:"place-of-worship", monastery:"religious-christian",
     // civic
@@ -54,7 +55,9 @@ const AMENITY_TO_MAKI = {
     recycling:"recycling", waste_disposal:"waste-basket",
     car_wash:"car", vehicle_inspection:"car-repair",
     bicycle_rental:"bicycle-share", bicycle_repair_station:"bicycle",
-    nightclub:"nightclub", internet_cafe:"mobile-phone",
+    nightclub:"nightclub", stripclub:"nightclub", internet_cafe:"mobile-phone",
+    clock:"clock", studio:"art-gallery", fountain:"fountain",
+    public_bookcase:"library", bookcase:"library",
 };
 
 const SHOP_TO_MAKI = {

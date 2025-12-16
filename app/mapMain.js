@@ -206,6 +206,24 @@ function loadPlaceTypeFilterFromLS() {
 function isFeatureAllowedByTypeFilter(feature) {
   if (!placeTypeFilterState) return true; // no filter -> all allowed
 
+  // Check if there are any active filters at all
+  let hasAnyActiveFilter = false;
+  for (const groupLabel in placeTypeFilterState) {
+    const group = placeTypeFilterState[groupLabel];
+    if (group && typeof group === 'object') {
+      for (const subLabel in group) {
+        if (group[subLabel] === true) {
+          hasAnyActiveFilter = true;
+          break;
+        }
+      }
+      if (hasAnyActiveFilter) break;
+    }
+  }
+  
+  // If no filters are selected, hide all places
+  if (!hasAnyActiveFilter) return false;
+
   const props = feature.properties || {};
   const tags = props.tags || props;
 
