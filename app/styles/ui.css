@@ -249,3 +249,185 @@
 .leaflet-control.leaflet-draw .leaflet-draw-actions a {
   letter-spacing: 0.04em;
 }
+
+/* === Supabase Auth UI Custom Styling === */
+/* Target the Supabase Auth UI container */
+[data-theme="default"] {
+  width: 100%;
+}
+
+/* Title styling - "Create an account" or "Sign in" */
+[data-theme="default"] h1,
+[data-theme="default"] h2,
+[data-theme="default"] h3 {
+  font-size: 1.75rem !important;
+  font-weight: 700 !important;
+  color: #000000 !important;
+  margin-bottom: 1.5rem !important;
+  text-align: left !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+  line-height: 1.2 !important;
+}
+
+/* Input fields styling */
+[data-theme="default"] input[type="email"],
+[data-theme="default"] input[type="password"],
+[data-theme="default"] input[type="text"] {
+  background-color: #ffffff !important;
+  border: 1.5px solid rgba(0, 0, 0, 0.23) !important;
+  border-radius: 8px !important;
+  padding: 16px !important;
+  font-size: 16px !important;
+  color: #000000 !important;
+  width: 100% !important;
+  margin-bottom: 1.5rem !important;
+  transition: border-color 0.2s ease !important;
+  box-sizing: border-box !important;
+}
+
+[data-theme="default"] input[type="email"]:hover,
+[data-theme="default"] input[type="password"]:hover,
+[data-theme="default"] input[type="text"]:hover {
+  border-color: rgba(0, 0, 0, 0.5) !important;
+}
+
+[data-theme="default"] input[type="email"]:focus,
+[data-theme="default"] input[type="password"]:focus,
+[data-theme="default"] input[type="text"]:focus {
+  border-color: #0a3f89 !important;
+  border-width: 2px !important;
+  outline: none !important;
+}
+
+[data-theme="default"] input[type="email"]::placeholder,
+[data-theme="default"] input[type="password"]::placeholder,
+[data-theme="default"] input[type="text"]::placeholder {
+  color: #9e9e9e !important;
+  opacity: 1 !important;
+}
+
+/* Label styling */
+[data-theme="default"] label,
+.supabase-auth-ui_ui-label {
+  font-size: 14px !important;
+  color: #000000 !important;
+  margin-bottom: 0.5rem !important;
+  display: block !important;
+  font-weight: 500 !important;
+  text-align: left !important;
+}
+
+/* Button styling - Register/Sign in button */
+[data-theme="default"] button[type="submit"] {
+  background-color: #0a3f89 !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 16px !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  width: 100% !important;
+  cursor: pointer !important;
+  text-transform: none !important;
+  margin-top: 0.5rem !important;
+  transition: background-color 0.2s ease !important;
+}
+
+[data-theme="default"] button[type="submit"]:hover {
+  background-color: #082d63 !important;
+}
+
+[data-theme="default"] button[type="submit"]:active {
+  background-color: #06204a !important;
+}
+
+/* Link styling */
+[data-theme="default"] a,
+.supabase-auth-ui_ui-anchor {
+  color: #0a3f89 !important;
+  text-decoration: none !important;
+  font-size: 14px !important;
+  transition: color 0.2s ease !important;
+}
+
+[data-theme="default"] a:hover,
+.supabase-auth-ui_ui-anchor:hover {
+  color: #082d63 !important;
+  text-decoration: none !important;
+}
+
+/* Message/error text */
+[data-theme="default"] [data-state="error"],
+[data-theme="default"] [role="alert"] {
+  font-size: 14px !important;
+  margin-top: 0.5rem !important;
+  margin-bottom: 1rem !important;
+  color: #d32f2f !important;
+}
+
+/* Password hint text */
+[data-theme="default"] p[data-state="default"],
+[data-theme="default"] p[class*="hint"],
+[data-theme="default"] p[class*="description"] {
+  font-size: 14px !important;
+  color: #9e9e9e !important;
+  margin-top: -1rem !important;
+  margin-bottom: 1rem !important;
+  text-align: left !important;
+}
+
+/* "Already have an account? Log In" text */
+[data-theme="default"] > div:last-child,
+[data-theme="default"] form + div {
+  margin-top: 1.5rem !important;
+  text-align: center !important;
+  font-size: 14px !important;
+  color: #000000 !important;
+}
+
+/* Google button styling */
+[data-theme="default"] button[type="button"]:not([type="submit"]),
+[data-theme="default"] button[class*="google"],
+[data-theme="default"] button[class*="provider"] {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border: 1.5px solid rgba(0, 0, 0, 0.23) !important;
+  border-radius: 8px !important;
+  padding: 16px !important;
+  font-size: 16px !important;
+  width: 100% !important;
+  margin-bottom: 1rem !important;
+  text-transform: none !important;
+  font-weight: 500 !important;
+}
+
+[data-theme="default"] button[type="button"]:not([type="submit"]):hover {
+  background-color: #f5f5f5 !important;
+  border-color: rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Divider styling */
+[data-theme="default"] hr,
+[data-theme="default"] [role="separator"] {
+  margin: 1.5rem 0 !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Form wrapper */
+[data-theme="default"] form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+}
+
+/* Input wrapper */
+[data-theme="default"] div[class*="input"],
+[data-theme="default"] div[class*="field"] {
+  margin-bottom: 0 !important;
+}
+
+/* Remove any default margins/padding from form elements */
+[data-theme="default"] * {
+  box-sizing: border-box;
+}

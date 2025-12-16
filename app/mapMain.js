@@ -208,10 +208,12 @@ function isFeatureAllowedByTypeFilter(feature) {
 
   // Check if there are any active filters at all
   let hasAnyActiveFilter = false;
+  let totalFilters = 0;
   for (const groupLabel in placeTypeFilterState) {
     const group = placeTypeFilterState[groupLabel];
     if (group && typeof group === 'object') {
       for (const subLabel in group) {
+        totalFilters++;
         if (group[subLabel] === true) {
           hasAnyActiveFilter = true;
           break;
@@ -221,8 +223,10 @@ function isFeatureAllowedByTypeFilter(feature) {
     }
   }
   
-  // If no filters are selected, hide all places
-  if (!hasAnyActiveFilter) return false;
+  // If filters are defined (totalFilters > 0) but none are selected, hide all places
+  // This allows users to deselect everything to see no places
+  // But if no filters are defined at all (empty object), show all (fallback to default behavior)
+  if (totalFilters > 0 && !hasAnyActiveFilter) return false;
 
   const props = feature.properties || {};
   const tags = props.tags || props;
@@ -2616,6 +2620,9 @@ export async function initMap(user = null) {
     // console.log("✅ Leaflet map ready, initializing places...");
     placesPane = map.createPane("places-pane");
     placesPane.style.zIndex = 450;
+
+    // Initialize place type filter state from localStorage on map load
+    placeTypeFilterState = loadPlaceTypeFilterFromLS();
 
     map.addControl(new ZoomMuiControl({ position: "bottomright" }));
     placeClusterLayer.addTo(map);

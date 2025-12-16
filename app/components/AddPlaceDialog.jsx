@@ -25,6 +25,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import { addUserPlace } from "../api/placeStorage";
 import { reverseGeocode } from "../api/reverseGeocode";
 import { supabase } from "../api/supabaseClient";
+import { PRIMARY_BLUE } from "../constants/constants.mjs";
 
 // Access Leaflet from window (loaded globally by mapMain.js)
 const getL = () => {
@@ -314,7 +315,7 @@ export default function AddPlaceDialog({ open, onClose }) {
             <div style="
               width: 32px;
               height: 32px;
-              background-color: #1976d2;
+              background-color: ${PRIMARY_BLUE};
               border: 3px solid white;
               border-radius: 50%;
               box-shadow: 0 2px 8px rgba(0,0,0,0.4);
@@ -339,7 +340,7 @@ export default function AddPlaceDialog({ open, onClose }) {
             <div style="display: flex; gap: 8px; justify-content: center;">
               <button id="confirm-location-btn" style="
                 padding: 6px 16px;
-                background-color: #1976d2;
+                background-color: ${PRIMARY_BLUE};
                 color: white;
                 border: none;
                 border-radius: 4px;

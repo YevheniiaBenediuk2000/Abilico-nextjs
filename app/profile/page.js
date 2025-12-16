@@ -20,6 +20,8 @@ import Switch from "@mui/material/Switch";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
+import Dialog from "@mui/material/Dialog";
+import DialogContent from "@mui/material/DialogContent";
 import SecurityIcon from "@mui/icons-material/Security";
 import EmailIcon from "@mui/icons-material/Email";
 import LockIcon from "@mui/icons-material/Lock";
@@ -34,6 +36,8 @@ import AccessibilityPreferencesEditor from "../components/AccessibilityPreferenc
 import HomeAreaEditor from "../components/HomeAreaEditor";
 import DisabilityTypesEditor from "../components/DisabilityTypesEditor";
 import { ACCESSIBILITY_CATEGORY_LABELS } from "../constants/accessibilityCategories";
+import { DIALOG_BORDER_RADIUS } from "../constants/constants.mjs";
+import { toastSuccess, toastError } from "../utils/toast.mjs";
 
 const DISABILITY_TYPES = [
   { id: "wheelchair", label: "Wheelchair User" },
@@ -86,6 +90,7 @@ export default function ProfilePage() {
   const [surname, setSurname] = useState("");
   const [nameLoading, setNameLoading] = useState(false);
   const [nameError, setNameError] = useState("");
+  const [showDisable2FADialog, setShowDisable2FADialog] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -184,26 +189,72 @@ export default function ProfilePage() {
 
   // Handle setting up 2FA
   const handleSetupMFA = async () => {
-    const { data, error } = await supabase.auth.mfa.enroll({
-      factorType: "totp",
-    });
-    if (error) {
-      alert("❌ Failed to start 2FA setup");
-      console.error(error);
-      return;
+    try {
+      // First, check for existing unverified factors and clean them up
+      const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
+      if (listError) {
+        console.error("Error listing factors:", listError);
+      } else {
+        // Find and unenroll any unverified TOTP factors
+        const unverifiedFactors = factors?.all?.filter(
+          (f) => f.factor_type === "totp" && f.status !== "verified"
+        );
+        
+        if (unverifiedFactors && unverifiedFactors.length > 0) {
+          for (const factor of unverifiedFactors) {
+            try {
+              await supabase.auth.mfa.unenroll({ factorId: factor.id });
+            } catch (unenrollErr) {
+              console.warn("Failed to unenroll unverified factor:", unenrollErr);
+            }
+          }
+        }
+      }
+
+      // Now enroll a new factor
+      const { data, error } = await supabase.auth.mfa.enroll({
+        factorType: "totp",
+      });
+      
+      if (error) {
+        toastError(error.message || "An error occurred while setting up 2FA. Please try again.", {
+          title: "Failed to Start 2FA Setup",
+        });
+        console.error("2FA enrollment error:", error);
+        // Refresh MFA status to ensure toggle reflects actual state
+        await refreshMFAStatus();
+        return;
+      }
+      
+      currentFactorId = data.id;
+      setQrCode(data.totp.qr_code);
+      setShow2FASetup(true);
+    } catch (error) {
+      toastError(error.message || "An unexpected error occurred. Please try again.", {
+        title: "Failed to Start 2FA Setup",
+      });
+      console.error("2FA setup error:", error);
+      // Refresh MFA status to ensure toggle reflects actual state
+      await refreshMFAStatus();
     }
-    currentFactorId = data.id;
-    setQrCode(data.totp.qr_code);
-    setShow2FASetup(true);
   };
 
-  // Handle disabling 2FA
-  const handleDisableMFA = async () => {
+  // Handle disabling 2FA (opens confirmation dialog)
+  const handleDisableMFA = () => {
+    setShowDisable2FADialog(true);
+  };
+
+  // Confirm and disable 2FA
+  const confirmDisableMFA = async () => {
+    setShowDisable2FADialog(false);
+    
     try {
       // Get all factors for the user
       const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
       if (listError) {
-        alert("❌ Failed to fetch 2FA factors");
+        toastError(listError.message || "Unable to retrieve your 2FA settings. Please try again.", {
+          title: "Failed to Fetch 2FA Factors",
+        });
         console.error(listError);
         return;
       }
@@ -214,12 +265,9 @@ export default function ProfilePage() {
       );
 
       if (!verifiedTotp) {
-        alert("⚠️ No verified 2FA factor found");
-        return;
-      }
-
-      // Confirm before disabling
-      if (!confirm("Are you sure you want to disable 2FA? This will reduce your account security.")) {
+        toastError("No verified 2FA factor was found on your account.", {
+          title: "No 2FA Factor Found",
+        });
         return;
       }
 
@@ -229,18 +277,25 @@ export default function ProfilePage() {
       });
 
       if (unenrollError) {
-        alert("❌ Failed to disable 2FA");
+        toastError(unenrollError.message || "Unable to disable 2FA. Please try again.", {
+          title: "Failed to Disable 2FA",
+        });
         console.error(unenrollError);
         return;
       }
 
-      alert("✅ 2FA has been disabled");
+      // Show success message
+      toastSuccess("Two-factor authentication has been successfully disabled.", {
+        title: "2FA Disabled",
+      });
       
       // Refresh MFA status and session
       await refreshMFAStatus();
       await supabase.auth.refreshSession();
     } catch (error) {
-      alert("❌ An error occurred while disabling 2FA");
+      toastError(error.message || "An unexpected error occurred. Please try again.", {
+        title: "Error Disabling 2FA",
+      });
       console.error(error);
     }
   };
@@ -248,7 +303,9 @@ export default function ProfilePage() {
   // Handle verifying 2FA code
   const handleVerify2FA = async () => {
     if (!currentFactorId) {
-      alert('⚠️ Please start 2FA setup first.');
+      toastError("Please start 2FA setup first by toggling the switch.", {
+        title: "Setup Required",
+      });
       return;
     }
 
@@ -258,7 +315,9 @@ export default function ProfilePage() {
       });
     if (challengeErr) {
       console.error("Challenge failed:", challengeErr);
-      alert("❌ Challenge creation failed.");
+      toastError(challengeErr.message || "Unable to create verification challenge. Please try again.", {
+        title: "Verification Failed",
+      });
       return;
     }
 
@@ -269,9 +328,13 @@ export default function ProfilePage() {
     });
 
     if (verifyErr) {
-      alert("❌ Wrong code");
+      toastError("The code you entered is incorrect. Please try again.", {
+        title: "Invalid Code",
+      });
     } else {
-      alert("✅ 2FA verified and enabled!");
+      toastSuccess("Two-factor authentication has been successfully enabled!", {
+        title: "2FA Enabled",
+      });
       setShow2FASetup(false);
       setTotpCode("");
       await refreshMFAStatus();
@@ -994,12 +1057,13 @@ export default function ProfilePage() {
                         <Switch
                           checked={has2FA}
                           onChange={async (e) => {
-                            if (e.target.checked) {
+                            const newValue = e.target.checked;
+                            if (newValue) {
                               // Enable 2FA
                               await handleSetupMFA();
                             } else {
-                              // Disable 2FA
-                              await handleDisableMFA();
+                              // Disable 2FA - show confirmation dialog
+                              handleDisableMFA();
                             }
                           }}
                           color="primary"
@@ -1044,20 +1108,13 @@ export default function ProfilePage() {
                       <TextField
                         fullWidth
                         label="Enter 6-digit code"
-                        placeholder="123456"
+                        placeholder=""
                         value={totpCode}
                         onChange={(e) => setTotpCode(e.target.value)}
                         sx={{ mb: 2 }}
                         inputProps={{ maxLength: 6 }}
                       />
                       <Box sx={{ display: "flex", gap: 2 }}>
-                        <Button
-                          variant="contained"
-                          color="success"
-                          onClick={handleVerify2FA}
-                        >
-                          Verify Code
-                        </Button>
                         <Button
                           variant="outlined"
                           onClick={() => {
@@ -1068,6 +1125,13 @@ export default function ProfilePage() {
                           }}
                         >
                           Cancel
+                        </Button>
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          onClick={handleVerify2FA}
+                        >
+                          Verify Code
                         </Button>
                       </Box>
                     </Box>
@@ -1132,6 +1196,101 @@ export default function ProfilePage() {
           }}
         />
       )}
+
+      {/* Disable Two-Factor Authentication Confirmation Dialog */}
+      <Dialog
+        open={showDisable2FADialog}
+        onClose={() => setShowDisable2FADialog(false)}
+        maxWidth="sm"
+        fullWidth
+        sx={{
+          "& .MuiDialog-container": {
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          },
+        }}
+        PaperProps={{
+          sx: {
+            borderRadius: DIALOG_BORDER_RADIUS,
+            boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+            margin: "auto",
+            maxHeight: "90vh",
+          },
+        }}
+      >
+        <DialogContent sx={{ p: 3, pb: 2 }}>
+          <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
+            {/* Warning Icon */}
+            <Box
+              sx={{
+                flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <SecurityIcon
+                sx={{
+                  fontSize: 48,
+                  color: "rgba(0, 0, 0, 0.87)",
+                }}
+              />
+            </Box>
+            
+            {/* Text Content */}
+            <Box sx={{ flex: 1 }}>
+              <Typography
+                variant="h6"
+                sx={{
+                  fontWeight: 600,
+                  mb: 1,
+                  color: "text.primary",
+                }}
+              >
+                Disable Two-Factor Authentication?
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  mb: 3,
+                }}
+              >
+                Are you sure you want to disable Two-Factor Authentication? This will reduce your account security.
+              </Typography>
+              
+              {/* Action Buttons */}
+              <Box sx={{ display: "flex", gap: 1.5, justifyContent: "flex-end" }}>
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  onClick={() => setShowDisable2FADialog(false)}
+                  sx={{
+                    textTransform: "none",
+                    px: 3,
+                    py: 0.75,
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={confirmDisableMFA}
+                  sx={{
+                    textTransform: "none",
+                    px: 3,
+                    py: 0.75,
+                  }}
+                >
+                  Disable
+                </Button>
+              </Box>
+            </Box>
+          </Box>
+        </DialogContent>
+      </Dialog>
     </MapLayout>
   );
 }

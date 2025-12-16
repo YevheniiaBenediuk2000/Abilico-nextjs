@@ -347,16 +347,18 @@ function NestedPlaceTypeFilter({ items }) {
 
   // group-level helpers
   const isGroupAllChecked = (groupLabel) => {
-    if (!selection || typeof selection !== "object") return false;
-    const subs = selection[groupLabel] || {};
+    if (!selection || typeof selection !== 'object') return false;
+    const subs = selection[groupLabel];
+    if (!subs || typeof subs !== 'object') return false;
     const values = Object.values(subs);
     if (!values.length) return false;
     return values.every(Boolean);
   };
 
   const isGroupSomeChecked = (groupLabel) => {
-    if (!selection || typeof selection !== "object") return false;
-    const subs = selection[groupLabel] || {};
+    if (!selection || typeof selection !== 'object') return false;
+    const subs = selection[groupLabel];
+    if (!subs || typeof subs !== 'object') return false;
     const values = Object.values(subs);
     return values.some(Boolean);
   };
@@ -365,7 +367,8 @@ function NestedPlaceTypeFilter({ items }) {
     setSelection((prev) => {
       if (!prev || typeof prev !== "object") return {};
       const next = { ...prev };
-      const subs = next[groupLabel] || {};
+      const subs = next[groupLabel];
+      if (!subs || typeof subs !== 'object') return next;
       const allChecked = Object.values(subs).every(Boolean);
       const newSubs = {};
       Object.keys(subs).forEach((subLabel) => {
@@ -451,8 +454,10 @@ function NestedPlaceTypeFilter({ items }) {
           const groupChecked = allChecked;
                 
                 // Count selected subcategories
-                const selectedCount = Object.values((selection && selection[groupLabel]) || {})
-                  .filter(Boolean).length;
+                const groupSelection = selection && selection[groupLabel];
+                const selectedCount = (groupSelection && typeof groupSelection === 'object' 
+                  ? Object.values(groupSelection) 
+                  : []).filter(Boolean).length;
                 const totalCount = Object.keys(subs).length;
                 
           return (
@@ -691,8 +696,10 @@ function NestedPlaceTypeFilter({ items }) {
                 const groupChecked = allChecked;
                 
                 // Count selected subcategories
-                const selectedCount = Object.values((selection && selection[groupLabel]) || {})
-                  .filter(Boolean).length;
+                const groupSelection = selection && selection[groupLabel];
+                const selectedCount = (groupSelection && typeof groupSelection === 'object' 
+                  ? Object.values(groupSelection) 
+                  : []).filter(Boolean).length;
                 const totalCount = Object.keys(subs).length;
                 
                 return (
@@ -918,6 +925,7 @@ export default function PlacesListReact({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sortAnchorEl, setSortAnchorEl] = useState(null);
   const [filterResetKey, setFilterResetKey] = useState(0); // Key to force re-render of filter components
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   // ✅ NEW: remember which city Best for me resolved to
   const [currentBestForMeCity, setCurrentBestForMeCity] = useState(null);
   // ✅ NEW: user prefs + scores
@@ -2220,6 +2228,100 @@ export default function PlacesListReact({
                 }
               />
             </Box>
+          </Box>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Confirmation Dialog */}
+      <Dialog
+        open={resetConfirmOpen}
+        onClose={() => setResetConfirmOpen(false)}
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            minWidth: 400,
+          },
+        }}
+      >
+        <DialogContent
+          sx={{
+            pt: 3,
+            pb: 2,
+            px: 3,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <Box
+            sx={{
+              width: 64,
+              height: 64,
+              borderRadius: "50%",
+              bgcolor: "warning.light",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          />
+          <Box sx={{ textAlign: "center" }}>
+            <Typography
+              variant="h6"
+              sx={{
+                fontWeight: 600,
+                color: "text.primary",
+                mb: 1,
+              }}
+            >
+              Reset Filters?
+            </Typography>
+            <Typography
+              variant="body2"
+              sx={{
+                color: "text.secondary",
+              }}
+            >
+              Are you sure you want to reset all filters? This will clear your accessibility and place type selections.
+            </Typography>
+          </Box>
+          <Box
+            sx={{
+              display: "flex",
+              gap: 1.5,
+              width: "100%",
+              mt: 1,
+            }}
+          >
+            <Button
+              variant="outlined"
+              fullWidth
+              onClick={() => setResetConfirmOpen(false)}
+              sx={{
+                borderRadius: 2,
+                textTransform: "none",
+                py: 1,
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              fullWidth
+              color="primary"
+              onClick={() => {
+                clearAllFilters();
+                setResetConfirmOpen(false);
+              }}
+              sx={{
+                borderRadius: 2,
+                textTransform: "none",
+                py: 1,
+              }}
+            >
+              Reset
+            </Button>
           </Box>
         </DialogContent>
       </Dialog>

@@ -61,92 +61,6 @@ function DetailsTabPanel({ value, active, children }) {
   );
 }
 
-function mapVariantToSeverity(variant) {
-  // map old bootstrap variants to MUI Alert severities
-  switch (variant) {
-    case "danger":
-    case "error":
-      return "error";
-    case "warning":
-      return "warning";
-    case "success":
-      return "success";
-    case "info":
-    case "primary":
-    case "secondary":
-    case "light":
-    case "dark":
-    default:
-      return "info";
-  }
-}
-
-/**
- * React host for global toasts sent from utils/toast.mjs
- */
-function ToastHost() {
-  const [queue, setQueue] = useState([]);
-  const [current, setCurrent] = useState(null);
-  const [open, setOpen] = useState(false);
-
-  // Listen for "app-toast" events from showToast()
-  useEffect(() => {
-    const handler = (ev) => {
-      const detail = ev.detail || {};
-      setQueue((prev) => [...prev, detail]);
-    };
-
-    window.addEventListener("app-toast", handler);
-    return () => window.removeEventListener("app-toast", handler);
-  }, []);
-
-  // Dequeue next toast when nothing is open
-  useEffect(() => {
-    if (!open && !current && queue.length) {
-      const [next, ...rest] = queue;
-      setCurrent(next);
-      setQueue(rest);
-      setOpen(true);
-    }
-  }, [queue, open, current]);
-
-  const handleClose = (_evt, reason) => {
-    if (reason === "clickaway") return;
-    setOpen(false);
-  };
-
-  const handleExited = () => {
-    setCurrent(null);
-  };
-
-  if (!current) return null;
-
-  const severity = mapVariantToSeverity(current.variant);
-  const autoHideDuration =
-    current.autohide === false ? null : current.delay ?? 7000;
-
-  return (
-    <Snackbar
-      open={open}
-      onClose={handleClose}
-      autoHideDuration={autoHideDuration}
-      anchorOrigin={{ vertical: "top", horizontal: "right" }}
-      TransitionProps={{ onExited: handleExited }}
-    >
-      <Alert
-        onClose={handleClose}
-        severity={severity}
-        variant="filled"
-        sx={{ width: "100%" }}
-      >
-        {current.title && (
-          <strong style={{ marginRight: 8 }}>{current.title}</strong>
-        )}
-        {current.message}
-      </Alert>
-    </Snackbar>
-  );
-}
 
 export default function MapContainer({
   user: initialUser,
@@ -305,6 +219,19 @@ export default function MapContainer({
         await initMap(user); // <— pass user to initMap
         // Store updateUser function globally so we can call it when user changes
         window.updateMapUser = updateUser;
+        
+        // ✅ Fix gray map issue: invalidate size after map initialization
+        // This ensures tiles load properly after navigation/authentication
+        if (window.map && typeof window.map.invalidateSize === "function") {
+          // Use setTimeout to ensure DOM is fully rendered
+          setTimeout(() => {
+            try {
+              window.map.invalidateSize();
+            } catch (error) {
+              console.warn("Failed to invalidate map size after init:", error);
+            }
+          }, 100);
+        }
 
         // Check if there's a place to select from saved places
         if (
@@ -483,6 +410,39 @@ export default function MapContainer({
       window.updateMapUser(user);
     }
   }, [user]);
+
+  // ✅ Fix gray map issue: invalidate size when component mounts or after navigation
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // Helper function to safely call invalidateSize
+    const safeInvalidateSize = () => {
+      if (window.map && typeof window.map.invalidateSize === "function") {
+        try {
+          window.map.invalidateSize();
+        } catch (error) {
+          console.warn("Failed to invalidate map size:", error);
+        }
+      }
+    };
+
+    // Invalidate size after a short delay to ensure DOM is ready
+    const timeoutId = setTimeout(() => {
+      safeInvalidateSize();
+    }, 200);
+
+    // Also handle window resize events
+    const handleResize = () => {
+      safeInvalidateSize();
+    };
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []); // Run once on mount
 
   // Allow non-React modules (fetchPhotos.mjs, etc.) to switch tabs
   useEffect(() => {
@@ -1335,9 +1295,6 @@ export default function MapContainer({
           ></div>
         </div>
       </div>
-
-      {/* === Toast Stack === */}
-      <ToastHost />
 
       {/* === Obstacle Management Overlay (for non-logged-in users) === */}
       {!user && (
