@@ -40,6 +40,7 @@ import { resolvePlacePhotos } from "../modules/fetchPhotos.mjs";
 import { supabase } from "../api/supabaseClient";
 import { ensurePlaceExists, reviewStorage } from "../api/reviewStorage";
 import { computePlaceScores } from "../api/placeRatings";
+import { formatAddressFromTags } from "../utils/formatAddress.mjs";
 
 /** Local copy of the accessibility tier logic to avoid importing Leaflet code */
 function getAccessibilityTier(tags = {}) {
@@ -144,12 +145,7 @@ function derivePlaceInfo(feature, center) {
     tags.natural ||
     "";
 
-  const addrParts = [
-    tags["addr:street"],
-    tags["addr:housenumber"],
-    tags["addr:city"],
-  ].filter(Boolean);
-  const address = addrParts.join(" ");
+  const address = formatAddressFromTags(tags);
 
   const accTier = getAccessibilityTier(tags);
   const accColor = BADGE_COLOR_BY_TIER[accTier] || BADGE_COLOR_BY_TIER.unknown;

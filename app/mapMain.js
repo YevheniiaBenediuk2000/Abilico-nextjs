@@ -48,6 +48,7 @@ import { ACCESSIBILITY_CATEGORY_LABELS } from "./constants/accessibilityCategori
 import { makePoiIcon } from "./icons/makePoiIcon.mjs";
 import { supabase } from "./api/supabaseClient.js";
 import { ensurePlaceExists, reviewStorage } from "./api/reviewStorage.js";
+import { formatAddressFromTags, formatAreaFromTags } from "./utils/formatAddress.mjs";
 import {
   cleanUrl,
   hostLabel,
@@ -1576,6 +1577,34 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     })();
   }
 
+  // --- ADDRESS: Render formatted address (single line) ---
+  const formattedAddress = formatAddressFromTags(nTags);
+  if (formattedAddress) {
+    const addressItem = document.createElement("div");
+    addressItem.className =
+      "list-group-item d-flex justify-content-between align-items-start";
+    addressItem.innerHTML = `
+      <div class="me-2">
+        <h6 class="mb-1 fw-semibold">Address</h6>
+        <p class="small mb-1">${formattedAddress}</p>
+      </div>`;
+    list.appendChild(addressItem);
+  }
+
+  // --- AREA: Optionally render area information (district, county) ---
+  const formattedArea = formatAreaFromTags(nTags);
+  if (formattedArea) {
+    const areaItem = document.createElement("div");
+    areaItem.className =
+      "list-group-item d-flex justify-content-between align-items-start";
+    areaItem.innerHTML = `
+      <div class="me-2">
+        <h6 class="mb-1 fw-semibold" style="font-size: 0.875rem; color: #666;">Area</h6>
+        <p class="small mb-1" style="color: #666;">${formattedArea}</p>
+      </div>`;
+    list.appendChild(areaItem);
+  }
+
   // --- Render basic tags (address, amenity, etc.) ---
   Object.entries(nTags).forEach(([key, value]) => {
     const isWebsiteVariant =
@@ -1587,9 +1616,17 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
     const lk = key.toLowerCase();
     
-    // Exclude 'city' if 'addr:city' exists (to avoid duplication)
-    if (lk === "city" && (nTags["addr:city"] || nTags["addr_city"])) {
-      return; // Skip city tag if addr:city exists
+    // Skip individual address fields - we render them as a single formatted address above
+    const isAddressField = /^addr:(street|housenumber|city|postcode|country_code|town|suburb|country)$/i.test(key) ||
+                           /^country_code$/i.test(key) ||
+                           (lk === "city" && (nTags["addr:city"] || nTags["addr_city"]));
+    if (isAddressField) {
+      return; // Skip individual address fields - already rendered as formatted address
+    }
+    
+    // Also skip district and county if we're showing area separately
+    if (lk === "district" || lk === "county") {
+      return; // Skip district/county - already rendered as area if available
     }
 
     const containsAltName = /alt\s*name/i.test(key);
