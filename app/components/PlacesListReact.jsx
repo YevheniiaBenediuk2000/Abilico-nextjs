@@ -324,13 +324,13 @@ function NestedPlaceTypeFilter({ items }) {
 
   // Persist & notify mapMain
   useEffect(() => {
-    if (!selection || typeof selection !== 'object') return;
+    if (!selection || typeof selection !== "object") return;
     saveTypeFilter(selection);
 
     // Build payload for non-React consumers
     const active = [];
     Object.entries(selection).forEach(([groupLabel, subs]) => {
-      if (!subs || typeof subs !== 'object') return;
+      if (!subs || typeof subs !== "object") return;
       Object.entries(subs).forEach(([subLabel, isOn]) => {
         if (!isOn) return;
         active.push({ groupLabel, subLabel });
@@ -365,7 +365,7 @@ function NestedPlaceTypeFilter({ items }) {
 
   const toggleGroup = (groupLabel) => {
     setSelection((prev) => {
-      if (!prev || typeof prev !== 'object') return {};
+      if (!prev || typeof prev !== "object") return {};
       const next = { ...prev };
       const subs = next[groupLabel];
       if (!subs || typeof subs !== 'object') return next;
@@ -381,7 +381,7 @@ function NestedPlaceTypeFilter({ items }) {
 
   const toggleSub = (groupLabel, subLabel) => {
     setSelection((prev) => {
-      if (!prev || typeof prev !== 'object') return {};
+      if (!prev || typeof prev !== "object") return {};
       return {
         ...prev,
         [groupLabel]: {
@@ -913,7 +913,13 @@ function NestedPlaceTypeFilter({ items }) {
   );
 }
 
-export default function PlacesListReact({ data, onSelect, hideControls = false, onUnsave = null, isOpen = true }) {
+export default function PlacesListReact({
+  data,
+  onSelect,
+  hideControls = false,
+  onUnsave = null,
+  isOpen = true,
+}) {
   const { features = [], center, zoom } = data || {};
   const [sortBy, setSortBy] = useState("distance"); // "distance" | "name" | "accessibility" | "overall" | "bestForMe"
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -1041,7 +1047,13 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
       sorted.sort((a, b) => a.name.localeCompare(b.name));
     } else if (sortBy === "accessibility") {
       // Sort by accessibility tier: designated > yes > limited > no > unknown
-      const tierOrder = { designated: 0, yes: 1, limited: 2, no: 3, unknown: 4 };
+      const tierOrder = {
+        designated: 0,
+        yes: 1,
+        limited: 2,
+        no: 3,
+        unknown: 4,
+      };
       sorted.sort((a, b) => {
         const orderA = tierOrder[a.accTier] ?? 4;
         const orderB = tierOrder[b.accTier] ?? 4;
@@ -1113,24 +1125,32 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
 
       if (!osmKeys.length) return;
 
-      // 2. Fetch from Supabase
-      // Note: We match on 'osm_id' column which stores "type/id"
-      const { data, error } = await supabase
-        .from("places")
-        .select("osm_id, accessibility_keywords")
-        .in("osm_id", osmKeys);
+      // 2. Fetch from Supabase in chunks to avoid URL length limits
+      const CHUNK_SIZE = 1000;
+      const allData = [];
 
-      if (error) {
-        console.error("❌ Failed to fetch keywords for list:", error);
-        return;
+      for (let i = 0; i < osmKeys.length; i += CHUNK_SIZE) {
+        if (cancelled) return;
+        const chunk = osmKeys.slice(i, i + CHUNK_SIZE);
+
+        const { data, error } = await supabase
+          .from("places")
+          .select("osm_id, accessibility_keywords")
+          .in("osm_id", chunk);
+
+        if (error) {
+          console.error("❌ Failed to fetch keywords for chunk:", error);
+        } else if (data) {
+          allData.push(...data);
+        }
       }
 
       if (cancelled) return;
 
       // 3. Update state
-      if (data && data.length > 0) {
+      if (allData.length > 0) {
         const newMap = {};
-        data.forEach((row) => {
+        allData.forEach((row) => {
           // ensure row.accessibility_keywords is a valid array
           if (row.osm_id && Array.isArray(row.accessibility_keywords)) {
             newMap[row.osm_id] = row.accessibility_keywords;
@@ -1180,7 +1200,10 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
             // Handle both string URLs and objects with url/src properties
             if (typeof photoUrl === "string") {
               first = { src: photoUrl, thumb: photoUrl };
-            } else if (photoUrl && (photoUrl.url || photoUrl.src || photoUrl.thumb)) {
+            } else if (
+              photoUrl &&
+              (photoUrl.url || photoUrl.src || photoUrl.thumb)
+            ) {
               first = {
                 src: photoUrl.url || photoUrl.src || photoUrl.thumb,
                 thumb: photoUrl.thumb || photoUrl.url || photoUrl.src,
@@ -1559,12 +1582,12 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
                     reviewsCount: reviewsForPlace.length,
                   });
                 }
-                
+
                 // after the loop over byPlace.values()
                 if (!cancelled) {
                   setBestForMeCityPlaces(cityPlacesWithScores);
                 }
-                
+
                 console.log("🏙️ BestForMe – ALL multi-level places in city", {
                   detectedCity,
                   viewportCenter: center || null,
@@ -1705,7 +1728,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
   useEffect(() => {
     // Don't listen to filter changes when hideControls is true
     if (hideControls) return;
-    
+
     const handler = (ev) => {
       // we don't actually use the compact "active" list here, we just reload from LS
       const fromLs = loadInitialTypeFilter();
@@ -1931,11 +1954,12 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
                     return (
                       <Box key={uniqueKey}>
                         <Divider component="li" />
-                        <ListItem 
-                          disablePadding 
+                        <ListItem
+                          disablePadding
                           sx={{ alignItems: "stretch" }}
                           secondaryAction={
-                            onUnsave && item.feature?.properties?.savedPlaceId ? (
+                            onUnsave &&
+                            item.feature?.properties?.savedPlaceId ? (
                               <Tooltip title="Remove from saved">
                                 <IconButton
                                   edge="end"
@@ -1944,9 +1968,9 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
                                     e.stopPropagation();
                                     onUnsave(item.feature);
                                   }}
-                                  sx={{ 
+                                  sx={{
                                     color: "error.main",
-                                    mr: 1
+                                    mr: 1,
                                   }}
                                 >
                                   <FavoriteIcon fontSize="small" />
