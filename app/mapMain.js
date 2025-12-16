@@ -1521,24 +1521,77 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   const nTags = normalizeTagsCase(tags);
 
-  // WEBSITE (single merged block)
-  const websiteLinks = splitMulti(nTags.website || "")
+  // CONTACT INFO - Extract website, phone, and email from tags
+  const websiteLinks = splitMulti(nTags.website || nTags["contact:website"] || "")
     .map(cleanUrl)
     .filter(Boolean);
-  if (websiteLinks.length) {
-    const item = document.createElement("div");
-    item.className =
-      "list-group-item d-flex justify-content-between align-items-start";
-    const links = websiteLinks
-      .map(
-        (u) =>
-          `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${linkLabel(
-            u
-          )}</a>`
-      )
-      .join(" · ");
-    item.innerHTML = `<div class="me-2"><h6 class="mb-1 fw-semibold">Website</h6><p class="small mb-1">${links}</p></div>`;
-    list.appendChild(item);
+  
+  // Extract phone numbers (phone, contact:phone, contact:mobile, etc.)
+  const phoneNumbers = [];
+  const phoneKeys = ["phone", "contact:phone", "contact:mobile", "mobile", "contact:fax"];
+  phoneKeys.forEach((key) => {
+    const value = nTags[key];
+    if (value) {
+      const phones = splitMulti(value).filter(Boolean);
+      phoneNumbers.push(...phones);
+    }
+  });
+
+  // Extract email addresses (email, contact:email)
+  const emailAddresses = [];
+  const emailKeys = ["email", "contact:email"];
+  emailKeys.forEach((key) => {
+    const value = nTags[key];
+    if (value) {
+      const emails = splitMulti(value).filter(Boolean);
+      emailAddresses.push(...emails);
+    }
+  });
+
+  // Render ContactInfo component if we have any contact info
+  if (websiteLinks.length > 0 || phoneNumbers.length > 0 || emailAddresses.length > 0) {
+    const contactContainer = document.createElement("div");
+    contactContainer.className = "list-group-item";
+    contactContainer.style.padding = "0";
+    list.appendChild(contactContainer);
+
+    // Dynamically import and render React component
+    (async () => {
+      try {
+        const [ReactMod, ReactDOMMod, ContactInfoMod] = await Promise.all([
+          import("react"),
+          import("react-dom/client"),
+          import("./components/ContactInfo.jsx"),
+        ]);
+
+        const React = ReactMod.default || ReactMod;
+        const { createRoot } = ReactDOMMod;
+        const ContactInfo = ContactInfoMod.default || ContactInfoMod;
+
+        const root = createRoot(contactContainer);
+        root.render(
+          React.createElement(ContactInfo, {
+            website: websiteLinks.length > 0 ? websiteLinks : null,
+            phone: phoneNumbers.length > 0 ? phoneNumbers : null,
+            email: emailAddresses.length > 0 ? emailAddresses : null,
+          })
+        );
+      } catch (err) {
+        console.error("Failed to render ContactInfo component:", err);
+        // Fallback to plain text
+        const fallbackHtml = [];
+        if (websiteLinks.length > 0) {
+          fallbackHtml.push(`<div class="me-2"><h6 class="mb-1 fw-semibold">Website</h6><p class="small mb-1">${websiteLinks.map(u => `<a href="${u}" target="_blank" rel="noopener nofollow">${linkLabel(u)}</a>`).join(" · ")}</p></div>`);
+        }
+        if (phoneNumbers.length > 0) {
+          fallbackHtml.push(`<div class="me-2"><h6 class="mb-1 fw-semibold">Phone</h6><p class="small mb-1">${phoneNumbers.map(p => `<a href="tel:${p.replace(/[\s\-\(\)]/g, '')}">${p}</a>`).join(" · ")}</p></div>`);
+        }
+        if (emailAddresses.length > 0) {
+          fallbackHtml.push(`<div class="me-2"><h6 class="mb-1 fw-semibold">Email</h6><p class="small mb-1">${emailAddresses.map(e => `<a href="mailto:${e}">${e}</a>`).join(" · ")}</p></div>`);
+        }
+        contactContainer.innerHTML = fallbackHtml.join("");
+      }
+    })();
   }
 
   // OPENING HOURS - Render with React component
@@ -1613,6 +1666,13 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
     const isOpeningHours = /^opening_hours/i.test(key);
     if (isOpeningHours) return; // Skip opening_hours - already rendered above
+
+    // Skip phone and email - already rendered in ContactInfo component
+    const isPhoneVariant = /^(phone|contact:phone|contact:mobile|mobile|contact:fax)$/i.test(key);
+    if (isPhoneVariant) return;
+    
+    const isEmailVariant = /^(email|contact:email)$/i.test(key);
+    if (isEmailVariant) return;
 
     const lk = key.toLowerCase();
     
