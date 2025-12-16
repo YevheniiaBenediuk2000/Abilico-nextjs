@@ -1618,15 +1618,16 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     
     // Skip individual address fields - we render them as a single formatted address above
     const isAddressField = /^addr:(street|housenumber|city|postcode|country_code|town|suburb|country)$/i.test(key) ||
-                           /^country_code$/i.test(key) ||
+                           /^(postcode|housenumber|street|countrycode|city)$/i.test(lk) ||
                            (lk === "city" && (nTags["addr:city"] || nTags["addr_city"]));
     if (isAddressField) {
       return; // Skip individual address fields - already rendered as formatted address
     }
     
-    // Also skip district and county if we're showing area separately
-    if (lk === "district" || lk === "county") {
-      return; // Skip district/county - already rendered as area if available
+    // Skip area-related fields - already rendered as formatted area if available
+    const isAreaField = /^(state|county|district|locality)$/i.test(lk);
+    if (isAreaField) {
+      return; // Skip area fields - already rendered as area if available
     }
 
     const containsAltName = /alt\s*name/i.test(key);
