@@ -1540,11 +1540,57 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     list.appendChild(item);
   }
 
+  // OPENING HOURS - Render with React component
+  const openingHours = nTags.opening_hours || nTags["opening_hours"] || null;
+  if (openingHours) {
+    const hoursContainer = document.createElement("div");
+    hoursContainer.className = "list-group-item";
+    hoursContainer.style.padding = "16px";
+    list.appendChild(hoursContainer);
+
+    // Dynamically import and render React component
+    (async () => {
+      try {
+        const [ReactMod, ReactDOMMod, OpeningHoursMod] = await Promise.all([
+          import("react"),
+          import("react-dom/client"),
+          import("./components/OpeningHours.jsx"),
+        ]);
+
+        const React = ReactMod.default || ReactMod;
+        const { createRoot } = ReactDOMMod;
+        const OpeningHours = OpeningHoursMod.default || OpeningHoursMod;
+
+        const root = createRoot(hoursContainer);
+        root.render(
+          React.createElement(OpeningHours, {
+            openingHours: openingHours,
+            holidayHours: nTags["opening_hours:holiday"] || null,
+          })
+        );
+      } catch (err) {
+        console.error("Failed to render OpeningHours component:", err);
+        // Fallback to plain text
+        hoursContainer.innerHTML = `<div class="me-2"><h6 class="mb-1 fw-semibold">Opening Hours</h6><p class="small mb-1">${openingHours}</p></div>`;
+      }
+    })();
+  }
+
   // --- Render basic tags (address, amenity, etc.) ---
   Object.entries(nTags).forEach(([key, value]) => {
     const isWebsiteVariant =
       /^(website|url)(?::\d+)?$/i.test(key) || /^contact:website$/i.test(key);
     if (isWebsiteVariant) return;
+
+    const isOpeningHours = /^opening_hours/i.test(key);
+    if (isOpeningHours) return; // Skip opening_hours - already rendered above
+
+    const lk = key.toLowerCase();
+    
+    // Exclude 'city' if 'addr:city' exists (to avoid duplication)
+    if (lk === "city" && (nTags["addr:city"] || nTags["addr_city"])) {
+      return; // Skip city tag if addr:city exists
+    }
 
     const containsAltName = /alt\s*name/i.test(key);
     const containsLocalizedVariants =
@@ -1560,8 +1606,6 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       isWikiDataKey;
 
     if (isExcluded) return;
-
-    const lk = key.toLowerCase();
     const item = document.createElement("div");
     item.className =
       "list-group-item d-flex justify-content-between align-items-start";
