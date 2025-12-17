@@ -2357,6 +2357,25 @@ Object.entries(nTags).forEach(([key, value]) => {
     }
   }
 
+  // Handle "stars" field specially with MUI yellow star icon
+  if (lk === "stars") {
+    const starsValue = parseFloat(String(value));
+    if (!isNaN(starsValue) && starsValue > 0) {
+      item.innerHTML = `
+        <div class="me-2" style="flex: 1; min-width: 0;">
+          <h6 class="mb-1 fw-semibold">Stars</h6>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="color: #ffc107; font-size: 1.25rem; line-height: 1;">★</span>
+            <span style="font-size: 0.875rem; font-weight: 500; color: rgba(0, 0, 0, 0.87);">
+              ${starsValue.toFixed(1)} ${starsValue === 1 ? "Star" : "Stars"}
+            </span>
+          </div>
+        </div>`;
+      list.appendChild(item);
+      return;
+    }
+  }
+
   // Default label/value
   let displayKey;
   if (key === "display_name") {
