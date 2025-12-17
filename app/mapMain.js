@@ -1807,6 +1807,10 @@ Object.entries(nTags).forEach(([key, value]) => {
   }
 
   const displayValue = String(value)
+    .split(";")
+    .map((part) => part.trim())
+    .filter((part) => part)
+    .join(" • ")
     .replace(/[_:]/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 

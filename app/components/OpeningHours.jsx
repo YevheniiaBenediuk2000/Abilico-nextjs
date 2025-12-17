@@ -5,6 +5,7 @@ import Typography from "@mui/material/Typography";
 import Divider from "@mui/material/Divider";
 import IconButton from "@mui/material/IconButton";
 import EditIcon from "@mui/icons-material/Edit";
+import AccessTimeIcon from "@mui/icons-material/AccessTime";
 
 /**
  * Parse OSM opening_hours format
@@ -136,9 +137,12 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
     // If parsing failed, show raw value
     return (
       <Box sx={{ mb: 3 }}>
-        <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }}>
-          Hours
-        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+          <AccessTimeIcon sx={{ color: "primary.main", fontSize: "1.2rem" }} />
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            Hours
+          </Typography>
+        </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
           Open with main hours
         </Typography>
@@ -160,9 +164,12 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
 
   return (
     <Box sx={{ mb: 3 }}>
-      <Typography variant="h6" sx={{ mb: 0.5, fontWeight: 600, fontSize: "1.1rem" }}>
-        Hours
-      </Typography>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+        <AccessTimeIcon sx={{ color: "primary.main", fontSize: "1.2rem" }} />
+        <Typography variant="h6" sx={{ fontWeight: 600, fontSize: "1.1rem" }}>
+          Hours
+        </Typography>
+      </Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: "0.875rem" }}>
         Open with main hours
       </Typography>
