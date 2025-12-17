@@ -3277,12 +3277,42 @@ Object.entries(nTags).forEach(([key, value]) => {
     container.appendChild(layoutContainer);
     item.appendChild(container);
   } else {
-    // Default styling for other items
-  item.innerHTML = `
-    <div class="me-2">
-      <h6 class="mb-1 fw-semibold">${displayKey}</h6>
-      <p class="small mb-1">${displayValue}</p>
-    </div>`;
+    // Default styling for other items (like Cuisine, Brand, etc.)
+    item.className = "list-group-item";
+    item.style.padding = "0";
+    
+    const container = document.createElement("div");
+    container.style.padding = SECTION_PADDING;
+    container.style.borderTop = "1px solid";
+    container.style.borderColor = "rgba(0, 0, 0, 0.12)";
+    container.style.minHeight = "60px"; // Minimum height for consistent spacing
+    container.style.display = "flex";
+    container.style.flexDirection = "column";
+    container.style.justifyContent = "center";
+    
+    const contentWrapper = document.createElement("div");
+    
+    // Title
+    const title = document.createElement("h6");
+    title.style.fontSize = "1.125rem";
+    title.style.fontWeight = "600";
+    title.style.color = "rgba(0, 0, 0, 0.87)";
+    title.style.letterSpacing = "-0.01em";
+    title.style.margin = "0 0 8px 0"; // Increased margin-bottom for better spacing
+    title.textContent = displayKey;
+    contentWrapper.appendChild(title);
+    
+    // Value
+    const valueText = document.createElement("p");
+    valueText.style.margin = "0";
+    valueText.style.fontSize = "0.875rem";
+    valueText.style.color = "rgba(0, 0, 0, 0.87)";
+    valueText.style.lineHeight = "1.5";
+    valueText.textContent = displayValue;
+    contentWrapper.appendChild(valueText);
+    
+    container.appendChild(contentWrapper);
+    item.appendChild(container);
   }
   
   list.appendChild(item);
