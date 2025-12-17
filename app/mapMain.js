@@ -945,6 +945,36 @@ if (typeof window !== "undefined") {
   window.restoreDestinationSearchBarHome = restoreDestinationSearchBarHome;
 }
 
+// Helper function to format time ago
+function getTimeAgo(date) {
+  const now = new Date();
+  const diffInSeconds = Math.floor((now - date) / 1000);
+  
+  if (diffInSeconds < 60) return "Just now";
+  if (diffInSeconds < 3600) {
+    const minutes = Math.floor(diffInSeconds / 60);
+    return `${minutes} ${minutes === 1 ? "minute" : "minutes"} ago`;
+  }
+  if (diffInSeconds < 86400) {
+    const hours = Math.floor(diffInSeconds / 3600);
+    return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  }
+  if (diffInSeconds < 604800) {
+    const days = Math.floor(diffInSeconds / 86400);
+    return `${days} ${days === 1 ? "day" : "days"} ago`;
+  }
+  if (diffInSeconds < 2592000) {
+    const weeks = Math.floor(diffInSeconds / 604800);
+    return `${weeks} ${weeks === 1 ? "week" : "weeks"} ago`;
+  }
+  if (diffInSeconds < 31536000) {
+    const months = Math.floor(diffInSeconds / 2592000);
+    return `${months} ${months === 1 ? "month" : "months"} ago`;
+  }
+  const years = Math.floor(diffInSeconds / 31536000);
+  return `${years} ${years === 1 ? "year" : "years"} ago`;
+}
+
 async function renderReviewsList() {
   const listEl = elements.reviewsList;
   if (!listEl) return;
@@ -952,10 +982,18 @@ async function renderReviewsList() {
   listEl.innerHTML = "";
 
   if (!globals.reviews || globals.reviews.length === 0) {
-    const emptyMsg = document.createElement("li");
-    emptyMsg.className = "list-group-item text-muted";
-    emptyMsg.textContent = "No reviews yet.";
-    listEl.appendChild(emptyMsg);
+    const emptyContainer = document.createElement("div");
+    emptyContainer.style.padding = "24px";
+    emptyContainer.style.textAlign = "center";
+    
+    const emptyMsg = document.createElement("div");
+    emptyMsg.style.color = "rgba(0, 0, 0, 0.6)";
+    emptyMsg.style.fontSize = "0.875rem";
+    emptyMsg.style.fontStyle = "italic";
+    emptyMsg.textContent = "No reviews yet. Be the first to share your experience!";
+    
+    emptyContainer.appendChild(emptyMsg);
+    listEl.appendChild(emptyContainer);
     return;
   }
 
@@ -963,27 +1001,45 @@ async function renderReviewsList() {
   const userPreferences = await getUserAccessibilityPreferences();
   const userPrefsSet = new Set(userPreferences || []);
 
-  globals.reviews.forEach((review) => {
+  globals.reviews.forEach((review, index) => {
     const li = document.createElement("li");
-    li.className = "list-group-item text-wrap";
+    li.className = "list-group-item";
+    li.style.padding = "0";
+    li.style.marginBottom = index < globals.reviews.length - 1 ? "16px" : "0";
     li.dataset.reviewId = review.id;
 
     const isEditing = editingReviewId === review.id;
 
     if (isEditing) {
-      // === Inline edit mode ===
+      // === Inline edit mode === - improved styling
+      const cardContainer = document.createElement("div");
+      cardContainer.style.border = "1px solid";
+      cardContainer.style.borderColor = "rgba(10, 63, 137, 0.3)";
+      cardContainer.style.borderRadius = "16px";
+      cardContainer.style.padding = "20px";
+      cardContainer.style.backgroundColor = "#ffffff";
+      cardContainer.style.boxShadow = "0 2px 8px rgba(10, 63, 137, 0.15)";
+      
       const form = document.createElement("form");
-      form.className = "d-grid gap-2";
+      form.style.display = "flex";
+      form.style.flexDirection = "column";
+      form.style.gap = "16px";
 
-      // Show rating in edit mode (read-only display)
+      // Show rating in edit mode (read-only display) - improved styling
       const ratingValue = review.rating || review.overall_rating;
       if (ratingValue && ratingValue >= 1 && ratingValue <= 5) {
         const ratingContainer = document.createElement("div");
-        ratingContainer.className = "mb-2 d-flex align-items-center gap-1";
+        ratingContainer.style.display = "flex";
+        ratingContainer.style.alignItems = "center";
+        ratingContainer.style.gap = "8px";
+        ratingContainer.style.marginBottom = "8px";
 
         const starsContainer = document.createElement("span");
-        starsContainer.className = "text-warning";
-        starsContainer.style.fontSize = "1.1rem";
+        starsContainer.style.color = "#ff9800";
+        starsContainer.style.fontSize = "1.25rem";
+        starsContainer.style.display = "flex";
+        starsContainer.style.alignItems = "center";
+        starsContainer.style.gap = "2px";
         starsContainer.setAttribute(
           "aria-label",
           `${ratingValue} out of 5 stars`
@@ -1017,9 +1073,11 @@ async function renderReviewsList() {
         }
 
         const ratingText = document.createElement("span");
-        ratingText.className = "text-muted ms-1";
-        ratingText.style.fontSize = "0.9rem";
-        ratingText.textContent = ratingValue;
+        ratingText.style.fontSize = "0.875rem";
+        ratingText.style.fontWeight = "600";
+        ratingText.style.color = "rgba(0, 0, 0, 0.87)";
+        ratingText.style.marginLeft = "4px";
+        ratingText.textContent = ratingValue.toFixed(1);
 
         ratingContainer.appendChild(starsContainer);
         ratingContainer.appendChild(ratingText);
@@ -1027,19 +1085,37 @@ async function renderReviewsList() {
       }
 
       const textarea = document.createElement("textarea");
-      textarea.className = "form-control";
       textarea.value = review.comment || "";
       textarea.required = false; // Comment is optional
-      textarea.rows = 3;
+      textarea.rows = 4;
+      textarea.style.width = "100%";
+      textarea.style.padding = "12px";
+      textarea.style.border = "1px solid rgba(0, 0, 0, 0.23)";
+      textarea.style.borderRadius = "4px";
+      textarea.style.fontSize = "0.9375rem";
+      textarea.style.fontFamily = "inherit";
+      textarea.style.resize = "vertical";
+      textarea.style.transition = "border-color 0.2s";
       textarea.setAttribute("aria-label", "Edit your review comment");
+      textarea.addEventListener("focus", () => {
+        textarea.style.borderColor = "rgba(10, 63, 137, 0.5)";
+        textarea.style.outline = "none";
+      });
+      textarea.addEventListener("blur", () => {
+        textarea.style.borderColor = "rgba(0, 0, 0, 0.23)";
+      });
       form.appendChild(textarea);
 
       const footerRow = document.createElement("div");
-      footerRow.className =
-        "d-flex justify-content-between align-items-center mt-1 gap-2";
+      footerRow.style.display = "flex";
+      footerRow.style.justifyContent = "space-between";
+      footerRow.style.alignItems = "center";
+      footerRow.style.marginTop = "8px";
+      footerRow.style.gap = "12px";
 
-      const meta = document.createElement("small");
-      meta.className = "text-muted";
+      const meta = document.createElement("div");
+      meta.style.fontSize = "0.75rem";
+      meta.style.color = "rgba(0, 0, 0, 0.6)";
 
       if (review.created_at) {
         const dt = new Date(review.created_at);
@@ -1059,12 +1135,27 @@ async function renderReviewsList() {
       }
 
       const actions = document.createElement("div");
-      actions.className = "btn-group btn-group-sm";
+      actions.style.display = "flex";
+      actions.style.gap = "8px";
 
       const cancelBtn = document.createElement("button");
       cancelBtn.type = "button";
-      cancelBtn.className = "btn btn-outline-secondary btn-sm";
+      cancelBtn.style.background = "transparent";
+      cancelBtn.style.border = "1px solid rgba(0, 0, 0, 0.23)";
+      cancelBtn.style.borderRadius = "4px";
+      cancelBtn.style.padding = "6px 16px";
+      cancelBtn.style.fontSize = "0.8125rem";
+      cancelBtn.style.fontWeight = "500";
+      cancelBtn.style.color = "rgba(0, 0, 0, 0.87)";
+      cancelBtn.style.cursor = "pointer";
+      cancelBtn.style.transition = "all 0.2s";
       cancelBtn.textContent = "Cancel";
+      cancelBtn.addEventListener("mouseenter", () => {
+        cancelBtn.style.backgroundColor = "rgba(0, 0, 0, 0.04)";
+      });
+      cancelBtn.addEventListener("mouseleave", () => {
+        cancelBtn.style.backgroundColor = "transparent";
+      });
       cancelBtn.addEventListener("click", () => {
         editingReviewId = null;
         renderReviewsList();
@@ -1074,14 +1165,29 @@ async function renderReviewsList() {
 
       const saveBtn = document.createElement("button");
       saveBtn.type = "submit";
-      saveBtn.className = "btn btn-primary btn-sm";
+      saveBtn.style.background = "rgba(10, 63, 137, 0.87)";
+      saveBtn.style.border = "none";
+      saveBtn.style.borderRadius = "4px";
+      saveBtn.style.padding = "6px 16px";
+      saveBtn.style.fontSize = "0.8125rem";
+      saveBtn.style.fontWeight = "500";
+      saveBtn.style.color = "#ffffff";
+      saveBtn.style.cursor = "pointer";
+      saveBtn.style.transition = "all 0.2s";
       saveBtn.textContent = "Save";
+      saveBtn.addEventListener("mouseenter", () => {
+        saveBtn.style.backgroundColor = "rgba(10, 63, 137, 1)";
+      });
+      saveBtn.addEventListener("mouseleave", () => {
+        saveBtn.style.backgroundColor = "rgba(10, 63, 137, 0.87)";
+      });
 
       actions.appendChild(cancelBtn);
       actions.appendChild(saveBtn);
       footerRow.appendChild(meta);
       footerRow.appendChild(actions);
       form.appendChild(footerRow);
+      cardContainer.appendChild(form);
 
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -1141,14 +1247,40 @@ async function renderReviewsList() {
       // Placeholder for accessibility keyword badges
       const badgesWrap = document.createElement("div");
       badgesWrap.className = "mt-1 d-flex flex-wrap gap-1 review-badges";
+      badgesWrap.style.marginTop = "12px";
       badgesWrap.setAttribute("aria-label", "Detected accessibility mentions");
-      li.appendChild(badgesWrap);
+      cardContainer.appendChild(badgesWrap);
+      
+      li.appendChild(cardContainer);
     } else {
       // === Normal (read-only) mode ===
 
+      // Main card container
+      const cardContainer = document.createElement("div");
+      cardContainer.style.border = "1px solid";
+      cardContainer.style.borderColor = "rgba(0, 0, 0, 0.12)";
+      cardContainer.style.borderRadius = "16px";
+      cardContainer.style.padding = "20px";
+      cardContainer.style.backgroundColor = "#ffffff";
+      cardContainer.style.transition = "all 0.2s ease-in-out";
+      cardContainer.style.boxShadow = "0 1px 3px rgba(0, 0, 0, 0.05)";
+      
+      // Add hover effect
+      cardContainer.addEventListener("mouseenter", () => {
+        cardContainer.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.1)";
+        cardContainer.style.borderColor = "rgba(10, 63, 137, 0.3)";
+      });
+      cardContainer.addEventListener("mouseleave", () => {
+        cardContainer.style.boxShadow = "0 1px 3px rgba(0, 0, 0, 0.05)";
+        cardContainer.style.borderColor = "rgba(0, 0, 0, 0.12)";
+      });
+
       // Reviewer header with profile icon and name
       const reviewerHeader = document.createElement("div");
-      reviewerHeader.className = "d-flex align-items-center gap-2 mb-2";
+      reviewerHeader.style.display = "flex";
+      reviewerHeader.style.alignItems = "center";
+      reviewerHeader.style.gap = "12px";
+      reviewerHeader.style.marginBottom = "16px";
 
       // Get reviewer name from profile or show "Anonymous"
       let reviewerName = "Anonymous";
@@ -1181,14 +1313,19 @@ async function renderReviewsList() {
         );
       }
 
-      // Profile icon/avatar with initials
+      // Profile icon/avatar with initials - improved styling
       const avatar = document.createElement("div");
-      avatar.className =
-        "rounded-circle d-flex align-items-center justify-content-center text-white fw-bold";
-      avatar.style.width = "32px";
-      avatar.style.height = "32px";
+      avatar.style.width = "40px";
+      avatar.style.height = "40px";
+      avatar.style.borderRadius = "50%";
+      avatar.style.display = "flex";
+      avatar.style.alignItems = "center";
+      avatar.style.justifyContent = "center";
+      avatar.style.color = "#ffffff";
+      avatar.style.fontWeight = "600";
       avatar.style.fontSize = "0.875rem";
       avatar.style.flexShrink = "0";
+      avatar.style.boxShadow = "0 2px 4px rgba(0, 0, 0, 0.1)";
 
       // Generate color from reviewer name (or use default)
       const getAvatarColor = (name) => {
@@ -1203,25 +1340,57 @@ async function renderReviewsList() {
       avatar.textContent = reviewerInitials;
       avatar.setAttribute("aria-label", `Profile of ${reviewerName}`);
 
-      // Reviewer name
-      const nameElement = document.createElement("span");
-      nameElement.className = "fw-semibold";
+      // Reviewer name and metadata container
+      const nameContainer = document.createElement("div");
+      nameContainer.style.display = "flex";
+      nameContainer.style.flexDirection = "column";
+      nameContainer.style.flex = "1";
+      nameContainer.style.minWidth = "0";
+      
+      const nameElement = document.createElement("div");
+      nameElement.style.fontWeight = "600";
+      nameElement.style.fontSize = "0.9375rem";
+      nameElement.style.color = "rgba(0, 0, 0, 0.87)";
+      nameElement.style.lineHeight = "1.4";
       nameElement.textContent = reviewerName;
 
       reviewerHeader.appendChild(avatar);
-      reviewerHeader.appendChild(nameElement);
-      li.appendChild(reviewerHeader);
+      nameContainer.appendChild(nameElement);
+      reviewerHeader.appendChild(nameContainer);
+      
+      // Add timestamp to header if available
+      if (review.created_at) {
+        const dt = new Date(review.created_at);
+        if (!Number.isNaN(dt.getTime())) {
+          const timeAgo = getTimeAgo(dt);
+          const timeElement = document.createElement("div");
+          timeElement.style.fontSize = "0.75rem";
+          timeElement.style.color = "rgba(0, 0, 0, 0.6)";
+          timeElement.style.marginTop = "2px";
+          timeElement.textContent = timeAgo;
+          nameContainer.appendChild(timeElement);
+        }
+      }
+      
+      cardContainer.appendChild(reviewerHeader);
 
       // Rating display - show stars based on rating value
       const ratingValue = review.rating || review.overall_rating;
       if (ratingValue && ratingValue >= 1 && ratingValue <= 5) {
         const ratingContainer = document.createElement("div");
-        ratingContainer.className = "mb-2 d-flex align-items-center gap-1";
+        ratingContainer.style.display = "flex";
+        ratingContainer.style.alignItems = "center";
+        ratingContainer.style.gap = "8px";
+        ratingContainer.style.marginBottom = "12px";
 
-        // Create star rating display (filled and empty stars)
+        // Create star rating display (filled and empty stars) - improved styling
         const starsContainer = document.createElement("div");
-        starsContainer.className = "text-warning";
-        starsContainer.style.fontSize = "1.1rem";
+        starsContainer.style.color = "#ff9800";
+        starsContainer.style.fontSize = "1.25rem";
+        starsContainer.style.lineHeight = "1";
+        starsContainer.style.display = "flex";
+        starsContainer.style.alignItems = "center";
+        starsContainer.style.gap = "2px";
         starsContainer.setAttribute(
           "aria-label",
           `${ratingValue} out of 5 stars`
@@ -1254,86 +1423,129 @@ async function renderReviewsList() {
           starsContainer.appendChild(emptyStar);
         }
 
-        // Add numeric rating next to stars
+        // Add numeric rating next to stars - improved styling
         const ratingText = document.createElement("span");
-        ratingText.className = "text-muted ms-1";
-        ratingText.style.fontSize = "0.9rem";
-        ratingText.textContent = ratingValue;
+        ratingText.style.fontSize = "0.875rem";
+        ratingText.style.fontWeight = "600";
+        ratingText.style.color = "rgba(0, 0, 0, 0.87)";
+        ratingText.style.marginLeft = "4px";
+        ratingText.textContent = ratingValue.toFixed(1);
 
         ratingContainer.appendChild(starsContainer);
         ratingContainer.appendChild(ratingText);
-        li.appendChild(ratingContainer);
+        cardContainer.appendChild(ratingContainer);
       }
 
-      // Main comment text - only show if comment exists
+      // Main comment text - only show if comment exists - improved styling
       const commentText = review.comment || "";
       if (commentText.trim()) {
-        const textP = document.createElement("p");
-        textP.className = "mb-1";
+        const textP = document.createElement("div");
+        textP.style.fontSize = "0.9375rem";
+        textP.style.lineHeight = "1.6";
+        textP.style.color = "rgba(0, 0, 0, 0.87)";
+        textP.style.marginBottom = "12px";
+        textP.style.whiteSpace = "pre-wrap";
+        textP.style.wordBreak = "break-word";
         textP.textContent = commentText;
-        li.appendChild(textP);
+        cardContainer.appendChild(textP);
       } else if (!ratingValue) {
         // If no rating and no comment, show a placeholder
-        const noContentP = document.createElement("p");
-        noContentP.className = "mb-1 text-muted fst-italic";
+        const noContentP = document.createElement("div");
+        noContentP.style.fontSize = "0.875rem";
+        noContentP.style.color = "rgba(0, 0, 0, 0.6)";
+        noContentP.style.fontStyle = "italic";
+        noContentP.style.marginBottom = "12px";
         noContentP.textContent = "No comment provided.";
-        li.appendChild(noContentP);
+        cardContainer.appendChild(noContentP);
       }
 
-      // Category ratings details section (if review has category_ratings)
+      // Category ratings details section (if review has category_ratings) - improved styling
       const categoryRatings = review.category_ratings;
       if (categoryRatings && typeof categoryRatings === 'object' && !Array.isArray(categoryRatings) && categoryRatings !== null && Object.keys(categoryRatings).length > 0) {
         const detailsContainer = document.createElement("div");
-        detailsContainer.className = "mt-2 mb-2";
+        detailsContainer.style.marginTop = "16px";
+        detailsContainer.style.marginBottom = "12px";
 
-        // Create a button to toggle details visibility
+        // Create a button to toggle details visibility - improved styling
         const detailsBtn = document.createElement("button");
         detailsBtn.type = "button";
-        detailsBtn.className = "btn btn-link btn-sm p-0 text-decoration-none";
+        detailsBtn.style.background = "none";
+        detailsBtn.style.border = "none";
+        detailsBtn.style.padding = "0";
+        detailsBtn.style.cursor = "pointer";
         detailsBtn.style.fontSize = "0.875rem";
-        detailsBtn.innerHTML = '<span class="details-icon">▶</span> Show category details';
+        detailsBtn.style.color = "rgba(10, 63, 137, 0.87)";
+        detailsBtn.style.fontWeight = "500";
+        detailsBtn.style.display = "flex";
+        detailsBtn.style.alignItems = "center";
+        detailsBtn.style.gap = "6px";
+        detailsBtn.style.transition = "color 0.2s";
+        detailsBtn.innerHTML = '<span style="font-size: 0.75rem;">▶</span> Show category details';
         detailsBtn.setAttribute("aria-expanded", "false");
         detailsBtn.setAttribute("aria-label", "Toggle category rating details");
 
-        // Create collapsible details content
+        detailsBtn.addEventListener("mouseenter", () => {
+          detailsBtn.style.color = "rgba(10, 63, 137, 1)";
+        });
+        detailsBtn.addEventListener("mouseleave", () => {
+          detailsBtn.style.color = "rgba(10, 63, 137, 0.87)";
+        });
+
+        // Create collapsible details content - improved styling
         const detailsContent = document.createElement("div");
-        detailsContent.className = "mt-2";
+        detailsContent.style.marginTop = "12px";
         detailsContent.style.fontSize = "0.875rem";
         detailsContent.style.display = "none"; // Initially hidden
 
-        // Create list of category ratings
+        // Create list of category ratings - card style
         const categoryList = document.createElement("div");
-        categoryList.className = "d-flex flex-column gap-1";
+        categoryList.style.display = "flex";
+        categoryList.style.flexDirection = "column";
+        categoryList.style.gap = "8px";
+        categoryList.style.padding = "12px";
+        categoryList.style.backgroundColor = "rgba(0, 0, 0, 0.02)";
+        categoryList.style.borderRadius = "8px";
 
         Object.entries(categoryRatings).forEach(([categoryId, rating]) => {
           if (typeof rating === 'number' && rating >= 1 && rating <= 5) {
             const categoryItem = document.createElement("div");
-            categoryItem.className = "d-flex justify-content-between align-items-center";
+            categoryItem.style.display = "flex";
+            categoryItem.style.justifyContent = "space-between";
+            categoryItem.style.alignItems = "center";
+            categoryItem.style.padding = "8px 12px";
+            categoryItem.style.borderRadius = "6px";
+            categoryItem.style.transition = "background-color 0.2s";
             
             // Check if this category is in user's preferences
             const isUserPreference = userPrefsSet.has(categoryId);
             
-            // Apply highlighting style if it matches user preferences
+            // Apply highlighting style if it matches user preferences - improved
             if (isUserPreference) {
-              categoryItem.style.backgroundColor = "#e3f2fd"; // Light blue background
-              categoryItem.style.padding = "4px 8px";
-              categoryItem.style.borderRadius = "4px";
-              categoryItem.style.borderLeft = "3px solid #2196f3"; // Blue left border
+              categoryItem.style.backgroundColor = "rgba(10, 63, 137, 0.08)";
+              categoryItem.style.borderLeft = "3px solid rgba(10, 63, 137, 0.5)";
+            } else {
+              categoryItem.style.backgroundColor = "transparent";
             }
 
-            // Category label
+            // Category label - improved styling
             const label = document.createElement("span");
-            label.className = isUserPreference ? "fw-semibold" : "text-muted";
-            label.style.color = isUserPreference ? "#1976d2" : ""; // Blue text for user preferences
+            label.style.fontWeight = isUserPreference ? "600" : "500";
+            label.style.fontSize = "0.875rem";
+            label.style.color = isUserPreference ? "rgba(10, 63, 137, 0.87)" : "rgba(0, 0, 0, 0.87)";
             label.textContent = ACCESSIBILITY_CATEGORY_LABELS[categoryId] || categoryId;
 
-            // Rating display (stars)
+            // Rating display (stars) - improved styling
             const ratingDisplay = document.createElement("div");
-            ratingDisplay.className = "d-flex align-items-center gap-1";
+            ratingDisplay.style.display = "flex";
+            ratingDisplay.style.alignItems = "center";
+            ratingDisplay.style.gap = "4px";
 
             const starsContainer = document.createElement("span");
-            starsContainer.className = "text-warning";
-            starsContainer.style.fontSize = "0.9rem";
+            starsContainer.style.color = "#ff9800";
+            starsContainer.style.fontSize = "0.875rem";
+            starsContainer.style.display = "flex";
+            starsContainer.style.alignItems = "center";
+            starsContainer.style.gap = "1px";
 
             // Add filled stars
             for (let i = 0; i < Math.floor(rating); i++) {
@@ -1363,9 +1575,11 @@ async function renderReviewsList() {
             }
 
             const ratingText = document.createElement("span");
-            ratingText.className = "text-muted ms-1";
-            ratingText.style.fontSize = "0.8rem";
-            ratingText.textContent = rating;
+            ratingText.style.fontSize = "0.8125rem";
+            ratingText.style.fontWeight = "500";
+            ratingText.style.color = "rgba(0, 0, 0, 0.6)";
+            ratingText.style.marginLeft = "4px";
+            ratingText.textContent = rating.toFixed(1);
 
             ratingDisplay.appendChild(starsContainer);
             ratingDisplay.appendChild(ratingText);
@@ -1378,7 +1592,7 @@ async function renderReviewsList() {
         detailsContent.appendChild(categoryList);
         detailsContainer.appendChild(detailsBtn);
         detailsContainer.appendChild(detailsContent);
-        li.appendChild(detailsContainer);
+        cardContainer.appendChild(detailsContainer);
 
         // Toggle functionality
         detailsBtn.addEventListener("click", () => {
@@ -1388,38 +1602,28 @@ async function renderReviewsList() {
             // Collapse
             detailsContent.style.display = "none";
             detailsBtn.setAttribute("aria-expanded", "false");
-            detailsBtn.innerHTML = '<span class="details-icon">▶</span> Show category details';
+            detailsBtn.innerHTML = '<span style="font-size: 0.75rem;">▶</span> Show category details';
           } else {
             // Expand
             detailsContent.style.display = "block";
             detailsBtn.setAttribute("aria-expanded", "true");
-            detailsBtn.innerHTML = '<span class="details-icon">▼</span> Hide category details';
+            detailsBtn.innerHTML = '<span style="font-size: 0.75rem;">▼</span> Hide category details';
           }
         });
       }
 
-      // Meta + actions row
+      // Meta + actions row - improved styling
       const footer = document.createElement("div");
-      footer.className =
-        "d-flex justify-content-between align-items-center mt-1 gap-2";
+      footer.style.display = "flex";
+      footer.style.justifyContent = "space-between";
+      footer.style.alignItems = "center";
+      footer.style.marginTop = "16px";
+      footer.style.paddingTop = "16px";
+      footer.style.borderTop = "1px solid rgba(0, 0, 0, 0.08)";
+      footer.style.gap = "12px";
 
-      const meta = document.createElement("small");
-      meta.className = "text-muted";
-
-      if (review.created_at) {
-        const dt = new Date(review.created_at);
-        if (!Number.isNaN(dt.getTime())) {
-          meta.textContent = dt.toLocaleString(undefined, {
-            year: "numeric",
-            month: "short",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-        }
-      }
-
-      footer.appendChild(meta);
+      // Remove duplicate timestamp (already shown in header)
+      // footer.appendChild(meta);
 
       // Only owners (and admins) can edit/delete
       const isOwner = !!currentUser;
@@ -1435,32 +1639,64 @@ async function renderReviewsList() {
 
       if (isOwner || isAdmin) {
         const actions = document.createElement("div");
-        actions.className = "btn-group btn-group-sm";
+        actions.style.display = "flex";
+        actions.style.gap = "8px";
 
         const editBtn = document.createElement("button");
         editBtn.type = "button";
-        editBtn.className = "btn btn-outline-secondary btn-sm";
+        editBtn.style.background = "transparent";
+        editBtn.style.border = "1px solid rgba(0, 0, 0, 0.23)";
+        editBtn.style.borderRadius = "4px";
+        editBtn.style.padding = "6px 16px";
+        editBtn.style.fontSize = "0.8125rem";
+        editBtn.style.fontWeight = "500";
+        editBtn.style.color = "rgba(0, 0, 0, 0.87)";
+        editBtn.style.cursor = "pointer";
+        editBtn.style.transition = "all 0.2s";
         editBtn.textContent = "Edit";
         editBtn.addEventListener("click", () => handleEditReview(review));
+        editBtn.addEventListener("mouseenter", () => {
+          editBtn.style.backgroundColor = "rgba(0, 0, 0, 0.04)";
+        });
+        editBtn.addEventListener("mouseleave", () => {
+          editBtn.style.backgroundColor = "transparent";
+        });
 
         const deleteBtn = document.createElement("button");
         deleteBtn.type = "button";
-        deleteBtn.className = "btn btn-outline-danger btn-sm";
+        deleteBtn.style.background = "transparent";
+        deleteBtn.style.border = "1px solid rgba(211, 47, 47, 0.5)";
+        deleteBtn.style.borderRadius = "4px";
+        deleteBtn.style.padding = "6px 16px";
+        deleteBtn.style.fontSize = "0.8125rem";
+        deleteBtn.style.fontWeight = "500";
+        deleteBtn.style.color = "#d32f2f";
+        deleteBtn.style.cursor = "pointer";
+        deleteBtn.style.transition = "all 0.2s";
         deleteBtn.textContent = "Delete";
         deleteBtn.addEventListener("click", () => handleDeleteReview(review));
+        deleteBtn.addEventListener("mouseenter", () => {
+          deleteBtn.style.backgroundColor = "rgba(211, 47, 47, 0.08)";
+        });
+        deleteBtn.addEventListener("mouseleave", () => {
+          deleteBtn.style.backgroundColor = "transparent";
+        });
 
         actions.appendChild(editBtn);
         actions.appendChild(deleteBtn);
         footer.appendChild(actions);
       }
 
-      li.appendChild(footer);
+      cardContainer.appendChild(footer);
 
       // Placeholder for accessibility keyword badges
-      const badgesWrap = document.createElement("div");
-      badgesWrap.className = "mt-1 d-flex flex-wrap gap-1 review-badges";
-      badgesWrap.setAttribute("aria-label", "Detected accessibility mentions");
-      li.appendChild(badgesWrap);
+      const badgesWrapReadOnly = document.createElement("div");
+      badgesWrapReadOnly.className = "mt-1 d-flex flex-wrap gap-1 review-badges";
+      badgesWrapReadOnly.style.marginTop = "12px";
+      badgesWrapReadOnly.setAttribute("aria-label", "Detected accessibility mentions");
+      cardContainer.appendChild(badgesWrapReadOnly);
+      
+      li.appendChild(cardContainer);
     }
 
     listEl.appendChild(li);
@@ -1702,51 +1938,22 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   container.style.borderTop = "1px solid";
   container.style.borderColor = "rgba(0, 0, 0, 0.12)"; // divider color
   
-  // Header section matching ContactInfo/OpeningHours style
+      // Header section matching ContactInfo/OpeningHours style
   const header = document.createElement("div");
   header.style.display = "flex";
   header.style.alignItems = "center";
-  header.style.gap = "12px"; // gap: 1.5
-  header.style.marginBottom = "20px"; // mb: 2.5
-  
-  // Icon container matching the design system
-  const iconContainer = document.createElement("div");
-  iconContainer.style.display = "flex";
-  iconContainer.style.alignItems = "center";
-  iconContainer.style.justifyContent = "center";
-  iconContainer.style.width = "40px";
-  iconContainer.style.height = "40px";
-  iconContainer.style.borderRadius = "12px"; // borderRadius: 1.5
-  iconContainer.style.backgroundColor = "rgba(10, 63, 137, 0.1)"; // primary.main with alpha
-  iconContainer.style.color = "#0a3f89"; // primary.main
-  
-  // Create icon using mask technique
-  const iconWrapper = document.createElement("div");
-  iconWrapper.style.width = "22px";
-  iconWrapper.style.height = "22px";
-  iconWrapper.style.display = "inline-block";
-  iconWrapper.style.backgroundColor = "#0a3f89"; // primary.main
-  iconWrapper.style.maskImage = "url('/icons/maki/wheelchair.svg')";
-  iconWrapper.style.maskSize = "contain";
-  iconWrapper.style.maskRepeat = "no-repeat";
-  iconWrapper.style.maskPosition = "center";
-  iconWrapper.style.webkitMaskImage = "url('/icons/maki/wheelchair.svg')";
-  iconWrapper.style.webkitMaskSize = "contain";
-  iconWrapper.style.webkitMaskRepeat = "no-repeat";
-  iconWrapper.style.webkitMaskPosition = "center";
-  
-  iconContainer.appendChild(iconWrapper);
-  
-  // Title matching typography
+      header.style.gap = "12px"; // gap: 1.5
+      header.style.marginBottom = "20px"; // mb: 2.5
+      
+      // Title matching typography (no icon)
   const title = document.createElement("h6");
-  title.style.fontSize = "1.125rem"; // 18px
+      title.style.fontSize = "1.125rem"; // 18px
   title.style.fontWeight = "600";
-  title.style.color = "rgba(0, 0, 0, 0.87)"; // text.primary
-  title.style.letterSpacing = "-0.01em";
-  title.style.margin = "0";
-  title.textContent = "Wheelchair Access";
+      title.style.color = "rgba(0, 0, 0, 0.87)"; // text.primary
+      title.style.letterSpacing = "-0.01em";
+      title.style.margin = "0";
+      title.textContent = "Wheelchair Access";
   
-  header.appendChild(iconContainer);
   header.appendChild(title);
   
   // Card container for the status chip
@@ -1810,7 +2017,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   labelElement.style.textTransform = "uppercase";
   labelElement.style.letterSpacing = "0.5px";
   labelElement.style.marginBottom = "4px"; // mb: 0.5
-  labelElement.textContent = "Accessibility";
+  labelElement.textContent = "Wheelchair Access";
   
   // Chip/badge with color and label
   const chip = document.createElement("div");
