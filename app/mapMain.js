@@ -1696,23 +1696,36 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   accItem.className = "list-group-item";
   accItem.style.padding = "0";
   
-  // Create a container with icon header and chip
+  // Main container with consistent padding
   const container = document.createElement("div");
-  container.style.padding = "1rem";
+  container.style.padding = "24px"; // padding: 3 (MUI spacing)
+  container.style.borderTop = "1px solid";
+  container.style.borderColor = "rgba(0, 0, 0, 0.12)"; // divider color
   
-  // Header with icon and title
+  // Header section matching ContactInfo/OpeningHours style
   const header = document.createElement("div");
   header.style.display = "flex";
   header.style.alignItems = "center";
-  header.style.gap = "0.5rem";
-  header.style.marginBottom = "0.75rem";
+  header.style.gap = "12px"; // gap: 1.5
+  header.style.marginBottom = "20px"; // mb: 2.5
   
-  // Create icon using mask technique for better color control
+  // Icon container matching the design system
+  const iconContainer = document.createElement("div");
+  iconContainer.style.display = "flex";
+  iconContainer.style.alignItems = "center";
+  iconContainer.style.justifyContent = "center";
+  iconContainer.style.width = "40px";
+  iconContainer.style.height = "40px";
+  iconContainer.style.borderRadius = "12px"; // borderRadius: 1.5
+  iconContainer.style.backgroundColor = "rgba(10, 63, 137, 0.1)"; // primary.main with alpha
+  iconContainer.style.color = "#0a3f89"; // primary.main
+  
+  // Create icon using mask technique
   const iconWrapper = document.createElement("div");
-  iconWrapper.style.width = "1rem";
-  iconWrapper.style.height = "1rem";
+  iconWrapper.style.width = "22px";
+  iconWrapper.style.height = "22px";
   iconWrapper.style.display = "inline-block";
-  iconWrapper.style.backgroundColor = "#1976d2"; // MUI primary blue
+  iconWrapper.style.backgroundColor = "#0a3f89"; // primary.main
   iconWrapper.style.maskImage = "url('/icons/maki/wheelchair.svg')";
   iconWrapper.style.maskSize = "contain";
   iconWrapper.style.maskRepeat = "no-repeat";
@@ -1722,32 +1735,104 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   iconWrapper.style.webkitMaskRepeat = "no-repeat";
   iconWrapper.style.webkitMaskPosition = "center";
   
-  const icon = iconWrapper;
+  iconContainer.appendChild(iconWrapper);
   
+  // Title matching typography
   const title = document.createElement("h6");
-  title.className = "fw-semibold mb-0";
-  title.style.fontSize = "1rem";
+  title.style.fontSize = "1.125rem"; // 18px
   title.style.fontWeight = "600";
-  title.textContent = "Wheelchair access";
+  title.style.color = "rgba(0, 0, 0, 0.87)"; // text.primary
+  title.style.letterSpacing = "-0.01em";
+  title.style.margin = "0";
+  title.textContent = "Wheelchair Access";
   
-  header.appendChild(icon);
+  header.appendChild(iconContainer);
   header.appendChild(title);
   
-  // Chip/badge with color and label (no icon, just text)
+  // Card container for the status chip
+  const cardContainer = document.createElement("div");
+  cardContainer.style.border = "1px solid";
+  cardContainer.style.borderColor = "rgba(0, 0, 0, 0.12)"; // divider
+  cardContainer.style.borderRadius = "16px"; // borderRadius: 2
+  cardContainer.style.padding = "16px"; // p: 2
+  cardContainer.style.display = "flex";
+  cardContainer.style.alignItems = "center";
+  cardContainer.style.gap = "16px"; // gap: 2
+  
+  // Icon container for status (48x48 to match ContactInfo items)
+  const statusIconContainer = document.createElement("div");
+  statusIconContainer.style.display = "flex";
+  statusIconContainer.style.alignItems = "center";
+  statusIconContainer.style.justifyContent = "center";
+  statusIconContainer.style.width = "48px";
+  statusIconContainer.style.height = "48px";
+  statusIconContainer.style.borderRadius = "16px"; // borderRadius: 2
+  // Convert hex color to rgba with 10% opacity
+  const hexToRgba = (hex, alpha) => {
+    if (!hex || !hex.startsWith("#") || hex.length !== 7) {
+      return `rgba(108, 117, 125, ${alpha})`; // fallback to unknown color
+    }
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+  statusIconContainer.style.backgroundColor = hexToRgba(color, 0.1); // 10% opacity
+  statusIconContainer.style.flexShrink = "0";
+  
+  const statusIcon = document.createElement("div");
+  statusIcon.style.width = "24px";
+  statusIcon.style.height = "24px";
+  statusIcon.style.display = "inline-block";
+  statusIcon.style.backgroundColor = color;
+  statusIcon.style.maskImage = "url('/icons/maki/wheelchair.svg')";
+  statusIcon.style.maskSize = "contain";
+  statusIcon.style.maskRepeat = "no-repeat";
+  statusIcon.style.maskPosition = "center";
+  statusIcon.style.webkitMaskImage = "url('/icons/maki/wheelchair.svg')";
+  statusIcon.style.webkitMaskSize = "contain";
+  statusIcon.style.webkitMaskRepeat = "no-repeat";
+  statusIcon.style.webkitMaskPosition = "center";
+  
+  statusIconContainer.appendChild(statusIcon);
+  
+  // Content wrapper
+  const contentWrapper = document.createElement("div");
+  contentWrapper.style.flex = "1";
+  contentWrapper.style.minWidth = "0";
+  
+  // Label
+  const labelElement = document.createElement("div");
+  labelElement.style.display = "block";
+  labelElement.style.color = "rgba(0, 0, 0, 0.6)"; // text.secondary
+  labelElement.style.fontSize = "0.75rem";
+  labelElement.style.fontWeight = "500";
+  labelElement.style.textTransform = "uppercase";
+  labelElement.style.letterSpacing = "0.5px";
+  labelElement.style.marginBottom = "4px"; // mb: 0.5
+  labelElement.textContent = "Accessibility";
+  
+  // Chip/badge with color and label
   const chip = document.createElement("div");
   chip.style.display = "inline-block";
-  chip.style.padding = "0.5rem 0.875rem";
+  chip.style.padding = "0.375rem 0.75rem";
   chip.style.borderRadius = "1rem";
   chip.style.backgroundColor = color;
   chip.style.color = "white";
-  chip.style.fontSize = "0.8125rem";
+  chip.style.fontSize = "0.9375rem";
   chip.style.fontWeight = "500";
   chip.style.lineHeight = "1.25";
   chip.style.fontFamily = "inherit";
   chip.textContent = label;
   
+  contentWrapper.appendChild(labelElement);
+  contentWrapper.appendChild(chip);
+  
+  cardContainer.appendChild(statusIconContainer);
+  cardContainer.appendChild(contentWrapper);
+  
   container.appendChild(header);
-  container.appendChild(chip);
+  container.appendChild(cardContainer);
   accItem.appendChild(container);
   list.appendChild(accItem);
 
@@ -1758,13 +1843,35 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     const wheelchairDesc = wheelchairTags["wheelchair:description"] || wheelchairTags["Wheelchair:description"];
     if (wheelchairDesc) {
       const descItem = document.createElement("div");
-      descItem.className =
-        "list-group-item d-flex justify-content-between align-items-start";
-      descItem.innerHTML = `
-        <div class="me-2">
-          <h6 class="mb-1 fw-semibold" style="font-size: 0.875rem; color: #666;">Accessibility details</h6>
-          <p class="small mb-1" style="color: #666;">${String(wheelchairDesc)}</p>
-        </div>`;
+      descItem.className = "list-group-item";
+      descItem.style.padding = "0";
+      
+      const descContainer = document.createElement("div");
+      descContainer.style.padding = "16px"; // p: 2
+      descContainer.style.border = "1px solid";
+      descContainer.style.borderColor = "rgba(0, 0, 0, 0.12)";
+      descContainer.style.borderRadius = "16px";
+      descContainer.style.marginTop = "12px"; // mt: 1.5
+      
+      const label = document.createElement("div");
+      label.style.display = "block";
+      label.style.color = "rgba(0, 0, 0, 0.6)";
+      label.style.fontSize = "0.75rem";
+      label.style.fontWeight = "500";
+      label.style.textTransform = "uppercase";
+      label.style.letterSpacing = "0.5px";
+      label.style.marginBottom = "4px";
+      label.textContent = "Details";
+      
+      const value = document.createElement("div");
+      value.style.color = "rgba(0, 0, 0, 0.87)";
+      value.style.fontSize = "0.875rem";
+      value.style.lineHeight = "1.5";
+      value.textContent = String(wheelchairDesc);
+      
+      descContainer.appendChild(label);
+      descContainer.appendChild(value);
+      descItem.appendChild(descContainer);
       list.appendChild(descItem);
     }
 
@@ -1776,8 +1883,15 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       }
 
       const accItem = document.createElement("div");
-      accItem.className =
-        "list-group-item d-flex justify-content-between align-items-start";
+      accItem.className = "list-group-item";
+      accItem.style.padding = "0";
+      
+      const itemContainer = document.createElement("div");
+      itemContainer.style.padding = "16px";
+      itemContainer.style.border = "1px solid";
+      itemContainer.style.borderColor = "rgba(0, 0, 0, 0.12)";
+      itemContainer.style.borderRadius = "16px";
+      itemContainer.style.marginTop = "12px";
       
       // Format key nicely (wheelchair:entrance -> "Entrance")
       let displayKey = key
@@ -1795,11 +1909,25 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       };
       const displayValue = wheelchairLabels[String(value).toLowerCase()] || String(value);
 
-      accItem.innerHTML = `
-        <div class="me-2">
-          <h6 class="mb-1 fw-semibold" style="font-size: 0.875rem; color: #666;">${displayKey}</h6>
-          <p class="small mb-1" style="color: #666;">${displayValue}</p>
-        </div>`;
+      const label = document.createElement("div");
+      label.style.display = "block";
+      label.style.color = "rgba(0, 0, 0, 0.6)";
+      label.style.fontSize = "0.75rem";
+      label.style.fontWeight = "500";
+      label.style.textTransform = "uppercase";
+      label.style.letterSpacing = "0.5px";
+      label.style.marginBottom = "4px";
+      label.textContent = displayKey;
+      
+      const valueElement = document.createElement("div");
+      valueElement.style.color = "rgba(0, 0, 0, 0.87)";
+      valueElement.style.fontSize = "0.875rem";
+      valueElement.style.fontWeight = "500";
+      valueElement.textContent = displayValue;
+      
+      itemContainer.appendChild(label);
+      itemContainer.appendChild(valueElement);
+      accItem.appendChild(itemContainer);
       list.appendChild(accItem);
     });
   }
