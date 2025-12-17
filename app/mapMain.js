@@ -1885,19 +1885,66 @@ Object.entries(nTags).forEach(([key, value]) => {
       
       const container = document.createElement("div");
       container.style.padding = "1rem";
+      container.style.display = "flex";
+      container.style.flexDirection = "column";
+      container.style.gap = "0.75rem";
       
+      // Header with icon and title
+      const header = document.createElement("div");
+      header.style.display = "flex";
+      header.style.alignItems = "center";
+      header.style.gap = "0.5rem";
+      
+      const icon = document.createElement("div");
+      icon.innerHTML = "🪑"; // Chair emoji for outdoor seating, or you could use an SVG
+      icon.style.fontSize = "1.1rem";
+      icon.style.display = "flex";
+      icon.style.alignItems = "center";
+      icon.style.justifyContent = "center";
+      icon.style.flexShrink = "0";
+      
+      const title = document.createElement("h6");
+      title.className = "fw-semibold mb-0";
+      title.style.fontSize = "1rem";
+      title.style.fontWeight = "600";
+      title.style.lineHeight = "1.5";
+      title.style.margin = "0";
+      title.textContent = "Features";
+      
+      header.appendChild(icon);
+      header.appendChild(title);
+      
+      // Modern chip with better styling
       const chip = document.createElement("div");
-      chip.style.display = "inline-block";
+      chip.style.display = "inline-flex";
+      chip.style.alignItems = "center";
+      chip.style.gap = "0.5rem";
       chip.style.padding = "0.5rem 0.875rem";
       chip.style.borderRadius = "1rem";
-      chip.style.backgroundColor = "#6c757d"; // Grey color
-      chip.style.color = "white";
+      chip.style.backgroundColor = "#e3f2fd"; // Light blue background (MUI primary light)
+      chip.style.color = "#1976d2"; // MUI primary color for text
       chip.style.fontSize = "0.8125rem";
       chip.style.fontWeight = "500";
       chip.style.lineHeight = "1.25";
       chip.style.fontFamily = "inherit";
+      chip.style.border = "1px solid rgba(25, 118, 210, 0.2)"; // Subtle border
+      chip.style.boxShadow = "0 1px 3px rgba(0, 0, 0, 0.1)"; // Subtle shadow for depth
+      chip.style.transition = "all 0.2s ease";
+      chip.style.cursor = "default";
+      
+      // Add hover effect
+      chip.onmouseenter = () => {
+        chip.style.backgroundColor = "#bbdefb";
+        chip.style.boxShadow = "0 2px 4px rgba(0, 0, 0, 0.15)";
+      };
+      chip.onmouseleave = () => {
+        chip.style.backgroundColor = "#e3f2fd";
+        chip.style.boxShadow = "0 1px 3px rgba(0, 0, 0, 0.1)";
+      };
+      
       chip.textContent = "Outdoor seating";
       
+      container.appendChild(header);
       container.appendChild(chip);
       outdoorItem.appendChild(container);
       list.appendChild(outdoorItem);
