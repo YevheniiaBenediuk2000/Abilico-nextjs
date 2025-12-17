@@ -2141,7 +2141,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   contentWrapper.style.flex = "1";
   contentWrapper.style.minWidth = "0";
   
-  // Label
+  // Label - changed from "Wheelchair Access" to "STATUS" to avoid duplication
   const labelElement = document.createElement("div");
   labelElement.style.display = "block";
   labelElement.style.color = "rgba(0, 0, 0, 0.6)"; // text.secondary
@@ -2150,7 +2150,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   labelElement.style.textTransform = "uppercase";
   labelElement.style.letterSpacing = "0.5px";
   labelElement.style.marginBottom = "4px"; // mb: 0.5
-  labelElement.textContent = "Wheelchair Access";
+  labelElement.textContent = "STATUS";
   
   // Chip/badge with color and label
   const chip = document.createElement("div");
@@ -2294,12 +2294,30 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     container.style.borderTop = "1px solid";
     container.style.borderColor = "rgba(0, 0, 0, 0.12)"; // divider color
     
-    // Header section matching Wheelchair Access style (no icon)
+    // Header section with MUI Material Icon
     const header = document.createElement("div");
     header.style.display = "flex";
     header.style.alignItems = "center";
     header.style.gap = "12px"; // gap: 1.5
     header.style.marginBottom = "20px"; // mb: 2.5
+    
+    // Icon container for Address (LocationOn)
+    const iconContainer = document.createElement("div");
+    iconContainer.style.display = "flex";
+    iconContainer.style.alignItems = "center";
+    iconContainer.style.justifyContent = "center";
+    iconContainer.style.width = "40px";
+    iconContainer.style.height = "40px";
+    iconContainer.style.borderRadius = "12px"; // borderRadius: 1.5
+    iconContainer.style.backgroundColor = "rgba(10, 63, 137, 0.1)"; // primary.main with 10% opacity
+    iconContainer.style.flexShrink = "0";
+    
+    const icon = document.createElement("span");
+    icon.className = "material-icons";
+    icon.style.fontSize = "22px";
+    icon.style.color = "#0a3f89"; // primary.main
+    icon.textContent = "location_on";
+    iconContainer.appendChild(icon);
     
     const title = document.createElement("h6");
     title.style.fontSize = "1.125rem"; // 18px
@@ -2309,6 +2327,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     title.style.margin = "0";
     title.textContent = "Address";
     
+    header.appendChild(iconContainer);
     header.appendChild(title);
     
     // Content wrapper
@@ -2782,12 +2801,33 @@ Object.entries(nTags).forEach(([key, value]) => {
     container.style.borderTop = "1px solid";
     container.style.borderColor = "rgba(0, 0, 0, 0.12)"; // divider color
     
-    // Header section matching Wheelchair Access style (no icon)
+    // Header section with MUI Material Icon for place types
     const header = document.createElement("div");
     header.style.display = "flex";
     header.style.alignItems = "center";
     header.style.gap = "12px"; // gap: 1.5
     header.style.marginBottom = "20px"; // mb: 2.5
+    
+    // Get icon name for this place type
+    const iconName = getMuiIconForPlaceType(lk, value);
+    
+    // Icon container for place type
+    const iconContainer = document.createElement("div");
+    iconContainer.style.display = "flex";
+    iconContainer.style.alignItems = "center";
+    iconContainer.style.justifyContent = "center";
+    iconContainer.style.width = "40px";
+    iconContainer.style.height = "40px";
+    iconContainer.style.borderRadius = "12px"; // borderRadius: 1.5
+    iconContainer.style.backgroundColor = "rgba(10, 63, 137, 0.1)"; // primary.main with 10% opacity
+    iconContainer.style.flexShrink = "0";
+    
+    const icon = document.createElement("span");
+    icon.className = "material-icons";
+    icon.style.fontSize = "22px";
+    icon.style.color = "#0a3f89"; // primary.main
+    icon.textContent = iconName;
+    iconContainer.appendChild(icon);
     
     const title = document.createElement("h6");
     title.style.fontSize = "1.125rem"; // 18px
@@ -2797,6 +2837,7 @@ Object.entries(nTags).forEach(([key, value]) => {
     title.style.margin = "0";
     title.textContent = displayKey;
     
+    header.appendChild(iconContainer);
     header.appendChild(title);
     
     // Content wrapper

@@ -528,34 +528,7 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
         </CardActionArea>
       </Card>
 
-      {/* Today's hours - only show when collapsed */}
-      {todayData && !expanded && (
-        <Box sx={{ pl: 1, mt: 1.5 }}>
-          <Typography
-            variant="body2"
-            sx={{
-              fontSize: "0.875rem",
-              fontWeight: 500,
-              color: "text.primary",
-            }}
-          >
-            {todayData.dayLabel}{" "}
-            <Typography
-              component="span"
-              variant="body2"
-              sx={{
-                fontSize: "0.875rem",
-                color: "text.secondary",
-                ml: 0.5,
-              }}
-            >
-              {todayData.formattedHours}
-            </Typography>
-          </Typography>
-        </Box>
-      )}
-
-      {/* Expanded weekly list */}
+      {/* Expanded weekly list - only show when expanded */}
       {expanded && (
         <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, mt: 1.5 }}>
           {weekData.map((day) => {
@@ -596,30 +569,49 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
                     {day.dayLabel}
                   </Typography>
                   {isToday && (
-                    <Chip
-                      label="Today"
-                      size="small"
-                      sx={{
-                        height: 20,
-                        fontSize: "0.6875rem",
-                        bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
-                        color: "primary.main",
-                        fontWeight: 600,
-                      }}
-                    />
+                    <>
+                      <Chip
+                        label="Today"
+                        size="small"
+                        sx={{
+                          height: 20,
+                          fontSize: "0.6875rem",
+                          bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
+                          color: "primary.main",
+                          fontWeight: 600,
+                        }}
+                      />
+                      {!status.isOpen && (
+                        <Chip
+                          label="closed now"
+                          size="small"
+                          sx={{
+                            height: 20,
+                            fontSize: "0.6875rem",
+                            ml: 0.5,
+                            bgcolor: (theme) => alpha(theme.palette.error.main, 0.1),
+                            color: "error.main",
+                            fontWeight: 500,
+                            textTransform: "lowercase",
+                          }}
+                        />
+                      )}
+                    </>
                   )}
                 </Box>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontSize: "0.875rem",
-                    textAlign: "right",
-                    color: day.isClosedAllDay ? "text.disabled" : "text.secondary",
-                    fontWeight: isToday ? 500 : 400,
-                  }}
-                >
-                  {day.formattedHours}
-                </Typography>
+                <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 0.25 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontSize: "0.875rem",
+                      textAlign: "right",
+                      color: day.isClosedAllDay ? "text.disabled" : isToday ? "text.primary" : "text.secondary",
+                      fontWeight: isToday ? 500 : 400,
+                    }}
+                  >
+                    {day.formattedHours}
+                  </Typography>
+                </Box>
               </Box>
             );
           })}
