@@ -2185,6 +2185,138 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     list.appendChild(floorItem);
   }
 
+  // --- CAPACITY: Combine Beds and Rooms into a single Capacity section ---
+  const rooms = nTags.rooms || nTags.Rooms || null;
+  const beds = nTags.beds || nTags.Beds || null;
+  
+  let capacityLabel = null;
+  if (rooms && String(rooms).trim() && beds && String(beds).trim()) {
+    capacityLabel = `${rooms} rooms • ${beds} beds`;
+  } else if (rooms && String(rooms).trim()) {
+    capacityLabel = `${rooms} rooms`;
+  } else if (beds && String(beds).trim()) {
+    capacityLabel = `${beds} beds`;
+  }
+  
+  if (capacityLabel) {
+    const capacityItem = document.createElement("div");
+    capacityItem.className =
+      "list-group-item d-flex justify-content-between align-items-start";
+    capacityItem.innerHTML = `
+      <div class="me-2">
+        <h6 class="mb-1 fw-semibold">Capacity</h6>
+        <p class="small mb-1">${capacityLabel}</p>
+      </div>`;
+    list.appendChild(capacityItem);
+  }
+
+  // --- Collect Features (outdoor_seating, internet_access, etc.) ---
+  const featureChips = [];
+  
+  // Outdoor seating
+  const outdoorSeating = nTags.outdoor_seating || nTags["outdoor_seating"] || null;
+  if (outdoorSeating) {
+    const outdoorValue = String(outdoorSeating).toLowerCase().trim();
+    if (outdoorValue === "yes" || outdoorValue === "true") {
+      featureChips.push("Outdoor seating");
+    }
+  }
+  
+  // Internet access
+  const internetAccess = nTags.internet_access || nTags["internet_access"] || null;
+  const internetFee = nTags["internet_access:fee"] || nTags["internet_access_fee"] || null;
+  
+  if (internetAccess && String(internetAccess).toLowerCase().trim() !== "no") {
+    const accessVal = String(internetAccess).toLowerCase().trim();
+    const feeVal = internetFee ? String(internetFee).toLowerCase().trim() : "";
+    
+    const isWifi = ["wlan", "wifi", "wlan;customers", "wifi;customers"].includes(accessVal);
+    
+    if (isWifi) {
+      if (feeVal === "no") {
+        featureChips.push("Free Wi-Fi");
+      } else if (feeVal === "yes") {
+        featureChips.push("Paid Wi-Fi");
+      } else {
+        featureChips.push("Wi-Fi available");
+      }
+    } else {
+      if (feeVal === "no") {
+        featureChips.push("Free internet");
+      } else if (feeVal === "yes") {
+        featureChips.push("Paid internet");
+      } else {
+        featureChips.push("Internet access");
+      }
+    }
+  } else if (internetAccess && String(internetAccess).toLowerCase().trim() === "no") {
+    // Option: show negative info as subtle text (not a chip)
+    // For now, we'll skip it to keep only positive features
+  }
+  
+  // Render Features section if we have any chips
+  if (featureChips.length > 0) {
+    const featuresItem = document.createElement("div");
+    featuresItem.className = "list-group-item";
+    featuresItem.style.padding = "0";
+    featuresItem.style.marginBottom = "12px";
+      
+      const container = document.createElement("div");
+    container.style.border = "1px solid";
+    container.style.borderColor = "rgba(0, 0, 0, 0.12)";
+    container.style.borderRadius = "16px";
+    container.style.padding = "16px";
+      container.style.display = "flex";
+      container.style.flexDirection = "column";
+    container.style.gap = "12px";
+      
+      // Header with title
+      const header = document.createElement("div");
+      header.style.display = "flex";
+      header.style.alignItems = "center";
+    header.style.gap = "12px";
+    header.style.marginBottom = "4px";
+      
+      const title = document.createElement("h6");
+    title.style.fontSize = "1.125rem";
+      title.style.fontWeight = "600";
+    title.style.color = "rgba(0, 0, 0, 0.87)";
+    title.style.letterSpacing = "-0.01em";
+      title.style.margin = "0";
+      title.textContent = "Features";
+      
+      header.appendChild(title);
+      
+    // Chips container
+    const chipsContainer = document.createElement("div");
+    chipsContainer.style.display = "flex";
+    chipsContainer.style.flexWrap = "wrap";
+    chipsContainer.style.gap = "8px";
+    
+    featureChips.forEach((chipLabel) => {
+      const chip = document.createElement("div");
+      chip.style.display = "inline-block";
+      chip.style.padding = "0.375rem 0.75rem";
+      chip.style.borderRadius = "1rem";
+      chip.style.backgroundColor = "rgba(10, 63, 137, 0.08)";
+      chip.style.color = "rgba(10, 63, 137, 0.87)";
+      chip.style.fontSize = "0.8125rem";
+      chip.style.fontWeight = "500";
+      chip.style.lineHeight = "1.25";
+      chip.style.fontFamily = "inherit";
+      chip.style.border = "1px solid rgba(10, 63, 137, 0.2)";
+      chip.style.cursor = "default";
+      chip.style.width = "fit-content";
+      chip.textContent = chipLabel;
+      
+      chipsContainer.appendChild(chip);
+    });
+      
+      container.appendChild(header);
+    container.appendChild(chipsContainer);
+    featuresItem.appendChild(container);
+    list.appendChild(featuresItem);
+  }
 
   // --- Render basic tags (address, amenity, etc.) ---
 Object.entries(nTags).forEach(([key, value]) => {
@@ -2221,61 +2353,12 @@ Object.entries(nTags).forEach(([key, value]) => {
   // Skip "osm_key" and "osm_type" - only useful for mappers
   if (lk === "osm_key" || lk === "osm_type" || key === "Osm Key") return;
 
-  // Handle outdoor_seating specially - show as chip if yes, hide if no
-  if (lk === "outdoor_seating" || lk === "outdoor seating") {
-    const outdoorValue = String(value).toLowerCase().trim();
-    if (outdoorValue === "yes" || outdoorValue === "true") {
-      const outdoorItem = document.createElement("div");
-      outdoorItem.className = "list-group-item";
-      outdoorItem.style.padding = "0";
-      
-      const container = document.createElement("div");
-      container.style.padding = "1rem";
-      container.style.display = "flex";
-      container.style.flexDirection = "column";
-      container.style.gap = "0.75rem";
-      
-      // Header with title
-      const header = document.createElement("div");
-      header.style.display = "flex";
-      header.style.alignItems = "center";
-      header.style.gap = "0.5rem";
-      
-      const title = document.createElement("h6");
-      title.className = "fw-semibold mb-0";
-      title.style.fontSize = "1rem";
-      title.style.fontWeight = "600";
-      title.style.lineHeight = "1.5";
-      title.style.margin = "0";
-      title.textContent = "Features";
-      
-      header.appendChild(title);
-      
-      // Modern chip with better styling
-      const chip = document.createElement("div");
-      chip.style.display = "inline-block";
-      chip.style.padding = "0.375rem 0.75rem";
-      chip.style.borderRadius = "1rem";
-      chip.style.backgroundColor = "#e3f2fd"; // Light blue background (MUI primary light)
-      chip.style.color = "#1976d2"; // MUI primary color for text
-      chip.style.fontSize = "0.8125rem";
-      chip.style.fontWeight = "500";
-      chip.style.lineHeight = "1.25";
-      chip.style.fontFamily = "inherit";
-      chip.style.border = "1px solid rgba(25, 118, 210, 0.2)"; // Subtle border
-      chip.style.boxShadow = "0 1px 3px rgba(0, 0, 0, 0.1)"; // Subtle shadow for depth
-      chip.style.cursor = "default";
-      chip.style.width = "fit-content";
-      
-      chip.textContent = "Outdoor seating";
-      
-      container.appendChild(header);
-      container.appendChild(chip);
-      outdoorItem.appendChild(container);
-      list.appendChild(outdoorItem);
-    }
-    return; // Always skip outdoor_seating from generic rendering
-  }
+  // Skip outdoor_seating and internet_access - already rendered as Features chips
+  if (lk === "outdoor_seating" || lk === "outdoor seating") return;
+  if (lk === "internet_access" || lk === "internet_access:fee" || lk === "internet_access_fee") return;
+  
+  // Skip beds and rooms - already rendered as Capacity section
+  if (lk === "beds" || lk === "rooms") return;
 
   // Skip address parts – we already show a formatted address above
   const isAddressField =
@@ -2361,15 +2444,21 @@ Object.entries(nTags).forEach(([key, value]) => {
   if (lk === "stars") {
     const starsValue = parseFloat(String(value));
     if (!isNaN(starsValue) && starsValue > 0) {
+      // Format: whole number if integer, otherwise one decimal
+      const formattedValue = Number.isInteger(starsValue) 
+        ? starsValue.toString() 
+        : starsValue.toFixed(1);
+      const starText = starsValue === 1 ? "Star" : "Stars";
+      
+      // Match the same format as other detail items
+      item.className = "list-group-item d-flex justify-content-between align-items-start";
       item.innerHTML = `
         <div class="me-2" style="flex: 1; min-width: 0;">
           <h6 class="mb-1 fw-semibold">Stars</h6>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="color: #ffc107; font-size: 1.25rem; line-height: 1;">★</span>
-            <span style="font-size: 0.875rem; font-weight: 500; color: rgba(0, 0, 0, 0.87);">
-              ${starsValue.toFixed(1)} ${starsValue === 1 ? "Star" : "Stars"}
-            </span>
-          </div>
+          <p class="small mb-1" style="display: flex; align-items: center; gap: 8px;">
+            <span style="color: #ffc107; font-size: 1.1rem; line-height: 1;">★</span>
+            <span>${formattedValue} ${starText}</span>
+          </p>
         </div>`;
       list.appendChild(item);
       return;
