@@ -1521,6 +1521,17 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   const nTags = normalizeTagsCase(tags);
 
+  // 🔥 Remove raw "contact" tag (e.g. contact=yes) so it doesn't render as "Contact / Yes"
+  if ("contact" in nTags) {
+    delete nTags.contact;
+  }
+  if ("Contact" in nTags) {   // safety in case normalizeTagsCase kept a capital key
+    delete nTags.Contact;
+  }
+  
+  // CONTACT INFO - Extract website, phone, and email from tags
+  const websiteLinks = splitMulti(nTags.website || nTags["contact:website"] || "")
+
   // Remove raw "contact" tag (e.g. contact=yes) from generic details,
   // we only want the rich Contact section (website/phone/email).
   for (const key of Object.keys(nTags)) {
@@ -1528,11 +1539,6 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       delete nTags[key];
     }
   }
-
-  // CONTACT INFO - Extract website, phone, and email from tags
-  const websiteLinks = splitMulti(nTags.website || nTags["contact:website"] || "")
-    .map(cleanUrl)
-    .filter(Boolean);
   
   // Extract phone numbers (phone, contact:phone, contact:mobile, etc.)
   const phoneNumbers = [];
@@ -1682,155 +1688,143 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   }
 
   // --- Render basic tags (address, amenity, etc.) ---
-  Object.entries(nTags).forEach(([key, value]) => {
-    const isOpeningHours = /^opening_hours/i.test(key);
-    if (isOpeningHours) return; // Skip opening_hours - already rendered above
+Object.entries(nTags).forEach(([key, value]) => {
+  const isOpeningHours = /^opening_hours/i.test(key);
+  if (isOpeningHours) return; // Skip opening_hours - already rendered above
 
-    const lk = key.trim().toLowerCase();
-    
-    // Skip "contact" completely - no matter what the value is (check early)
-    // Note: This is a safety check, but contact should already be deleted from nTags above
-    if (lk === "contact") {
-      return;
-    }
+  const lk = key.trim().toLowerCase();
+  const lv = String(value).trim().toLowerCase();
 
-    // Skip "type" completely - no matter what the value is
-    if (lk === "type") {
-      return;
-    }
+  // 🔒 1) Never show the bare "contact" tag at all
+  if (lk === "contact") return;
 
-    // Skip all contact-related fields (website, phone, email, contact:*)
-    const isWebsiteVariant =
-      /^(website|url)(?::\d+)?$/i.test(key) || /^contact:website$/i.test(key);
-    if (isWebsiteVariant) return;
-    
-    const isPhoneVariant = /^(phone|contact:phone|contact:mobile|mobile|contact:fax)$/i.test(key);
-    if (isPhoneVariant) return;
-    
-    const isEmailVariant = /^(email|contact:email)$/i.test(key);
-    if (isEmailVariant) return;
-    
-    // Skip any other contact:* tags
-    if (/^contact:/i.test(key)) return;
-    
-    // Skip individual address fields - we render them as a single formatted address above
-    const isAddressField = /^addr:(street|housenumber|city|postcode|country_code|town|suburb|country)$/i.test(key) ||
-                           /^(postcode|housenumber|street|countrycode|city)$/i.test(lk) ||
-                           (lk === "city" && (nTags["addr:city"] || nTags["addr_city"]));
-    if (isAddressField) {
-      return; // Skip individual address fields - already rendered as formatted address
-    }
-    
-    // Skip area-related fields - already rendered as formatted area if available
-    const isAreaField = /^(state|county|district|locality)$/i.test(lk);
-    if (isAreaField) {
-      return; // Skip area fields - already rendered as area if available
-    }
+  // 🔒 2) Skip all contact-related fields (we handle them in the Contact block)
+  const isWebsiteVariant =
+    /^(website|url)(?::\d+)?$/i.test(key) || /^contact:website$/i.test(key);
+  if (isWebsiteVariant) return;
 
-    // Skip "name" - it's already displayed as the big heading
-    if (lk === "name") {
-      return;
-    }
+  const isPhoneVariant =
+    /^(phone|contact:phone|contact:mobile|mobile|contact:fax)$/i.test(key);
+  if (isPhoneVariant) return;
 
-    // Skip "level" - it's already displayed under the address
-    if (lk === "level") {
-      return;
-    }
+  const isEmailVariant = /^(email|contact:email)$/i.test(key);
+  if (isEmailVariant) return;
 
-    // Skip "amenity" if value is "yes" (meaningless to users)
-    if (lk === "amenity" && String(value).toLowerCase() === "yes") {
-      return;
-    }
+  if (/^contact:/i.test(key)) return; // any other contact:* tags
 
-    // Get amenity value for duplication check
-    const amenityValue = nTags.amenity ? String(nTags.amenity).toLowerCase() : null;
-    
-    // Skip OSM Value if duplicated with Amenity (if tag value equals amenity value)
-    // Exclude the amenity key itself from this check
-    if (lk !== "amenity" && amenityValue && String(value).toLowerCase() === amenityValue) {
-      return;
-    }
+  // Skip "type" entirely
+  if (lk === "type") return;
 
-    const containsAltName = /alt\s*name/i.test(key);
-    const containsLocalizedVariants =
-      /^(name|alt_name|short_name|display_name):/i.test(key);
-    const isCountryKey = /^country$/i.test(key);
-    const isWikiDataKey = /^wikidata(?::[a-z-]+)?$/i.test(key);
+  // Skip address parts – we already show a formatted address above
+  const isAddressField =
+    /^addr:(street|housenumber|city|postcode|country_code|town|suburb|country)$/i.test(
+      key
+    ) ||
+    /^(postcode|housenumber|street|countrycode|city)$/i.test(lk) ||
+    (lk === "city" && (nTags["addr:city"] || nTags["addr_city"]));
+  if (isAddressField) return;
 
-    const isExcluded =
-      EXCLUDED_PROPS.has(key) ||
-      containsAltName ||
-      containsLocalizedVariants ||
-      isCountryKey ||
-      isWikiDataKey;
+  // Skip area fields – already rendered as “Area”
+  const isAreaField = /^(state|county|district|locality)$/i.test(lk);
+  if (isAreaField) return;
 
-    if (isExcluded) return;
-    const item = document.createElement("div");
-    item.className =
-      "list-group-item d-flex justify-content-between align-items-start";
+  // Skip name + level (already rendered elsewhere)
+  if (lk === "name" || lk === "level") return;
 
-    // Special cases: linkify (website removed - contacts are completely removed)
+  // Skip amenity=yes (useless)
+  if (lk === "amenity" && lv === "yes") return;
 
-    // Skip "image" tag - Photo Link(s) removed
-    if (lk === "image") {
-      return;
-    }
+  // Skip duplicated values equal to the amenity value
+  const amenityValue = nTags.amenity
+    ? String(nTags.amenity).toLowerCase()
+    : null;
+  if (lk !== "amenity" && amenityValue && lv === amenityValue) return;
 
-    if (lk === "mapillary") {
-      const viewer = toMapillaryViewerUrl(value);
-      if (!viewer) return;
-      item.innerHTML = `
+  const containsAltName = /alt\s*name/i.test(key);
+  const containsLocalizedVariants =
+    /^(name|alt_name|short_name|display_name):/i.test(key);
+  const isCountryKey = /^country$/i.test(key);
+  const isWikiDataKey = /^wikidata(?::[a-z-]+)?$/i.test(key);
+
+  const isExcluded =
+    EXCLUDED_PROPS.has(key) ||
+    containsAltName ||
+    containsLocalizedVariants ||
+    isCountryKey ||
+    isWikiDataKey;
+
+  if (isExcluded) return;
+
+  const item = document.createElement("div");
+  item.className =
+    "list-group-item d-flex justify-content-between align-items-start";
+
+  // Skip raw image URLs – we use Photos block instead
+  if (lk === "image") return;
+
+  if (lk === "mapillary") {
+    const viewer = toMapillaryViewerUrl(value);
+    if (!viewer) return;
+    item.innerHTML = `
       <div class="me-2">
         <h6 class="mb-1 fw-semibold">Street Imagery</h6>
         <p class="small mb-1">
           <a href="${viewer}" target="_blank" rel="noopener nofollow ugc">Open in Mapillary</a>
         </p>
       </div>`;
+    list.appendChild(item);
+    return;
+  }
+
+  if (lk === "wikipedia" || /^wikipedia:[a-z-]+$/i.test(lk)) {
+    const spec = lk === "wikipedia" ? value : `${lk.split(":")[1]}:${value}`;
+    const m = String(spec).match(/^([a-z-]+)\s*:\s*(.+)$/i);
+    if (m) {
+      const lang = m[1];
+      const title = m[2].replace(/\s/g, "_");
+      const href = `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(
+        title
+      )}`;
+      item.innerHTML = `
+        <div class="me-2">
+          <h6 class="mb-1 fw-semibold">Wikipedia</h6>
+          <p class="small mb-1"><a href="${href}" target="_blank" rel="noopener">Wikipedia (${lang})</a></p>
+        </div>`;
       list.appendChild(item);
       return;
     }
+  }
 
-    if (lk === "wikipedia" || /^wikipedia:[a-z-]+$/i.test(lk)) {
-      const spec = lk === "wikipedia" ? value : `${lk.split(":")[1]}:${value}`;
-      const m = String(spec).match(/^([a-z-]+)\s*:\s*(.+)$/i);
-      if (m) {
-        const lang = m[1];
-        const title = m[2].replace(/\s/g, "_");
-        const href = `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(
-          title
-        )}`;
-        item.innerHTML = `
-      <div class="me-2">
-        <h6 class="mb-1 fw-semibold">Wikipedia</h6>
-        <p class="small mb-1"><a href="${href}" target="_blank" rel="noopener">Wikipedia (${lang})</a></p>
-      </div>`;
-        list.appendChild(item);
-        return;
-      }
-    }
-
-    // Default rendering
-    let displayKey = null;
-    if (key === "display_name") {
-      displayKey = "Address";
-    } else {
-      displayKey = key
-        .replace(/^Addr_?/i, "")
-        .replace(/[_:]/g, " ")
-        .replace(/\b\w/g, (c) => c.toUpperCase());
-    }
-
-    const displayValue = String(value)
+  // Default label/value
+  let displayKey;
+  if (key === "display_name") {
+    displayKey = "Address";
+  } else {
+    displayKey = key
+      .replace(/^Addr_?/i, "")
       .replace(/[_:]/g, " ")
       .replace(/\b\w/g, (c) => c.toUpperCase());
+  }
 
-    item.innerHTML = `
+  const displayValue = String(value)
+    .replace(/[_:]/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
+  // 🧨 Final safety net:
+  // If this generic row would have the label "Contact", skip it completely.
+  // This prevents "Contact / Yes" (or any other value) from showing
+  // while keeping the dedicated Contact section (website/phone/email).
+  if (displayKey.trim() === "Contact") {
+    return;
+  }
+
+  item.innerHTML = `
     <div class="me-2">
       <h6 class="mb-1 fw-semibold">${displayKey}</h6>
       <p class="small mb-1">${displayValue}</p>
     </div>`;
-    list.appendChild(item);
-  });
+  list.appendChild(item);
+});
 
   globals.detailsCtx.latlng = latlng;
   globals.detailsCtx.placeId = tags.id ?? tags.osm_id ?? tags.place_id;
