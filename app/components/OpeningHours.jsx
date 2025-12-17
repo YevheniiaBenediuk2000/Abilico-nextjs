@@ -1,11 +1,14 @@
 "use client";
 
+import { useState, useMemo } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Divider from "@mui/material/Divider";
 import IconButton from "@mui/material/IconButton";
 import EditIcon from "@mui/icons-material/Edit";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 
 /**
  * Parse OSM opening_hours format
@@ -125,31 +128,140 @@ function formatTimeRange(timeStr) {
   return `${start}-${end}`;
 }
 
+/**
+ * Parse time string (HH:MM) to minutes since midnight
+ * Handles next-day times (e.g., 25:00 = 1:00 next day)
+ */
+function parseTimeToMinutes(timeStr) {
+  if (!timeStr) return null;
+  const [hours, minutes = "00"] = timeStr.split(":");
+  let h = parseInt(hours, 10);
+  const m = parseInt(minutes, 10);
+  // Handle next-day times (e.g., 25:00 = 1440 + 60 = 1500 minutes)
+  if (h >= 24) {
+    h = h - 24;
+  }
+  return h * 60 + m;
+}
+
+/**
+ * Check if current time falls within an interval
+ * Handles next-day times (e.g., 22:00-02:00 spans midnight)
+ */
+function isTimeInInterval(currentMinutes, startStr, endStr) {
+  const startMinutes = parseTimeToMinutes(startStr);
+  const endMinutes = parseTimeToMinutes(endStr);
+  
+  if (startMinutes === null || endMinutes === null) return false;
+
+  // Check if this is a next-day interval (end is before start)
+  const isNextDay = endMinutes <= startMinutes;
+  
+  if (isNextDay) {
+    // Interval spans midnight (e.g., 22:00-02:00)
+    return currentMinutes >= startMinutes || currentMinutes < endMinutes;
+  } else {
+    // Normal interval (e.g., 09:00-18:00)
+    return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+  }
+}
+
+/**
+ * Get intervals for a specific day from parsed opening hours
+ */
+function getIntervalsForDay(parsed, dayKey) {
+  if (!parsed || !parsed[dayKey]) return [];
+  const times = parsed[dayKey];
+  return times.map((timeStr) => {
+    const parts = timeStr.split("-");
+    if (parts.length !== 2) return null;
+    const [start, end] = parts.map((t) => t.trim());
+    return { start, end, original: timeStr };
+  }).filter(Boolean);
+}
+
+/**
+ * Check if currently open based on today's hours
+ */
+function checkOpenStatus(parsed, dayKey) {
+  const intervals = getIntervalsForDay(parsed, dayKey);
+  if (intervals.length === 0) return { isOpen: false, nextChange: null };
+
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  // Check if we're in any interval
+  for (const interval of intervals) {
+    if (isTimeInInterval(currentMinutes, interval.start, interval.end)) {
+      // We're open, find when we close
+      const startMinutes = parseTimeToMinutes(interval.start);
+      const endMinutes = parseTimeToMinutes(interval.end);
+      const isNextDay = endMinutes <= startMinutes;
+      
+      const nextChange = new Date(now);
+      const endHours = Math.floor(endMinutes / 60);
+      const endMins = endMinutes % 60;
+      
+      // If it's a next-day interval and we're before midnight, closing is tomorrow
+      if (isNextDay && currentMinutes >= startMinutes) {
+        nextChange.setDate(nextChange.getDate() + 1);
+      }
+      nextChange.setHours(endHours, endMins, 0, 0);
+
+      return { isOpen: true, nextChange };
+    }
+  }
+
+  // We're closed, find when we open next
+  // Sort intervals by start time
+  const sortedIntervals = [...intervals].sort((a, b) => {
+    return parseTimeToMinutes(a.start) - parseTimeToMinutes(b.start);
+  });
+
+  for (const interval of sortedIntervals) {
+    const startMinutes = parseTimeToMinutes(interval.start);
+    if (startMinutes > currentMinutes) {
+      // Next opening is today
+      const nextChange = new Date(now);
+      const startHours = Math.floor(startMinutes / 60);
+      const startMins = startMinutes % 60;
+      nextChange.setHours(startHours, startMins, 0, 0);
+      return { isOpen: false, nextChange };
+    }
+  }
+
+  // Next opening is tomorrow (first interval)
+  if (sortedIntervals.length > 0) {
+    const firstInterval = sortedIntervals[0];
+    const startMinutes = parseTimeToMinutes(firstInterval.start);
+    const nextChange = new Date(now);
+    nextChange.setDate(nextChange.getDate() + 1);
+    const startHours = Math.floor(startMinutes / 60);
+    const startMins = startMinutes % 60;
+    nextChange.setHours(startHours, startMins, 0, 0);
+    return { isOpen: false, nextChange };
+  }
+
+  return { isOpen: false, nextChange: null };
+}
+
+/**
+ * Format time as HH:MM
+ */
+function formatTime(date) {
+  return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+/**
+ * Format day name (e.g., "Wed", "Thu")
+ */
+function formatDayName(date) {
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  return days[date.getDay()];
+}
+
 export default function OpeningHours({ openingHours, holidayHours = null }) {
-  if (!openingHours) {
-    return null;
-  }
-
-  const parsed = parseOpeningHours(openingHours);
-
-  // Check if parsed is valid object and has keys
-  if (!parsed || typeof parsed !== "object" || Object.keys(parsed).length === 0) {
-    // If parsing failed, show raw value
-    return (
-      <Box sx={{ mb: 3 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-          <AccessTimeIcon sx={{ color: "primary.main", fontSize: "1.2rem" }} />
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>
-            Hours
-          </Typography>
-        </Box>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-          Open with main hours
-        </Typography>
-        <Typography variant="body2">{openingHours}</Typography>
-      </Box>
-    );
-  }
+  const [expanded, setExpanded] = useState(false);
 
   const dayOrder = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
   const dayNames = {
@@ -162,67 +274,229 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
     Su: "Sunday",
   };
 
+  // Get current day (0 = Monday, 6 = Sunday)
+  const now = new Date();
+  const currentDayIndex = (now.getDay() + 6) % 7; // Convert JS day (0=Sun) to Mon=0
+  const currentDayKey = dayOrder[currentDayIndex];
+
+  const parsed = useMemo(() => {
+    if (!openingHours) return null;
+    return parseOpeningHours(openingHours);
+  }, [openingHours]);
+
+  // Build week data structure
+  const weekData = useMemo(() => {
+    if (!parsed) return [];
+    
+    return dayOrder.map((dayKey, index) => {
+      const intervals = getIntervalsForDay(parsed, dayKey);
+      const isClosedAllDay = intervals.length === 0;
+      
+      return {
+        dayIndex: index,
+        dayKey,
+        dayLabel: dayNames[dayKey],
+        intervals,
+        isClosedAllDay,
+        formattedHours: isClosedAllDay 
+          ? "Closed" 
+          : intervals.map(i => formatTimeRange(i.original)).join(", "),
+      };
+    });
+  }, [parsed, dayOrder, dayNames]);
+
+  // Get today's data
+  const todayData = weekData[currentDayIndex] || null;
+
+  // Check open/closed status
+  const status = useMemo(() => {
+    if (!parsed || !todayData) {
+      return { isOpen: false, message: "Hours not available", nextChange: null };
+    }
+
+    const { isOpen, nextChange } = checkOpenStatus(parsed, currentDayKey);
+    
+    let message = "";
+    if (isOpen && nextChange) {
+      message = `Closes at ${formatTime(nextChange)}`;
+    } else if (!isOpen && nextChange) {
+      const nextDayIndex = (nextChange.getDay() + 6) % 7;
+      const isToday = nextDayIndex === currentDayIndex;
+      if (isToday) {
+        message = `Opens at ${formatTime(nextChange)}`;
+      } else {
+        message = `Opens ${formatDayName(nextChange)} ${formatTime(nextChange)}`;
+      }
+    } else if (isOpen && !nextChange) {
+      message = "Open";
+    } else {
+      message = "Closed";
+    }
+
+    return { isOpen, message, nextChange };
+  }, [parsed, todayData, currentDayIndex, currentDayKey]);
+
+  if (!openingHours) {
+    return null;
+  }
+
+  // If parsing failed, show simple fallback
+  if (!parsed || typeof parsed !== "object" || Object.keys(parsed).length === 0) {
   return (
-    <Box sx={{ mb: 3 }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+      <Box
+        sx={{
+          padding: 2,
+          borderTop: "1px solid",
+          borderColor: "divider",
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
         <AccessTimeIcon sx={{ color: "primary.main", fontSize: "1.2rem" }} />
         <Typography variant="h6" sx={{ fontWeight: 600, fontSize: "1.1rem" }}>
           Hours
         </Typography>
       </Box>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: "0.875rem" }}>
-        Open with main hours
+        <Typography variant="body2" color="text.secondary">
+          {openingHours}
       </Typography>
-
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-        {dayOrder.map((dayKey) => {
-          const times = parsed && parsed[dayKey];
-          if (!times || !Array.isArray(times) || times.length === 0) return null;
+      </Box>
+    );
+  }
 
           return (
             <Box
-              key={dayKey}
+      sx={{
+        padding: 2,
+        borderTop: "1px solid",
+        borderColor: "divider",
+      }}
+    >
+      {/* Header row - clickable to expand/collapse */}
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          cursor: "pointer",
+          mb: expanded ? 1 : 0,
+        }}
+        onClick={() => setExpanded((prev) => !prev)}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1 }}>
+          <AccessTimeIcon
+            sx={{
+              fontSize: "1rem",
+              color: status.isOpen ? "success.main" : "text.secondary",
+            }}
+          />
+          <Box>
+            <Typography
+              variant="body1"
+              sx={{
+                fontWeight: 600,
+                fontSize: "0.875rem",
+                color: status.isOpen ? "success.main" : "error.main",
+                lineHeight: 1.2,
+              }}
+            >
+              {status.isOpen ? "Open now" : "Closed now"}
+            </Typography>
+            <Typography
+              variant="body2"
+              sx={{
+                fontSize: "0.75rem",
+                color: "text.secondary",
+                lineHeight: 1.2,
+              }}
+            >
+              {status.message}
+            </Typography>
+          </Box>
+        </Box>
+
+        {/* Chevron icon */}
+        {expanded ? (
+          <ExpandMoreIcon sx={{ color: "text.secondary", fontSize: "1.25rem" }} />
+        ) : (
+          <ChevronRightIcon sx={{ color: "text.secondary", fontSize: "1.25rem" }} />
+        )}
+      </Box>
+
+      {/* Today's hours - always shown */}
+      {todayData && (
+        <Box sx={{ mb: expanded ? 1.5 : 0 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              fontSize: "0.875rem",
+              fontWeight: expanded ? 400 : 500,
+              color: "text.primary",
+            }}
+          >
+            {todayData.dayLabel}{" "}
+            <Typography
+              component="span"
+              variant="body2"
+              sx={{
+                fontSize: "0.875rem",
+                color: "text.secondary",
+                ml: 0.5,
+              }}
+            >
+              {todayData.formattedHours}
+            </Typography>
+          </Typography>
+        </Box>
+      )}
+
+      {/* Expanded weekly list */}
+      {expanded && (
+        <Box sx={{ mt: 1.5, display: "flex", flexDirection: "column", gap: 0.5 }}>
+          {weekData.map((day) => {
+            const isToday = day.dayIndex === currentDayIndex;
+            return (
+              <Box
+                key={day.dayKey}
               sx={{
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "flex-start",
-                gap: 2,
+                  py: 0.25,
               }}
             >
               <Typography
                 variant="body2"
                 sx={{ 
-                  fontWeight: 400, 
-                  minWidth: 120,
                   fontSize: "0.875rem",
-                  color: "text.primary"
+                    fontWeight: isToday ? 600 : 400,
+                    color: isToday ? "primary.main" : "text.primary",
+                    minWidth: "40%",
                 }}
               >
-                {dayNames[dayKey]}
+                  {day.dayLabel}
+                  {isToday && " · Today"}
               </Typography>
-              <Box sx={{ flex: 1, textAlign: "right" }}>
-                {times.map((timeRange, idx) => (
                   <Typography
-                    key={idx}
                     variant="body2"
-                    color="text.secondary"
                     sx={{ 
-                      display: "block",
-                      fontSize: "0.875rem"
-                    }}
-                  >
-                    {formatTimeRange(timeRange)}
+                    fontSize: "0.875rem",
+                    textAlign: "right",
+                    color: day.isClosedAllDay ? "text.disabled" : "text.secondary",
+                    fontWeight: isToday ? 500 : 400,
+                  }}
+                >
+                  {day.formattedHours}
                   </Typography>
-                ))}
-              </Box>
             </Box>
           );
         })}
       </Box>
+      )}
 
+      {/* Holiday hours section */}
       {holidayHours && (
         <>
-          <Divider sx={{ my: 2.5 }} />
+          <Divider sx={{ my: expanded ? 2 : 2.5 }} />
           <Box
             sx={{
               display: "flex",
@@ -241,7 +515,7 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
                 color: "text.secondary",
                 "&:hover": {
                   backgroundColor: "action.hover",
-                }
+                },
               }}
             >
               <EditIcon fontSize="small" />
@@ -253,7 +527,11 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
                 {holidayHours.date}
               </Typography>
               {holidayHours.name && (
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5, fontSize: "0.875rem" }}>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mb: 0.5, fontSize: "0.875rem" }}
+                >
                   {holidayHours.name}
                 </Typography>
               )}
