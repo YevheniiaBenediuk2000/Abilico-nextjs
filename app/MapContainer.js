@@ -491,13 +491,15 @@ export default function MapContainer({
         // Handle errors - PGRST116 is "not found" which is expected
         if (error) {
           // Only log if it's a real error (not "not found" and has meaningful content)
-          if (
-            error.code !== "PGRST116" &&
-            (error.message || Object.keys(error).length > 0)
-          ) {
+          if (error.code !== "PGRST116") {
+            // Check if error has meaningful content
+            const hasMessage = error.message && error.message.trim().length > 0;
+            const hasCode = error.code && error.code.trim().length > 0;
+            const errorStr = JSON.stringify(error);
+            const hasContent = errorStr && errorStr !== "{}" && errorStr !== "null" && errorStr !== "{\"code\":\"\"}";
+            
             // Only log if error has meaningful content
-            const errorStr = error.message || JSON.stringify(error);
-            if (errorStr && errorStr !== "{}" && errorStr !== "null") {
+            if (hasMessage || (hasCode && hasContent)) {
               console.error("Error checking saved place:", error);
             }
           }
@@ -510,7 +512,11 @@ export default function MapContainer({
         setSavedPlaceId(data?.id || null);
       } catch (err) {
         // Only log if error has meaningful content
-        if (err && (err.message || err.toString() !== "{}")) {
+        const hasMessage = err?.message && err.message.trim().length > 0;
+        const errStr = err?.toString() || JSON.stringify(err);
+        const hasContent = errStr && errStr !== "{}" && errStr !== "null" && errStr !== "[object Object]";
+        
+        if (hasMessage || hasContent) {
           console.error("Error checking saved place:", err);
         }
         setIsPlaceSaved(false);

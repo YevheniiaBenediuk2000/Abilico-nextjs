@@ -2210,6 +2210,111 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     list.appendChild(capacityItem);
   }
 
+  // --- STARS: Render stars rating similar to wheelchair section ---
+  const starsValue = nTags.stars || nTags.Stars || null;
+  if (starsValue) {
+    const parsedStars = parseFloat(String(starsValue));
+    if (!isNaN(parsedStars) && parsedStars > 0) {
+      // Format: whole number if integer, otherwise one decimal
+      const formattedValue = Number.isInteger(parsedStars) 
+        ? parsedStars.toString() 
+        : parsedStars.toFixed(1);
+      const starText = parsedStars === 1 ? "Star" : "Stars";
+      
+      const starsItem = document.createElement("div");
+      starsItem.className = "list-group-item";
+      starsItem.style.padding = "0";
+      
+      // Main container with consistent padding
+      const container = document.createElement("div");
+      container.style.padding = "24px"; // padding: 3 (MUI spacing)
+      container.style.borderTop = "1px solid";
+      container.style.borderColor = "rgba(0, 0, 0, 0.12)"; // divider color
+      
+      // Header section matching wheelchair style
+      const header = document.createElement("div");
+      header.style.display = "flex";
+      header.style.alignItems = "center";
+      header.style.gap = "12px"; // gap: 1.5
+      header.style.marginBottom = "20px"; // mb: 2.5
+      
+      // Title matching typography (no icon)
+      const title = document.createElement("h6");
+      title.style.fontSize = "1.125rem"; // 18px
+      title.style.fontWeight = "600";
+      title.style.color = "rgba(0, 0, 0, 0.87)"; // text.primary
+      title.style.letterSpacing = "-0.01em";
+      title.style.margin = "0";
+      title.textContent = "Stars";
+      
+      header.appendChild(title);
+      
+      // Card container for the stars display
+      const cardContainer = document.createElement("div");
+      cardContainer.style.border = "1px solid";
+      cardContainer.style.borderColor = "rgba(0, 0, 0, 0.12)"; // divider
+      cardContainer.style.borderRadius = "16px"; // borderRadius: 2
+      cardContainer.style.padding = "16px"; // p: 2
+      cardContainer.style.display = "flex";
+      cardContainer.style.alignItems = "center";
+      cardContainer.style.gap = "16px"; // gap: 2
+      
+      // Icon container for star (48x48 to match wheelchair section)
+      const starIconContainer = document.createElement("div");
+      starIconContainer.style.display = "flex";
+      starIconContainer.style.alignItems = "center";
+      starIconContainer.style.justifyContent = "center";
+      starIconContainer.style.width = "48px";
+      starIconContainer.style.height = "48px";
+      starIconContainer.style.borderRadius = "16px"; // borderRadius: 2
+      starIconContainer.style.backgroundColor = "rgba(255, 193, 7, 0.1)"; // MUI yellow with 10% opacity
+      starIconContainer.style.flexShrink = "0";
+      
+      const starIcon = document.createElement("span");
+      starIcon.textContent = "★";
+      starIcon.style.color = "#ffc107"; // MUI yellow/amber
+      starIcon.style.fontSize = "24px";
+      starIcon.style.lineHeight = "1";
+      starIcon.setAttribute("aria-hidden", "true");
+      
+      starIconContainer.appendChild(starIcon);
+      
+      // Content wrapper
+      const contentWrapper = document.createElement("div");
+      contentWrapper.style.flex = "1";
+      contentWrapper.style.minWidth = "0";
+      
+      // Label
+      const labelElement = document.createElement("div");
+      labelElement.style.display = "block";
+      labelElement.style.color = "rgba(0, 0, 0, 0.6)"; // text.secondary
+      labelElement.style.fontSize = "0.75rem";
+      labelElement.style.fontWeight = "500";
+      labelElement.style.textTransform = "uppercase";
+      labelElement.style.letterSpacing = "0.5px";
+      labelElement.style.marginBottom = "4px"; // mb: 0.5
+      labelElement.textContent = "Rating";
+      
+      // Value text
+      const valueText = document.createElement("div");
+      valueText.style.fontSize = "0.9375rem";
+      valueText.style.fontWeight = "500";
+      valueText.style.color = "rgba(0, 0, 0, 0.87)";
+      valueText.textContent = `${formattedValue} ${starText}`;
+      
+      contentWrapper.appendChild(labelElement);
+      contentWrapper.appendChild(valueText);
+      
+      cardContainer.appendChild(starIconContainer);
+      cardContainer.appendChild(contentWrapper);
+      
+      container.appendChild(header);
+      container.appendChild(cardContainer);
+      starsItem.appendChild(container);
+      list.appendChild(starsItem);
+    }
+  }
+
   // --- Collect Features (outdoor_seating, internet_access, etc.) ---
   const featureChips = [];
   
@@ -2359,6 +2464,9 @@ Object.entries(nTags).forEach(([key, value]) => {
   
   // Skip beds and rooms - already rendered as Capacity section
   if (lk === "beds" || lk === "rooms") return;
+  
+  // Skip stars - already rendered as dedicated Stars section
+  if (lk === "stars") return;
 
   // Skip address parts – we already show a formatted address above
   const isAddressField =
@@ -2440,30 +2548,6 @@ Object.entries(nTags).forEach(([key, value]) => {
     }
   }
 
-  // Handle "stars" field specially with MUI yellow star icon
-  if (lk === "stars") {
-    const starsValue = parseFloat(String(value));
-    if (!isNaN(starsValue) && starsValue > 0) {
-      // Format: whole number if integer, otherwise one decimal
-      const formattedValue = Number.isInteger(starsValue) 
-        ? starsValue.toString() 
-        : starsValue.toFixed(1);
-      const starText = starsValue === 1 ? "Star" : "Stars";
-      
-      // Match the same format as other detail items
-      item.className = "list-group-item d-flex justify-content-between align-items-start";
-      item.innerHTML = `
-        <div class="me-2" style="flex: 1; min-width: 0;">
-          <h6 class="mb-1 fw-semibold">Stars</h6>
-          <p class="small mb-1" style="display: flex; align-items: center; gap: 8px;">
-            <span style="color: #ffc107; font-size: 1.1rem; line-height: 1;">★</span>
-            <span>${formattedValue} ${starText}</span>
-          </p>
-        </div>`;
-      list.appendChild(item);
-      return;
-    }
-  }
 
   // Default label/value
   let displayKey;
