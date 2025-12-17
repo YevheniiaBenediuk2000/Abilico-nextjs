@@ -1886,6 +1886,9 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   list.innerHTML = "";
 
   const nTags = normalizeTagsCase(tags);
+  
+  // Consistent padding constant for all detail sections (24px = MUI spacing 3)
+  const SECTION_PADDING = "24px";
 
   // 🔥 Remove raw "contact" tag (e.g. contact=yes) so it doesn't render as "Contact / Yes"
   if ("contact" in nTags) {
@@ -1979,7 +1982,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   if (openingHours) {
     const hoursContainer = document.createElement("div");
     hoursContainer.className = "list-group-item";
-    hoursContainer.style.padding = "16px";
+    hoursContainer.style.padding = "0"; // Padding handled by React component
     list.appendChild(hoursContainer);
 
     // Dynamically import and render React component
@@ -2064,7 +2067,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   
   // Main container with consistent padding
   const container = document.createElement("div");
-  container.style.padding = "24px"; // padding: 3 (MUI spacing)
+  container.style.padding = SECTION_PADDING;
   container.style.borderTop = "1px solid";
   container.style.borderColor = "rgba(0, 0, 0, 0.12)"; // divider color
   
@@ -2287,7 +2290,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     
     // Main container with consistent padding
     const container = document.createElement("div");
-    container.style.padding = "24px"; // padding: 3 (MUI spacing)
+    container.style.padding = SECTION_PADDING;
     container.style.borderTop = "1px solid";
     container.style.borderColor = "rgba(0, 0, 0, 0.12)"; // divider color
     
@@ -2408,7 +2411,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       
       // Main container with consistent padding
       const container = document.createElement("div");
-      container.style.padding = "24px"; // padding: 3 (MUI spacing)
+      container.style.padding = SECTION_PADDING;
       container.style.borderTop = "1px solid";
       container.style.borderColor = "rgba(0, 0, 0, 0.12)"; // divider color
       
@@ -2551,7 +2554,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     container.style.border = "1px solid";
     container.style.borderColor = "rgba(0, 0, 0, 0.12)";
     container.style.borderRadius = "16px";
-    container.style.padding = "16px";
+    container.style.padding = SECTION_PADDING;
       container.style.display = "flex";
       container.style.flexDirection = "column";
     container.style.gap = "12px";
@@ -2775,7 +2778,7 @@ Object.entries(nTags).forEach(([key, value]) => {
     
     // Main container with consistent padding
     const container = document.createElement("div");
-    container.style.padding = "24px"; // padding: 3 (MUI spacing)
+    container.style.padding = SECTION_PADDING;
     container.style.borderTop = "1px solid";
     container.style.borderColor = "rgba(0, 0, 0, 0.12)"; // divider color
     
@@ -2813,11 +2816,11 @@ Object.entries(nTags).forEach(([key, value]) => {
     item.appendChild(container);
   } else {
     // Default styling for other items
-    item.innerHTML = `
-      <div class="me-2">
-        <h6 class="mb-1 fw-semibold">${displayKey}</h6>
-        <p class="small mb-1">${displayValue}</p>
-      </div>`;
+  item.innerHTML = `
+    <div class="me-2">
+      <h6 class="mb-1 fw-semibold">${displayKey}</h6>
+      <p class="small mb-1">${displayValue}</p>
+    </div>`;
   }
   
   list.appendChild(item);
