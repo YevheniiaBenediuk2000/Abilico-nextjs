@@ -1722,29 +1722,18 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   header.appendChild(icon);
   header.appendChild(title);
   
-  // Chip/badge with color and label
+  // Chip/badge with color and label (no icon, just text)
   const chip = document.createElement("div");
-  chip.style.display = "inline-flex";
-  chip.style.alignItems = "center";
-  chip.style.gap = "0.5rem";
-  chip.style.padding = "0.5rem 0.75rem";
-  chip.style.borderRadius = "0.5rem";
+  chip.style.display = "inline-block";
+  chip.style.padding = "0.5rem 0.875rem";
+  chip.style.borderRadius = "1rem";
   chip.style.backgroundColor = color;
   chip.style.color = "white";
-  chip.style.fontSize = "0.875rem";
+  chip.style.fontSize = "0.8125rem";
   chip.style.fontWeight = "500";
-  
-  const chipIcon = document.createElement("img");
-  chipIcon.src = "/icons/maki/wheelchair.svg";
-  chipIcon.alt = "";
-  chipIcon.style.width = "1rem";
-  chipIcon.style.height = "1rem";
-  chipIcon.style.filter = "brightness(0) invert(1)"; // Make icon white
-  
-  const chipLabel = document.createTextNode(label);
-  
-  chip.appendChild(chipIcon);
-  chip.appendChild(chipLabel);
+  chip.style.lineHeight = "1.25";
+  chip.style.fontFamily = "inherit";
+  chip.textContent = label;
   
   container.appendChild(header);
   container.appendChild(chip);
@@ -1804,17 +1793,34 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     });
   }
 
-  // --- ADDRESS: Render formatted address (single line) ---
+  // --- ADDRESS: Render formatted address with area as secondary text ---
   const formattedAddress = formatAddressFromTags(nTags);
   if (formattedAddress) {
+    const formattedArea = formatAreaFromTags(nTags);
+    
+    // Clean up area text: remove "eldership" and simplify
+    let cleanArea = formattedArea;
+    if (cleanArea) {
+      cleanArea = cleanArea.replace(/\s*eldership\s*/gi, " ").trim();
+      cleanArea = cleanArea.replace(/\s+/g, " "); // Remove extra spaces
+    }
+    
     const addressItem = document.createElement("div");
     addressItem.className =
       "list-group-item d-flex justify-content-between align-items-start";
-    addressItem.innerHTML = `
+    
+    let addressHtml = `
       <div class="me-2">
         <h6 class="mb-1 fw-semibold">Address</h6>
-        <p class="small mb-1">${formattedAddress}</p>
-      </div>`;
+        <p class="small mb-1">${formattedAddress}</p>`;
+    
+    if (cleanArea) {
+      addressHtml += `
+        <p class="small mb-1" style="color: #666;">${cleanArea}</p>`;
+    }
+    
+    addressHtml += `</div>`;
+    addressItem.innerHTML = addressHtml;
     list.appendChild(addressItem);
   }
 
@@ -1833,19 +1839,6 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     list.appendChild(floorItem);
   }
 
-  // --- AREA: Optionally render area information (district, county) ---
-  const formattedArea = formatAreaFromTags(nTags);
-  if (formattedArea) {
-    const areaItem = document.createElement("div");
-    areaItem.className =
-      "list-group-item d-flex justify-content-between align-items-start";
-    areaItem.innerHTML = `
-      <div class="me-2">
-        <h6 class="mb-1 fw-semibold" style="font-size: 0.875rem; color: #666;">Area</h6>
-        <p class="small mb-1" style="color: #666;">${formattedArea}</p>
-      </div>`;
-    list.appendChild(areaItem);
-  }
 
   // --- Render basic tags (address, amenity, etc.) ---
 Object.entries(nTags).forEach(([key, value]) => {
@@ -1878,6 +1871,39 @@ Object.entries(nTags).forEach(([key, value]) => {
 
   // Skip "type" entirely
   if (lk === "type") return;
+
+  // Skip "osm_key" and "osm_type" - only useful for mappers
+  if (lk === "osm_key" || lk === "osm_type" || key === "Osm Key") return;
+
+  // Handle outdoor_seating specially - show as chip if yes, hide if no
+  if (lk === "outdoor_seating" || lk === "outdoor seating") {
+    const outdoorValue = String(value).toLowerCase().trim();
+    if (outdoorValue === "yes" || outdoorValue === "true") {
+      const outdoorItem = document.createElement("div");
+      outdoorItem.className = "list-group-item";
+      outdoorItem.style.padding = "0";
+      
+      const container = document.createElement("div");
+      container.style.padding = "1rem";
+      
+      const chip = document.createElement("div");
+      chip.style.display = "inline-block";
+      chip.style.padding = "0.5rem 0.875rem";
+      chip.style.borderRadius = "1rem";
+      chip.style.backgroundColor = "#6c757d"; // Grey color
+      chip.style.color = "white";
+      chip.style.fontSize = "0.8125rem";
+      chip.style.fontWeight = "500";
+      chip.style.lineHeight = "1.25";
+      chip.style.fontFamily = "inherit";
+      chip.textContent = "Outdoor seating";
+      
+      container.appendChild(chip);
+      outdoorItem.appendChild(container);
+      list.appendChild(outdoorItem);
+    }
+    return; // Always skip outdoor_seating from generic rendering
+  }
 
   // Skip address parts – we already show a formatted address above
   const isAddressField =
@@ -1963,6 +1989,8 @@ Object.entries(nTags).forEach(([key, value]) => {
   let displayKey;
   if (key === "display_name") {
     displayKey = "Address";
+  } else if (lk === "amenity") {
+    displayKey = "Category"; // Rename "Amenity" to "Category"
   } else {
     displayKey = key
       .replace(/^Addr_?/i, "")
