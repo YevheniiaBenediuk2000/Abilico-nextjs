@@ -1747,6 +1747,136 @@ function makeCircleFeature(layer) {
   };
 }
 
+// Helper function to get MUI Material Icon name for place types
+function getMuiIconForPlaceType(key, value) {
+  const lk = String(key || "").toLowerCase();
+  const lv = String(value || "").toLowerCase().replace(/[_-]/g, "-");
+  
+  // Map OSM place type keys and values to MUI Material Icons
+  const iconMap = {
+    // Tourism
+    tourism: {
+      hotel: "hotel",
+      hostel: "hotel",
+      motel: "hotel",
+      apartment: "apartment",
+      guest_house: "hotel",
+      museum: "museum",
+      gallery: "palette",
+      attraction: "attractions",
+      zoo: "pets",
+      theme_park: "attractions",
+      aquarium: "waves",
+      viewpoint: "visibility",
+      information: "info",
+      "*": "place",
+    },
+    // Amenity
+    amenity: {
+      restaurant: "restaurant",
+      fast_food: "fastfood",
+      cafe: "local_cafe",
+      bar: "local_bar",
+      pub: "sports_bar",
+      biergarten: "sports_bar",
+      food_court: "restaurant",
+      pharmacy: "local_pharmacy",
+      hospital: "local_hospital",
+      clinic: "medical_services",
+      doctors: "medical_services",
+      dentist: "medical_services",
+      veterinary: "pets",
+      bank: "account_balance",
+      atm: "atm",
+      post_office: "mail",
+      library: "local_library",
+      school: "school",
+      university: "school",
+      college: "school",
+      kindergarten: "child_care",
+      theatre: "theater_comedy",
+      cinema: "movie",
+      arts_centre: "palette",
+      marketplace: "store",
+      fuel: "local_gas_station",
+      charging_station: "ev_station",
+      parking: "local_parking",
+      toilets: "wc",
+      drinking_water: "water_drop",
+      place_of_worship: "place",
+      fire_station: "fire_truck",
+      police: "local_police",
+      bus_station: "directions_bus",
+      bicycle_rental: "pedal_bike",
+      "*": "place",
+    },
+    // Shop
+    shop: {
+      supermarket: "store",
+      convenience: "store",
+      bakery: "bakery_dining",
+      butcher: "restaurant",
+      clothes: "checkroom",
+      jewelry: "diamond",
+      florist: "local_florist",
+      hardware: "hardware",
+      furniture: "chair",
+      electronics: "devices",
+      book: "menu_book",
+      "*": "store",
+    },
+    // Leisure
+    leisure: {
+      park: "park",
+      playground: "child_care",
+      pitch: "sports_soccer",
+      stadium: "stadium",
+      swimming_pool: "pool",
+      fitness_centre: "fitness_center",
+      dog_park: "pets",
+      "*": "park",
+    },
+    // Healthcare
+    healthcare: {
+      hospital: "local_hospital",
+      clinic: "medical_services",
+      "*": "medical_services",
+    },
+    // Office
+    office: {
+      "*": "business",
+    },
+    // Historic
+    historic: {
+      "*": "museum",
+    },
+    // Sport
+    sport: {
+      "*": "sports_soccer",
+    },
+  };
+  
+  // Check if we have a mapping for this key
+  if (iconMap[lk]) {
+    // Try exact match first
+    if (iconMap[lk][lv]) {
+      return iconMap[lk][lv];
+    }
+    // Try with underscores replaced
+    const lvUnderscore = lv.replace(/-/g, "_");
+    if (iconMap[lk][lvUnderscore]) {
+      return iconMap[lk][lvUnderscore];
+    }
+    // Fallback to wildcard
+    if (iconMap[lk]["*"]) {
+      return iconMap[lk]["*"];
+    }
+  }
+  
+  // Default fallback
+  return "place";
+}
+
 const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   globals.detailsCtx.tags = tags;
   const titleText = tags.name || tags.amenity || "Details";
@@ -2155,8 +2285,29 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     addressItem.className =
       "list-group-item d-flex justify-content-between align-items-start";
     
+    // Create icon HTML using mask technique (similar to wheelchair icon)
+    const iconHtml = `
+      <div style="
+        width: 20px;
+        height: 20px;
+        display: inline-block;
+        flex-shrink: 0;
+        margin-top: 2px;
+        background-color: #0a3f89;
+        mask-image: url('/icons/maki/marker.svg');
+        mask-size: contain;
+        mask-repeat: no-repeat;
+        mask-position: center;
+        -webkit-mask-image: url('/icons/maki/marker.svg');
+        -webkit-mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+      "></div>`;
+    
     let addressHtml = `
-      <div class="me-2">
+      <div class="me-2" style="display: flex; align-items: flex-start; gap: 8px;">
+        ${iconHtml}
+        <div style="flex: 1; min-width: 0;">
         <h6 class="mb-1 fw-semibold">Address</h6>
         <p class="small mb-1">${formattedAddress}</p>`;
     
@@ -2165,7 +2316,9 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
         <p class="small mb-1" style="color: #666;">${cleanArea}</p>`;
     }
     
-    addressHtml += `</div>`;
+    addressHtml += `
+        </div>
+      </div>`;
     addressItem.innerHTML = addressHtml;
     list.appendChild(addressItem);
   }
@@ -2208,6 +2361,20 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
         <p class="small mb-1">${capacityLabel}</p>
       </div>`;
     list.appendChild(capacityItem);
+  }
+
+  // --- CULTURAL HERITAGE REGISTRY: Handle ref:lt:kpd specially ---
+  const heritageRef = nTags["ref:lt:kpd"] || nTags["Ref:Lt:Kpd"] || nTags["ref_lt_kpd"] || null;
+  if (heritageRef && String(heritageRef).trim()) {
+    const heritageItem = document.createElement("div");
+    heritageItem.className =
+      "list-group-item d-flex justify-content-between align-items-start";
+    heritageItem.innerHTML = `
+      <div class="me-2">
+        <h6 class="mb-1 fw-semibold">Cultural heritage registry</h6>
+        <p class="small mb-1">Register ID: ${String(heritageRef).trim()}</p>
+      </div>`;
+    list.appendChild(heritageItem);
   }
 
   // --- STARS: Render stars rating similar to wheelchair section ---
@@ -2467,6 +2634,12 @@ Object.entries(nTags).forEach(([key, value]) => {
   
   // Skip stars - already rendered as dedicated Stars section
   if (lk === "stars") return;
+  
+  // Skip ref:lt:kpd - already rendered as Cultural heritage registry
+  if (lk === "ref:lt:kpd" || lk === "ref_lt_kpd") return;
+  
+  // Skip all other ref:* tags - too technical for regular users
+  if (lk.startsWith("ref:") || key.startsWith("ref:")) return;
 
   // Skip address parts – we already show a formatted address above
   const isAddressField =
@@ -2578,10 +2751,30 @@ Object.entries(nTags).forEach(([key, value]) => {
     return;
   }
 
+  // Check if this is a place type that should have an icon (amenity, tourism, shop, leisure, healthcare, office, historic, sport)
+  const isPlaceType = ["amenity", "tourism", "shop", "leisure", "healthcare", "office", "historic", "sport"].includes(lk);
+  let iconHtml = "";
+  
+  if (isPlaceType) {
+    const iconName = getMuiIconForPlaceType(lk, value);
+    // Use Material Icons font (should be loaded via MUI)
+    iconHtml = `
+      <span class="material-icons" style="
+        font-size: 20px;
+        color: #0a3f89;
+        vertical-align: middle;
+        margin-right: 8px;
+        display: inline-block;
+      ">${iconName}</span>`;
+  }
+
   item.innerHTML = `
-    <div class="me-2">
+    <div class="me-2" style="display: flex; align-items: flex-start; gap: 8px;">
+      ${iconHtml ? `<div style="flex-shrink: 0; margin-top: 2px;">${iconHtml}</div>` : ""}
+      <div style="flex: 1; min-width: 0;">
       <h6 class="mb-1 fw-semibold">${displayKey}</h6>
       <p class="small mb-1">${displayValue}</p>
+      </div>
     </div>`;
   list.appendChild(item);
 });
