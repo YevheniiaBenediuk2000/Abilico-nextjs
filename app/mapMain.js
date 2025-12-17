@@ -1890,6 +1890,12 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   // Consistent padding constant for all detail sections (24px = MUI spacing 3)
   const SECTION_PADDING = "24px";
   
+  // Icon styling variables for Category and Address sections
+  const ICON_SECONDARY_COLOR = "#0f77d2"; // Secondary blue for Category/Address icons
+  const ICON_BACKGROUND_COLOR = "#edf4fb"; // Light blue background for icon containers
+  const ICON_SIZE = "48px"; // Icon container size (width and height)
+  const ICON_BORDER_RADIUS = "12px"; // Border radius for icon containers
+  
   // Shared helper function to create detail section headers with icon (matching Contact Information style)
   function createDetailSectionHeader(iconName, titleText) {
     const header = document.createElement("div");
@@ -1898,22 +1904,22 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     header.style.gap = "12px";
     header.style.marginBottom = "20px";
 
-    // Icon container - same size/colors as Contact Information
+    // Icon container - using variables for Category/Address styling
     const iconContainer = document.createElement("div");
     iconContainer.style.display = "flex";
     iconContainer.style.alignItems = "center";
     iconContainer.style.justifyContent = "center";
-    iconContainer.style.width = "40px";
-    iconContainer.style.height = "40px";
-    iconContainer.style.borderRadius = "12px";
-    iconContainer.style.backgroundColor = "rgba(10, 63, 137, 0.1)";
-    iconContainer.style.color = "#0a3f89";
+    iconContainer.style.width = ICON_SIZE;
+    iconContainer.style.height = ICON_SIZE;
+    iconContainer.style.borderRadius = ICON_BORDER_RADIUS;
+    iconContainer.style.backgroundColor = ICON_BACKGROUND_COLOR;
+    iconContainer.style.color = ICON_SECONDARY_COLOR;
     iconContainer.style.flexShrink = "0";
 
     const icon = document.createElement("span");
     icon.className = "material-icons";
-    icon.style.fontSize = "22px";
-    icon.style.color = "#0a3f89";
+    icon.style.fontSize = "24px"; // Adjusted for 48px container
+    icon.style.color = ICON_SECONDARY_COLOR;
     icon.textContent = iconName;
     iconContainer.appendChild(icon);
 
@@ -1931,44 +1937,60 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     return header;
   }
 
-  function createDetailSectionHeader(iconName, titleText) {
-    const header = document.createElement("div");
-    header.style.display = "flex";
-    header.style.alignItems = "center";
-    header.style.gap = "12px";
-    header.style.marginBottom = "20px";
-  
-    // icon chip – same size/colors as Contact Information
-    const iconContainer = document.createElement("div");
-    iconContainer.style.display = "flex";
-    iconContainer.style.alignItems = "center";
-    iconContainer.style.justifyContent = "center";
-    iconContainer.style.width = "40px";
-    iconContainer.style.height = "40px";
-    iconContainer.style.borderRadius = "12px";
-    iconContainer.style.backgroundColor = "rgba(10, 63, 137, 0.1)";
-    iconContainer.style.color = "#0a3f89";
-    iconContainer.style.flexShrink = "0";
-  
-    const icon = document.createElement("span");
-    icon.className = "material-icons";
-    icon.style.fontSize = "22px";
-    icon.style.color = "#0a3f89";
-    icon.textContent = iconName;          // 👈 only this changes
-    iconContainer.appendChild(icon);
-  
-    const title = document.createElement("h6");
-    title.style.fontSize = "1.125rem";
-    title.style.fontWeight = "600";
-    title.style.color = "rgba(0, 0, 0, 0.87)";
-    title.style.letterSpacing = "-0.01em";
-    title.style.margin = "0";
-    title.textContent = titleText;
-  
-    header.appendChild(iconContainer);
-    header.appendChild(title);
-  
-    return header;
+  // Helper function to get Material Icon name with fallback
+  function getSocialMediaIcon(platform) {
+    // Map platform to Material Icon name
+    // Note: "facebook" and "instagram" may require Material Symbols font
+    // If they don't render, fallback to semantic alternatives
+    const iconMap = {
+      "Facebook": "facebook", // Try Material Symbols "facebook" icon first
+      "Instagram": "instagram", // Try Material Symbols "instagram" icon first
+      "Twitter": "alternate_email",
+      "LinkedIn": "work",
+      "YouTube": "play_circle",
+      "TikTok": "music_note",
+    };
+    return iconMap[platform] || "share";
+  }
+
+  // Helper function to detect social media platform and get icon
+  function detectSocialMedia(url) {
+    if (!url) return null;
+    try {
+      const cleaned = cleanUrl(url);
+      if (!cleaned) return null;
+      const urlObj = new URL(cleaned);
+      const hostname = urlObj.hostname.toLowerCase().replace(/^www\./, "");
+      
+      // Facebook
+      if (hostname.includes("facebook.com")) {
+        return { platform: "Facebook", icon: getSocialMediaIcon("Facebook"), url: cleaned };
+      }
+      // Instagram
+      if (hostname.includes("instagram.com")) {
+        return { platform: "Instagram", icon: getSocialMediaIcon("Instagram"), url: cleaned };
+      }
+      // Twitter/X
+      if (hostname.includes("twitter.com") || hostname.includes("x.com")) {
+        return { platform: "Twitter", icon: "alternate_email", url: cleaned };
+      }
+      // LinkedIn
+      if (hostname.includes("linkedin.com")) {
+        return { platform: "LinkedIn", icon: "work", url: cleaned };
+      }
+      // YouTube
+      if (hostname.includes("youtube.com") || hostname.includes("youtu.be")) {
+        return { platform: "YouTube", icon: "play_circle", url: cleaned };
+      }
+      // TikTok
+      if (hostname.includes("tiktok.com")) {
+        return { platform: "TikTok", icon: "music_note", url: cleaned };
+      }
+      
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   // 🔥 Remove raw "contact" tag (e.g. contact=yes) so it doesn't render as "Contact / Yes"
@@ -1980,7 +2002,25 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   }
   
   // CONTACT INFO - Extract website, phone, and email from tags
-  const websiteLinks = splitMulti(nTags.website || nTags["contact:website"] || "")
+  const allWebsiteLinks = splitMulti(nTags.website || nTags["contact:website"] || "")
+    .map(cleanUrl)
+    .filter(Boolean);
+  
+  // Separate social media links from regular website links
+  const socialMediaLinks = [];
+  const regularWebsiteLinks = [];
+  
+  allWebsiteLinks.forEach((url) => {
+    const social = detectSocialMedia(url);
+    if (social) {
+      socialMediaLinks.push(social);
+    } else {
+      regularWebsiteLinks.push(url);
+    }
+  });
+  
+  // Use regular website links for ContactInfo
+  const websiteLinks = regularWebsiteLinks;
 
   // Remove raw "contact" tag (e.g. contact=yes) from generic details,
   // we only want the rich Contact section (website/phone/email).
@@ -2056,6 +2096,119 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
         contactContainer.innerHTML = fallbackHtml.join("");
       }
     })();
+  }
+
+  // SOCIAL MEDIA - Render social media links separately if there are multiple platforms
+  if (socialMediaLinks.length > 0) {
+    const socialMediaItem = document.createElement("div");
+    socialMediaItem.className = "list-group-item";
+    socialMediaItem.style.padding = "0";
+    
+    const container = document.createElement("div");
+    container.style.padding = SECTION_PADDING;
+    container.style.borderTop = "1px solid";
+    container.style.borderColor = "rgba(0, 0, 0, 0.12)";
+    
+    // Header: "Social Media" with share icon
+    const header = createDetailSectionHeader("share", "Social Media");
+    container.appendChild(header);
+    
+    // Create a card for each social media platform
+    socialMediaLinks.forEach((social) => {
+      const card = document.createElement("div");
+      card.style.marginBottom = "12px";
+      card.style.border = "1px solid";
+      card.style.borderColor = "rgba(0, 0, 0, 0.12)";
+      card.style.borderRadius = "8px";
+      card.style.transition = "all 0.2s ease-in-out";
+      card.style.cursor = "pointer";
+      
+      // Hover effect
+      card.addEventListener("mouseenter", () => {
+        card.style.borderColor = "#0a3f89";
+        card.style.boxShadow = "0 2px 8px rgba(10, 63, 137, 0.15)";
+        card.style.transform = "translateY(-1px)";
+      });
+      card.addEventListener("mouseleave", () => {
+        card.style.borderColor = "rgba(0, 0, 0, 0.12)";
+        card.style.boxShadow = "none";
+        card.style.transform = "translateY(0)";
+      });
+      
+      // Click to open link
+      card.addEventListener("click", () => {
+        window.open(social.url, "_blank", "noopener,nofollow");
+      });
+      
+      const cardContent = document.createElement("div");
+      cardContent.style.display = "flex";
+      cardContent.style.alignItems = "center";
+      cardContent.style.gap = "16px";
+      cardContent.style.padding = "16px";
+      
+      // Icon container
+      const iconContainer = document.createElement("div");
+      iconContainer.style.display = "flex";
+      iconContainer.style.alignItems = "center";
+      iconContainer.style.justifyContent = "center";
+      iconContainer.style.width = "48px";
+      iconContainer.style.height = "48px";
+      iconContainer.style.borderRadius = "8px";
+      iconContainer.style.backgroundColor = "rgba(10, 63, 137, 0.1)";
+      iconContainer.style.color = "#0a3f89";
+      iconContainer.style.flexShrink = "0";
+      
+      const icon = document.createElement("span");
+      // Use Material Symbols for brand icons (facebook, instagram), Material Icons for others
+      const isBrandIcon = ["facebook", "instagram"].includes(social.icon);
+      icon.className = isBrandIcon ? "material-symbols-outlined" : "material-icons";
+      icon.style.fontSize = "24px";
+      icon.style.color = "#0a3f89";
+      icon.textContent = social.icon;
+      iconContainer.appendChild(icon);
+      
+      // Content
+      const contentWrapper = document.createElement("div");
+      contentWrapper.style.flex = "1";
+      contentWrapper.style.minWidth = "0";
+      
+      const label = document.createElement("div");
+      label.style.fontSize = "0.75rem";
+      label.style.color = "rgba(0, 0, 0, 0.6)";
+      label.style.textTransform = "uppercase";
+      label.style.letterSpacing = "0.5px";
+      label.style.marginBottom = "4px";
+      label.style.fontWeight = "500";
+      label.textContent = social.platform;
+      
+      const linkText = document.createElement("div");
+      linkText.style.fontSize = "0.9375rem";
+      linkText.style.fontWeight = "500";
+      linkText.style.color = "rgba(0, 0, 0, 0.87)";
+      linkText.style.wordBreak = "break-all";
+      linkText.textContent = social.url;
+      
+      contentWrapper.appendChild(label);
+      contentWrapper.appendChild(linkText);
+      
+      // External link indicator
+      const externalIcon = document.createElement("span");
+      externalIcon.className = "material-icons";
+      externalIcon.style.fontSize = "0.875rem";
+      externalIcon.style.color = "rgba(0, 0, 0, 0.6)";
+      externalIcon.style.marginLeft = "4px";
+      externalIcon.textContent = "open_in_new";
+      
+      linkText.appendChild(externalIcon);
+      
+      cardContent.appendChild(iconContainer);
+      cardContent.appendChild(contentWrapper);
+      card.appendChild(cardContent);
+      container.appendChild(card);
+    });
+    
+    socialMediaItem.appendChild(container);
+    list.appendChild(socialMediaItem);
   }
 
   // OPENING HOURS - Render with React component
@@ -2686,16 +2839,51 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     list.appendChild(featuresItem);
   }
 
+  // Helper function to format date from YYYY-MM-DD to "6 Nov 2025" format
+  function formatDateForDisplay(dateStr) {
+    if (!dateStr) return null;
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return null;
+      
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+                      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const day = date.getDate();
+      const month = months[date.getMonth()];
+      const year = date.getFullYear();
+      
+      return `${day} ${month} ${year}`;
+    } catch {
+      return null;
+    }
+  }
+
+  // --- LAST CHECKED DATE: Extract and format check_date before generic tags loop ---
+  const checkDateKeys = ["check_date", "check date", "last_checked", "last checked", "last_updated", "last updated"];
+  let checkDateValue = null;
+  let checkDateKey = null;
+  
+  for (const key of checkDateKeys) {
+    if (nTags[key]) {
+      checkDateValue = formatDateForDisplay(String(nTags[key]));
+      checkDateKey = key;
+      if (checkDateValue) break;
+    }
+  }
+
   // --- Render basic tags (address, amenity, etc.) ---
 Object.entries(nTags).forEach(([key, value]) => {
+  const lk = key.trim().toLowerCase();
+  
+  // Skip check_date - will be rendered at the bottom
+  if (checkDateKeys.includes(lk)) return;
+  
   const isOpeningHours = /^opening_hours/i.test(key);
   if (isOpeningHours) return; // Skip opening_hours - already rendered above
 
   // Skip wheelchair/accessibility tags - already rendered in Accessibility section
   const isWheelchair = /^wheelchair/i.test(key);
   if (isWheelchair) return;
-
-  const lk = key.trim().toLowerCase();
   const lv = String(value).trim().toLowerCase();
 
   // 🔒 1) Never show the bare "contact" tag at all
@@ -2908,6 +3096,46 @@ Object.entries(nTags).forEach(([key, value]) => {
   
   list.appendChild(item);
 });
+
+  // --- LAST CHECKED DATE: Display at the bottom in subtle secondary style ---
+  if (checkDateValue) {
+    const lastCheckedItem = document.createElement("div");
+    lastCheckedItem.className = "list-group-item";
+    lastCheckedItem.style.padding = "0";
+    
+    const container = document.createElement("div");
+    container.style.padding = `${SECTION_PADDING} ${SECTION_PADDING} 16px ${SECTION_PADDING}`; // Less bottom padding
+    container.style.borderTop = "1px solid";
+    container.style.borderColor = "rgba(0, 0, 0, 0.12)";
+    
+    // Container for icon and text
+    const contentWrapper = document.createElement("div");
+    contentWrapper.style.display = "flex";
+    contentWrapper.style.alignItems = "center";
+    contentWrapper.style.gap = "8px";
+    
+    // Calendar icon
+    const icon = document.createElement("span");
+    icon.className = "material-icons";
+    icon.style.fontSize = "16px";
+    icon.style.color = "rgba(0, 0, 0, 0.6)";
+    icon.style.flexShrink = "0";
+    icon.textContent = "calendar_today";
+    contentWrapper.appendChild(icon);
+    
+    // Date text
+    const dateText = document.createElement("span");
+    dateText.style.fontSize = "0.75rem";
+    dateText.style.color = "rgba(0, 0, 0, 0.6)";
+    dateText.style.lineHeight = "1.5";
+    dateText.style.fontWeight = "400";
+    dateText.textContent = `Last checked: ${checkDateValue}`;
+    contentWrapper.appendChild(dateText);
+    
+    container.appendChild(contentWrapper);
+    lastCheckedItem.appendChild(container);
+    list.appendChild(lastCheckedItem);
+  }
 
   globals.detailsCtx.latlng = latlng;
   globals.detailsCtx.placeId = tags.id ?? tags.osm_id ?? tags.place_id;

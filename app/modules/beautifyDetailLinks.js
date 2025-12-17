@@ -9,7 +9,8 @@ export function cleanUrl(u) {
   if (!u) return null;
   let s = String(u)
     .trim()
-    .replace(/^https?\s*:?\/?\/?/i, "https://") // "Https //..." → "https://"
+    // Fix broken URLs like "Https //www.facebook.com" → "https://www.facebook.com"
+    .replace(/^(https?)\s*:?\s*\/+\s*/i, "$1://") // "Https //" or "https //" → "https://"
     .replace(/\s+/g, ""); // kill internal spaces
 
   if (!/^https?:\/\//i.test(s) && /^[\w.-]+\.[a-z]{2,}([/:?#]|$)/i.test(s)) {
