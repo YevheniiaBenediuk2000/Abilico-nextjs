@@ -1954,10 +1954,24 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
       >
         {!hideControls && (
           <Box>
-            <Typography sx={{ mb: 0.9 }} variant="subtitle1" fontWeight={600}>
+            <Typography
+              sx={{
+                fontSize: "1.125rem", // 18px
+                fontWeight: 600,
+                color: "rgba(0, 0, 0, 0.87)",
+                marginBottom: "0.75rem",
+              }}
+            >
               Places in this area
             </Typography>
-            <Typography variant="caption" color="text.secondary">
+            <Typography
+              sx={{
+                fontSize: "0.875rem", // 14px
+                color: "rgba(0, 0, 0, 0.6)",
+                lineHeight: 1.5,
+                marginBottom: hasPlaces ? 0 : "1.25rem",
+              }}
+            >
               {hasPlaces
                 ? `${items.length} place${items.length === 1 ? "" : "s"}`
                 : zoom && zoom < SHOW_PLACES_ZOOM
@@ -1983,6 +1997,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
               size="small"
               startIcon={<FilterListIcon />}
               onClick={() => setFiltersOpen(true)}
+              sx={{ textTransform: "none" }}
             >
               Filter
             </Button>
@@ -1994,6 +2009,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
               size="small"
               startIcon={<SwapVertIcon />}
               onClick={(e) => setSortAnchorEl(e.currentTarget)}
+              sx={{ textTransform: "none" }}
             >
               Sort
             </Button>
@@ -2005,7 +2021,13 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
       <Box sx={{ flexGrow: 1, pt: 0.5 }}>
         {!hasPlaces ? (
           <Box px={2} py={2}>
-            <Typography variant="body2" color="text.secondary">
+            <Typography
+              sx={{
+                fontSize: "0.875rem", // 14px
+                color: "rgba(0, 0, 0, 0.6)",
+                lineHeight: 1.5,
+              }}
+            >
               {zoom && zoom < SHOW_PLACES_ZOOM
                 ? "Zoom in on the map to load accessible points of interest."
                 : photosOnly
@@ -2018,7 +2040,13 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
             <Box sx={{ flexGrow: 1, pt: 0.5 }}>
               {!hasPlaces ? (
                 <Box px={2} py={2}>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography
+                    sx={{
+                      fontSize: "0.875rem", // 14px
+                      color: "rgba(0, 0, 0, 0.6)",
+                      lineHeight: 1.5,
+                    }}
+                  >
                     {zoom && zoom < SHOW_PLACES_ZOOM
                       ? "Zoom in on the map to load accessible points of interest."
                       : "Try moving the map, changing accessibility filters, or clearing filters."}

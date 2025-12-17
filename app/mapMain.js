@@ -1939,15 +1939,13 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   // Helper function to get Material Icon name with fallback
   function getSocialMediaIcon(platform) {
-    // Map platform to Material Icon name
-    // Note: "facebook" and "instagram" may require Material Symbols font
-    // If they don't render, fallback to semantic alternatives
+    // Map platform to Material Icon name from @mui/icons-material
     const iconMap = {
-      "Facebook": "facebook", // Try Material Symbols "facebook" icon first
-      "Instagram": "instagram", // Try Material Symbols "instagram" icon first
-      "Twitter": "alternate_email",
+      "Facebook": "Facebook", // Material Icons Facebook icon
+      "Instagram": "Instagram", // Material Icons Instagram icon (if available)
+      "Twitter": "Twitter", // Material Icons Twitter icon
       "LinkedIn": "work",
-      "YouTube": "play_circle",
+      "YouTube": "YouTube", // Material Icons YouTube icon
       "TikTok": "music_note",
     };
     return iconMap[platform] || "share";
@@ -2186,6 +2184,25 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     })();
   }
 
+  // Helper function to format social media URL for display (clean, readable text)
+  function formatSocialMediaUrlForDisplay(url) {
+    if (!url) return "";
+    try {
+      const urlObj = new URL(url);
+      const hostname = urlObj.hostname.replace(/^www\./i, ""); // Remove www.
+      const pathname = urlObj.pathname.replace(/\/$/, ""); // Remove trailing slash
+      const displayPath = pathname || "";
+      
+      // Return clean format: "facebook.com/JunglePizzaVilnius"
+      return hostname + displayPath;
+    } catch {
+      // Fallback: remove https:// and www. manually
+      return url
+        .replace(/^https?:\/\//i, "")
+        .replace(/^www\./i, "");
+    }
+  }
+
   // SOCIAL MEDIA - Render social media links separately if there are multiple platforms
   if (socialMediaLinks.length > 0) {
     const socialMediaItem = document.createElement("div");
@@ -2247,12 +2264,15 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       iconContainer.style.flexShrink = "0";
       
       const icon = document.createElement("span");
-      // Use Material Symbols for brand icons (facebook, instagram), Material Icons for others
-      const isBrandIcon = ["facebook", "instagram"].includes(social.icon);
-      icon.className = isBrandIcon ? "material-symbols-outlined" : "material-icons";
+      // Use Material Icons for all social media icons
+      // Material Icons font uses lowercase names: "Facebook" component -> "facebook" icon name
+      icon.className = "material-icons";
       icon.style.fontSize = "24px";
       icon.style.color = ICON_SECONDARY_COLOR;
-      icon.textContent = social.icon;
+      // Convert platform name to Material Icons font name (lowercase)
+      // "Facebook" -> "facebook", "Instagram" -> "instagram", etc.
+      const iconName = social.icon.toLowerCase();
+      icon.textContent = iconName;
       iconContainer.appendChild(icon);
       
       // Content
@@ -2269,25 +2289,35 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       label.style.fontWeight = "500";
       label.textContent = social.platform;
       
+      // Format URL for display (clean, readable text)
+      const displayUrl = formatSocialMediaUrlForDisplay(social.url);
+      
       const linkText = document.createElement("div");
+      linkText.style.display = "flex";
+      linkText.style.alignItems = "center";
+      linkText.style.gap = "4px";
       linkText.style.fontSize = "0.9375rem";
       linkText.style.fontWeight = "500";
       linkText.style.color = "rgba(0, 0, 0, 0.87)";
-      linkText.style.wordBreak = "break-all";
-      linkText.textContent = social.url;
+      linkText.style.wordBreak = "break-word"; // Better than break-all
+      linkText.style.lineHeight = "1.4";
       
-      contentWrapper.appendChild(label);
-      contentWrapper.appendChild(linkText);
+      // Display text (clean URL)
+      const displayText = document.createElement("span");
+      displayText.textContent = displayUrl;
+      linkText.appendChild(displayText);
       
       // External link indicator
       const externalIcon = document.createElement("span");
       externalIcon.className = "material-icons";
       externalIcon.style.fontSize = "0.875rem";
       externalIcon.style.color = "rgba(0, 0, 0, 0.6)";
-      externalIcon.style.marginLeft = "4px";
+      externalIcon.style.flexShrink = "0";
       externalIcon.textContent = "open_in_new";
-      
       linkText.appendChild(externalIcon);
+      
+      contentWrapper.appendChild(label);
+      contentWrapper.appendChild(linkText);
       
       cardContent.appendChild(iconContainer);
       cardContent.appendChild(contentWrapper);
@@ -2594,17 +2624,22 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     });
   }
 
-  // --- ADDRESS: Render formatted address with area as secondary text (same chip style as Contact Information, icon = location_on) ---
+  // --- ADDRESS: Render formatted address with area and floor as secondary text (same chip style as Contact Information, icon = location_on) ---
   const formattedAddress = formatAddressFromTags(nTags);
-  if (formattedAddress) {
-    let formattedArea = formatAreaFromTags(nTags);
+  let formattedArea = formatAreaFromTags(nTags);
     
     // Clean up area text: remove "eldership" and simplify
-    if (formattedArea) {
-      formattedArea = formattedArea.replace(/\s*eldership\s*/gi, " ").trim();
-      formattedArea = formattedArea.replace(/\s+/g, " ");
-    }
-    
+  if (formattedArea) {
+    formattedArea = formattedArea.replace(/\s*eldership\s*/gi, " ").trim();
+    formattedArea = formattedArea.replace(/\s+/g, " ");
+  }
+  
+  // Get floor/level information
+  const levelValue = nTags.level || nTags.Level || null;
+  const formattedLevel = formatLevel(levelValue);
+  
+  // Show Address section if we have address, area, or floor
+  if (formattedAddress || formattedArea || formattedLevel) {
     const addressItem = document.createElement("div");
     addressItem.className = "list-group-item";
     addressItem.style.padding = "0";
@@ -2657,19 +2692,21 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     title.textContent = "Address";
     contentWrapper.appendChild(title);
     
-    // Address value
-    const addressText = document.createElement("p");
-    addressText.style.margin = "0";
-    addressText.style.fontSize = "0.875rem";
-    addressText.style.color = "rgba(0, 0, 0, 0.87)";
-    addressText.style.lineHeight = "1.5";
-    addressText.textContent = formattedAddress;
-    contentWrapper.appendChild(addressText);
+    // Address value (if exists)
+    if (formattedAddress) {
+      const addressText = document.createElement("p");
+      addressText.style.margin = "0";
+      addressText.style.fontSize = "0.875rem";
+      addressText.style.color = "rgba(0, 0, 0, 0.87)";
+      addressText.style.lineHeight = "1.5";
+      addressText.textContent = formattedAddress;
+      contentWrapper.appendChild(addressText);
+    }
     
     // Area value (if exists)
     if (formattedArea) {
       const areaText = document.createElement("p");
-      areaText.style.margin = "4px 0 0 0";
+      areaText.style.margin = formattedAddress ? "4px 0 0 0" : "0";
       areaText.style.fontSize = "0.875rem";
       areaText.style.color = "rgba(0, 0, 0, 0.6)";
       areaText.style.lineHeight = "1.5";
@@ -2677,26 +2714,22 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       contentWrapper.appendChild(areaText);
     }
     
+    // Floor value (if exists) - shown in lighter text
+  if (formattedLevel) {
+      const floorText = document.createElement("p");
+      floorText.style.margin = (formattedAddress || formattedArea) ? "4px 0 0 0" : "0";
+      floorText.style.fontSize = "0.875rem";
+      floorText.style.color = "rgba(0, 0, 0, 0.6)";
+      floorText.style.lineHeight = "1.5";
+      floorText.textContent = formattedLevel; // e.g. "1st floor"
+      contentWrapper.appendChild(floorText);
+    }
+    
     layoutContainer.appendChild(iconContainer);
     layoutContainer.appendChild(contentWrapper);
     container.appendChild(layoutContainer);
     addressItem.appendChild(container);
     list.appendChild(addressItem);
-  }
-
-  // --- FLOOR: Render floor/level information (only if level exists) ---
-  const levelValue = nTags.level || nTags.Level || null;
-  const formattedLevel = formatLevel(levelValue);
-  if (formattedLevel) {
-    const floorItem = document.createElement("div");
-    floorItem.className =
-      "list-group-item d-flex justify-content-between align-items-start";
-    floorItem.innerHTML = `
-      <div class="me-2">
-        <h6 class="mb-1 fw-semibold">Floor</h6>
-        <p class="small mb-1">${formattedLevel}</p>
-      </div>`;
-    list.appendChild(floorItem);
   }
 
   // --- CAPACITY: Combine Beds and Rooms into a single Capacity section ---
@@ -3070,12 +3103,15 @@ Object.entries(nTags).forEach(([key, value]) => {
     (lk === "city" && (nTags["addr:city"] || nTags["addr_city"]));
   if (isAddressField) return;
 
-  // Skip area fields – already rendered as “Area”
+  // Skip area fields – already rendered as "Area"
   const isAreaField = /^(state|county|district|locality)$/i.test(lk);
   if (isAreaField) return;
 
-  // Skip name + level (already rendered elsewhere)
-  if (lk === "name" || lk === "level") return;
+  // Skip name (already rendered elsewhere)
+  if (lk === "name") return;
+  
+  // Skip level (already rendered in Address section)
+  if (lk === "level") return;
 
   // Skip amenity=yes (useless)
   if (lk === "amenity" && lv === "yes") return;
@@ -3286,32 +3322,112 @@ Object.entries(nTags).forEach(([key, value]) => {
     container.style.borderTop = "1px solid";
     container.style.borderColor = "rgba(0, 0, 0, 0.12)";
     container.style.minHeight = "60px"; // Minimum height for consistent spacing
-    container.style.display = "flex";
-    container.style.flexDirection = "column";
-    container.style.justifyContent = "center";
     
-    const contentWrapper = document.createElement("div");
+    // Helper function to get icon for specific fields
+    function getIconForField(fieldName) {
+      const fieldIcons = {
+        "Cuisine": "restaurant_menu",
+        "Brand": "store",
+        "Operator": "business",
+        "Phone": "phone",
+        "Email": "email",
+        "Website": "language",
+        "Opening Hours": "access_time",
+        "Description": "description",
+        "Name": "label",
+      };
+      return fieldIcons[fieldName] || null;
+    }
     
-    // Title
-    const title = document.createElement("h6");
-    title.style.fontSize = "1.125rem";
-    title.style.fontWeight = "600";
-    title.style.color = "rgba(0, 0, 0, 0.87)";
-    title.style.letterSpacing = "-0.01em";
-    title.style.margin = "0 0 8px 0"; // Increased margin-bottom for better spacing
-    title.textContent = displayKey;
-    contentWrapper.appendChild(title);
+    const fieldIcon = getIconForField(displayKey);
     
-    // Value
-    const valueText = document.createElement("p");
-    valueText.style.margin = "0";
-    valueText.style.fontSize = "0.875rem";
-    valueText.style.color = "rgba(0, 0, 0, 0.87)";
-    valueText.style.lineHeight = "1.5";
-    valueText.textContent = displayValue;
-    contentWrapper.appendChild(valueText);
+    // If we have an icon for this field, use the same layout as Address/Category
+    if (fieldIcon) {
+      // Layout: Icon on left, title and value on right (title aligned with icon, value below title)
+      const layoutContainer = document.createElement("div");
+      layoutContainer.style.display = "flex";
+      layoutContainer.style.alignItems = "flex-start";
+      layoutContainer.style.gap = "12px";
+      
+      // Icon container
+      const iconContainer = document.createElement("div");
+      iconContainer.style.display = "flex";
+      iconContainer.style.alignItems = "center";
+      iconContainer.style.justifyContent = "center";
+      iconContainer.style.width = ICON_SIZE;
+      iconContainer.style.height = ICON_SIZE;
+      iconContainer.style.borderRadius = ICON_BORDER_RADIUS;
+      iconContainer.style.backgroundColor = ICON_BACKGROUND_COLOR;
+      iconContainer.style.color = ICON_SECONDARY_COLOR;
+      iconContainer.style.flexShrink = "0";
+      
+      const icon = document.createElement("span");
+      icon.className = "material-icons";
+      icon.style.fontSize = "24px";
+      icon.style.color = ICON_SECONDARY_COLOR;
+      icon.textContent = fieldIcon;
+      iconContainer.appendChild(icon);
+      
+      // Content wrapper (title and value)
+      const contentWrapper = document.createElement("div");
+      contentWrapper.style.flex = "1";
+      contentWrapper.style.minWidth = "0";
+      contentWrapper.style.display = "flex";
+      contentWrapper.style.flexDirection = "column";
+      contentWrapper.style.justifyContent = "center";
+      
+      // Title - aligned with icon center
+      const title = document.createElement("h6");
+      title.style.fontSize = "1.125rem";
+      title.style.fontWeight = "600";
+      title.style.color = "rgba(0, 0, 0, 0.87)";
+      title.style.letterSpacing = "-0.01em";
+      title.style.margin = "0 0 4px 0"; // Small margin below for value
+      title.textContent = displayKey;
+      contentWrapper.appendChild(title);
+      
+      // Value text
+      const valueText = document.createElement("p");
+      valueText.style.margin = "0";
+      valueText.style.fontSize = "0.875rem";
+      valueText.style.color = "rgba(0, 0, 0, 0.87)";
+      valueText.style.lineHeight = "1.5";
+      valueText.textContent = displayValue;
+      contentWrapper.appendChild(valueText);
+      
+      layoutContainer.appendChild(iconContainer);
+      layoutContainer.appendChild(contentWrapper);
+      container.appendChild(layoutContainer);
+    } else {
+      // No icon - use simple layout without icon
+      container.style.display = "flex";
+      container.style.flexDirection = "column";
+      container.style.justifyContent = "center";
+      
+      const contentWrapper = document.createElement("div");
+      
+      // Title
+      const title = document.createElement("h6");
+      title.style.fontSize = "1.125rem";
+      title.style.fontWeight = "600";
+      title.style.color = "rgba(0, 0, 0, 0.87)";
+      title.style.letterSpacing = "-0.01em";
+      title.style.margin = "0 0 8px 0"; // Increased margin-bottom for better spacing
+      title.textContent = displayKey;
+      contentWrapper.appendChild(title);
+      
+      // Value
+      const valueText = document.createElement("p");
+      valueText.style.margin = "0";
+      valueText.style.fontSize = "0.875rem";
+      valueText.style.color = "rgba(0, 0, 0, 0.87)";
+      valueText.style.lineHeight = "1.5";
+      valueText.textContent = displayValue;
+      contentWrapper.appendChild(valueText);
+      
+      container.appendChild(contentWrapper);
+    }
     
-    container.appendChild(contentWrapper);
     item.appendChild(container);
   }
   

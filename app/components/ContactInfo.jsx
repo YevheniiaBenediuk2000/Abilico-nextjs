@@ -154,8 +154,7 @@ export default function ContactInfo({ website, phone, email }) {
                 >
                   {label}
                 </Typography>
-                <Typography
-                  variant="body2"
+                <Box
                   sx={{
                     color: "text.primary",
                     fontSize: "0.9375rem",
@@ -166,7 +165,17 @@ export default function ContactInfo({ website, phone, email }) {
                     gap: 1,
                   }}
                 >
-                  {value}
+                  <Typography
+                    component="span"
+                    sx={{
+                      color: "text.primary",
+                      fontSize: "0.9375rem",
+                      fontWeight: 500,
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {value}
+                  </Typography>
                   {external && (
                     <OpenInNewIcon
                       sx={{
@@ -189,7 +198,7 @@ export default function ContactInfo({ website, phone, email }) {
                       }}
                     />
                   )}
-                </Typography>
+                </Box>
               </Box>
             </Box>
           </CardContent>
@@ -315,36 +324,38 @@ export default function ContactInfo({ website, phone, email }) {
         </DialogTitle>
         <Divider />
         <DialogContent sx={{ p: 0 }}>
-          <List sx={{ py: 1 }}>
+          <List sx={{ py: 1.5 }}>
             {validPhones.map((phoneNum, idx) => (
               <ListItem key={idx} disablePadding>
                 <ListItemButton
                   onClick={() => handlePhoneSelect(phoneNum)}
                   sx={{
-                    py: 1.5,
-                    px: 2,
-                    borderRadius: 1,
-                    mx: 1,
-                    mb: 0.5,
+                    py: 1.75,
+                    px: 2.5,
+                    borderRadius: 1.5,
+                    mx: 1.5,
+                    mb: 0.75,
+                    transition: "all 0.2s ease-in-out",
                     "&:hover": {
                       bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                      transform: "translateX(2px)",
                     },
                   }}
                 >
-                  <ListItemIcon sx={{ minWidth: 40 }}>
+                  <ListItemIcon sx={{ minWidth: 56, mr: 2 }}>
                     <Box
                       sx={{
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        width: 36,
-                        height: 36,
-                        borderRadius: 1,
+                        width: 40,
+                        height: 40,
+                        borderRadius: 1.5,
                         bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
                         color: "primary.main",
                       }}
                     >
-                      <PhoneIcon sx={{ fontSize: 20 }} />
+                      <PhoneIcon sx={{ fontSize: 22 }} />
                     </Box>
                   </ListItemIcon>
                   <ListItemText
@@ -353,6 +364,7 @@ export default function ContactInfo({ website, phone, email }) {
                       sx: {
                         fontWeight: 500,
                         fontSize: "0.9375rem",
+                        color: "text.primary",
                       },
                     }}
                   />
