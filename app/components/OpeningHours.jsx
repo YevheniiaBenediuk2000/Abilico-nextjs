@@ -602,16 +602,25 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
                   transition: "background-color 0.2s",
                 }}
               >
-                <Typography
-                  variant="body2"
+                <Box
                   sx={{
-                    fontSize: "0.875rem",
-                    fontWeight: isToday ? 600 : 400,
-                    color: isToday ? "primary.main" : "text.primary",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
                     minWidth: "45%",
                   }}
                 >
-                  {day.dayLabel}
+                  <Typography
+                    variant="body2"
+                    component="span"
+                    sx={{
+                      fontSize: "0.875rem",
+                      fontWeight: isToday ? 600 : 400,
+                      color: isToday ? "primary.main" : "text.primary",
+                    }}
+                  >
+                    {day.dayLabel}
+                  </Typography>
                   {isToday && (
                     <Chip
                       label="Today"
@@ -619,14 +628,13 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
                       sx={{
                         height: 20,
                         fontSize: "0.6875rem",
-                        ml: 1,
                         bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
                         color: "primary.main",
                         fontWeight: 600,
                       }}
                     />
                   )}
-                </Typography>
+                </Box>
                 <Typography
                   variant="body2"
                   sx={{
