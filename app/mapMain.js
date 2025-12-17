@@ -1918,10 +1918,8 @@ Object.entries(nTags).forEach(([key, value]) => {
       
       // Modern chip with better styling
       const chip = document.createElement("div");
-      chip.style.display = "inline-flex";
-      chip.style.alignItems = "center";
-      chip.style.gap = "0.5rem";
-      chip.style.padding = "0.5rem 0.875rem";
+      chip.style.display = "inline-block";
+      chip.style.padding = "0.375rem 0.75rem";
       chip.style.borderRadius = "1rem";
       chip.style.backgroundColor = "#e3f2fd"; // Light blue background (MUI primary light)
       chip.style.color = "#1976d2"; // MUI primary color for text
@@ -1932,6 +1930,7 @@ Object.entries(nTags).forEach(([key, value]) => {
       chip.style.border = "1px solid rgba(25, 118, 210, 0.2)"; // Subtle border
       chip.style.boxShadow = "0 1px 3px rgba(0, 0, 0, 0.1)"; // Subtle shadow for depth
       chip.style.cursor = "default";
+      chip.style.width = "fit-content";
       
       chip.textContent = "Outdoor seating";
       
