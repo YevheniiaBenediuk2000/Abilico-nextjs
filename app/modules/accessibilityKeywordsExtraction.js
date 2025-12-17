@@ -36,8 +36,13 @@ async function extractAccessibilityKeywordsMany(texts, options = {}) {
   }
 
   try {
+    // Get the base URL for API calls - handle both client and server environments
+    const baseUrl = typeof window !== "undefined" 
+      ? window.location.origin 
+      : process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+    
     // Make POST request to the classification API endpoint
-    const res = await fetch("/api/acc-classify", {
+    const res = await fetch(`${baseUrl}/api/acc-classify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

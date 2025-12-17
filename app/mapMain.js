@@ -48,7 +48,7 @@ import { ACCESSIBILITY_CATEGORY_LABELS } from "./constants/accessibilityCategori
 import { makePoiIcon } from "./icons/makePoiIcon.mjs";
 import { supabase } from "./api/supabaseClient.js";
 import { ensurePlaceExists, reviewStorage } from "./api/reviewStorage.js";
-import { formatAddressFromTags, formatAreaFromTags } from "./utils/formatAddress.mjs";
+import { formatAddressFromTags, formatAreaFromTags, formatLevel } from "./utils/formatAddress.mjs";
 import {
   cleanUrl,
   hostLabel,
@@ -1521,6 +1521,14 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   const nTags = normalizeTagsCase(tags);
 
+  // Remove raw "contact" tag (e.g. contact=yes) from generic details,
+  // we only want the rich Contact section (website/phone/email).
+  for (const key of Object.keys(nTags)) {
+    if (key && key.trim().toLowerCase() === "contact") {
+      delete nTags[key];
+    }
+  }
+
   // CONTACT INFO - Extract website, phone, and email from tags
   const websiteLinks = splitMulti(nTags.website || nTags["contact:website"] || "")
     .map(cleanUrl)
@@ -1644,6 +1652,21 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     list.appendChild(addressItem);
   }
 
+  // --- FLOOR: Render floor/level information (only if level exists) ---
+  const levelValue = nTags.level || nTags.Level || null;
+  const formattedLevel = formatLevel(levelValue);
+  if (formattedLevel) {
+    const floorItem = document.createElement("div");
+    floorItem.className =
+      "list-group-item d-flex justify-content-between align-items-start";
+    floorItem.innerHTML = `
+      <div class="me-2">
+        <h6 class="mb-1 fw-semibold">Floor</h6>
+        <p class="small mb-1">${formattedLevel}</p>
+      </div>`;
+    list.appendChild(floorItem);
+  }
+
   // --- AREA: Optionally render area information (district, county) ---
   const formattedArea = formatAreaFromTags(nTags);
   if (formattedArea) {
@@ -1660,21 +1683,35 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   // --- Render basic tags (address, amenity, etc.) ---
   Object.entries(nTags).forEach(([key, value]) => {
-    const isWebsiteVariant =
-      /^(website|url)(?::\d+)?$/i.test(key) || /^contact:website$/i.test(key);
-    if (isWebsiteVariant) return;
-
     const isOpeningHours = /^opening_hours/i.test(key);
     if (isOpeningHours) return; // Skip opening_hours - already rendered above
 
-    // Skip phone and email - already rendered in ContactInfo component
+    const lk = key.trim().toLowerCase();
+    
+    // Skip "contact" completely - no matter what the value is (check early)
+    // Note: This is a safety check, but contact should already be deleted from nTags above
+    if (lk === "contact") {
+      return;
+    }
+
+    // Skip "type" completely - no matter what the value is
+    if (lk === "type") {
+      return;
+    }
+
+    // Skip all contact-related fields (website, phone, email, contact:*)
+    const isWebsiteVariant =
+      /^(website|url)(?::\d+)?$/i.test(key) || /^contact:website$/i.test(key);
+    if (isWebsiteVariant) return;
+    
     const isPhoneVariant = /^(phone|contact:phone|contact:mobile|mobile|contact:fax)$/i.test(key);
     if (isPhoneVariant) return;
     
     const isEmailVariant = /^(email|contact:email)$/i.test(key);
     if (isEmailVariant) return;
-
-    const lk = key.toLowerCase();
+    
+    // Skip any other contact:* tags
+    if (/^contact:/i.test(key)) return;
     
     // Skip individual address fields - we render them as a single formatted address above
     const isAddressField = /^addr:(street|housenumber|city|postcode|country_code|town|suburb|country)$/i.test(key) ||
@@ -1688,6 +1725,30 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     const isAreaField = /^(state|county|district|locality)$/i.test(lk);
     if (isAreaField) {
       return; // Skip area fields - already rendered as area if available
+    }
+
+    // Skip "name" - it's already displayed as the big heading
+    if (lk === "name") {
+      return;
+    }
+
+    // Skip "level" - it's already displayed under the address
+    if (lk === "level") {
+      return;
+    }
+
+    // Skip "amenity" if value is "yes" (meaningless to users)
+    if (lk === "amenity" && String(value).toLowerCase() === "yes") {
+      return;
+    }
+
+    // Get amenity value for duplication check
+    const amenityValue = nTags.amenity ? String(nTags.amenity).toLowerCase() : null;
+    
+    // Skip OSM Value if duplicated with Amenity (if tag value equals amenity value)
+    // Exclude the amenity key itself from this check
+    if (lk !== "amenity" && amenityValue && String(value).toLowerCase() === amenityValue) {
+      return;
     }
 
     const containsAltName = /alt\s*name/i.test(key);
@@ -1708,57 +1769,10 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     item.className =
       "list-group-item d-flex justify-content-between align-items-start";
 
-    // Special cases: linkify
-    if (lk === "website" || lk === "url") {
-      const urls = splitMulti(value).map(cleanUrl).filter(Boolean);
-      if (!urls.length) return;
+    // Special cases: linkify (website removed - contacts are completely removed)
 
-      const links = urls
-        .map(
-          (u) =>
-            `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${hostLabel(
-              u
-            )}</a>`
-        )
-        .join(" · ");
-
-      item.innerHTML = `
-      <div class="me-2">
-        <h6 class="mb-1 fw-semibold">Website</h6>
-        <p class="small mb-1">${links}</p>
-      </div>`;
-      list.appendChild(item);
-      return;
-    }
-
+    // Skip "image" tag - Photo Link(s) removed
     if (lk === "image") {
-      const urls = splitMulti(value).map(cleanUrl).filter(Boolean);
-      if (!urls.length) return;
-
-      const links = urls
-        .map((u) => {
-          // If someone put a Mapillary URL in image=, route it to the viewer
-          if (/mapillary\.com/i.test(u)) {
-            const viewer = toMapillaryViewerUrl(u);
-            return `<a href="${viewer}" target="_blank" rel="noopener nofollow ugc">Mapillary</a>`;
-          }
-          // Google Photos shares are pages, not direct images; still useful
-          if (/photos\.app\.goo\.gl|photos\.google\.com/i.test(u)) {
-            return `<a href="${u}" target="_blank" rel="noopener nofollow ugc">Google Photos</a>`;
-          }
-          // Fallback: show host
-          return `<a href="${u}" target="_blank" rel="noopener nofollow ugc">${hostLabel(
-            u
-          )}</a>`;
-        })
-        .join(" · ");
-
-      item.innerHTML = `
-      <div class="me-2">
-        <h6 class="mb-1 fw-semibold">Photo Link(s)</h6>
-        <p class="small mb-1">${links}</p>
-      </div>`;
-      list.appendChild(item);
       return;
     }
 

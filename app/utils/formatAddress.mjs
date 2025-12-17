@@ -291,3 +291,42 @@ export function formatAreaFromTags(tags) {
   return parts.join(", ");
 }
 
+/**
+ * Formats the OSM level (floor) field into a user-friendly string
+ * @param {string | number | null | undefined} level - OSM level value (e.g., "-1", "0", "1", "2")
+ * @returns {string | null} Formatted level string or null if level should be hidden
+ */
+export function formatLevel(level) {
+  // Return null for missing, null, undefined, or empty values
+  if (level == null || level === "") return null;
+
+  // Convert to string and trim
+  const levelStr = String(level).trim();
+  
+  // If it contains complex patterns (semicolons, dashes, commas, etc.), ignore it
+  // Check for semicolons, commas, or dashes (dash at end of character class doesn't need escaping)
+  if (/[;,\-]/.test(levelStr)) return null;
+
+  // Try to parse as number
+  const n = Number(levelStr);
+  if (Number.isNaN(n)) return null;
+
+  // Only support reasonable floor ranges (-2 to 5)
+  if (n < -2 || n > 5) return null;
+
+  // Format based on floor number
+  if (n < 0) {
+    // Basement levels: -1 → "Basement level -1", -2 → "Basement level -2"
+    return `Basement level ${n}`;
+  }
+  
+  if (n === 0) {
+    // Ground floor: show "Ground floor" (or return null to hide it)
+    return "Ground floor";
+  }
+  
+  // Positive floors: 1 → "1st floor", 2 → "2nd floor", etc.
+  const suffix = n === 1 ? "st" : n === 2 ? "nd" : n === 3 ? "rd" : "th";
+  return `${n}${suffix} floor`;
+}
+

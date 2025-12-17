@@ -343,28 +343,28 @@ function NestedPlaceTypeFilter({ items }) {
 
   // group-level helpers
   const isGroupAllChecked = (groupLabel) => {
-    if (!selection || typeof selection !== 'object') return false;
+    if (!selection || typeof selection !== 'object' || selection === null) return false;
     const subs = selection[groupLabel];
-    if (!subs || typeof subs !== 'object') return false;
+    if (!subs || typeof subs !== 'object' || subs === null || Array.isArray(subs)) return false;
     const values = Object.values(subs);
     if (!values.length) return false;
     return values.every(Boolean);
   };
 
   const isGroupSomeChecked = (groupLabel) => {
-    if (!selection || typeof selection !== 'object') return false;
+    if (!selection || typeof selection !== 'object' || selection === null) return false;
     const subs = selection[groupLabel];
-    if (!subs || typeof subs !== 'object') return false;
+    if (!subs || typeof subs !== 'object' || subs === null || Array.isArray(subs)) return false;
     const values = Object.values(subs);
     return values.some(Boolean);
   };
 
   const toggleGroup = (groupLabel) => {
     setSelection((prev) => {
-      if (!prev || typeof prev !== 'object') return {};
+      if (!prev || typeof prev !== 'object' || prev === null) return {};
       const next = { ...prev };
       const subs = next[groupLabel];
-      if (!subs || typeof subs !== 'object') return next;
+      if (!subs || typeof subs !== 'object' || subs === null || Array.isArray(subs)) return next;
       const allChecked = Object.values(subs).every(Boolean);
       const newSubs = {};
       Object.keys(subs).forEach((subLabel) => {
@@ -451,7 +451,7 @@ function NestedPlaceTypeFilter({ items }) {
                 
                 // Count selected subcategories
                 const groupSelection = selection && selection[groupLabel];
-                const selectedCount = (groupSelection && typeof groupSelection === 'object' 
+                const selectedCount = (groupSelection && typeof groupSelection === 'object' && groupSelection !== null && !Array.isArray(groupSelection)
                   ? Object.values(groupSelection) 
                   : []).filter(Boolean).length;
                 const totalCount = Object.keys(subs).length;
@@ -693,7 +693,7 @@ function NestedPlaceTypeFilter({ items }) {
                 
                 // Count selected subcategories
                 const groupSelection = selection && selection[groupLabel];
-                const selectedCount = (groupSelection && typeof groupSelection === 'object' 
+                const selectedCount = (groupSelection && typeof groupSelection === 'object' && groupSelection !== null && !Array.isArray(groupSelection)
                   ? Object.values(groupSelection) 
                   : []).filter(Boolean).length;
                 const totalCount = Object.keys(subs).length;
