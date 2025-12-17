@@ -5,6 +5,11 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Divider from "@mui/material/Divider";
 import IconButton from "@mui/material/IconButton";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import CardActionArea from "@mui/material/CardActionArea";
+import Chip from "@mui/material/Chip";
+import { alpha } from "@mui/material/styles";
 import EditIcon from "@mui/icons-material/Edit";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
@@ -345,20 +350,58 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
       return (
         <Box
         sx={{
-          padding: 2.5,
+          padding: 3,
           borderTop: "1px solid",
           borderColor: "divider",
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1.5 }}>
-        <AccessTimeIcon sx={{ color: "primary.main", fontSize: "1.2rem" }} />
-        <Typography variant="h6" sx={{ fontWeight: 600, fontSize: "1.1rem" }}>
-          Hours
-        </Typography>
-      </Box>
-        <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.875rem" }}>
-          {openingHours}
-      </Typography>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            mb: 2.5,
+          }}
+        >
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 40,
+              height: 40,
+              borderRadius: 1.5,
+              bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
+              color: "primary.main",
+            }}
+          >
+            <AccessTimeIcon sx={{ fontSize: 22 }} />
+          </Box>
+          <Typography
+            variant="h6"
+            sx={{
+              fontSize: "1.125rem",
+              fontWeight: 600,
+              color: "text.primary",
+              letterSpacing: "-0.01em",
+            }}
+          >
+            Opening Hours
+          </Typography>
+        </Box>
+        <Card
+          sx={{
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: 2,
+          }}
+        >
+          <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.875rem" }}>
+              {openingHours}
+            </Typography>
+          </CardContent>
+        </Card>
       </Box>
     );
   }
@@ -366,66 +409,154 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
           return (
             <Box
       sx={{
-        padding: 2.5,
+        padding: 3,
         borderTop: "1px solid",
         borderColor: "divider",
       }}
     >
-      {/* Header row - clickable to expand/collapse */}
+      {/* Header */}
       <Box
         sx={{
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
-          cursor: "pointer",
-          mb: expanded ? 1.5 : 1,
+          gap: 1.5,
+          mb: 2.5,
         }}
-        onClick={() => setExpanded((prev) => !prev)}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flex: 1 }}>
-          <AccessTimeIcon
-            sx={{
-              fontSize: "1.2rem",
-              color: status.isOpen ? "success.main" : "text.secondary",
-            }}
-          />
-          <Box>
-            <Typography
-              variant="body1"
-              sx={{
-                fontWeight: 600,
-                fontSize: "0.9375rem",
-                color: status.isOpen ? "success.main" : "error.main",
-                lineHeight: 1.3,
-                mb: 0.25,
-              }}
-            >
-              {status.isOpen ? "Open now" : "Closed now"}
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{
-                fontSize: "0.8125rem",
-                color: "text.secondary",
-                lineHeight: 1.3,
-              }}
-            >
-              {status.message}
-            </Typography>
-          </Box>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 40,
+            height: 40,
+            borderRadius: 1.5,
+            bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
+            color: "primary.main",
+          }}
+        >
+          <AccessTimeIcon sx={{ fontSize: 22 }} />
         </Box>
-
-        {/* Chevron icon */}
-        {expanded ? (
-          <ExpandMoreIcon sx={{ color: "text.secondary", fontSize: "1.5rem" }} />
-        ) : (
-          <ChevronRightIcon sx={{ color: "text.secondary", fontSize: "1.5rem" }} />
-        )}
+        <Typography
+          variant="h6"
+          sx={{
+            fontSize: "1.125rem",
+            fontWeight: 600,
+            color: "text.primary",
+            letterSpacing: "-0.01em",
+          }}
+        >
+          Opening Hours
+        </Typography>
       </Box>
+
+      {/* Status Card - clickable to expand/collapse */}
+      <Card
+        sx={{
+          mb: expanded ? 1.5 : 0,
+          border: "1px solid",
+          borderColor: "divider",
+          borderRadius: 2,
+          transition: "all 0.2s ease-in-out",
+          "&:hover": {
+            borderColor: "primary.main",
+            boxShadow: (theme) => `0 2px 8px ${alpha(theme.palette.primary.main, 0.15)}`,
+            transform: "translateY(-1px)",
+          },
+        }}
+      >
+        <CardActionArea
+          onClick={() => setExpanded((prev) => !prev)}
+          sx={{
+            p: 0,
+            "&:hover": {
+              backgroundColor: "transparent",
+            },
+          }}
+        >
+          <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              {/* Status Icon Container */}
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 48,
+                  height: 48,
+                  borderRadius: 2,
+                  bgcolor: (theme) =>
+                    status.isOpen
+                      ? alpha(theme.palette.success.main, 0.1)
+                      : alpha(theme.palette.error.main, 0.1),
+                  color: status.isOpen ? "success.main" : "error.main",
+                  flexShrink: 0,
+                }}
+              >
+                <AccessTimeIcon sx={{ fontSize: 24 }} />
+              </Box>
+
+              {/* Status Content */}
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    display: "block",
+                    color: "text.secondary",
+                    fontSize: "0.75rem",
+                    fontWeight: 500,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                    mb: 0.5,
+                  }}
+                >
+                  Status
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: status.isOpen ? "success.main" : "error.main",
+                    fontSize: "0.9375rem",
+                    fontWeight: 600,
+                    mb: 0.25,
+                  }}
+                >
+                  {status.isOpen ? "Open now" : "Closed now"}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontSize: "0.8125rem",
+                    color: "text.secondary",
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {status.message}
+                </Typography>
+              </Box>
+
+              {/* Chevron icon */}
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  color: "text.secondary",
+                }}
+              >
+                {expanded ? (
+                  <ExpandMoreIcon sx={{ fontSize: 24 }} />
+                ) : (
+                  <ChevronRightIcon sx={{ fontSize: 24 }} />
+                )}
+              </Box>
+            </Box>
+          </CardContent>
+        </CardActionArea>
+      </Card>
 
       {/* Today's hours - only show when collapsed */}
       {todayData && !expanded && (
-        <Box sx={{ pl: 4.5 }}>
+        <Box sx={{ pl: 1, mt: 1.5 }}>
           <Typography
             variant="body2"
             sx={{
@@ -452,35 +583,53 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
 
       {/* Expanded weekly list */}
       {expanded && (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, mt: 1.5 }}>
           {weekData.map((day) => {
             const isToday = day.dayIndex === currentDayIndex;
             return (
               <Box
                 key={day.dayKey}
-              sx={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                  py: 0.5,
-                  px: 0.25,
-              }}
-            >
-              <Typography
-                variant="body2"
-                sx={{ 
-                  fontSize: "0.875rem",
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  py: 0.75,
+                  px: 1,
+                  borderRadius: 1,
+                  bgcolor: isToday
+                    ? (theme) => alpha(theme.palette.primary.main, 0.05)
+                    : "transparent",
+                  transition: "background-color 0.2s",
+                }}
+              >
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontSize: "0.875rem",
                     fontWeight: isToday ? 600 : 400,
                     color: isToday ? "primary.main" : "text.primary",
                     minWidth: "45%",
-                }}
-              >
+                  }}
+                >
                   {day.dayLabel}
-                  {isToday && " · Today"}
-              </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{ 
+                  {isToday && (
+                    <Chip
+                      label="Today"
+                      size="small"
+                      sx={{
+                        height: 20,
+                        fontSize: "0.6875rem",
+                        ml: 1,
+                        bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
+                        color: "primary.main",
+                        fontWeight: 600,
+                      }}
+                    />
+                  )}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{
                     fontSize: "0.875rem",
                     textAlign: "right",
                     color: day.isClosedAllDay ? "text.disabled" : "text.secondary",
@@ -488,64 +637,93 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
                   }}
                 >
                   {day.formattedHours}
-                  </Typography>
-            </Box>
-          );
-        })}
-      </Box>
+                </Typography>
+              </Box>
+            );
+          })}
+        </Box>
       )}
 
       {/* Holiday hours section */}
       {holidayHours && (
         <>
-          <Divider sx={{ my: expanded ? 2.5 : 2.5 }} />
+          <Divider sx={{ my: 2.5 }} />
           <Box
             sx={{
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between",
-              mb: 1.5,
+              gap: 1.5,
+              mb: 2,
             }}
           >
-            <Typography variant="h6" sx={{ fontWeight: 600, fontSize: "1.1rem" }}>
-              Holiday opening hours
-            </Typography>
-            <IconButton 
-              size="small" 
-              aria-label="Edit holiday hours"
-              sx={{ 
-                color: "text.secondary",
-                "&:hover": {
-                  backgroundColor: "action.hover",
-                },
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 40,
+                height: 40,
+                borderRadius: 1.5,
+                bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
+                color: "primary.main",
               }}
             >
-              <EditIcon fontSize="small" />
-            </IconButton>
+              <EditIcon sx={{ fontSize: 22 }} />
+            </Box>
+            <Typography
+              variant="h6"
+              sx={{
+                fontSize: "1.125rem",
+                fontWeight: 600,
+                color: "text.primary",
+                letterSpacing: "-0.01em",
+                flex: 1,
+              }}
+            >
+              Holiday Hours
+            </Typography>
           </Box>
-          {typeof holidayHours === "object" && holidayHours.date ? (
-            <Box>
-              <Typography variant="body2" sx={{ fontWeight: 400, mb: 0.75, fontSize: "0.875rem" }}>
-                {holidayHours.date}
-              </Typography>
-              {holidayHours.name && (
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ mb: 0.75, fontSize: "0.875rem" }}
-                >
-                  {holidayHours.name}
+          <Card
+            sx={{
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 2,
+            }}
+          >
+            <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+              {typeof holidayHours === "object" && holidayHours.date ? (
+                <Box>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontWeight: 500,
+                      mb: 0.75,
+                      fontSize: "0.875rem",
+                      color: "text.primary",
+                    }}
+                  >
+                    {holidayHours.date}
+                  </Typography>
+                  {holidayHours.name && (
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ mb: 0.75, fontSize: "0.875rem" }}
+                    >
+                      {holidayHours.name}
+                    </Typography>
+                  )}
+                  <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.875rem" }}>
+                    {holidayHours.hours || "Open 24 hours"}
+                  </Typography>
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.875rem" }}>
+                  {typeof holidayHours === "string" ? holidayHours : "Open 24 hours"}
                 </Typography>
               )}
-              <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.875rem" }}>
-                {holidayHours.hours || "Open 24 hours"}
-              </Typography>
-            </Box>
-          ) : (
-            <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.875rem" }}>
-              {typeof holidayHours === "string" ? holidayHours : "Open 24 hours"}
-            </Typography>
-          )}
+            </CardContent>
+          </Card>
         </>
       )}
     </Box>
