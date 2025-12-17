@@ -7,7 +7,12 @@ import LanguageIcon from "@mui/icons-material/Language";
 import PhoneIcon from "@mui/icons-material/Phone";
 import EmailIcon from "@mui/icons-material/Email";
 import ContactMailIcon from "@mui/icons-material/ContactMail";
-import Avatar from "@mui/material/Avatar";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import IconButton from "@mui/material/IconButton";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import CardActionArea from "@mui/material/CardActionArea";
+import Chip from "@mui/material/Chip";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
@@ -17,6 +22,9 @@ import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
+import ListItemIcon from "@mui/material/ListItemIcon";
+import Divider from "@mui/material/Divider";
+import { alpha } from "@mui/material/styles";
 import { useState } from "react";
 
 /**
@@ -81,193 +89,205 @@ export default function ContactInfo({ website, phone, email }) {
     setPhoneDialogOpen(false);
   };
 
+  // Contact item component for better reusability
+  const ContactItem = ({ icon: Icon, label, value, href, onClick, external = false, count }) => {
+    const content = (
+      <Card
+        sx={{
+          mb: 1.5,
+          border: "1px solid",
+          borderColor: "divider",
+          borderRadius: 2,
+          transition: "all 0.2s ease-in-out",
+          "&:hover": {
+            borderColor: "primary.main",
+            boxShadow: (theme) => `0 2px 8px ${alpha(theme.palette.primary.main, 0.15)}`,
+            transform: "translateY(-1px)",
+          },
+        }}
+      >
+        <CardActionArea
+          component={onClick ? "button" : "a"}
+          href={onClick ? undefined : href}
+          onClick={onClick}
+          target={external ? "_blank" : undefined}
+          rel={external ? "noopener nofollow" : undefined}
+          sx={{
+            p: 0,
+            "&:hover": {
+              backgroundColor: "transparent",
+            },
+          }}
+        >
+          <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              {/* Icon Container */}
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 48,
+                  height: 48,
+                  borderRadius: 2,
+                  bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                  color: "primary.main",
+                  flexShrink: 0,
+                }}
+              >
+                <Icon sx={{ fontSize: 24 }} />
+              </Box>
+
+              {/* Content */}
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    display: "block",
+                    color: "text.secondary",
+                    fontSize: "0.75rem",
+                    fontWeight: 500,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                    mb: 0.5,
+                  }}
+                >
+                  {label}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "text.primary",
+                    fontSize: "0.9375rem",
+                    fontWeight: 500,
+                    wordBreak: "break-word",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                  }}
+                >
+                  {value}
+                  {external && (
+                    <OpenInNewIcon
+                      sx={{
+                        fontSize: 16,
+                        color: "text.secondary",
+                        ml: 0.5,
+                      }}
+                    />
+                  )}
+                  {count && count > 1 && (
+                    <Chip
+                      label={count}
+                      size="small"
+                      sx={{
+                        height: 20,
+                        fontSize: "0.6875rem",
+                        bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
+                        color: "primary.main",
+                        fontWeight: 600,
+                      }}
+                    />
+                  )}
+                </Typography>
+              </Box>
+            </Box>
+          </CardContent>
+        </CardActionArea>
+      </Card>
+    );
+
+    return content;
+  };
+
   return (
     <>
       <Box
         sx={{
-          padding: 2,
+          padding: 3,
           borderBottom: "1px solid",
           borderColor: "divider",
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
-          <ContactMailIcon sx={{ color: "primary.main", fontSize: "1.2rem" }} />
+        {/* Header */}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            mb: 2.5,
+          }}
+        >
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 40,
+              height: 40,
+              borderRadius: 1.5,
+              bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
+              color: "primary.main",
+            }}
+          >
+            <ContactMailIcon sx={{ fontSize: 22 }} />
+          </Box>
           <Typography
             variant="h6"
             sx={{
-              fontSize: "1.1rem",
+              fontSize: "1.125rem",
               fontWeight: 600,
               color: "text.primary",
+              letterSpacing: "-0.01em",
             }}
           >
-            Contact
+            Contact Information
           </Typography>
         </Box>
 
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+        {/* Contact Items */}
+        <Box>
           {/* Website */}
           {validWebsites.map((url, idx) => (
-            <Box
+            <ContactItem
               key={idx}
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 1.5,
-              }}
-            >
-              <Avatar
-                sx={{
-                  width: 32,
-                  height: 32,
-                  bgcolor: "transparent",
-                  fontSize: "0.875rem",
-                }}
-              >
-                <LanguageIcon sx={{ fontSize: "1rem", color: "primary.main" }} />
-              </Avatar>
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontSize: "0.75rem",
-                    color: "text.secondary",
-                    mb: 0.25,
-                  }}
-                >
-                  Website
-                </Typography>
-                <Link
-                  href={cleanUrl(url)}
-                  target="_blank"
-                  rel="noopener nofollow"
-                  sx={{
-                    fontSize: "0.875rem",
-                    color: "primary.main",
-                    textDecoration: "none",
-                    "&:hover": {
-                      textDecoration: "underline",
-                    },
-                    wordBreak: "break-all",
-                  }}
-                >
-                  {url.replace(/^https?:\/\//i, "").replace(/\/$/, "")}
-                </Link>
-              </Box>
-            </Box>
+              icon={LanguageIcon}
+              label="Website"
+              value={url.replace(/^https?:\/\//i, "").replace(/\/$/, "")}
+              href={cleanUrl(url)}
+              external={true}
+            />
           ))}
 
           {/* Phone */}
           {validPhones.length > 0 && (
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 1.5,
-              }}
-            >
-              <Avatar
-                sx={{
-                  width: 32,
-                  height: 32,
-                  bgcolor: "transparent",
-                  fontSize: "0.875rem",
-                }}
-              >
-                <PhoneIcon sx={{ fontSize: "1rem", color: "primary.main" }} />
-              </Avatar>
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontSize: "0.75rem",
-                    color: "text.secondary",
-                    mb: 0.25,
-                  }}
-                >
-                  Phone
-                </Typography>
-                {validPhones.length === 1 ? (
-                  <Link
-                    href={`tel:${cleanPhoneForTel(validPhones[0])}`}
-                    sx={{
-                      fontSize: "0.875rem",
-                      color: "primary.main",
-                      textDecoration: "none",
-                      "&:hover": {
-                        textDecoration: "underline",
-                      },
-                    }}
-                  >
-                    {validPhones[0]}
-                  </Link>
-                ) : (
-                  <Link
-                    href="#"
-                    onClick={handlePhoneClick}
-                    sx={{
-                      fontSize: "0.875rem",
-                      color: "primary.main",
-                      textDecoration: "none",
-                      cursor: "pointer",
-                      "&:hover": {
-                        textDecoration: "underline",
-                      },
-                    }}
-                  >
-                    {validPhones.length} phone numbers
-                  </Link>
-                )}
-              </Box>
-            </Box>
+            <ContactItem
+              icon={PhoneIcon}
+              label="Phone"
+              value={
+                validPhones.length === 1
+                  ? validPhones[0]
+                  : `${validPhones.length} phone numbers`
+              }
+              href={
+                validPhones.length === 1
+                  ? `tel:${cleanPhoneForTel(validPhones[0])}`
+                  : undefined
+              }
+              onClick={validPhones.length > 1 ? handlePhoneClick : undefined}
+              count={validPhones.length > 1 ? validPhones.length : undefined}
+            />
           )}
 
           {/* Email */}
           {validEmails.map((emailAddr, idx) => (
-            <Box
+            <ContactItem
               key={idx}
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 1.5,
-              }}
-            >
-              <Avatar
-                sx={{
-                  width: 32,
-                  height: 32,
-                  bgcolor: "transparent",
-                  fontSize: "0.875rem",
-                }}
-              >
-                <EmailIcon sx={{ fontSize: "1rem", color: "primary.main" }} />
-              </Avatar>
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontSize: "0.75rem",
-                    color: "text.secondary",
-                    mb: 0.25,
-                  }}
-                >
-                  Email
-                </Typography>
-                <Link
-                  href={`mailto:${emailAddr}`}
-                  sx={{
-                    fontSize: "0.875rem",
-                    color: "primary.main",
-                    textDecoration: "none",
-                    "&:hover": {
-                      textDecoration: "underline",
-                    },
-                    wordBreak: "break-all",
-                  }}
-                >
-                  {emailAddr}
-                </Link>
-              </Box>
-            </Box>
+              icon={EmailIcon}
+              label="Email"
+              value={emailAddr}
+              href={`mailto:${emailAddr}`}
+            />
           ))}
         </Box>
       </Box>
@@ -278,22 +298,82 @@ export default function ContactInfo({ website, phone, email }) {
         onClose={() => setPhoneDialogOpen(false)}
         maxWidth="sm"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+          },
+        }}
       >
-        <DialogTitle>Select Phone Number</DialogTitle>
-        <DialogContent>
-          <List>
+        <DialogTitle
+          sx={{
+            pb: 1.5,
+            fontSize: "1.25rem",
+            fontWeight: 600,
+          }}
+        >
+          Select Phone Number
+        </DialogTitle>
+        <Divider />
+        <DialogContent sx={{ p: 0 }}>
+          <List sx={{ py: 1 }}>
             {validPhones.map((phoneNum, idx) => (
               <ListItem key={idx} disablePadding>
-                <ListItemButton onClick={() => handlePhoneSelect(phoneNum)}>
-                  <PhoneIcon sx={{ mr: 2, color: "primary.main" }} />
-                  <ListItemText primary={phoneNum} />
+                <ListItemButton
+                  onClick={() => handlePhoneSelect(phoneNum)}
+                  sx={{
+                    py: 1.5,
+                    px: 2,
+                    borderRadius: 1,
+                    mx: 1,
+                    mb: 0.5,
+                    "&:hover": {
+                      bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                    },
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 40 }}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: 36,
+                        height: 36,
+                        borderRadius: 1,
+                        bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
+                        color: "primary.main",
+                      }}
+                    >
+                      <PhoneIcon sx={{ fontSize: 20 }} />
+                    </Box>
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={phoneNum}
+                    primaryTypographyProps={{
+                      sx: {
+                        fontWeight: 500,
+                        fontSize: "0.9375rem",
+                      },
+                    }}
+                  />
                 </ListItemButton>
               </ListItem>
             ))}
           </List>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPhoneDialogOpen(false)}>Cancel</Button>
+        <Divider />
+        <DialogActions sx={{ p: 2 }}>
+          <Button
+            onClick={() => setPhoneDialogOpen(false)}
+            variant="outlined"
+            sx={{
+              borderRadius: 1.5,
+              textTransform: "none",
+              px: 2,
+            }}
+          >
+            Cancel
+          </Button>
         </DialogActions>
       </Dialog>
     </>
