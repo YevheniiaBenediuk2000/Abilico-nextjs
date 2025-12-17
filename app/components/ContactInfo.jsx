@@ -119,11 +119,13 @@ export default function ContactInfo({ website, phone, email }) {
                 sx={{
                   width: 32,
                   height: 32,
-                  bgcolor: "primary.main",
+                  bgcolor: "transparent",
+                  border: "1px solid",
+                  borderColor: "divider",
                   fontSize: "0.875rem",
                 }}
               >
-                <LanguageIcon sx={{ fontSize: "1rem" }} />
+                <LanguageIcon sx={{ fontSize: "1rem", color: "primary.main" }} />
               </Avatar>
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Typography
@@ -169,11 +171,13 @@ export default function ContactInfo({ website, phone, email }) {
                 sx={{
                   width: 32,
                   height: 32,
-                  bgcolor: "primary.main",
+                  bgcolor: "transparent",
+                  border: "1px solid",
+                  borderColor: "divider",
                   fontSize: "0.875rem",
                 }}
               >
-                <PhoneIcon sx={{ fontSize: "1rem" }} />
+                <PhoneIcon sx={{ fontSize: "1rem", color: "primary.main" }} />
               </Avatar>
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Typography
@@ -235,11 +239,13 @@ export default function ContactInfo({ website, phone, email }) {
                 sx={{
                   width: 32,
                   height: 32,
-                  bgcolor: "primary.main",
+                  bgcolor: "transparent",
+                  border: "1px solid",
+                  borderColor: "divider",
                   fontSize: "0.875rem",
                 }}
               >
-                <EmailIcon sx={{ fontSize: "1rem" }} />
+                <EmailIcon sx={{ fontSize: "1rem", color: "primary.main" }} />
               </Avatar>
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Typography
