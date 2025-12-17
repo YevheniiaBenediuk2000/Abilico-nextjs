@@ -8,11 +8,31 @@ export function splitMulti(v) {
 export function cleanUrl(u) {
   if (!u) return null;
   let s = String(u)
-    .trim()
-    // Fix broken URLs like "Https //www.facebook.com" → "https://www.facebook.com"
-    .replace(/^(https?)\s*:?\s*\/+\s*/i, "$1://") // "Https //" or "https //" → "https://"
-    .replace(/\s+/g, ""); // kill internal spaces
+    .trim();
+  
+  // Fix broken URLs like "Https //www.facebook.com" → "https://www.facebook.com"
+  // Handle various broken formats:
+  // - "Https //www..." → "https://www..."
+  // - "https //www..." → "https://www..."
+  // - "Https//www..." → "https://www..."
+  // - "Https ://www..." → "https://www..."
+  // - "Https  //www..." → "https://www..." (multiple spaces)
+  
+  // First, normalize the protocol part: match protocol + optional colon + slashes with any spacing
+  // This handles: "Https //", "https //", "Https//", "Https ://", "Https  //", etc.
+  s = s.replace(/^(https?)\s*:?\s*\/+\s*/i, (match, protocol) => {
+    return protocol.toLowerCase() + "://";
+  });
+  
+  // Remove all remaining spaces (but protocol separator is already fixed)
+  s = s.replace(/\s+/g, "");
+  
+  // Ensure protocol is lowercase (safety check)
+  s = s.replace(/^(https?):\/\//i, (match, protocol) => {
+    return protocol.toLowerCase() + "://";
+  });
 
+  // If no protocol, try to add https://
   if (!/^https?:\/\//i.test(s) && /^[\w.-]+\.[a-z]{2,}([/:?#]|$)/i.test(s)) {
     s = "https://" + s;
   }

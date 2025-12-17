@@ -2924,6 +2924,13 @@ Object.entries(nTags).forEach(([key, value]) => {
   
   // Skip all other ref:* tags - too technical for regular users
   if (lk.startsWith("ref:") || key.startsWith("ref:")) return;
+  
+  // Skip Facebook/Instagram/social media tags - already handled in Social Media section
+  if (lk === "facebook" || lk === "instagram" || lk === "twitter" || 
+      lk === "linkedin" || lk === "youtube" || lk === "tiktok" ||
+      /^contact:(facebook|instagram|twitter|linkedin|youtube|tiktok)$/i.test(key)) {
+    return;
+  }
 
   // Skip address parts – we already show a formatted address above
   const isAddressField =
@@ -3039,11 +3046,26 @@ Object.entries(nTags).forEach(([key, value]) => {
       .join(" ");
   };
 
+  // Helper to detect and clean URLs in values
+  const cleanUrlInValue = (val) => {
+    const trimmed = String(val).trim();
+    // If it looks like a URL (starts with http/https or contains common URL patterns), clean it
+    if (/^(https?|www\.|[\w.-]+\.(com|org|net|io|edu|gov))/i.test(trimmed)) {
+      const cleaned = cleanUrl(trimmed);
+      return cleaned || trimmed; // Return cleaned URL or original if cleaning failed
+    }
+    return trimmed;
+  };
+
   const displayValue = String(value)
     .split(";")
     .map((part) => part.trim())
     .filter((part) => part)
-    .map(formatValueForDisplay)
+    .map((part) => {
+      // Clean URLs before formatting
+      const cleaned = cleanUrlInValue(part);
+      return formatValueForDisplay(cleaned);
+    })
     .join(" • ");
 
   // 🧨 Final safety net:
