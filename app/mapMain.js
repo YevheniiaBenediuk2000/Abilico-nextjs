@@ -1710,8 +1710,9 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   const icon = document.createElement("img");
   icon.src = "/icons/maki/wheelchair.svg";
   icon.alt = "";
-  icon.style.width = "1.2rem";
-  icon.style.height = "1.2rem";
+  icon.style.width = "1rem";
+  icon.style.height = "1rem";
+  icon.style.filter = "brightness(0) saturate(100%) invert(27%) sepia(96%) saturate(1834%) hue-rotate(203deg) brightness(97%) contrast(96%)"; // Blue color (#1976d2 - MUI primary)
   
   const title = document.createElement("h6");
   title.className = "fw-semibold mb-0";
@@ -1889,19 +1890,11 @@ Object.entries(nTags).forEach(([key, value]) => {
       container.style.flexDirection = "column";
       container.style.gap = "0.75rem";
       
-      // Header with icon and title
+      // Header with title
       const header = document.createElement("div");
       header.style.display = "flex";
       header.style.alignItems = "center";
       header.style.gap = "0.5rem";
-      
-      const icon = document.createElement("div");
-      icon.innerHTML = "🪑"; // Chair emoji for outdoor seating, or you could use an SVG
-      icon.style.fontSize = "1.1rem";
-      icon.style.display = "flex";
-      icon.style.alignItems = "center";
-      icon.style.justifyContent = "center";
-      icon.style.flexShrink = "0";
       
       const title = document.createElement("h6");
       title.className = "fw-semibold mb-0";
@@ -1911,7 +1904,6 @@ Object.entries(nTags).forEach(([key, value]) => {
       title.style.margin = "0";
       title.textContent = "Features";
       
-      header.appendChild(icon);
       header.appendChild(title);
       
       // Modern chip with better styling
@@ -1929,18 +1921,7 @@ Object.entries(nTags).forEach(([key, value]) => {
       chip.style.fontFamily = "inherit";
       chip.style.border = "1px solid rgba(25, 118, 210, 0.2)"; // Subtle border
       chip.style.boxShadow = "0 1px 3px rgba(0, 0, 0, 0.1)"; // Subtle shadow for depth
-      chip.style.transition = "all 0.2s ease";
       chip.style.cursor = "default";
-      
-      // Add hover effect
-      chip.onmouseenter = () => {
-        chip.style.backgroundColor = "#bbdefb";
-        chip.style.boxShadow = "0 2px 4px rgba(0, 0, 0, 0.15)";
-      };
-      chip.onmouseleave = () => {
-        chip.style.backgroundColor = "#e3f2fd";
-        chip.style.boxShadow = "0 1px 3px rgba(0, 0, 0, 0.1)";
-      };
       
       chip.textContent = "Outdoor seating";
       
