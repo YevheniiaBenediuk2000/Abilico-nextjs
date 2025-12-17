@@ -108,6 +108,7 @@ let toLatLng = null;
 let fromMarker = null;
 let toMarker = null;
 let routeLayer = null;
+let myLocationLatLng = null;
 
 const drawnItems = new L.FeatureGroup();
 let drawHelpAlertControl = null;
@@ -296,8 +297,7 @@ function placeKeyFromFeature(feature) {
 function showQuickRoutePopup(latlng) {
   const html = `
     <div class="d-flex align-items-center gap-2" role="group" aria-label="Quick route actions">
-      <button id="qp-start" type="button" class="btn btn-sm btn-primary">Start here</button>
-      <button id="qp-go" type="button" class="btn btn-sm btn-danger">Go here</button>
+      <button id="qp-directions" type="button" class="btn btn-sm btn-directions" aria-label="Get directions to this place">Directions</button>
     </div>
   `;
 
@@ -317,40 +317,11 @@ function showQuickRoutePopup(latlng) {
     .setContent(html)
     .openOn(map);
 
-  const startBtn = document.getElementById("qp-start");
-  const goBtn = document.getElementById("qp-go");
-
-  startBtn.addEventListener("click", async (ev) => {
-    L.DomEvent.stop(ev);
-    console.log("🟢 CLICK: Start here clicked at latlng:", latlng);
-    try {
-      elements.directionsUi.classList.remove("d-none");
-      moveDepartureSearchBarUnderTo();
-      mountInOffcanvas("Directions");
-      await setFrom(L.latLng(latlng), null, { fit: false });
-      elements.departureSearchInput.focus();
-
-      if (
-        typeof window !== "undefined" &&
-        typeof window.closePlacePopup === "function"
-      ) {
-        window.closePlacePopup();
-      }
-    } finally {
-      map.closePopup(clickPopup);
-      console.log("🟢 Start here handler finished");
-    }
-  });
-
-  goBtn.addEventListener("click", async (ev) => {
-    console.log("🟢 CLICK: Go here clicked at latlng:", latlng);
+  const directionsBtn = document.getElementById("qp-directions");
+  directionsBtn?.addEventListener("click", async (ev) => {
     L.DomEvent.stop(ev);
     try {
-      elements.directionsUi.classList.remove("d-none");
-      moveDepartureSearchBarUnderTo();
-      mountInOffcanvas("Directions");
-      await setTo(L.latLng(latlng), null, { fit: false });
-      elements.departureSearchInput.focus();
+      await openDirectionsToPlace(L.latLng(latlng), { fit: false });
 
       if (
         typeof window !== "undefined" &&
@@ -3815,6 +3786,87 @@ function reverseAddressAt(latlng) {
   });
 }
 
+async function getMyLocationLatLng() {
+  if (myLocationLatLng) return myLocationLatLng;
+
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    toastWarn("Geolocation not supported. Please set a starting point.", {
+      important: true,
+    });
+    return null;
+  }
+
+  return await new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        myLocationLatLng = L.latLng(latitude, longitude);
+        resolve(myLocationLatLng);
+      },
+      (error) => {
+        const userDeniedGeolocation = error.code === 1;
+        if (userDeniedGeolocation) {
+          toastWarn("Location permission denied. Please set a starting point.", {
+            important: true,
+          });
+        } else {
+          console.error(error);
+          toastError(
+            "Could not get your location. Please set a starting point.",
+            { important: true }
+          );
+        }
+        resolve(null);
+      }
+    );
+  });
+}
+
+async function ensureFromIsMyLocation(opts = {}) {
+  if (fromLatLng && fromLatLng.lat && fromLatLng.lng) return;
+  const ll = await getMyLocationLatLng();
+  if (!ll) return;
+  await setFrom(ll, "My location", opts);
+}
+
+function startNeedsInput() {
+  return !fromLatLng || !fromLatLng.lat || !fromLatLng.lng;
+}
+
+function setStartHintUi(needsStart) {
+  // Hint text + optional "Use my location" chip/button
+  if (elements.departureSearchInput) {
+    if (needsStart) {
+      elements.departureSearchInput.setAttribute(
+        "placeholder",
+        "Choose starting point or click on the map…"
+      );
+    }
+  }
+
+  const btn = document.getElementById("btn-use-my-location");
+  if (btn) {
+    btn.classList.toggle("d-none", !needsStart);
+  }
+}
+
+async function openDirectionsToPlace(latlng, { fit = false } = {}) {
+  elements.directionsUi.classList.remove("d-none");
+  moveDepartureSearchBarUnderTo();
+  mountInOffcanvas("Directions");
+
+  // Set destination immediately; route will draw as soon as a start is chosen.
+  await setTo(latlng, null, { fit });
+
+  // If no start yet, keep it empty + focused and show hints/chip.
+  const needsStart = startNeedsInput();
+  if (needsStart) {
+    elements.departureSearchInput.value = "";
+  }
+  setStartHintUi(needsStart);
+  elements.departureSearchInput.focus();
+}
+
 async function setFrom(latlng, text, opts = {}) {
   console.log("➡️ setFrom() called with:", { latlng, text, opts });
 
@@ -3835,6 +3887,7 @@ async function setFrom(latlng, text, opts = {}) {
   elements.departureSearchInput.value =
     text ?? (await reverseAddressAt(latlng));
 
+  setStartHintUi(false);
   await updateRoute(opts);
 }
 
@@ -4296,6 +4349,7 @@ export async function initMap(user = null) {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
+        myLocationLatLng = L.latLng(latitude, longitude);
         map.setView([latitude, longitude], DEFAULT_ZOOM);
         L.marker([latitude, longitude]).addTo(map);
       },
@@ -4387,10 +4441,38 @@ export async function initMap(user = null) {
 
     map.on("baselayerchange", (e) => ls.set(BASEMAP_LS_KEY, e.name));
     map.on("zoomend", toggleObstaclesByZoom);
-    map.on("click", (e) => {
+    map.on("click", async (e) => {
       if (drawState.editing || drawState.deleting) return;
       // Don't show quick route popup if we're selecting location for adding a place
       if (globals._isSelectingPlaceLocation) return;
+
+      const directionsActive =
+        elements.directionsUi && !elements.directionsUi.classList.contains("d-none");
+
+      if (directionsActive) {
+        const active = document.activeElement;
+        const dep = elements.departureSearchInput;
+        const dest = elements.destinationSearchInput;
+
+        // If user is focused in a field, set that endpoint.
+        if (active === dep) {
+          setStartHintUi(false);
+          await setFrom(e.latlng, null, { fit: false });
+          return;
+        }
+        if (active === dest) {
+          await setTo(e.latlng, null, { fit: false });
+          return;
+        }
+
+        // If destination is already chosen but start is not, map click sets start.
+        if (toLatLng && startNeedsInput()) {
+          setStartHintUi(false);
+          await setFrom(e.latlng, null, { fit: false });
+          return;
+        }
+      }
+
       showQuickRoutePopup(e.latlng);
     });
   });
@@ -4453,37 +4535,52 @@ export async function initMap(user = null) {
 
   document.addEventListener("click", hideSuggestionsIfClickedOutside);
 
-  elements.detailsPanel
-    .querySelector("#btn-start-here")
-    .addEventListener("click", async () => {
+  // Details panel buttons are React-rendered; use event delegation so wiring
+  // works even if the buttons mount after mapMain initializes.
+  elements.detailsPanel?.addEventListener("click", async (ev) => {
+    const t = ev.target;
+    if (!(t instanceof Element)) return;
+
+    const directionsBtn = t.closest("#btn-directions");
+    const legacyStart = t.closest("#btn-start-here");
+    const legacyGo = t.closest("#btn-go-here");
+
+    if (!directionsBtn && !legacyStart && !legacyGo) return;
+
+    if (
+      typeof window !== "undefined" &&
+      typeof window.closePlacePopup === "function"
+    ) {
+      window.closePlacePopup();
+    }
+
+    if (directionsBtn) {
+      await openDirectionsToPlace(globals.detailsCtx.latlng, { fit: false });
+      return;
+    }
+    if (legacyStart) {
       elements.directionsUi.classList.remove("d-none");
       moveDepartureSearchBarUnderTo();
       mountInOffcanvas("Directions");
-      if (
-        typeof window !== "undefined" &&
-        typeof window.closePlacePopup === "function"
-      ) {
-        window.closePlacePopup();
-      }
       await setFrom(globals.detailsCtx.latlng);
       elements.departureSearchInput.focus();
-    });
-
-  elements.detailsPanel
-    .querySelector("#btn-go-here")
-    .addEventListener("click", async () => {
+      return;
+    }
+    if (legacyGo) {
       elements.directionsUi.classList.remove("d-none");
       moveDepartureSearchBarUnderTo();
       mountInOffcanvas("Directions");
-      if (
-        typeof window !== "undefined" &&
-        typeof window.closePlacePopup === "function"
-      ) {
-        window.closePlacePopup();
-      }
       await setTo(globals.detailsCtx.latlng);
       elements.departureSearchInput.focus();
-    });
+    }
+  });
+
+  document.addEventListener("click", async (ev) => {
+    const t = ev.target;
+    if (!(t instanceof Element)) return;
+    if (!t.closest("#btn-use-my-location")) return;
+    await ensureFromIsMyLocation({ fit: false });
+  });
 
   // ✅ Set up review form handler using event delegation (for old HTML form, kept for backward compatibility)
   // This works even if the form is created dynamically after login

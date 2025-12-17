@@ -942,7 +942,7 @@ export default function MapContainer({
                       variant="outlined"
                       fullWidth
                       className="form-control form-control-lg"
-                      placeholder="Search place or click on the map…"
+                      placeholder="Choose starting point or click on the map…"
                       slotProps={{
                         input: {
                           "aria-label": "Search places",
@@ -956,6 +956,16 @@ export default function MapContainer({
                       aria-label="Search suggestions"
                       id="departure-suggestions"
                     ></ul>
+                  </div>
+                  <div className="mt-2 d-flex gap-2">
+                    <button
+                      id="btn-use-my-location"
+                      type="button"
+                      className="btn btn-sm btn-outline-secondary d-none"
+                      aria-label="Use my location as the start point"
+                    >
+                      Use my location
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1112,26 +1122,14 @@ export default function MapContainer({
                   {/* OVERVIEW TAB */}
                   <DetailsTabPanel value="overview" active={detailsTab}>
                     <div className="d-grid gap-2 mb-3">
-                      <div
-                        className="btn-group"
-                        role="group"
-                        aria-label="Quick route actions"
+                      <button
+                        id="btn-directions"
+                        type="button"
+                        className="btn btn-directions"
+                        aria-label="Get directions to this place"
                       >
-                        <button
-                          id="btn-start-here"
-                          type="button"
-                          className="btn btn-outline-primary"
-                        >
-                          Start here
-                        </button>
-                        <button
-                          id="btn-go-here"
-                          type="button"
-                          className="btn btn-outline-danger"
-                        >
-                          Go here
-                        </button>
-                      </div>
+                        Directions
+                      </button>
                     </div>
                     <div className="card shadow-sm">
                       <div

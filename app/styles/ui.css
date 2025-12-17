@@ -50,6 +50,30 @@
   margin: 2px 4px 2px 0;
 }
 
+/* === Directions button (single primary action) === */
+:root {
+  --directions-btn-bg: var(--bs-primary);
+  --directions-btn-border: var(--bs-primary);
+  --directions-btn-fg: #fff;
+  --directions-btn-bg-hover: color-mix(in srgb, var(--bs-primary) 86%, #000);
+  --directions-btn-border-hover: var(--directions-btn-bg-hover);
+}
+
+.btn.btn-directions {
+  background-color: var(--directions-btn-bg);
+  border-color: var(--directions-btn-border);
+  color: var(--directions-btn-fg);
+}
+.btn.btn-directions:hover,
+.btn.btn-directions:focus {
+  background-color: var(--directions-btn-bg-hover);
+  border-color: var(--directions-btn-border-hover);
+  color: var(--directions-btn-fg);
+}
+.btn.btn-directions:focus-visible {
+  box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--directions-btn-bg) 25%, transparent);
+}
+
 #btn-check-designated + label {
   background-color: #16a34a;
 }
