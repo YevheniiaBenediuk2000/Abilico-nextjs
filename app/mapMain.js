@@ -2301,22 +2301,23 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     header.style.gap = "12px"; // gap: 1.5
     header.style.marginBottom = "20px"; // mb: 2.5
     
-    // Icon container for Address (LocationOn) - matching Contact Information style
+    // Icon container for Address (LocationOn) - matching Contact Information header icon exactly
     const iconContainer = document.createElement("div");
     iconContainer.style.display = "flex";
     iconContainer.style.alignItems = "center";
     iconContainer.style.justifyContent = "center";
     iconContainer.style.width = "40px";
     iconContainer.style.height = "40px";
-    iconContainer.style.borderRadius = "12px"; // borderRadius: 1.5 (MUI spacing)
-    iconContainer.style.backgroundColor = "rgba(10, 63, 137, 0.1)"; // alpha(primary.main, 0.1) - 10% opacity
-    iconContainer.style.color = "#0a3f89"; // primary.main
+    iconContainer.style.borderRadius = "12px"; // borderRadius: 1.5 = 12px
+    iconContainer.style.backgroundColor = "rgba(10, 63, 137, 0.1)"; // alpha(primary.main, 0.1)
+    iconContainer.style.color = "#0a3f89"; // primary.main - icon inherits this color
     iconContainer.style.flexShrink = "0";
     
     const icon = document.createElement("span");
     icon.className = "material-icons";
     icon.style.fontSize = "22px";
-    icon.style.color = "#0a3f89"; // primary.main - matches Contact Information
+    // Color inherited from container, but set explicitly to ensure match
+    icon.style.color = "#0a3f89"; // primary.main
     icon.textContent = "location_on";
     iconContainer.appendChild(icon);
     
@@ -2772,13 +2773,32 @@ Object.entries(nTags).forEach(([key, value]) => {
       .replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
+  // Format value: convert snake_case to Title Case (e.g., "post_box" -> "Post box")
+  // First word capitalized, subsequent words lowercase (as per user example)
+  const formatValueForDisplay = (val) => {
+    return String(val)
+      .replace(/[_:]/g, " ") // Replace underscores and colons with spaces
+      .split(" ")
+      .map((word, index) => {
+        if (!word) return "";
+        const lowerWord = word.toLowerCase();
+        // Capitalize first letter of first word only
+        if (index === 0) {
+          return lowerWord.charAt(0).toUpperCase() + lowerWord.slice(1);
+        }
+        // Keep subsequent words lowercase
+        return lowerWord;
+      })
+      .filter((word) => word)
+      .join(" ");
+  };
+
   const displayValue = String(value)
     .split(";")
     .map((part) => part.trim())
     .filter((part) => part)
-    .join(" • ")
-    .replace(/[_:]/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+    .map(formatValueForDisplay)
+    .join(" • ");
 
   // 🧨 Final safety net:
   // If this generic row would have the label "Contact", skip it completely.
@@ -2812,22 +2832,23 @@ Object.entries(nTags).forEach(([key, value]) => {
     // Get icon name for this place type
     const iconName = getMuiIconForPlaceType(lk, value);
     
-    // Icon container for place type - matching Contact Information style
+    // Icon container for place type - matching Contact Information header icon exactly
     const iconContainer = document.createElement("div");
     iconContainer.style.display = "flex";
     iconContainer.style.alignItems = "center";
     iconContainer.style.justifyContent = "center";
     iconContainer.style.width = "40px";
     iconContainer.style.height = "40px";
-    iconContainer.style.borderRadius = "12px"; // borderRadius: 1.5 (MUI spacing)
-    iconContainer.style.backgroundColor = "rgba(10, 63, 137, 0.1)"; // alpha(primary.main, 0.1) - 10% opacity
-    iconContainer.style.color = "#0a3f89"; // primary.main
+    iconContainer.style.borderRadius = "12px"; // borderRadius: 1.5 = 12px
+    iconContainer.style.backgroundColor = "rgba(10, 63, 137, 0.1)"; // alpha(primary.main, 0.1)
+    iconContainer.style.color = "#0a3f89"; // primary.main - icon inherits this color
     iconContainer.style.flexShrink = "0";
     
     const icon = document.createElement("span");
     icon.className = "material-icons";
     icon.style.fontSize = "22px";
-    icon.style.color = "#0a3f89"; // primary.main - matches Contact Information
+    // Color inherited from container, but set explicitly to ensure match
+    icon.style.color = "#0a3f89"; // primary.main
     icon.textContent = iconName;
     iconContainer.appendChild(icon);
     
