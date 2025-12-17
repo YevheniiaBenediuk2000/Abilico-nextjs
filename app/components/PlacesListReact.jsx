@@ -388,23 +388,93 @@ function NestedPlaceTypeFilter({ items }) {
     });
   };
 
+  // Clear all place types (sets all subtypes to false)
+  const clearAllPlaceTypes = () => {
+    setSelection((prev) => {
+      if (!prev || typeof prev !== 'object') return {};
+      const next = { ...prev };
+      Object.keys(next).forEach((groupLabel) => {
+        const group = next[groupLabel];
+        if (group && typeof group === 'object' && !Array.isArray(group)) {
+          const newSubs = {};
+          Object.keys(group).forEach((subLabel) => {
+            newSubs[subLabel] = false;
+          });
+          next[groupLabel] = newSubs;
+        }
+      });
+      return next;
+    });
+  };
+
+  // Clear a specific group (sets all subtypes in that group to false)
+  const clearGroup = (groupLabel) => {
+    setSelection((prev) => {
+      if (!prev || typeof prev !== 'object') return {};
+      const next = { ...prev };
+      const group = next[groupLabel];
+      if (group && typeof group === 'object' && !Array.isArray(group)) {
+        const newSubs = {};
+        Object.keys(group).forEach((subLabel) => {
+          newSubs[subLabel] = false;
+        });
+        next[groupLabel] = newSubs;
+      }
+      return next;
+    });
+  };
+
+  // Check if any place type is selected (for showing "Clear place types" button)
+  const hasAnyPlaceTypeSelected = useMemo(() => {
+    if (!selection || typeof selection !== 'object') return false;
+    return Object.values(selection).some((group) => {
+      if (!group || typeof group !== 'object' || Array.isArray(group)) return false;
+      return Object.values(group).some(Boolean);
+    });
+  }, [selection]);
+
   if (!Object.keys(tree).length) return null;
 
   return (
     <Box mb={1.5}>
-      <Typography
-        variant="overline"
+      <Box
         sx={{
-          color: "text.primary",
-          fontWeight: 600,
-          letterSpacing: 1,
-          fontSize: "0.7rem",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
           mb: 1.5,
-          display: "block",
         }}
       >
-        FILTER BY PLACE TYPE
-      </Typography>
+        <Typography
+          variant="overline"
+          sx={{
+            color: "text.primary",
+            fontWeight: 600,
+            letterSpacing: 1,
+            fontSize: "0.7rem",
+          }}
+        >
+          FILTER BY PLACE TYPE
+        </Typography>
+        {hasAnyPlaceTypeSelected && (
+          <Link
+            component="button"
+            onClick={clearAllPlaceTypes}
+            sx={{
+              fontSize: "0.7rem",
+              color: "text.secondary",
+              textDecoration: "none",
+              cursor: "pointer",
+              "&:hover": {
+                textDecoration: "underline",
+                color: "text.primary",
+              },
+            }}
+          >
+            Clear place types
+          </Link>
+        )}
+      </Box>
       <Paper
         elevation={0}
         sx={{
@@ -526,17 +596,41 @@ function NestedPlaceTypeFilter({ items }) {
                           </Typography>
                         </Box>
                         {selectedCount < totalCount && (
-                          <Chip
-                            label={`${selectedCount} selected`}
-                      size="small"
-                            sx={{
-                              height: 18,
-                              fontSize: "0.65rem",
-                              bgcolor: "action.selected",
-                              color: "text.secondary",
-                              fontWeight: 400,
-                            }}
-                          />
+                          <>
+                            <Chip
+                              label={`${selectedCount} selected`}
+                              size="small"
+                              sx={{
+                                height: 18,
+                                fontSize: "0.65rem",
+                                bgcolor: "action.selected",
+                                color: "text.secondary",
+                                fontWeight: 400,
+                              }}
+                            />
+                            {selectedCount > 0 && (
+                              <Link
+                                component="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  clearGroup(groupLabel);
+                                }}
+                                sx={{
+                                  fontSize: "0.65rem",
+                                  color: "text.secondary",
+                                  textDecoration: "none",
+                                  cursor: "pointer",
+                                  ml: 0.5,
+                                  "&:hover": {
+                                    textDecoration: "underline",
+                                    color: "text.primary",
+                                  },
+                                }}
+                              >
+                                Clear
+                              </Link>
+                            )}
+                          </>
                         )}
                       </Box>
                       <IconButton
@@ -781,18 +875,42 @@ function NestedPlaceTypeFilter({ items }) {
                         )}
                       </IconButton>
                       {selectedCount < totalCount && (
-                        <Chip
-                          label={`${selectedCount} selected`}
-                          size="small"
-                          sx={{
-                            height: 18,
-                            fontSize: "0.65rem",
-                            bgcolor: "action.selected",
-                            color: "text.secondary",
-                            fontWeight: 400,
-                            ml: 0.5,
-                          }}
-                        />
+                        <>
+                          <Chip
+                            label={`${selectedCount} selected`}
+                            size="small"
+                            sx={{
+                              height: 18,
+                              fontSize: "0.65rem",
+                              bgcolor: "action.selected",
+                              color: "text.secondary",
+                              fontWeight: 400,
+                              ml: 0.5,
+                            }}
+                          />
+                          {selectedCount > 0 && (
+                            <Link
+                              component="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                clearGroup(groupLabel);
+                              }}
+                              sx={{
+                                fontSize: "0.65rem",
+                                color: "text.secondary",
+                                textDecoration: "none",
+                                cursor: "pointer",
+                                ml: 0.5,
+                                "&:hover": {
+                                  textDecoration: "underline",
+                                  color: "text.primary",
+                                },
+                              }}
+                            >
+                              Clear
+                            </Link>
+                          )}
+                        </>
                       )}
                     </Box>
                     {expanded[groupLabel] && (

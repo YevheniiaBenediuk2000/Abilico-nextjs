@@ -1007,7 +1007,7 @@ export default function MapContainer({
               overflowY: "auto",
             }}
           >
-            <CardContent sx={{ py: 2 }}>
+            <CardContent sx={{ pt: 2, pb: 1 }}>
               {/* Header */}
               <Box
                 sx={{

@@ -1889,6 +1889,87 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   
   // Consistent padding constant for all detail sections (24px = MUI spacing 3)
   const SECTION_PADDING = "24px";
+  
+  // Shared helper function to create detail section headers with icon (matching Contact Information style)
+  function createDetailSectionHeader(iconName, titleText) {
+    const header = document.createElement("div");
+    header.style.display = "flex";
+    header.style.alignItems = "center";
+    header.style.gap = "12px";
+    header.style.marginBottom = "20px";
+
+    // Icon container - same size/colors as Contact Information
+    const iconContainer = document.createElement("div");
+    iconContainer.style.display = "flex";
+    iconContainer.style.alignItems = "center";
+    iconContainer.style.justifyContent = "center";
+    iconContainer.style.width = "40px";
+    iconContainer.style.height = "40px";
+    iconContainer.style.borderRadius = "12px";
+    iconContainer.style.backgroundColor = "rgba(10, 63, 137, 0.1)";
+    iconContainer.style.color = "#0a3f89";
+    iconContainer.style.flexShrink = "0";
+
+    const icon = document.createElement("span");
+    icon.className = "material-icons";
+    icon.style.fontSize = "22px";
+    icon.style.color = "#0a3f89";
+    icon.textContent = iconName;
+    iconContainer.appendChild(icon);
+
+    const title = document.createElement("h6");
+    title.style.fontSize = "1.125rem";
+    title.style.fontWeight = "600";
+    title.style.color = "rgba(0, 0, 0, 0.87)";
+    title.style.letterSpacing = "-0.01em";
+    title.style.margin = "0";
+    title.textContent = titleText;
+
+    header.appendChild(iconContainer);
+    header.appendChild(title);
+
+    return header;
+  }
+
+  function createDetailSectionHeader(iconName, titleText) {
+    const header = document.createElement("div");
+    header.style.display = "flex";
+    header.style.alignItems = "center";
+    header.style.gap = "12px";
+    header.style.marginBottom = "20px";
+  
+    // icon chip – same size/colors as Contact Information
+    const iconContainer = document.createElement("div");
+    iconContainer.style.display = "flex";
+    iconContainer.style.alignItems = "center";
+    iconContainer.style.justifyContent = "center";
+    iconContainer.style.width = "40px";
+    iconContainer.style.height = "40px";
+    iconContainer.style.borderRadius = "12px";
+    iconContainer.style.backgroundColor = "rgba(10, 63, 137, 0.1)";
+    iconContainer.style.color = "#0a3f89";
+    iconContainer.style.flexShrink = "0";
+  
+    const icon = document.createElement("span");
+    icon.className = "material-icons";
+    icon.style.fontSize = "22px";
+    icon.style.color = "#0a3f89";
+    icon.textContent = iconName;          // 👈 only this changes
+    iconContainer.appendChild(icon);
+  
+    const title = document.createElement("h6");
+    title.style.fontSize = "1.125rem";
+    title.style.fontWeight = "600";
+    title.style.color = "rgba(0, 0, 0, 0.87)";
+    title.style.letterSpacing = "-0.01em";
+    title.style.margin = "0";
+    title.textContent = titleText;
+  
+    header.appendChild(iconContainer);
+    header.appendChild(title);
+  
+    return header;
+  }
 
   // 🔥 Remove raw "contact" tag (e.g. contact=yes) so it doesn't render as "Contact / Yes"
   if ("contact" in nTags) {
@@ -2272,70 +2353,32 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     });
   }
 
-  // --- ADDRESS: Render formatted address with area as secondary text (matching Wheelchair Access style) ---
+  // --- ADDRESS: Render formatted address with area as secondary text (same chip style as Contact Information, icon = location_on) ---
   const formattedAddress = formatAddressFromTags(nTags);
   if (formattedAddress) {
-    const formattedArea = formatAreaFromTags(nTags);
+    let formattedArea = formatAreaFromTags(nTags);
     
     // Clean up area text: remove "eldership" and simplify
-    let cleanArea = formattedArea;
-    if (cleanArea) {
-      cleanArea = cleanArea.replace(/\s*eldership\s*/gi, " ").trim();
-      cleanArea = cleanArea.replace(/\s+/g, " "); // Remove extra spaces
+    if (formattedArea) {
+      formattedArea = formattedArea.replace(/\s*eldership\s*/gi, " ").trim();
+      formattedArea = formattedArea.replace(/\s+/g, " ");
     }
     
     const addressItem = document.createElement("div");
     addressItem.className = "list-group-item";
     addressItem.style.padding = "0";
     
-    // Main container with consistent padding
     const container = document.createElement("div");
     container.style.padding = SECTION_PADDING;
     container.style.borderTop = "1px solid";
-    container.style.borderColor = "rgba(0, 0, 0, 0.12)"; // divider color
+    container.style.borderColor = "rgba(0, 0, 0, 0.12)";
     
-    // Header section with MUI Material Icon
-    const header = document.createElement("div");
-    header.style.display = "flex";
-    header.style.alignItems = "center";
-    header.style.gap = "12px"; // gap: 1.5
-    header.style.marginBottom = "20px"; // mb: 2.5
+    // Icon & title: same style as Contact Information, icon glyph = location_on
+    const header = createDetailSectionHeader("location_on", "Address");
+    container.appendChild(header);
     
-    // Icon container for Address (LocationOn) - matching Contact Information header icon exactly
-    const iconContainer = document.createElement("div");
-    iconContainer.style.display = "flex";
-    iconContainer.style.alignItems = "center";
-    iconContainer.style.justifyContent = "center";
-    iconContainer.style.width = "40px";
-    iconContainer.style.height = "40px";
-    iconContainer.style.borderRadius = "12px"; // borderRadius: 1.5 = 12px
-    iconContainer.style.backgroundColor = "rgba(10, 63, 137, 0.1)"; // alpha(primary.main, 0.1)
-    iconContainer.style.color = "#0a3f89"; // primary.main - icon inherits this color
-    iconContainer.style.flexShrink = "0";
-    
-    const icon = document.createElement("span");
-    icon.className = "material-icons";
-    icon.style.fontSize = "22px";
-    // Color inherited from container, but set explicitly to ensure match
-    icon.style.color = "#0a3f89"; // primary.main
-    icon.textContent = "location_on";
-    iconContainer.appendChild(icon);
-    
-    const title = document.createElement("h6");
-    title.style.fontSize = "1.125rem"; // 18px
-    title.style.fontWeight = "600";
-    title.style.color = "rgba(0, 0, 0, 0.87)"; // text.primary
-    title.style.letterSpacing = "-0.01em";
-    title.style.margin = "0";
-    title.textContent = "Address";
-    
-    header.appendChild(iconContainer);
-    header.appendChild(title);
-    
-    // Content wrapper
     const contentWrapper = document.createElement("div");
     
-    // Address text
     const addressText = document.createElement("p");
     addressText.style.margin = "0";
     addressText.style.fontSize = "0.875rem";
@@ -2344,18 +2387,16 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     addressText.textContent = formattedAddress;
     contentWrapper.appendChild(addressText);
     
-    // Area text if available
-    if (cleanArea) {
+    if (formattedArea) {
       const areaText = document.createElement("p");
       areaText.style.margin = "4px 0 0 0";
       areaText.style.fontSize = "0.875rem";
-      areaText.style.color = "rgba(0, 0, 0, 0.6)"; // text.secondary
+      areaText.style.color = "rgba(0, 0, 0, 0.6)";
       areaText.style.lineHeight = "1.5";
-      areaText.textContent = cleanArea;
+      areaText.textContent = formattedArea;
       contentWrapper.appendChild(areaText);
     }
     
-    container.appendChild(header);
     container.appendChild(contentWrapper);
     addressItem.appendChild(container);
     list.appendChild(addressItem);
@@ -2401,17 +2442,34 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     list.appendChild(capacityItem);
   }
 
-  // --- CULTURAL HERITAGE REGISTRY: Handle ref:lt:kpd specially ---
+  // --- CULTURAL HERITAGE REGISTRY: Handle ref:lt:kpd specially (same chip style as Contact Information) ---
   const heritageRef = nTags["ref:lt:kpd"] || nTags["Ref:Lt:Kpd"] || nTags["ref_lt_kpd"] || null;
   if (heritageRef && String(heritageRef).trim()) {
     const heritageItem = document.createElement("div");
-    heritageItem.className =
-      "list-group-item d-flex justify-content-between align-items-start";
-    heritageItem.innerHTML = `
-      <div class="me-2">
-        <h6 class="mb-1 fw-semibold">Cultural heritage registry</h6>
-        <p class="small mb-1">Register ID: ${String(heritageRef).trim()}</p>
-      </div>`;
+    heritageItem.className = "list-group-item";
+    heritageItem.style.padding = "0";
+    
+    const container = document.createElement("div");
+    container.style.padding = SECTION_PADDING;
+    container.style.borderTop = "1px solid";
+    container.style.borderColor = "rgba(0, 0, 0, 0.12)";
+    
+    // Icon & title: same style as Contact Information, icon glyph = museum (heritage-related)
+    const header = createDetailSectionHeader("museum", "Cultural heritage registry");
+    container.appendChild(header);
+    
+    const contentWrapper = document.createElement("div");
+    
+    const valueText = document.createElement("p");
+    valueText.style.margin = "0";
+    valueText.style.fontSize = "0.875rem";
+    valueText.style.color = "rgba(0, 0, 0, 0.87)";
+    valueText.style.lineHeight = "1.5";
+    valueText.textContent = `Register ID: ${String(heritageRef).trim()}`;
+    contentWrapper.appendChild(valueText);
+    
+    container.appendChild(contentWrapper);
+    heritageItem.appendChild(container);
     list.appendChild(heritageItem);
   }
 
@@ -2812,70 +2870,31 @@ Object.entries(nTags).forEach(([key, value]) => {
   const isPlaceType = ["amenity", "tourism", "shop", "leisure", "healthcare", "office", "historic", "sport"].includes(lk);
   
   if (isPlaceType) {
-    // Style place types like Wheelchair Access section
     item.className = "list-group-item";
     item.style.padding = "0";
     
-    // Main container with consistent padding
     const container = document.createElement("div");
     container.style.padding = SECTION_PADDING;
     container.style.borderTop = "1px solid";
-    container.style.borderColor = "rgba(0, 0, 0, 0.12)"; // divider color
+    container.style.borderColor = "rgba(0, 0, 0, 0.12)";
     
-    // Header section with MUI Material Icon for place types
-    const header = document.createElement("div");
-    header.style.display = "flex";
-    header.style.alignItems = "center";
-    header.style.gap = "12px"; // gap: 1.5
-    header.style.marginBottom = "20px"; // mb: 2.5
-    
-    // Get icon name for this place type
+    // Decide icon name for this type (hotel, local_cafe, museum, etc.)
     const iconName = getMuiIconForPlaceType(lk, value);
     
-    // Icon container for place type - matching Contact Information header icon exactly
-    const iconContainer = document.createElement("div");
-    iconContainer.style.display = "flex";
-    iconContainer.style.alignItems = "center";
-    iconContainer.style.justifyContent = "center";
-    iconContainer.style.width = "40px";
-    iconContainer.style.height = "40px";
-    iconContainer.style.borderRadius = "12px"; // borderRadius: 1.5 = 12px
-    iconContainer.style.backgroundColor = "rgba(10, 63, 137, 0.1)"; // alpha(primary.main, 0.1)
-    iconContainer.style.color = "#0a3f89"; // primary.main - icon inherits this color
-    iconContainer.style.flexShrink = "0";
+    // Same chip style as Contact Information, different icon per type
+    const header = createDetailSectionHeader(iconName, displayKey); // e.g. "Category"
+    container.appendChild(header);
     
-    const icon = document.createElement("span");
-    icon.className = "material-icons";
-    icon.style.fontSize = "22px";
-    // Color inherited from container, but set explicitly to ensure match
-    icon.style.color = "#0a3f89"; // primary.main
-    icon.textContent = iconName;
-    iconContainer.appendChild(icon);
-    
-    const title = document.createElement("h6");
-    title.style.fontSize = "1.125rem"; // 18px
-    title.style.fontWeight = "600";
-    title.style.color = "rgba(0, 0, 0, 0.87)"; // text.primary
-    title.style.letterSpacing = "-0.01em";
-    title.style.margin = "0";
-    title.textContent = displayKey;
-    
-    header.appendChild(iconContainer);
-    header.appendChild(title);
-    
-    // Content wrapper
-    const contentWrapper = document.createElement("div");
-    
-    // Value text
     const valueText = document.createElement("p");
     valueText.style.margin = "0";
     valueText.style.fontSize = "0.875rem";
     valueText.style.color = "rgba(0, 0, 0, 0.87)";
     valueText.style.lineHeight = "1.5";
-    valueText.textContent = displayValue;
+    valueText.textContent = displayValue; // e.g. "Cafe", "Hotel"
+    
+    const contentWrapper = document.createElement("div");
     contentWrapper.appendChild(valueText);
     
-    container.appendChild(header);
     container.appendChild(contentWrapper);
     item.appendChild(container);
   } else {

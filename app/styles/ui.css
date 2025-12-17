@@ -6,6 +6,16 @@
   width: clamp(240px, 60vw, 420px);
 }
 
+/* Reduce bottom padding in details panel when zoomed out */
+#details-list {
+  padding-bottom: 0 !important;
+}
+
+#details-list .list-group-item:last-child {
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
+}
+
 .search-suggestions button {
   padding-top: 10px;
   padding-bottom: 10px;
