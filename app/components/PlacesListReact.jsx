@@ -1955,14 +1955,14 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
         {!hideControls && (
           <Box>
             <Typography sx={{ mb: 0.9 }} variant="subtitle1" fontWeight={600}>
-              Places in view
+              Places in this area
             </Typography>
             <Typography variant="caption" color="text.secondary">
               {hasPlaces
                 ? `${items.length} place${items.length === 1 ? "" : "s"}`
                 : zoom && zoom < SHOW_PLACES_ZOOM
                 ? "Zoom in to see accessible places"
-                : "No places match your filters here"}
+                : "No places match your filters in this area."}
             </Typography>
           </Box>
         )}
@@ -2010,7 +2010,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
                 ? "Zoom in on the map to load accessible points of interest."
                 : photosOnly
                 ? 'No places with photos here yet. Try moving the map, zooming in, or turning off "Only places with photos".'
-                : "Try moving the map or adjusting the accessibility / type filters."}
+                : "Try moving the map, changing accessibility filters, or clearing filters."}
             </Typography>
           </Box>
         ) : (
@@ -2021,7 +2021,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
                   <Typography variant="body2" color="text.secondary">
                     {zoom && zoom < SHOW_PLACES_ZOOM
                       ? "Zoom in on the map to load accessible points of interest."
-                      : "Try moving the map or adjusting the accessibility / type filters."}
+                      : "Try moving the map, changing accessibility filters, or clearing filters."}
                   </Typography>
                 </Box>
               ) : (

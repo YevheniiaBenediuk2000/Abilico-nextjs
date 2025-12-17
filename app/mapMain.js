@@ -2006,14 +2006,102 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     .map(cleanUrl)
     .filter(Boolean);
   
+  // Extract social media links from dedicated tags (facebook, contact:facebook, instagram, etc.)
+  const socialMediaTagKeys = [
+    "facebook", "contact:facebook",
+    "instagram", "contact:instagram",
+    "twitter", "contact:twitter",
+    "linkedin", "contact:linkedin",
+    "youtube", "contact:youtube",
+    "tiktok", "contact:tiktok"
+  ];
+  
+  // Helper to convert username/page to full URL if needed
+  const normalizeSocialMediaUrl = (value, platform) => {
+    if (!value) return null;
+    const trimmed = String(value).trim();
+    
+    // If it already looks like a URL, return as-is
+    if (/^https?:\/\//i.test(trimmed)) {
+      return trimmed;
+    }
+    
+    // Convert username/page to full URL
+    if (platform === "facebook") {
+      // If it's just a username or page name, prepend facebook.com
+      if (!trimmed.includes("facebook.com") && !trimmed.includes("/")) {
+        return `https://www.facebook.com/${trimmed}`;
+      }
+      // If it's a path like "/publicpub", make it full URL
+      if (trimmed.startsWith("/")) {
+        return `https://www.facebook.com${trimmed}`;
+      }
+    } else if (platform === "instagram") {
+      if (!trimmed.includes("instagram.com") && !trimmed.includes("/")) {
+        return `https://www.instagram.com/${trimmed}`;
+      }
+      if (trimmed.startsWith("/")) {
+        return `https://www.instagram.com${trimmed}`;
+      }
+    } else if (platform === "twitter") {
+      if (!trimmed.includes("twitter.com") && !trimmed.includes("x.com") && !trimmed.includes("/")) {
+        return `https://www.twitter.com/${trimmed}`;
+      }
+      if (trimmed.startsWith("/")) {
+        return `https://www.twitter.com${trimmed}`;
+      }
+    }
+    
+    // If it doesn't match any pattern, try to clean it as-is
+    return trimmed;
+  };
+  
+  const socialMediaLinksFromTags = [];
+  socialMediaTagKeys.forEach((key) => {
+    const value = nTags[key];
+    if (value) {
+      const links = splitMulti(value);
+      links.forEach((link) => {
+        // Determine platform from key
+        const platform = key.toLowerCase().replace(/^contact:/, "").replace(/^contact_/, "");
+        
+        // Normalize URL (handle usernames, partial URLs, etc.)
+        let normalizedUrl = normalizeSocialMediaUrl(link, platform);
+        if (!normalizedUrl) return;
+        
+        // Clean the URL
+        const cleaned = cleanUrl(normalizedUrl);
+        if (!cleaned) return;
+        
+        // Detect and add social media link
+        const social = detectSocialMedia(cleaned);
+        if (social) {
+          // Only add if not already in the list (avoid duplicates)
+          const isDuplicate = socialMediaLinksFromTags.some(
+            (existing) => existing.url === social.url
+          );
+          if (!isDuplicate) {
+            socialMediaLinksFromTags.push(social);
+          }
+        }
+      });
+    }
+  });
+  
   // Separate social media links from regular website links
-  const socialMediaLinks = [];
+  const socialMediaLinks = [...socialMediaLinksFromTags]; // Start with dedicated tags
   const regularWebsiteLinks = [];
   
   allWebsiteLinks.forEach((url) => {
     const social = detectSocialMedia(url);
     if (social) {
-      socialMediaLinks.push(social);
+      // Only add if not already in the list (avoid duplicates)
+      const isDuplicate = socialMediaLinks.some(
+        (existing) => existing.url === social.url
+      );
+      if (!isDuplicate) {
+        socialMediaLinks.push(social);
+      }
     } else {
       regularWebsiteLinks.push(url);
     }
@@ -2123,10 +2211,10 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       card.style.transition = "all 0.2s ease-in-out";
       card.style.cursor = "pointer";
       
-      // Hover effect
+      // Hover effect - use secondary color
       card.addEventListener("mouseenter", () => {
-        card.style.borderColor = "#0a3f89";
-        card.style.boxShadow = "0 2px 8px rgba(10, 63, 137, 0.15)";
+        card.style.borderColor = ICON_SECONDARY_COLOR;
+        card.style.boxShadow = `0 2px 8px rgba(15, 119, 210, 0.15)`;
         card.style.transform = "translateY(-1px)";
       });
       card.addEventListener("mouseleave", () => {
@@ -2146,16 +2234,16 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       cardContent.style.gap = "16px";
       cardContent.style.padding = "16px";
       
-      // Icon container
+      // Icon container - use same variables as Address/Category
       const iconContainer = document.createElement("div");
       iconContainer.style.display = "flex";
       iconContainer.style.alignItems = "center";
       iconContainer.style.justifyContent = "center";
-      iconContainer.style.width = "48px";
-      iconContainer.style.height = "48px";
-      iconContainer.style.borderRadius = "8px";
-      iconContainer.style.backgroundColor = "rgba(10, 63, 137, 0.1)";
-      iconContainer.style.color = "#0a3f89";
+      iconContainer.style.width = ICON_SIZE;
+      iconContainer.style.height = ICON_SIZE;
+      iconContainer.style.borderRadius = ICON_BORDER_RADIUS;
+      iconContainer.style.backgroundColor = ICON_BACKGROUND_COLOR;
+      iconContainer.style.color = ICON_SECONDARY_COLOR;
       iconContainer.style.flexShrink = "0";
       
       const icon = document.createElement("span");
@@ -2163,7 +2251,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       const isBrandIcon = ["facebook", "instagram"].includes(social.icon);
       icon.className = isBrandIcon ? "material-symbols-outlined" : "material-icons";
       icon.style.fontSize = "24px";
-      icon.style.color = "#0a3f89";
+      icon.style.color = ICON_SECONDARY_COLOR;
       icon.textContent = social.icon;
       iconContainer.appendChild(icon);
       
@@ -2526,12 +2614,50 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     container.style.borderTop = "1px solid";
     container.style.borderColor = "rgba(0, 0, 0, 0.12)";
     
-    // Icon & title: same style as Contact Information, icon glyph = location_on
-    const header = createDetailSectionHeader("location_on", "Address");
-    container.appendChild(header);
+    // Layout: Icon on left, title and value on right (title aligned with icon, value below title)
+    const layoutContainer = document.createElement("div");
+    layoutContainer.style.display = "flex";
+    layoutContainer.style.alignItems = "flex-start";
+    layoutContainer.style.gap = "12px";
     
+    // Icon container
+    const iconContainer = document.createElement("div");
+    iconContainer.style.display = "flex";
+    iconContainer.style.alignItems = "center";
+    iconContainer.style.justifyContent = "center";
+    iconContainer.style.width = ICON_SIZE;
+    iconContainer.style.height = ICON_SIZE;
+    iconContainer.style.borderRadius = ICON_BORDER_RADIUS;
+    iconContainer.style.backgroundColor = ICON_BACKGROUND_COLOR;
+    iconContainer.style.color = ICON_SECONDARY_COLOR;
+    iconContainer.style.flexShrink = "0";
+    
+    const icon = document.createElement("span");
+    icon.className = "material-icons";
+    icon.style.fontSize = "24px";
+    icon.style.color = ICON_SECONDARY_COLOR;
+    icon.textContent = "location_on";
+    iconContainer.appendChild(icon);
+    
+    // Content wrapper (title and value)
     const contentWrapper = document.createElement("div");
+    contentWrapper.style.flex = "1";
+    contentWrapper.style.minWidth = "0";
+    contentWrapper.style.display = "flex";
+    contentWrapper.style.flexDirection = "column";
+    contentWrapper.style.justifyContent = "center";
     
+    // Title - aligned with icon center
+    const title = document.createElement("h6");
+    title.style.fontSize = "1.125rem";
+    title.style.fontWeight = "600";
+    title.style.color = "rgba(0, 0, 0, 0.87)";
+    title.style.letterSpacing = "-0.01em";
+    title.style.margin = "0 0 4px 0"; // Small margin below for value
+    title.textContent = "Address";
+    contentWrapper.appendChild(title);
+    
+    // Address value
     const addressText = document.createElement("p");
     addressText.style.margin = "0";
     addressText.style.fontSize = "0.875rem";
@@ -2540,6 +2666,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     addressText.textContent = formattedAddress;
     contentWrapper.appendChild(addressText);
     
+    // Area value (if exists)
     if (formattedArea) {
       const areaText = document.createElement("p");
       areaText.style.margin = "4px 0 0 0";
@@ -2550,7 +2677,9 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       contentWrapper.appendChild(areaText);
     }
     
-    container.appendChild(contentWrapper);
+    layoutContainer.appendChild(iconContainer);
+    layoutContainer.appendChild(contentWrapper);
+    container.appendChild(layoutContainer);
     addressItem.appendChild(container);
     list.appendChild(addressItem);
   }
@@ -3088,24 +3217,64 @@ Object.entries(nTags).forEach(([key, value]) => {
     container.style.borderTop = "1px solid";
     container.style.borderColor = "rgba(0, 0, 0, 0.12)";
     
+    // Layout: Icon on left, title and value on right (title aligned with icon, value below title)
+    const layoutContainer = document.createElement("div");
+    layoutContainer.style.display = "flex";
+    layoutContainer.style.alignItems = "flex-start";
+    layoutContainer.style.gap = "12px";
+    
+    // Icon container
+    const iconContainer = document.createElement("div");
+    iconContainer.style.display = "flex";
+    iconContainer.style.alignItems = "center";
+    iconContainer.style.justifyContent = "center";
+    iconContainer.style.width = ICON_SIZE;
+    iconContainer.style.height = ICON_SIZE;
+    iconContainer.style.borderRadius = ICON_BORDER_RADIUS;
+    iconContainer.style.backgroundColor = ICON_BACKGROUND_COLOR;
+    iconContainer.style.color = ICON_SECONDARY_COLOR;
+    iconContainer.style.flexShrink = "0";
+    
     // Decide icon name for this type (hotel, local_cafe, museum, etc.)
     const iconName = getMuiIconForPlaceType(lk, value);
     
-    // Same chip style as Contact Information, different icon per type
-    const header = createDetailSectionHeader(iconName, displayKey); // e.g. "Category"
-    container.appendChild(header);
+    const icon = document.createElement("span");
+    icon.className = "material-icons";
+    icon.style.fontSize = "24px";
+    icon.style.color = ICON_SECONDARY_COLOR;
+    icon.textContent = iconName;
+    iconContainer.appendChild(icon);
     
+    // Content wrapper (title and value)
+    const contentWrapper = document.createElement("div");
+    contentWrapper.style.flex = "1";
+    contentWrapper.style.minWidth = "0";
+    contentWrapper.style.display = "flex";
+    contentWrapper.style.flexDirection = "column";
+    contentWrapper.style.justifyContent = "center";
+    
+    // Title - aligned with icon center
+    const title = document.createElement("h6");
+    title.style.fontSize = "1.125rem";
+    title.style.fontWeight = "600";
+    title.style.color = "rgba(0, 0, 0, 0.87)";
+    title.style.letterSpacing = "-0.01em";
+    title.style.margin = "0 0 4px 0"; // Small margin below for value
+    title.textContent = displayKey; // e.g. "Category"
+    contentWrapper.appendChild(title);
+    
+    // Value text
     const valueText = document.createElement("p");
     valueText.style.margin = "0";
     valueText.style.fontSize = "0.875rem";
     valueText.style.color = "rgba(0, 0, 0, 0.87)";
     valueText.style.lineHeight = "1.5";
     valueText.textContent = displayValue; // e.g. "Cafe", "Hotel"
-    
-    const contentWrapper = document.createElement("div");
     contentWrapper.appendChild(valueText);
     
-    container.appendChild(contentWrapper);
+    layoutContainer.appendChild(iconContainer);
+    layoutContainer.appendChild(contentWrapper);
+    container.appendChild(layoutContainer);
     item.appendChild(container);
   } else {
     // Default styling for other items
