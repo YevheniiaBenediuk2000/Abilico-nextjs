@@ -2301,21 +2301,22 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     header.style.gap = "12px"; // gap: 1.5
     header.style.marginBottom = "20px"; // mb: 2.5
     
-    // Icon container for Address (LocationOn)
+    // Icon container for Address (LocationOn) - matching Contact Information style
     const iconContainer = document.createElement("div");
     iconContainer.style.display = "flex";
     iconContainer.style.alignItems = "center";
     iconContainer.style.justifyContent = "center";
     iconContainer.style.width = "40px";
     iconContainer.style.height = "40px";
-    iconContainer.style.borderRadius = "12px"; // borderRadius: 1.5
-    iconContainer.style.backgroundColor = "rgba(10, 63, 137, 0.1)"; // primary.main with 10% opacity
+    iconContainer.style.borderRadius = "12px"; // borderRadius: 1.5 (MUI spacing)
+    iconContainer.style.backgroundColor = "rgba(10, 63, 137, 0.1)"; // alpha(primary.main, 0.1) - 10% opacity
+    iconContainer.style.color = "#0a3f89"; // primary.main
     iconContainer.style.flexShrink = "0";
     
     const icon = document.createElement("span");
     icon.className = "material-icons";
     icon.style.fontSize = "22px";
-    icon.style.color = "#0a3f89"; // primary.main
+    icon.style.color = "#0a3f89"; // primary.main - matches Contact Information
     icon.textContent = "location_on";
     iconContainer.appendChild(icon);
     
@@ -2811,21 +2812,22 @@ Object.entries(nTags).forEach(([key, value]) => {
     // Get icon name for this place type
     const iconName = getMuiIconForPlaceType(lk, value);
     
-    // Icon container for place type
+    // Icon container for place type - matching Contact Information style
     const iconContainer = document.createElement("div");
     iconContainer.style.display = "flex";
     iconContainer.style.alignItems = "center";
     iconContainer.style.justifyContent = "center";
     iconContainer.style.width = "40px";
     iconContainer.style.height = "40px";
-    iconContainer.style.borderRadius = "12px"; // borderRadius: 1.5
-    iconContainer.style.backgroundColor = "rgba(10, 63, 137, 0.1)"; // primary.main with 10% opacity
+    iconContainer.style.borderRadius = "12px"; // borderRadius: 1.5 (MUI spacing)
+    iconContainer.style.backgroundColor = "rgba(10, 63, 137, 0.1)"; // alpha(primary.main, 0.1) - 10% opacity
+    iconContainer.style.color = "#0a3f89"; // primary.main
     iconContainer.style.flexShrink = "0";
     
     const icon = document.createElement("span");
     icon.className = "material-icons";
     icon.style.fontSize = "22px";
-    icon.style.color = "#0a3f89"; // primary.main
+    icon.style.color = "#0a3f89"; // primary.main - matches Contact Information
     icon.textContent = iconName;
     iconContainer.appendChild(icon);
     
