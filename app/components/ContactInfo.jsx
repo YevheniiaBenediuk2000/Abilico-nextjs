@@ -6,6 +6,7 @@ import Link from "@mui/material/Link";
 import LanguageIcon from "@mui/icons-material/Language";
 import PhoneIcon from "@mui/icons-material/Phone";
 import EmailIcon from "@mui/icons-material/Email";
+import ContactMailIcon from "@mui/icons-material/ContactMail";
 import Avatar from "@mui/material/Avatar";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
@@ -89,17 +90,19 @@ export default function ContactInfo({ website, phone, email }) {
           borderColor: "divider",
         }}
       >
-        <Typography
-          variant="h6"
-          sx={{
-            fontSize: "0.875rem",
-            fontWeight: 600,
-            mb: 1.5,
-            color: "text.primary",
-          }}
-        >
-          Contact
-        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
+          <ContactMailIcon sx={{ color: "primary.main", fontSize: "1.2rem" }} />
+          <Typography
+            variant="h6"
+            sx={{
+              fontSize: "1.1rem",
+              fontWeight: 600,
+              color: "text.primary",
+            }}
+          >
+            Contact
+          </Typography>
+        </Box>
 
         <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
           {/* Website */}
