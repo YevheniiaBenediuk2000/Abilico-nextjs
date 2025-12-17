@@ -363,20 +363,6 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
             mb: 2.5,
           }}
         >
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 40,
-              height: 40,
-              borderRadius: 1.5,
-              bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
-              color: "primary.main",
-            }}
-          >
-            <AccessTimeIcon sx={{ fontSize: 22 }} />
-          </Box>
           <Typography
             variant="h6"
             sx={{
@@ -384,6 +370,7 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
               fontWeight: 600,
               color: "text.primary",
               letterSpacing: "-0.01em",
+              margin: 0,
             }}
           >
             Opening Hours
@@ -414,7 +401,7 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
         borderColor: "divider",
       }}
     >
-      {/* Header */}
+      {/* Header - matching Wheelchair Access style (no icon) */}
       <Box
         sx={{
           display: "flex",
@@ -423,20 +410,6 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
           mb: 2.5,
         }}
       >
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 40,
-            height: 40,
-            borderRadius: 1.5,
-            bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
-            color: "primary.main",
-          }}
-        >
-          <AccessTimeIcon sx={{ fontSize: 22 }} />
-        </Box>
         <Typography
           variant="h6"
           sx={{
@@ -444,6 +417,7 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
             fontWeight: 600,
             color: "text.primary",
             letterSpacing: "-0.01em",
+            margin: 0,
           }}
         >
           Opening Hours

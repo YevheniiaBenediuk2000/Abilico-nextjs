@@ -2269,7 +2269,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     });
   }
 
-  // --- ADDRESS: Render formatted address with area as secondary text ---
+  // --- ADDRESS: Render formatted address with area as secondary text (matching Wheelchair Access style) ---
   const formattedAddress = formatAddressFromTags(nTags);
   if (formattedAddress) {
     const formattedArea = formatAreaFromTags(nTags);
@@ -2282,44 +2282,58 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     }
     
     const addressItem = document.createElement("div");
-    addressItem.className =
-      "list-group-item d-flex justify-content-between align-items-start";
+    addressItem.className = "list-group-item";
+    addressItem.style.padding = "0";
     
-    // Create icon HTML using mask technique (similar to wheelchair icon)
-    const iconHtml = `
-      <div style="
-        width: 20px;
-        height: 20px;
-        display: inline-block;
-        flex-shrink: 0;
-        margin-top: 2px;
-        background-color: #0a3f89;
-        mask-image: url('/icons/maki/marker.svg');
-        mask-size: contain;
-        mask-repeat: no-repeat;
-        mask-position: center;
-        -webkit-mask-image: url('/icons/maki/marker.svg');
-        -webkit-mask-size: contain;
-        -webkit-mask-repeat: no-repeat;
-        -webkit-mask-position: center;
-      "></div>`;
+    // Main container with consistent padding
+    const container = document.createElement("div");
+    container.style.padding = "24px"; // padding: 3 (MUI spacing)
+    container.style.borderTop = "1px solid";
+    container.style.borderColor = "rgba(0, 0, 0, 0.12)"; // divider color
     
-    let addressHtml = `
-      <div class="me-2" style="display: flex; align-items: flex-start; gap: 8px;">
-        ${iconHtml}
-        <div style="flex: 1; min-width: 0;">
-        <h6 class="mb-1 fw-semibold">Address</h6>
-        <p class="small mb-1">${formattedAddress}</p>`;
+    // Header section matching Wheelchair Access style (no icon)
+    const header = document.createElement("div");
+    header.style.display = "flex";
+    header.style.alignItems = "center";
+    header.style.gap = "12px"; // gap: 1.5
+    header.style.marginBottom = "20px"; // mb: 2.5
     
+    const title = document.createElement("h6");
+    title.style.fontSize = "1.125rem"; // 18px
+    title.style.fontWeight = "600";
+    title.style.color = "rgba(0, 0, 0, 0.87)"; // text.primary
+    title.style.letterSpacing = "-0.01em";
+    title.style.margin = "0";
+    title.textContent = "Address";
+    
+    header.appendChild(title);
+    
+    // Content wrapper
+    const contentWrapper = document.createElement("div");
+    
+    // Address text
+    const addressText = document.createElement("p");
+    addressText.style.margin = "0";
+    addressText.style.fontSize = "0.875rem";
+    addressText.style.color = "rgba(0, 0, 0, 0.87)";
+    addressText.style.lineHeight = "1.5";
+    addressText.textContent = formattedAddress;
+    contentWrapper.appendChild(addressText);
+    
+    // Area text if available
     if (cleanArea) {
-      addressHtml += `
-        <p class="small mb-1" style="color: #666;">${cleanArea}</p>`;
+      const areaText = document.createElement("p");
+      areaText.style.margin = "4px 0 0 0";
+      areaText.style.fontSize = "0.875rem";
+      areaText.style.color = "rgba(0, 0, 0, 0.6)"; // text.secondary
+      areaText.style.lineHeight = "1.5";
+      areaText.textContent = cleanArea;
+      contentWrapper.appendChild(areaText);
     }
     
-    addressHtml += `
-        </div>
-      </div>`;
-    addressItem.innerHTML = addressHtml;
+    container.appendChild(header);
+    container.appendChild(contentWrapper);
+    addressItem.appendChild(container);
     list.appendChild(addressItem);
   }
 
@@ -2751,31 +2765,61 @@ Object.entries(nTags).forEach(([key, value]) => {
     return;
   }
 
-  // Check if this is a place type that should have an icon (amenity, tourism, shop, leisure, healthcare, office, historic, sport)
+  // Check if this is a place type that should be styled like Wheelchair Access (amenity, tourism, shop, leisure, healthcare, office, historic, sport)
   const isPlaceType = ["amenity", "tourism", "shop", "leisure", "healthcare", "office", "historic", "sport"].includes(lk);
-  let iconHtml = "";
   
   if (isPlaceType) {
-    const iconName = getMuiIconForPlaceType(lk, value);
-    // Use Material Icons font (should be loaded via MUI)
-    iconHtml = `
-      <span class="material-icons" style="
-        font-size: 20px;
-        color: #0a3f89;
-        vertical-align: middle;
-        margin-right: 8px;
-        display: inline-block;
-      ">${iconName}</span>`;
+    // Style place types like Wheelchair Access section
+    item.className = "list-group-item";
+    item.style.padding = "0";
+    
+    // Main container with consistent padding
+    const container = document.createElement("div");
+    container.style.padding = "24px"; // padding: 3 (MUI spacing)
+    container.style.borderTop = "1px solid";
+    container.style.borderColor = "rgba(0, 0, 0, 0.12)"; // divider color
+    
+    // Header section matching Wheelchair Access style (no icon)
+    const header = document.createElement("div");
+    header.style.display = "flex";
+    header.style.alignItems = "center";
+    header.style.gap = "12px"; // gap: 1.5
+    header.style.marginBottom = "20px"; // mb: 2.5
+    
+    const title = document.createElement("h6");
+    title.style.fontSize = "1.125rem"; // 18px
+    title.style.fontWeight = "600";
+    title.style.color = "rgba(0, 0, 0, 0.87)"; // text.primary
+    title.style.letterSpacing = "-0.01em";
+    title.style.margin = "0";
+    title.textContent = displayKey;
+    
+    header.appendChild(title);
+    
+    // Content wrapper
+    const contentWrapper = document.createElement("div");
+    
+    // Value text
+    const valueText = document.createElement("p");
+    valueText.style.margin = "0";
+    valueText.style.fontSize = "0.875rem";
+    valueText.style.color = "rgba(0, 0, 0, 0.87)";
+    valueText.style.lineHeight = "1.5";
+    valueText.textContent = displayValue;
+    contentWrapper.appendChild(valueText);
+    
+    container.appendChild(header);
+    container.appendChild(contentWrapper);
+    item.appendChild(container);
+  } else {
+    // Default styling for other items
+    item.innerHTML = `
+      <div class="me-2">
+        <h6 class="mb-1 fw-semibold">${displayKey}</h6>
+        <p class="small mb-1">${displayValue}</p>
+      </div>`;
   }
-
-  item.innerHTML = `
-    <div class="me-2" style="display: flex; align-items: flex-start; gap: 8px;">
-      ${iconHtml ? `<div style="flex-shrink: 0; margin-top: 2px;">${iconHtml}</div>` : ""}
-      <div style="flex: 1; min-width: 0;">
-      <h6 class="mb-1 fw-semibold">${displayKey}</h6>
-      <p class="small mb-1">${displayValue}</p>
-      </div>
-    </div>`;
+  
   list.appendChild(item);
 });
 
