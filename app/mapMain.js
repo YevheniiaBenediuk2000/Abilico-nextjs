@@ -1644,6 +1644,166 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     })();
   }
 
+  // --- ACCESSIBILITY / WHEELCHAIR: Render accessibility information ---
+  // Helper function to get wheelchair tier (reuse logic from AccessibilityLegend)
+  function getAccessibilityTier(tags = {}) {
+    const raw = (tags.wheelchair ?? "")
+      .toString()
+      .toLowerCase();
+
+    if (raw.includes("designated")) return "designated";
+    if (raw === "yes" || raw.includes("true")) return "yes";
+    if (raw.includes("limited") || raw.includes("partial")) return "limited";
+    if (raw === "no" || raw.includes("false")) return "no";
+
+    return "unknown";
+  }
+
+  // Labels matching the legend display
+  const TIER_LABELS = {
+    designated: "Designated wheelchair route",
+    yes: "Wheelchair accessible",
+    limited: "Limited access",
+    unknown: "Unknown",
+    no: "No wheelchair access",
+  };
+
+  // Colors from constants (same as map badges)
+  const TIER_COLORS = {
+    designated: "#16a34a", // green
+    yes: "#6cc24a", // lighter green
+    limited: "#ffc107", // amber/orange
+    unknown: "#6c757d", // grey
+    no: "#dc3545", // red
+  };
+
+  const wheelchairTags = {};
+  Object.entries(nTags).forEach(([key, value]) => {
+    const lk = key.trim().toLowerCase();
+    // Collect all wheelchair-related tags
+    if (/^wheelchair/i.test(lk)) {
+      wheelchairTags[key] = value;
+    }
+  });
+
+  // Main wheelchair tag (wheelchair=yes/no/limited/etc) - always show (will show "Unknown" if missing)
+  const wheelchair = wheelchairTags.wheelchair || wheelchairTags.Wheelchair || null;
+  const tier = getAccessibilityTier({ wheelchair });
+  const label = TIER_LABELS[tier] || "Unknown";
+  const color = TIER_COLORS[tier] || TIER_COLORS.unknown;
+
+  const accItem = document.createElement("div");
+  accItem.className = "list-group-item";
+  accItem.style.padding = "0";
+  
+  // Create a container with icon header and chip
+  const container = document.createElement("div");
+  container.style.padding = "1rem";
+  
+  // Header with icon and title
+  const header = document.createElement("div");
+  header.style.display = "flex";
+  header.style.alignItems = "center";
+  header.style.gap = "0.5rem";
+  header.style.marginBottom = "0.75rem";
+  
+  const icon = document.createElement("img");
+  icon.src = "/icons/maki/wheelchair.svg";
+  icon.alt = "";
+  icon.style.width = "1.2rem";
+  icon.style.height = "1.2rem";
+  
+  const title = document.createElement("h6");
+  title.className = "fw-semibold mb-0";
+  title.style.fontSize = "1rem";
+  title.style.fontWeight = "600";
+  title.textContent = "Wheelchair access";
+  
+  header.appendChild(icon);
+  header.appendChild(title);
+  
+  // Chip/badge with color and label
+  const chip = document.createElement("div");
+  chip.style.display = "inline-flex";
+  chip.style.alignItems = "center";
+  chip.style.gap = "0.5rem";
+  chip.style.padding = "0.5rem 0.75rem";
+  chip.style.borderRadius = "0.5rem";
+  chip.style.backgroundColor = color;
+  chip.style.color = "white";
+  chip.style.fontSize = "0.875rem";
+  chip.style.fontWeight = "500";
+  
+  const chipIcon = document.createElement("img");
+  chipIcon.src = "/icons/maki/wheelchair.svg";
+  chipIcon.alt = "";
+  chipIcon.style.width = "1rem";
+  chipIcon.style.height = "1rem";
+  chipIcon.style.filter = "brightness(0) invert(1)"; // Make icon white
+  
+  const chipLabel = document.createTextNode(label);
+  
+  chip.appendChild(chipIcon);
+  chip.appendChild(chipLabel);
+  
+  container.appendChild(header);
+  container.appendChild(chip);
+  accItem.appendChild(container);
+  list.appendChild(accItem);
+
+  // Render other wheelchair tags if any exist (but skip the main wheelchair tag we already rendered)
+  if (Object.keys(wheelchairTags).length > 0) {
+
+    // Wheelchair description if available
+    const wheelchairDesc = wheelchairTags["wheelchair:description"] || wheelchairTags["Wheelchair:description"];
+    if (wheelchairDesc) {
+      const descItem = document.createElement("div");
+      descItem.className =
+        "list-group-item d-flex justify-content-between align-items-start";
+      descItem.innerHTML = `
+        <div class="me-2">
+          <h6 class="mb-1 fw-semibold" style="font-size: 0.875rem; color: #666;">Accessibility details</h6>
+          <p class="small mb-1" style="color: #666;">${String(wheelchairDesc)}</p>
+        </div>`;
+      list.appendChild(descItem);
+    }
+
+    // Other wheelchair:* tags (wheelchair:entrance, wheelchair:toilet, etc.)
+    Object.entries(wheelchairTags).forEach(([key, value]) => {
+      // Skip already rendered tags
+      if (key.toLowerCase() === "wheelchair" || key.toLowerCase() === "wheelchair:description") {
+        return;
+      }
+
+      const accItem = document.createElement("div");
+      accItem.className =
+        "list-group-item d-flex justify-content-between align-items-start";
+      
+      // Format key nicely (wheelchair:entrance -> "Entrance")
+      let displayKey = key
+        .replace(/^wheelchair:/i, "")
+        .replace(/[_:]/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+
+      // Format value
+      const wheelchairLabels = {
+        yes: "Yes",
+        designated: "Designated",
+        limited: "Limited",
+        no: "No",
+        unknown: "Unknown",
+      };
+      const displayValue = wheelchairLabels[String(value).toLowerCase()] || String(value);
+
+      accItem.innerHTML = `
+        <div class="me-2">
+          <h6 class="mb-1 fw-semibold" style="font-size: 0.875rem; color: #666;">${displayKey}</h6>
+          <p class="small mb-1" style="color: #666;">${displayValue}</p>
+        </div>`;
+      list.appendChild(accItem);
+    });
+  }
+
   // --- ADDRESS: Render formatted address (single line) ---
   const formattedAddress = formatAddressFromTags(nTags);
   if (formattedAddress) {
@@ -1691,6 +1851,10 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 Object.entries(nTags).forEach(([key, value]) => {
   const isOpeningHours = /^opening_hours/i.test(key);
   if (isOpeningHours) return; // Skip opening_hours - already rendered above
+
+  // Skip wheelchair/accessibility tags - already rendered in Accessibility section
+  const isWheelchair = /^wheelchair/i.test(key);
+  if (isWheelchair) return;
 
   const lk = key.trim().toLowerCase();
   const lv = String(value).trim().toLowerCase();
