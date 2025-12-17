@@ -1707,12 +1707,22 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   header.style.gap = "0.5rem";
   header.style.marginBottom = "0.75rem";
   
-  const icon = document.createElement("img");
-  icon.src = "/icons/maki/wheelchair.svg";
-  icon.alt = "";
-  icon.style.width = "1rem";
-  icon.style.height = "1rem";
-  icon.style.filter = "brightness(0) saturate(100%) invert(27%) sepia(96%) saturate(1834%) hue-rotate(203deg) brightness(97%) contrast(96%)"; // Blue color (#1976d2 - MUI primary)
+  // Create icon using mask technique for better color control
+  const iconWrapper = document.createElement("div");
+  iconWrapper.style.width = "1rem";
+  iconWrapper.style.height = "1rem";
+  iconWrapper.style.display = "inline-block";
+  iconWrapper.style.backgroundColor = "#1976d2"; // MUI primary blue
+  iconWrapper.style.maskImage = "url('/icons/maki/wheelchair.svg')";
+  iconWrapper.style.maskSize = "contain";
+  iconWrapper.style.maskRepeat = "no-repeat";
+  iconWrapper.style.maskPosition = "center";
+  iconWrapper.style.webkitMaskImage = "url('/icons/maki/wheelchair.svg')";
+  iconWrapper.style.webkitMaskSize = "contain";
+  iconWrapper.style.webkitMaskRepeat = "no-repeat";
+  iconWrapper.style.webkitMaskPosition = "center";
+  
+  const icon = iconWrapper;
   
   const title = document.createElement("h6");
   title.className = "fw-semibold mb-0";
