@@ -340,23 +340,23 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
     return null;
   }
 
-  // If parsing failed, show simple fallback
-  if (!parsed || typeof parsed !== "object" || Object.keys(parsed).length === 0) {
-  return (
-      <Box
+    // If parsing failed, show simple fallback
+    if (!parsed || typeof parsed !== "object" || Object.keys(parsed).length === 0) {
+      return (
+        <Box
         sx={{
-          padding: 2,
+          padding: 2.5,
           borderTop: "1px solid",
           borderColor: "divider",
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1.5 }}>
         <AccessTimeIcon sx={{ color: "primary.main", fontSize: "1.2rem" }} />
         <Typography variant="h6" sx={{ fontWeight: 600, fontSize: "1.1rem" }}>
           Hours
         </Typography>
       </Box>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.875rem" }}>
           {openingHours}
       </Typography>
       </Box>
@@ -366,7 +366,7 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
           return (
             <Box
       sx={{
-        padding: 2,
+        padding: 2.5,
         borderTop: "1px solid",
         borderColor: "divider",
       }}
@@ -378,14 +378,14 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
           alignItems: "center",
           justifyContent: "space-between",
           cursor: "pointer",
-          mb: expanded ? 1 : 0,
+          mb: expanded ? 1.5 : 1,
         }}
         onClick={() => setExpanded((prev) => !prev)}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flex: 1 }}>
           <AccessTimeIcon
             sx={{
-              fontSize: "1rem",
+              fontSize: "1.2rem",
               color: status.isOpen ? "success.main" : "text.secondary",
             }}
           />
@@ -394,9 +394,10 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
               variant="body1"
               sx={{
                 fontWeight: 600,
-                fontSize: "0.875rem",
+                fontSize: "0.9375rem",
                 color: status.isOpen ? "success.main" : "error.main",
-                lineHeight: 1.2,
+                lineHeight: 1.3,
+                mb: 0.25,
               }}
             >
               {status.isOpen ? "Open now" : "Closed now"}
@@ -404,9 +405,9 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
             <Typography
               variant="body2"
               sx={{
-                fontSize: "0.75rem",
+                fontSize: "0.8125rem",
                 color: "text.secondary",
-                lineHeight: 1.2,
+                lineHeight: 1.3,
               }}
             >
               {status.message}
@@ -416,20 +417,20 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
 
         {/* Chevron icon */}
         {expanded ? (
-          <ExpandMoreIcon sx={{ color: "text.secondary", fontSize: "1.25rem" }} />
+          <ExpandMoreIcon sx={{ color: "text.secondary", fontSize: "1.5rem" }} />
         ) : (
-          <ChevronRightIcon sx={{ color: "text.secondary", fontSize: "1.25rem" }} />
+          <ChevronRightIcon sx={{ color: "text.secondary", fontSize: "1.5rem" }} />
         )}
       </Box>
 
-      {/* Today's hours - always shown */}
-      {todayData && (
-        <Box sx={{ mb: expanded ? 1.5 : 0 }}>
+      {/* Today's hours - only show when collapsed */}
+      {todayData && !expanded && (
+        <Box sx={{ pl: 4.5 }}>
           <Typography
             variant="body2"
             sx={{
               fontSize: "0.875rem",
-              fontWeight: expanded ? 400 : 500,
+              fontWeight: 500,
               color: "text.primary",
             }}
           >
@@ -451,7 +452,7 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
 
       {/* Expanded weekly list */}
       {expanded && (
-        <Box sx={{ mt: 1.5, display: "flex", flexDirection: "column", gap: 0.5 }}>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
           {weekData.map((day) => {
             const isToday = day.dayIndex === currentDayIndex;
             return (
@@ -461,7 +462,8 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "flex-start",
-                  py: 0.25,
+                  py: 0.5,
+                  px: 0.25,
               }}
             >
               <Typography
@@ -470,7 +472,7 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
                   fontSize: "0.875rem",
                     fontWeight: isToday ? 600 : 400,
                     color: isToday ? "primary.main" : "text.primary",
-                    minWidth: "40%",
+                    minWidth: "45%",
                 }}
               >
                   {day.dayLabel}
@@ -496,13 +498,13 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
       {/* Holiday hours section */}
       {holidayHours && (
         <>
-          <Divider sx={{ my: expanded ? 2 : 2.5 }} />
+          <Divider sx={{ my: expanded ? 2.5 : 2.5 }} />
           <Box
             sx={{
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              mb: 1,
+              mb: 1.5,
             }}
           >
             <Typography variant="h6" sx={{ fontWeight: 600, fontSize: "1.1rem" }}>
@@ -523,14 +525,14 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
           </Box>
           {typeof holidayHours === "object" && holidayHours.date ? (
             <Box>
-              <Typography variant="body2" sx={{ fontWeight: 400, mb: 0.5, fontSize: "0.875rem" }}>
+              <Typography variant="body2" sx={{ fontWeight: 400, mb: 0.75, fontSize: "0.875rem" }}>
                 {holidayHours.date}
               </Typography>
               {holidayHours.name && (
                 <Typography
                   variant="body2"
                   color="text.secondary"
-                  sx={{ mb: 0.5, fontSize: "0.875rem" }}
+                  sx={{ mb: 0.75, fontSize: "0.875rem" }}
                 >
                   {holidayHours.name}
                 </Typography>
