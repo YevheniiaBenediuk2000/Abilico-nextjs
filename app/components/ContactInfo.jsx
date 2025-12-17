@@ -6,7 +6,6 @@ import Link from "@mui/material/Link";
 import LanguageIcon from "@mui/icons-material/Language";
 import PhoneIcon from "@mui/icons-material/Phone";
 import EmailIcon from "@mui/icons-material/Email";
-import ContactMailIcon from "@mui/icons-material/ContactMail";
 import Avatar from "@mui/material/Avatar";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
@@ -90,8 +89,7 @@ export default function ContactInfo({ website, phone, email }) {
           borderColor: "divider",
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
-          <ContactMailIcon sx={{ color: "primary.main", fontSize: "1.2rem" }} />
+        <Box sx={{ mb: 1.5 }}>
           <Typography
             variant="h6"
             sx={{
@@ -120,8 +118,6 @@ export default function ContactInfo({ website, phone, email }) {
                   width: 32,
                   height: 32,
                   bgcolor: "transparent",
-                  border: "1px solid",
-                  borderColor: "divider",
                   fontSize: "0.875rem",
                 }}
               >
@@ -172,8 +168,6 @@ export default function ContactInfo({ website, phone, email }) {
                   width: 32,
                   height: 32,
                   bgcolor: "transparent",
-                  border: "1px solid",
-                  borderColor: "divider",
                   fontSize: "0.875rem",
                 }}
               >
@@ -240,8 +234,6 @@ export default function ContactInfo({ website, phone, email }) {
                   width: 32,
                   height: 32,
                   bgcolor: "transparent",
-                  border: "1px solid",
-                  borderColor: "divider",
                   fontSize: "0.875rem",
                 }}
               >
