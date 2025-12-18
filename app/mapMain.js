@@ -481,6 +481,30 @@ function mountInOffcanvas(titleText) {
   }
 }
 
+function getDirectionsUiEl() {
+  return elements.directionsUi || document.getElementById("directions-ui");
+}
+
+async function ensureDirectionsUiVisible(titleText = "Directions") {
+  // Opening the drawer first increases the chance the directions UI is mounted.
+  mountInOffcanvas(titleText);
+
+  let el = getDirectionsUiEl();
+  if (!el) {
+    // Wait a couple frames for React to mount the Drawer content if needed.
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    el = getDirectionsUiEl();
+  }
+
+  if (!el) {
+    console.warn("⚠️ Directions UI element not found (#directions-ui)");
+    return null;
+  }
+
+  el.classList.remove("d-none");
+  return el;
+}
+
 function openPlaceDetailsPopup(titleText, category = null, distance = null, features = [], shortName = null) {
   if (
     typeof window !== "undefined" &&
@@ -1119,7 +1143,8 @@ function setSelectedPlaceMarker(placeKey, tags = {}) {
 }
 
 function moveDepartureSearchBarUnderTo() {
-  const toLabel = elements.directionsUi?.querySelector?.(
+  const directionsUi = getDirectionsUiEl();
+  const toLabel = directionsUi?.querySelector?.(
     'label[for="destination-search-input"]'
   );
 
@@ -3897,13 +3922,9 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       brandValue = brandTags.default || brandTags[""];
     } else {
       // Fallback to any available brand value
-      try {
-        const availableBrands = Object.values(brandTags).filter(Boolean);
-        if (availableBrands.length > 0) {
-          brandValue = availableBrands[0];
-        }
-      } catch (e) {
-        console.warn("Error processing brand tags:", e);
+      const availableBrands = Object.values(brandTags ?? {}).filter(Boolean);
+      if (availableBrands.length > 0) {
+        brandValue = availableBrands[0];
       }
     }
   }
@@ -5390,9 +5411,15 @@ async function openDirectionsToPlace(latlng, { fit = false } = {}) {
     return;
   }
 
-  elements.directionsUi.classList.remove("d-none");
+  const directionsUi = await ensureDirectionsUiVisible("Directions");
+  if (!directionsUi) {
+    toastError("Directions panel is not available yet. Please try again.", {
+      important: true,
+    });
+    return;
+  }
+
   moveDepartureSearchBarUnderTo();
-  mountInOffcanvas("Directions");
 
   // Set destination immediately; route will draw as soon as a start is chosen.
   await setTo(latlng, null, { fit });
@@ -5438,9 +5465,10 @@ async function setFrom(latlng, text, opts = {}) {
 
 async function setTo(latlng, text, opts = {}) {
   console.log("➡️ setTo() called with:", { latlng, text, opts });
+  const directionsUi = getDirectionsUiEl();
   console.log(
     "ℹ️ directionsUi visible?",
-    !elements.directionsUi.classList.contains("d-none")
+    directionsUi ? !directionsUi.classList.contains("d-none") : false
   );
 
   if (!isValidLatLng(latlng)) {
@@ -5450,7 +5478,7 @@ async function setTo(latlng, text, opts = {}) {
   }
 
   toLatLng = latlng;
-  const directionsActive = !elements.directionsUi.classList.contains("d-none");
+  const directionsActive = directionsUi ? !directionsUi.classList.contains("d-none") : false;
   if (directionsActive) {
     if (toMarker) map.removeLayer(toMarker);
     toMarker = L.marker(latlng, {
@@ -6304,7 +6332,7 @@ export async function initMap(user = null) {
 
   // Details panel buttons are React-rendered; use event delegation so wiring
   // works even if the buttons mount after mapMain initializes.
-  elements.detailsPanel?.addEventListener("click", async (ev) => {
+  document.addEventListener("click", async (ev) => {
     const t = ev.target;
     if (!(t instanceof Element)) return;
 
@@ -6326,17 +6354,15 @@ export async function initMap(user = null) {
       return;
     }
     if (legacyStart) {
-      elements.directionsUi.classList.remove("d-none");
+      await ensureDirectionsUiVisible("Directions");
       moveDepartureSearchBarUnderTo();
-      mountInOffcanvas("Directions");
       await setFrom(globals.detailsCtx.latlng);
       elements.departureSearchInput.focus();
       return;
     }
     if (legacyGo) {
-      elements.directionsUi.classList.remove("d-none");
+      await ensureDirectionsUiVisible("Directions");
       moveDepartureSearchBarUnderTo();
-      mountInOffcanvas("Directions");
       await setTo(globals.detailsCtx.latlng);
       elements.departureSearchInput.focus();
     }

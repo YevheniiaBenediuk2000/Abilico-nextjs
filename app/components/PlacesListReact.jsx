@@ -1871,7 +1871,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
       // If the saved filter is incomplete (e.g. only has "Shops"), do NOT hide other groups.
       // Only hide things the user explicitly turned off.
       let anyOn = false;
-      Object.values(activeTypeFilters).forEach((subs) => {
+      Object.values(activeTypeFilters || {}).forEach((subs) => {
         if (!subs || typeof subs !== "object" || Array.isArray(subs)) return;
         if (Object.values(subs).some(Boolean)) anyOn = true;
       });
