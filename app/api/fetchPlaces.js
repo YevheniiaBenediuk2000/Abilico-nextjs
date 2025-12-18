@@ -357,7 +357,6 @@ export async function fetchPlaces(bounds, zoom, options) {
           }
 
           const data = await response.json();
-          console.log(data);
           return osmtogeojson(data);
         } catch (error) {
           if (error?.name === "AbortError") {

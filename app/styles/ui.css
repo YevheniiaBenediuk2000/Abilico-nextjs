@@ -301,33 +301,12 @@
   z-index: 2;
 }
 
-/* Search icon on the right only when the input is focused */
+/* Search icon on the search bar (always visible) */
 .route-search-icon {
-  opacity: 0;
-  transition: opacity 120ms ease;
-  color: var(--mode-icon-fg);
+  opacity: 1;
+  /* Keep it subtle and consistent across pages */
+  color: rgba(0, 0, 0, 0.6);
   pointer-events: none;
-}
-/* Show icon when input is focused - works for both departure and destination inputs */
-.MuiInputBase-root:focus-within .route-search-icon,
-.MuiOutlinedInput-root:focus-within .route-search-icon,
-.MuiInputBase-root:focus .route-search-icon,
-.MuiOutlinedInput-root:focus .route-search-icon {
-  opacity: 1;
-}
-/* Fallback: some MUI compositions rely on the focused class rather than :focus-within */
-.MuiInputBase-root.Mui-focused .route-search-icon,
-.MuiOutlinedInput-root.Mui-focused .route-search-icon,
-.MuiInputBase-root.Mui-focused:focus-within .route-search-icon,
-.MuiOutlinedInput-root.Mui-focused:focus-within .route-search-icon {
-  opacity: 1;
-}
-/* Ensure it works for both input IDs */
-#departure-search-input:focus ~ * .route-search-icon,
-#destination-search-input:focus ~ * .route-search-icon,
-#departure-search-bar:focus-within .route-search-icon,
-#destination-search-bar:focus-within .route-search-icon {
-  opacity: 1;
 }
 
 .btn.btn-route-secondary {

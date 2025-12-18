@@ -323,26 +323,31 @@ async function showQuickRoutePopup(latlng) {
     if (response.ok) {
       const data = await response.json();
       const address = data.address || {};
-      const displayName = data.display_name;
-      
-      // Use display_name if available, otherwise build from address components
-      if (displayName) {
-        // Extract just the first part (usually street/place name) before the first comma
-        const parts = displayName.split(',');
-        locationName = parts[0].trim();
-        // If it's too short, include the next part
-        if (locationName.length < 10 && parts.length > 1) {
-          locationName = `${locationName}, ${parts[1].trim()}`;
-        }
-      } else {
-        // Fallback: build from address components
-        const street = address.road || address.street || '';
-        const houseNumber = address.house_number || '';
-        if (street) {
-          locationName = houseNumber ? `${houseNumber} ${street}` : street;
-        } else if (address.city || address.town || address.village) {
-          locationName = address.city || address.town || address.village;
-        }
+
+      // Do NOT show street/house number here. Prefer neighborhood/district + city.
+      const city =
+        address.city ||
+        address.town ||
+        address.village ||
+        address.municipality ||
+        address.county ||
+        address.state_district ||
+        address.state ||
+        null;
+
+      const district =
+        address.suburb ||
+        address.neighbourhood ||
+        address.city_district ||
+        address.quarter ||
+        null;
+
+      if (district && city) {
+        locationName = `${district}, ${city}`;
+      } else if (city) {
+        locationName = String(city);
+      } else if (district) {
+        locationName = String(district);
       }
     }
   } catch (err) {
@@ -806,12 +811,15 @@ function toggleObstaclesByZoom() {
   }
 }
 
-function serializeBounds(bounds) {
+function serializeBounds(bounds, zoom) {
   const s = bounds.getSouth();
   const w = bounds.getWest();
   const n = bounds.getNorth();
   const e = bounds.getEast();
-  const round = (v) => Number(v.toFixed(4)); // ~10m precision
+  // Quantize bounds to reduce cache key churn while panning.
+  // Higher zoom => finer precision; lower zoom => coarser precision.
+  const decimals = zoom >= 17 ? 4 : zoom >= 15 ? 3 : 2;
+  const round = (v) => Number(v.toFixed(decimals));
   return [round(s), round(w), round(n), round(e)];
 }
 
@@ -828,9 +836,31 @@ async function refreshPlaces() {
   const key = showLoading("places");
 
   try {
+    // Avoid any extra work (Supabase, clustering, etc.) when we don't show places.
+    if (zoom < SHOW_PLACES_ZOOM) {
+      placeClusterLayer.clearLayers();
+      placeMarkersByKey.clear();
+      try {
+        if (
+          typeof window !== "undefined" &&
+          typeof window.setPlacesListData === "function"
+        ) {
+          const center = map.getCenter();
+          window.setPlacesListData({
+            features: [],
+            center: center ? { lat: center.lat, lng: center.lng } : null,
+            zoom,
+          });
+        }
+      } catch (err) {
+        console.error("❌ Failed to update places list overlay:", err);
+      }
+      return;
+    }
+
     const queryKey = [
       "places",
-      serializeBounds(bounds),
+      serializeBounds(bounds, zoom),
       zoom,
       accessibilityKey(),
     ];
@@ -851,7 +881,16 @@ async function refreshPlaces() {
 
     // ✅ 3. Fetch user-added places from Supabase and merge them
     // IMPORTANT: OSM places have priority - never overwrite them with user places
-    const userPlacesGeoJSON = await fetchUserPlaces(bounds);
+    const userPlacesQueryKey = ["user-places", serializeBounds(bounds, zoom)];
+    const userPlacesGeoJSON =
+      queryClient.getQueryData(userPlacesQueryKey) ??
+      (await queryClient.fetchQuery({
+        queryKey: userPlacesQueryKey,
+        queryFn: () => fetchUserPlaces(bounds),
+      }));
+
+    // If a newer refresh started while we were fetching, ignore this work
+    if (mySeq !== placesReqSeq) return;
     if (
       userPlacesGeoJSON &&
       userPlacesGeoJSON.features &&
@@ -914,7 +953,8 @@ async function refreshPlaces() {
     placeClusterLayer.clearLayers();
     placeMarkersByKey.clear();
 
-    const placesLayer = L.geoJSON(geojson, {
+    // Render only what's in the current viewport (huge perf win once the in-memory cache grows).
+    const placesLayer = L.geoJSON(geojsonForView, {
       filter: (feature) => {
         // called for each feature; return true to keep it
         return isFeatureAllowedByTypeFilter(feature);
@@ -963,8 +1003,7 @@ async function refreshPlaces() {
         typeof window.setPlacesListData === "function"
       ) {
         const center = map.getCenter();
-        const features =
-          geojson && Array.isArray(geojson.features) ? geojson.features : [];
+        const features = featuresInView;
 
         window.setPlacesListData({
           features,
@@ -1992,7 +2031,34 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   // Extract short_name (normalize to uppercase, only show if different from name)
   const shortNameRaw = tags.short_name || tags["short_name"] || tags["short-name"] || null;
   const shortName = shortNameRaw ? String(shortNameRaw).trim().toUpperCase() : null;
-  const shouldShowShortName = shortName && shortName !== titleText.trim().toUpperCase();
+  const normalizeForContains = (s) =>
+    String(s ?? "")
+      .toUpperCase()
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const escapeRegExp = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  // Return true when the name already contains the short name as a standalone token/phrase
+  // (e.g. "Vilniaus ... VU MF" already contains "VU MF").
+  const nameContainsShortName = (name, sn) => {
+    const n = normalizeForContains(name);
+    const v = normalizeForContains(sn);
+    if (!n || !v) return false;
+
+    // Build a forgiving phrase matcher: spaces in short name match any whitespace/punctuation gap.
+    // Example: "VU MF" matches "VU MF", "(VU MF)", "VU-MF", "VU  MF", etc.
+    const parts = v.split(" ").filter(Boolean).map(escapeRegExp);
+    if (!parts.length) return false;
+    const phrase = parts.join("[\\s\\-_.()]*");
+    const re = new RegExp(`(?:^|\\b)${phrase}(?:$|\\b)`, "i");
+    return re.test(n);
+  };
+
+  const shouldShowShortName =
+    !!shortName &&
+    shortName !== titleText.trim().toUpperCase() &&
+    !nameContainsShortName(titleText, shortName);
 
   elements.detailsPanel.classList.remove("d-none");
   const list = elements.detailsPanel.querySelector("#details-list");
@@ -2020,6 +2086,22 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
           .join(" ");
         break;
       }
+    }
+  }
+
+  // Fallback: some POIs (e.g. university faculties) are tagged as building=university without amenity=university.
+  // Reuse the same "University" category rather than creating a new one-off type.
+  if (!categoryValue && nTags.building) {
+    const buildingVal = String(nTags.building).trim().toLowerCase();
+    if (buildingVal === "university" || buildingVal === "college" || buildingVal === "school") {
+      categoryValue = buildingVal
+        .replace(/[_-]/g, " ")
+        .split(" ")
+        .map((word, index) => {
+          if (index === 0) return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+          return word.toLowerCase();
+        })
+        .join(" ");
     }
   }
   
@@ -5913,7 +5995,8 @@ export async function initMap(user = null) {
     map.on("draw:deletestart", () => (drawState.deleting = true));
     map.on("draw:deletestop", () => (drawState.deleting = false));
 
-    map.on("moveend", debounce(refreshPlaces, 20));
+    // Debounce viewport-driven fetching/rendering to avoid churn while the user is interacting.
+    map.on("moveend", debounce(refreshPlaces, 250));
     const initialZoom = map.getZoom();
     if (initialZoom >= SHOW_PLACES_ZOOM) {
       // Run once on first load so list & markers appear without dragging
@@ -6216,13 +6299,15 @@ export async function initMap(user = null) {
       console.log("📍 User place added, refreshing map...", ev.detail);
       // Invalidate cache to force fresh fetch including new user place
       const bounds = map.getBounds();
-      const queryKey = [
-        "places",
-        serializeBounds(bounds),
-        map.getZoom(),
-        accessibilityKey(),
-      ];
-      queryClient.invalidateQueries({ queryKey });
+      const zoom = map.getZoom();
+      const boundsKey = serializeBounds(bounds, zoom);
+
+      // User place affects the Supabase fetch, so invalidate those queries.
+      queryClient.invalidateQueries({ queryKey: ["user-places"] });
+
+      // Keep existing behavior (safe): also invalidate the exact OSM places key for this viewport.
+      const placesQueryKey = ["places", boundsKey, zoom, accessibilityKey()];
+      queryClient.invalidateQueries({ queryKey: placesQueryKey });
       // Refresh places on map
       refreshPlaces();
     });

@@ -5,7 +5,11 @@ const makiUrl = (name) => `/icons/maki/${encodeURIComponent(name)}.svg`;
 const TAG_PRIORITY = [
     "amenity","shop","tourism","leisure","healthcare","sport",
     "office","craft","historic","man_made","military",
-    "aeroway","railway","public_transport","natural","emergency","landuse","barrier"
+    "aeroway","railway","public_transport","natural","emergency","landuse",
+    // building is extremely common; we only use it for a small whitelist of POI-like values
+    // and only as a late fallback (so it won't override amenity/shop/tourism/etc.)
+    "building",
+    "barrier"
 ];
 
 // normalize e.g. "fast_food" ↔ "fast-food"
@@ -99,6 +103,14 @@ const EMERGENCY_TO_MAKI     = { phone:"telephone", defibrillator:"first-aid", "*
 const LANDUSE_TO_MAKI       = { industrial:"industry", retail:"shop", commercial:"commercial", forest:"park", "*":"park" };
 const BARRIER_TO_MAKI       = { gate:"barrier", lift_gate:"barrier", bollard:"barrier", "*":"barrier" };
 
+// Only POI-like buildings that we want to render similarly to their amenity equivalents.
+// This helps with cases like university faculties tagged as building=university.
+const BUILDING_TO_MAKI = {
+    university: "college",
+    college: "college",
+    school: "school",
+};
+
 function refineByReligion(base, tags) {
     if (base !== "place-of-worship") return base;
     const relMap = {
@@ -156,6 +168,14 @@ export function iconFor(tags = {}) {
         if (key === "leisure")  { const m = mapFrom(LEISURE_TO_MAKI, raw);  if (m) return makiUrl(m); return makiUrl("park"); }
         if (key === "healthcare"){ if (/^(hospital|clinic)$/i.test(raw)) return makiUrl("hospital"); return makiUrl("pharmacy"); }
         if (key === "sport")    { const m = mapFrom(SPORT_TO_MAKI, raw);    if (m) return makiUrl(m); return makiUrl("pitch"); }
+
+        // 2.5) Building fallback (strict whitelist only)
+        // Avoid returning arbitrary building values (building=yes) as icon names.
+        if (key === "building") {
+            const m = mapFrom(BUILDING_TO_MAKI, raw);
+            if (m) return makiUrl(m);
+            continue;
+        }
 
         if (key === "office")         { const m = mapFrom(OFFICE_TO_MAKI, raw);        if (m) return makiUrl(m); }
         if (key === "craft")          { const m = mapFrom(CRAFT_TO_MAKI, raw);         if (m) return makiUrl(m); }
