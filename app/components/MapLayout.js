@@ -32,7 +32,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import LogoutIcon from "@mui/icons-material/Logout";
 import PersonIcon from "@mui/icons-material/Person";
 import FavoriteIcon from "@mui/icons-material/Favorite";
-import AddIcon from "@mui/icons-material/Add";
+import AddLocationIcon from "@mui/icons-material/AddLocation";
 import Tooltip from "@mui/material/Tooltip";
 
 import { queryClient } from "../queryClient";
@@ -284,7 +284,7 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
                 variant="contained"
                 color="primary"
                 size="small"
-                startIcon={<AddIcon />}
+                startIcon={<AddLocationIcon />}
                 onClick={() => setAddPlaceDialogOpen(true)}
                 aria-label="add place"
                 sx={{

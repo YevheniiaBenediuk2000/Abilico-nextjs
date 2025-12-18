@@ -19,6 +19,7 @@ import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import IconButton from "@mui/material/IconButton";
 import CloseIcon from "@mui/icons-material/Close";
+import LockIcon from "@mui/icons-material/Lock";
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
 import Tooltip from "@mui/material/Tooltip";
@@ -80,6 +81,27 @@ export default function MapContainer({
   const [user, setUser] = useState(initialUser);
   const router = useRouter();
   const mapResizeCleanupRef = useRef(null);
+  const [showObstacleManagementOverlay, setShowObstacleManagementOverlay] =
+    useState(true);
+  const [obstacleOverlayPrefLoaded, setObstacleOverlayPrefLoaded] =
+    useState(false);
+
+  useEffect(() => {
+    // Persist dismissal across reloads
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        const dismissed =
+          window.localStorage.getItem("abilico_obstacle_overlay_dismissed") ===
+          "1";
+        setShowObstacleManagementOverlay(!dismissed);
+      }
+    } catch {
+      // If localStorage is blocked, fall back to default behavior (show overlay)
+      setShowObstacleManagementOverlay(true);
+    } finally {
+      setObstacleOverlayPrefLoaded(true);
+    }
+  }, []);
 
   const [detailsTab, setDetailsTab] = useState("overview");
   const [placesListData, setPlacesListData] = useState(null);
@@ -937,12 +959,16 @@ export default function MapContainer({
           sx: (theme) => ({
             width: 420,
             maxWidth: "80vw",
-            pt: 1,
-            px: 2,
+            px: 0,
+            py: 0,
+            bgcolor: "transparent",
             boxShadow: "none", // ✅ remove the right-hand shadow
-            borderRight: "1px solid rgba(0,0,0,0.12)", // optional subtle divider
+            borderLeft: "none",
             top: 56,
             height: "calc(100% - 56px)",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
             [theme.breakpoints.up("sm")]: {
               top: 64,
               height: "calc(100% - 64px)",
@@ -953,56 +979,38 @@ export default function MapContainer({
         {/* keep these IDs so existing JS (mapMain, modules) can still find them */}
         <div id="placeOffcanvasRoute">
           <Box
+            className="offcanvas-body"
             sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              mb: 1,
+              flex: 1,
+              overflowY: "auto",
+              p: 2,
             }}
           >
-            <Typography variant="h6" component="h2">
-              {detailsTitle}
-            </Typography>
-            <IconButton
-              aria-label="Close details"
-              onClick={handleDetailsDrawerClose}
-              size="small"
-            >
-              <CloseIcon fontSize="small" />
-            </IconButton>
-          </Box>
-
-          <div className="offcanvas-body">
             {/* === Directions UI === */}
-            <div id="directions-ui" className="mb-3 d-none directions-panel">
-              {/* Mode icon (above inputs) */}
-              <div className="route-toolbar route-toolbar--top">
+            <div id="directions-ui" className="d-none directions-panel">
+              <div className="directions-panel__header">
+                <div className="directions-panel__title">
+                  <span className="directions-panel__title-text">Directions</span>
+                  <span className="directions-panel__badge">Accessible</span>
+                </div>
                 <Tooltip title="Wheelchair mode" placement="top" arrow>
                   <IconButton
                     aria-label="Wheelchair mode"
                     size="small"
-                    sx={{
-                      width: 40,
-                      height: 40,
-                      backgroundColor: "var(--mode-icon-bg)",
-                      color: "var(--mode-icon-fg)",
-                      "&:hover": {
-                        backgroundColor: "var(--mode-icon-bg-hover)",
-                      },
-                    }}
+                    className="directions-panel__mode-btn"
                   >
                     <AccessibleForwardIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
               </div>
 
-              <div className="route-inputs">
-                <div className="row g-1 align-items-center mb-1">
-                  <div className="col">
-                    <label
-                      className="form-label mb-1"
-                      htmlFor="departure-search-input"
-                    >
+              <div className="route-inputs" aria-label="Route inputs">
+                <div className="route-field">
+                  <div className="route-field__marker route-field__marker--from" aria-hidden="true">
+                    A
+                  </div>
+                  <div className="route-field__content">
+                    <label className="form-label" htmlFor="departure-search-input">
                       From
                     </label>
                     <div id="departure-search-bar" className="position-relative">
@@ -1012,8 +1020,7 @@ export default function MapContainer({
                         type="search"
                         variant="outlined"
                         fullWidth
-                        className="form-control form-control-lg"
-                        placeholder="Choose starting point, or click on the map…"
+                        placeholder="Choose starting point or click on the map…"
                         InputProps={{
                           endAdornment: (
                             <InputAdornment position="end">
@@ -1024,7 +1031,13 @@ export default function MapContainer({
                         slotProps={{
                           input: {
                             "aria-label": "Search places",
-                            "aria-controls": "destination-suggestions",
+                            "aria-controls": "departure-suggestions",
+                          },
+                        }}
+                        sx={{
+                          "& .MuiOutlinedInput-root": {
+                            bgcolor: "#fff",
+                            borderRadius: 2,
                           },
                         }}
                       />
@@ -1035,11 +1048,12 @@ export default function MapContainer({
                         id="departure-suggestions"
                       ></ul>
                     </div>
-                    <div className="mt-2 d-flex gap-2">
+
+                    <div className="route-field__chips">
                       <button
                         id="btn-use-my-location"
                         type="button"
-                        className="btn btn-sm btn-outline-secondary d-none"
+                        className="btn btn-sm d-none route-chip"
                         aria-label="Use my location as the start point"
                       >
                         Use my location
@@ -1048,15 +1062,15 @@ export default function MapContainer({
                   </div>
                 </div>
 
-                <div className="row g-1 align-items-center mb-1">
-                  <div className="col">
-                    <label
-                      className="form-label mb-1"
-                      htmlFor="destination-search-input"
-                    >
+                <div className="route-field route-field--to">
+                  <div className="route-field__marker route-field__marker--to" aria-hidden="true">
+                    B
+                  </div>
+                  <div className="route-field__content">
+                    <label className="form-label" htmlFor="destination-search-input">
                       To
                     </label>
-                    {/* destination-search-bar is moved here by mapMain.js */}
+                    {/* destination-search-bar is moved here by mapMain.js (after the label above) */}
                   </div>
                 </div>
 
@@ -1066,42 +1080,32 @@ export default function MapContainer({
                     className="route-inputs__swap"
                     aria-label="Swap start and destination"
                     size="small"
-                    sx={{
-                      color: "rgba(0,0,0,0.6)",
-                      backgroundColor: "rgba(0,0,0,0.04)",
-                      "&:hover": { backgroundColor: "rgba(0,0,0,0.08)" },
-                    }}
                   >
                     <SwapVertIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
               </div>
 
-              {/* Route actions (after inputs) */}
-              <div
-                className="route-actions-bottom"
-                role="group"
-                aria-label="Route actions"
-              >
+              <div className="route-actions-bottom" role="group" aria-label="Route actions">
                 <button
                   id="btn-clear-route"
                   type="button"
-                  className="btn btn-sm btn-outline-secondary d-none"
+                  className="btn btn-sm d-none route-btn route-btn--secondary"
                   aria-label="Clear route"
                 >
-                  Clear route
+                  Clear
                 </button>
                 <button
                   id="btn-show-route"
                   type="button"
-                  className="btn btn-sm btn-primary d-none"
+                  className="btn btn-sm d-none route-btn route-btn--primary"
                   aria-label="Show route on the map"
                 >
                   Show route
                 </button>
               </div>
             </div>
-          </div>
+          </Box>
         </div>
       </Drawer>
 
@@ -1520,21 +1524,46 @@ export default function MapContainer({
       </div>
 
       {/* === Obstacle Management Overlay (for non-logged-in users) === */}
-      {!user && (
+      {!user && obstacleOverlayPrefLoaded && showObstacleManagementOverlay && (
         <div id="obstacle-management-overlay" className="position-absolute">
           <Card sx={{ maxWidth: 280 }}>
             <CardContent>
-              <div className="d-flex align-items-center gap-2 mb-2">
-                <span className="fs-5" aria-hidden="true">
-                  🔒
-                </span>
-                <Typography variant="subtitle1" component="h6">
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                  mb: 0.5,
+                }}
+              >
+                <LockIcon fontSize="small" aria-hidden="true" />
+                <Typography
+                  variant="subtitle1"
+                  component="h6"
+                  sx={{ lineHeight: 1.2, flexGrow: 1 }}
+                >
                   Log in to manage obstacles
                 </Typography>
-              </div>
-              <Typography variant="body2" color="grey.600">
-                You need to be logged in to add, edit or delete obstacles.
-              </Typography>
+                <IconButton
+                  size="small"
+                  aria-label="Close"
+                  onClick={() => {
+                    setShowObstacleManagementOverlay(false);
+                    try {
+                      if (typeof window !== "undefined" && window.localStorage) {
+                        window.localStorage.setItem(
+                          "abilico_obstacle_overlay_dismissed",
+                          "1"
+                        );
+                      }
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                >
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              </Box>
             </CardContent>
             <CardActions sx={{ pt: 0 }}>
               <Button
@@ -1544,7 +1573,7 @@ export default function MapContainer({
                 fullWidth
                 onClick={() => router.push("/auth")}
               >
-                Log in
+                LOG IN
               </Button>
             </CardActions>
           </Card>

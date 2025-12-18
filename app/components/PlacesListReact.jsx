@@ -110,7 +110,115 @@ function derivePlaceInfo(feature, center) {
     return s;
   };
 
+  const resolveDiplomaticLabel = () => {
+    const embassyRaw = tags.embassy ?? null;
+    const embassyLower = embassyRaw != null ? String(embassyRaw).trim().toLowerCase() : "";
+    if (embassyLower) {
+      if (embassyLower === "yes") return "Embassy";
+      if (embassyLower.includes("consulate")) return "Consulate";
+      return humanize(embassyLower) || null;
+    }
+
+    const officeLower = String(tags.office ?? "").trim().toLowerCase();
+    const diplomaticRaw = tags.diplomatic ?? null;
+    const diplomaticLower = diplomaticRaw != null ? String(diplomaticRaw).trim().toLowerCase() : "";
+    if (officeLower === "diplomatic" && diplomaticLower) {
+      if (diplomaticLower === "embassy") return "Embassy";
+      if (diplomaticLower.includes("consulate")) return "Consulate";
+      return humanize(diplomaticLower) || null;
+    }
+
+    return null;
+  };
+
+  const diplomaticLabel = resolveDiplomaticLabel();
+
+  const resolveVegetarianLabel = () => {
+    // diet:vegetarian=yes|only|no (legacy: vegetarian=yes|only|no)
+    const raw =
+      tags["diet:vegetarian"] ??
+      tags["diet_vegetarian"] ??
+      tags["diet-vegetarian"] ??
+      tags.vegetarian ??
+      null;
+    const v = raw != null ? String(raw).trim().toLowerCase() : "";
+    if (!v || v === "no" || v === "false" || v === "0") return null;
+
+    const amenityLower = String(tags.amenity ?? "").trim().toLowerCase();
+    const shopLower = String(tags.shop ?? "").trim().toLowerCase();
+    const relevantAmenities = new Set([
+      "restaurant",
+      "cafe",
+      "bar",
+      "pub",
+      "fast_food",
+      "food_court",
+      "ice_cream",
+      "biergarten",
+      "canteen",
+    ]);
+    const relevantShops = new Set([
+      "supermarket",
+      "convenience",
+      "greengrocer",
+      "health_food",
+      "deli",
+      "bakery",
+    ]);
+    const isRelevant = relevantAmenities.has(amenityLower) || relevantShops.has(shopLower);
+    if (!isRelevant) return null;
+
+    if (v === "only") return "Vegetarian only";
+    if (v === "yes" || v === "true" || v === "1") return "Vegetarian options";
+    return null;
+  };
+
+  const vegetarianLabel = resolveVegetarianLabel();
+
+  const resolveVeganLabel = () => {
+    // diet:vegan=yes|only|no (legacy: vegan=yes|only|no)
+    const raw =
+      tags["diet:vegan"] ??
+      tags["diet_vegan"] ??
+      tags["diet-vegan"] ??
+      tags.vegan ??
+      null;
+    const v = raw != null ? String(raw).trim().toLowerCase() : "";
+    if (!v || v === "no" || v === "false" || v === "0") return null;
+
+    const amenityLower = String(tags.amenity ?? "").trim().toLowerCase();
+    const shopLower = String(tags.shop ?? "").trim().toLowerCase();
+    const relevantAmenities = new Set([
+      "restaurant",
+      "cafe",
+      "bar",
+      "pub",
+      "fast_food",
+      "food_court",
+      "ice_cream",
+      "biergarten",
+      "canteen",
+    ]);
+    const relevantShops = new Set([
+      "supermarket",
+      "convenience",
+      "greengrocer",
+      "health_food",
+      "deli",
+      "bakery",
+    ]);
+    const isRelevant = relevantAmenities.has(amenityLower) || relevantShops.has(shopLower);
+    if (!isRelevant) return null;
+
+    if (v === "only") return "Vegan only";
+    if (v === "yes" || v === "true" || v === "1") return "Vegan options";
+    return null;
+  };
+
+  const veganLabel = resolveVeganLabel();
+
   const typeLabel =
+    diplomaticLabel ||
     humanize(tags.amenity) ||
     humanize(tags.shop) ||
     humanize(tags.tourism) ||
@@ -135,6 +243,8 @@ function derivePlaceInfo(feature, center) {
     (tags.leisure && "leisure") ||
     (tags.healthcare && "healthcare") ||
     (tags.office && "office") ||
+    // embassy/diplomatic without office=* should still group under Office for filtering/UI
+    (diplomaticLabel && "office") ||
     (tags.historic && "historic") ||
     (tags.natural && "natural") ||
     (tags.sport && "sport") ||
@@ -142,7 +252,9 @@ function derivePlaceInfo(feature, center) {
     "other";
 
   const subKey =
-    tags[majorKey] ||
+    (majorKey === "office" && !tags.office && diplomaticLabel
+      ? "diplomatic"
+      : tags[majorKey]) ||
     tags.amenity ||
     tags.shop ||
     tags.tourism ||
@@ -154,15 +266,23 @@ function derivePlaceInfo(feature, center) {
     tags.sport ||
     "";
 
+  // Category label for the list UI:
+  // - never show raw boolean-ish values like "yes"
+  // - map building=yes to "Building" (consistent with typeLabel)
   const category =
-    tags.amenity ||
-    tags.shop ||
-    tags.tourism ||
-    tags.leisure ||
-    tags.office ||
-    tags.historic ||
-    tags.natural ||
-    tags.building ||
+    diplomaticLabel ||
+    humanize(tags.amenity) ||
+    humanize(tags.shop) ||
+    humanize(tags.tourism) ||
+    humanize(tags.leisure) ||
+    humanize(tags.healthcare) ||
+    humanize(tags.office) ||
+    humanize(tags.historic) ||
+    humanize(tags.natural) ||
+    humanize(tags.sport) ||
+    (String(tags.building ?? "").toLowerCase().trim() === "yes"
+      ? "Building"
+      : humanize(tags.building)) ||
     "";
 
   const address = formatAddressFromTags(tags);
@@ -201,6 +321,8 @@ function derivePlaceInfo(feature, center) {
     distKm,
     accTier,
     accColor,
+    veganLabel,
+    vegetarianLabel,
     typeMajor: majorKey,
     typeSub: subKey || "other",
     placeKey,
@@ -1078,6 +1200,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
   const photoCacheRef = useRef({});
 
   const [keywordsByPlaceKey, setKeywordsByPlaceKey] = useState({});
+  const keywordsFetchErrorLoggedRef = useRef(false);
 
   // Listen for real-time keyword updates from ML inference
   useEffect(() => {
@@ -1260,13 +1383,33 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
 
       // 2. Fetch from Supabase
       // Note: We match on 'osm_id' column which stores "type/id"
-      const { data, error } = await supabase
-        .from("places")
-        .select("osm_id, accessibility_keywords")
-        .in("osm_id", osmKeys);
+      let data = null;
+      let error = null;
+      try {
+        const res = await supabase
+          .from("places")
+          .select("osm_id, accessibility_keywords")
+          .in("osm_id", osmKeys);
+        data = res?.data ?? null;
+        error = res?.error ?? null;
+      } catch (e) {
+        error = e;
+      }
 
       if (error) {
-        console.error("❌ Failed to fetch keywords for list:", error);
+        // This is a non-critical enhancement. Avoid noisy Next overlay from console.error.
+        if (!keywordsFetchErrorLoggedRef.current) {
+          keywordsFetchErrorLoggedRef.current = true;
+          const msg =
+            error?.message ||
+            error?.details ||
+            error?.hint ||
+            (typeof error === "string" ? error : null) ||
+            (error && typeof error === "object"
+              ? JSON.stringify(error)
+              : String(error));
+          console.warn("⚠️ Could not fetch accessibility keywords for list:", msg);
+        }
         return;
       }
 
@@ -2210,6 +2353,36 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
                                       >
                                         {item.address}
                                       </Typography>
+                                    )}
+                                    {item.veganLabel && (
+                                      <Box mt={0.5}>
+                                        <Chip
+                                          size="small"
+                                          label={item.veganLabel}
+                                          variant="outlined"
+                                          sx={{
+                                            fontSize: "0.7rem",
+                                            height: 22,
+                                            borderColor: "rgba(76, 175, 80, 0.5)",
+                                            color: "rgba(0, 0, 0, 0.6)",
+                                          }}
+                                        />
+                                      </Box>
+                                    )}
+                                    {item.vegetarianLabel && (
+                                      <Box mt={0.5}>
+                                        <Chip
+                                          size="small"
+                                          label={item.vegetarianLabel}
+                                          variant="outlined"
+                                          sx={{
+                                            fontSize: "0.7rem",
+                                            height: 22,
+                                            borderColor: "rgba(76, 175, 80, 0.5)",
+                                            color: "rgba(0, 0, 0, 0.6)",
+                                          }}
+                                        />
+                                      </Box>
                                     )}
                                     <Box mt={0.75}>
                                       <Chip

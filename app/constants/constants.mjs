@@ -15,17 +15,38 @@ export const EXCLUDED_PROPS = new Set([
   "id",
   "source",
   "created_by",
+
+  // UI: Hide noisy building/roof appearance fields from Place Details → Overview
+  // (these auto-render as "Building Colour", "Roof Colour", "Roof Shape")
+  "building:colour",
+  "building:color",
+  "roof:colour",
+  "roof:color",
+  "roof:shape",
+  // Some data sources normalize ":" to "_" — cover those too.
+  "building_colour",
+  "building_color",
+  "roof_colour",
+  "roof_color",
+  "roof_shape",
+
+  // UI: Hide "Target" rows (e.g., target=lt) from Place Details → Overview
+  "target",
 ]);
 
 export const pRetryConfig = { retries: 3, factor: 2, minTimeout: 400 };
 
 export const placeClusterConfig = {
   chunkedLoading: true,
+  // Spread marker creation work across frames for smoother initial load when there are many POIs.
+  chunkInterval: 60,
+  chunkDelay: 30,
   maxClusterRadius: (zoom) => {
-    if (zoom === 18) {
-      return 15;
-    }
-    return 40;
+    // Slightly more clustering for a “Google-like” feel.
+    // Higher value => more clustering (fewer individual markers).
+    if (zoom >= 18) return 22;
+    if (zoom >= 16) return 50;
+    return 60;
   },
   // disableClusteringAtZoom: 14,
   spiderfyOnMaxZoom: true,

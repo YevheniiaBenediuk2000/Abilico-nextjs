@@ -117,6 +117,7 @@ let fromMarker = null;
 let toMarker = null;
 let routeLayer = null;
 let myLocationLatLng = null;
+let autoFromGeolocateAttempted = false;
 
 const drawnItems = new L.FeatureGroup();
 let drawHelpAlertControl = null;
@@ -240,6 +241,9 @@ function isFeatureAllowedByTypeFilter(feature) {
     (tags.leisure && "leisure") ||
     (tags.healthcare && "healthcare") ||
     (tags.office && "office") ||
+    // OSM diplomatic/embassy tagging can appear without an `office` key (e.g. embassy=yes)
+    // Treat these as "Office" group for filtering/UI consistency.
+    ((tags.diplomatic || tags.embassy) && "office") ||
     (tags.historic && "historic") ||
     (tags.natural && "natural") ||
     (tags.sport && "sport") ||
@@ -260,18 +264,27 @@ function isFeatureAllowedByTypeFilter(feature) {
 
   const groupLabel = labelForMajor[major] || "Other";
 
-  const subRaw =
-    tags[major] ||
-    tags.amenity ||
-    tags.shop ||
-    tags.tourism ||
-    tags.leisure ||
-    tags.healthcare ||
-    tags.office ||
-    tags.historic ||
-    tags.natural ||
-    tags.sport ||
-    "other";
+  const subRaw = (() => {
+    // If this is a diplomatic/embassy place without office=*,
+    // prefer a stable subtype rather than falling through to "other".
+    if (major === "office" && !tags.office) {
+      if (tags.diplomatic) return tags.diplomatic;
+      if (tags.embassy) return String(tags.embassy).toLowerCase().trim() === "yes" ? "embassy" : tags.embassy;
+    }
+    return (
+      tags[major] ||
+      tags.amenity ||
+      tags.shop ||
+      tags.tourism ||
+      tags.leisure ||
+      tags.healthcare ||
+      tags.office ||
+      tags.historic ||
+      tags.natural ||
+      tags.sport ||
+      "other"
+    );
+  })();
 
   const subLabel = subRaw.toString().replace(/[_-]/g, " ");
 
@@ -286,6 +299,13 @@ function isFeatureAllowedByTypeFilter(feature) {
   if (typeof val === "undefined") return true;
 
   return !!val;
+}
+
+function isBenchFeature(feature) {
+  const props = feature?.properties || {};
+  const tags = props.tags || props;
+  const amenity = String(tags?.amenity ?? "").toLowerCase().trim();
+  return amenity === "bench";
 }
 
 function placeKeyFromFeature(feature) {
@@ -700,6 +720,29 @@ function attachBootstrapTooltip(layer, text) {
   });
 }
 
+function hideAllBootstrapTooltips() {
+  // Close any visible bootstrap tooltip on place markers
+  try {
+    placeMarkersByKey?.forEach?.((marker) => {
+      marker?._bsTooltip?.hide?.();
+    });
+  } catch {}
+
+  // Close any visible tooltip on drawn items (obstacles etc.)
+  try {
+    drawnItems?.eachLayer?.((layer) => {
+      layer?._bsTooltip?.hide?.();
+    });
+  } catch {}
+
+  // Fallback: remove any stray tooltip DOM nodes (e.g., if instance tracking was lost)
+  try {
+    document
+      .querySelectorAll?.(".tooltip.show")
+      ?.forEach?.((el) => el.remove());
+  } catch {}
+}
+
 /**
  * Attach tooltip to obstacle layer with vote counts loaded on hover
  * @param {Object} layer - Leaflet layer
@@ -809,7 +852,7 @@ function hookLayerInteractions(layer, props) {
       const popupContent = L.DomUtil.create("div", "p-2");
       popupContent.innerHTML = `
         <h6 class="mb-2">${title}</h6>
-        <p class="small text-muted mb-2">🔒 Log in to edit or delete obstacles</p>
+        <p class="small text-muted mb-2">Log in to edit or delete obstacles</p>
         <a href="/auth" class="btn btn-sm btn-primary w-100 text-decoration-none">
           Log in
         </a>
@@ -1028,7 +1071,7 @@ async function refreshPlaces() {
 
       const [lng, lat] = g.coordinates;
       return bounds.contains(L.latLng(lat, lng));
-    });
+    }).filter((f) => !isBenchFeature(f));
 
     const geojsonForView = {
       type: "FeatureCollection",
@@ -1042,6 +1085,7 @@ async function refreshPlaces() {
     const placesLayer = L.geoJSON(geojsonForView, {
       filter: (feature) => {
         // called for each feature; return true to keep it
+        if (isBenchFeature(feature)) return false; // don't show benches on the map
         return isFeatureAllowedByTypeFilter(feature);
       },
       pointToLayer: (feature, latlng) => {
@@ -1052,6 +1096,7 @@ async function refreshPlaces() {
           icon: makePoiIcon(tags),
         })
           .on("click", () => {
+            hideAllBootstrapTooltips();
             // Temporarily override the selected marker badge to brand blue
             setSelectedPlaceMarker(placeKey, tags);
             renderDetails(tags, L.latLng(latlng), { keepDirectionsUi: true });
@@ -2105,6 +2150,9 @@ function getMuiIconForPlaceType(key, value) {
 }
 
 const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
+  // When switching places, force-close any lingering hover tooltips so the map stays clean.
+  hideAllBootstrapTooltips();
+
   const myDetailsSeq = ++detailsReqSeq;
   const isStale = () => myDetailsSeq !== detailsReqSeq;
 
@@ -2158,6 +2206,34 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   // Extract category for header display
   const categoryKeys = ["amenity", "tourism", "shop", "leisure", "healthcare", "office", "historic", "sport"];
   let categoryValue = null;
+
+  // Diplomatic/embassy tagging:
+  // - old style: embassy=yes (or embassy=consulate, etc.)
+  // - current style: office=diplomatic + diplomatic=embassy
+  const embassyRaw = nTags.embassy ?? null;
+  const diplomaticRaw = nTags.diplomatic ?? null;
+  const officeRaw = nTags.office ?? null;
+  const embassyLower = embassyRaw != null ? String(embassyRaw).trim().toLowerCase() : "";
+  const diplomaticLower = diplomaticRaw != null ? String(diplomaticRaw).trim().toLowerCase() : "";
+  const officeLower = officeRaw != null ? String(officeRaw).trim().toLowerCase() : "";
+
+  const resolveDiplomaticCategory = () => {
+    const kind =
+      (embassyLower && embassyLower !== "no" ? embassyLower : "") ||
+      (officeLower === "diplomatic" && diplomaticLower ? diplomaticLower : "");
+    if (!kind) return null;
+    if (kind === "yes" || kind === "embassy") return "Embassy";
+    if (kind.includes("consulate")) return "Consulate";
+    // Fallback: title-case the kind
+    return kind
+      .replace(/[_-]/g, " ")
+      .split(" ")
+      .filter(Boolean)
+      .map((w, i) => (i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w.toLowerCase()))
+      .join(" ");
+  };
+
+  categoryValue = resolveDiplomaticCategory();
   for (const key of categoryKeys) {
     if (nTags[key]) {
       const value = String(nTags[key]).trim();
@@ -2290,6 +2366,86 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       features.push({ type: "indoor_seating", label: "Indoor seating available", icon: "event_seat" });
     }
     // Skip if no or missing - don't show "No indoor seating" to avoid clutter
+  }
+
+  // Diet: Vegetarian (attribute, not a place type)
+  // OSM: diet:vegetarian=yes|only|no (legacy: vegetarian=yes|only|no)
+  // Show only when relevant (restaurants/cafes/bars/fast food, and a few food-related shops),
+  // and hide if missing/no.
+  const vegetarianValue =
+    nTags["diet:vegetarian"] ||
+    nTags["diet_vegetarian"] ||
+    nTags["diet-vegetarian"] ||
+    nTags.vegetarian ||
+    null;
+  const vegetarianLower = vegetarianValue != null ? String(vegetarianValue).toLowerCase().trim() : "";
+  const amenityLowerForDiet = nTags.amenity ? String(nTags.amenity).toLowerCase().trim() : "";
+  const shopLowerForDiet = nTags.shop ? String(nTags.shop).toLowerCase().trim() : "";
+  const relevantAmenitiesForDiet = new Set([
+    "restaurant",
+    "cafe",
+    "bar",
+    "pub",
+    "fast_food",
+    "food_court",
+    "ice_cream",
+    "biergarten",
+    "canteen",
+  ]);
+  const relevantShopsForDiet = new Set([
+    "supermarket",
+    "convenience",
+    "greengrocer",
+    "health_food",
+    "deli",
+    "bakery",
+  ]);
+  const isRelevantForVegetarian =
+    relevantAmenitiesForDiet.has(amenityLowerForDiet) ||
+    relevantShopsForDiet.has(shopLowerForDiet);
+  if (isRelevantForVegetarian) {
+    if (vegetarianLower === "only") {
+      features.push({
+        type: "diet_vegetarian",
+        label: "Vegetarian only",
+        icon: "spa",
+      });
+    } else if (vegetarianLower === "yes" || vegetarianLower === "true" || vegetarianLower === "1") {
+      features.push({
+        type: "diet_vegetarian",
+        label: "Vegetarian options available",
+        icon: "spa",
+      });
+    }
+  }
+
+  // Diet: Vegan (attribute, not a place type)
+  // OSM: diet:vegan=yes|only|no (legacy: vegan=yes|only|no)
+  // Same relevance rules as vegetarian; hide if missing/no.
+  const veganValue =
+    nTags["diet:vegan"] ||
+    nTags["diet_vegan"] ||
+    nTags["diet-vegan"] ||
+    nTags.vegan ||
+    null;
+  const veganLower = veganValue != null ? String(veganValue).toLowerCase().trim() : "";
+  const isRelevantForVegan =
+    relevantAmenitiesForDiet.has(amenityLowerForDiet) ||
+    relevantShopsForDiet.has(shopLowerForDiet);
+  if (isRelevantForVegan) {
+    if (veganLower === "only") {
+      features.push({
+        type: "diet_vegan",
+        label: "Vegan only",
+        icon: "spa",
+      });
+    } else if (veganLower === "yes" || veganLower === "true" || veganLower === "1") {
+      features.push({
+        type: "diet_vegan",
+        label: "Vegan options available",
+        icon: "spa",
+      });
+    }
   }
 
   // Banking services (service info, not accessibility)
@@ -3705,6 +3861,23 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     }
     // Skip "no" values - don't show negative features
   }
+
+  // Air conditioning - show both when explicitly yes and explicitly no
+  // OSM: air_conditioning=yes|no (sometimes air-conditioning)
+  const airCon =
+    nTags.air_conditioning ||
+    nTags["air_conditioning"] ||
+    nTags["air-conditioning"] ||
+    nTags.Air_conditioning ||
+    null;
+  if (airCon != null && String(airCon).trim() !== "") {
+    const airConValue = String(airCon).toLowerCase().trim();
+    if (airConValue === "yes" || airConValue === "true" || airConValue === "1") {
+      featureChips.push("Air conditioning");
+    } else if (airConValue === "no" || airConValue === "false" || airConValue === "0") {
+      featureChips.push("No air conditioning");
+    }
+  }
   
   // Render Features section if we have any chips
   if (featureChips.length > 0) {
@@ -4054,6 +4227,11 @@ Object.entries(nTags).forEach(([key, value]) => {
   // Skip outdoor_seating and internet_access - already rendered as Features chips
   if (lk === "outdoor_seating" || lk === "outdoor seating") return;
   if (lk === "internet_access" || lk === "internet_access:fee" || lk === "internet_access_fee") return;
+
+  // Skip air conditioning tag - rendered in Facilities card (including explicit "no")
+  if (lk === "air_conditioning" || lk === "air-conditioning" || key === "air_conditioning" || key === "air-conditioning") {
+    return;
+  }
   
   // Skip indoor_seating - will be handled in Features section as "Indoor seating available" (only when yes)
   if (lk === "indoor_seating" || lk === "indoor-seating" || key === "indoor_seating" || key === "indoor-seating") {
@@ -4100,6 +4278,10 @@ Object.entries(nTags).forEach(([key, value]) => {
 
   // Skip name (already rendered elsewhere)
   if (lk === "name") return;
+
+  // Skip embassy/diplomatic tags from generic rendering — they are treated as category (header chip).
+  // Prevents rows like "Embassy: Yes" or "Diplomatic: Embassy".
+  if (lk === "embassy" || lk === "diplomatic") return;
   
   // Skip level (already rendered in Address section)
   if (lk === "level") return;
@@ -4143,6 +4325,26 @@ Object.entries(nTags).forEach(([key, value]) => {
       key === "smoking" || key === "smoking:yes" || key === "smoking:no" || key === "smoking:dedicated") {
     return;
   }
+
+  // Skip diet:vegetarian / vegetarian tags - shown as a Feature chip when relevant
+  if (
+    /^diet[:_-]vegetarian$/i.test(lk) ||
+    /^diet[:_-]vegetarian$/i.test(key) ||
+    lk === "vegetarian" ||
+    key === "vegetarian"
+  ) {
+    return;
+  }
+
+  // Skip diet:vegan / vegan tags - shown as a Feature chip when relevant
+  if (
+    /^diet[:_-]vegan$/i.test(lk) ||
+    /^diet[:_-]vegan$/i.test(key) ||
+    lk === "vegan" ||
+    key === "vegan"
+  ) {
+    return;
+  }
   
   // Skip second_hand - will be handled in Features section (only show when "yes")
   // Hide when "no" as it's not useful for accessibility
@@ -4165,6 +4367,15 @@ Object.entries(nTags).forEach(([key, value]) => {
   if (lk === "brand" || lk.startsWith("brand:") || key === "brand" || key.startsWith("brand:")) {
     return;
   }
+
+  // Skip localized branch variants (e.g. branch:lt, branch:pl) — keep only the base "branch" field.
+  // This prevents rows like "Branch Lt" / "Branch Pl" from showing in Overview.
+  if (
+    /^branch[:_][a-z]{2,}(-[a-z0-9]+)?$/i.test(lk) ||
+    /^branch[:_][a-z]{2,}(-[a-z0-9]+)?$/i.test(key)
+  ) {
+    return;
+  }
   
   // Skip official name tags - technical/legal OSM data, not needed in main UI
   if (lk === "official_name" || lk.startsWith("official_name:") || 
@@ -4177,6 +4388,16 @@ Object.entries(nTags).forEach(([key, value]) => {
   // Skip technical OSM fields - not useful for users
   // osm_value: OSM tagging info (e.g., landuse=residential, highway=residential) - internal only
   if (lk === "osm_value" || key === "osm_value") {
+    return;
+  }
+
+  // Skip target/target:* tags - typically internal/technical (e.g. target=lt) and not useful in the UI.
+  if (
+    lk === "target" ||
+    lk.startsWith("target:") ||
+    lk.startsWith("target_") ||
+    key === "target"
+  ) {
     return;
   }
   
@@ -4308,7 +4529,8 @@ Object.entries(nTags).forEach(([key, value]) => {
   // Combine historic=memorial + memorial=* into one readable line
   if (lk === "historic" && lv === "memorial") {
     const memorialType = nTags.memorial || nTags.Memorial || null;
-    if (memorialType) {
+    const memorialLabel = (() => {
+      if (!memorialType) return "Memorial";
       const formattedType = String(memorialType)
         .replace(/[_:]/g, " ")
         .split(" ")
@@ -4319,23 +4541,28 @@ Object.entries(nTags).forEach(([key, value]) => {
           return word.toLowerCase();
         })
         .join(" ");
-    item.innerHTML = `
-      <div class="me-2">
-          <h6 class="mb-1 fw-semibold">Type</h6>
-          <p class="small mb-1">Memorial – ${formattedType}</p>
-        </div>`;
-      list.appendChild(item);
-      return;
-    } else {
-      // Just show "Memorial" if no memorial type
-      item.innerHTML = `
-        <div class="me-2">
-          <h6 class="mb-1 fw-semibold">Type</h6>
-          <p class="small mb-1">Memorial</p>
-      </div>`;
+      return `Memorial – ${formattedType}`;
+    })();
+
+    // Use consistent structure with other sections (padding + min height)
+    item.className = "list-group-item";
+    item.style.padding = "0";
+
+    const container = document.createElement("div");
+    container.style.padding = SECTION_PADDING;
+    container.style.paddingBottom = SECTION_PADDING;
+    container.style.borderTop = "1px solid";
+    container.style.borderColor = "rgba(0, 0, 0, 0.12)";
+    container.style.minHeight = "60px"; // Minimum height for consistent spacing
+
+    container.innerHTML = `
+      <h6 style="font-size: 1.125rem; font-weight: 600; color: rgba(0, 0, 0, 0.87); letter-spacing: -0.01em; margin: 0 0 4px 0;">Type</h6>
+      <p style="font-size: 0.875rem; color: rgba(0, 0, 0, 0.87); margin: 0;">${memorialLabel}</p>
+    `;
+
+    item.appendChild(container);
     list.appendChild(item);
-      return;
-    }
+    return;
   }
 
   // Skip memorial=* if historic=memorial exists (already combined above)
@@ -4375,7 +4602,8 @@ Object.entries(nTags).forEach(([key, value]) => {
     }
   }
 
-  // Handle source:ref - show as "Network" link (clean URL, don't show ugly URL)
+  // Handle source:ref - show as a clean "Network" section with a single, descriptive link
+  // (avoid "Network Network" where only the second word is clickable)
   if (lk === "source:ref" || lk === "source_ref" || key === "source:ref" || key === "source_ref") {
     const urlValue = String(value).trim();
     if (urlValue) {
@@ -4397,9 +4625,15 @@ Object.entries(nTags).forEach(([key, value]) => {
           <div>
             <h6 style="font-size: 1.125rem; font-weight: 600; color: rgba(0, 0, 0, 0.87); letter-spacing: -0.01em; margin: 0 0 8px 0;">Network</h6>
             <p style="font-size: 0.875rem; color: rgba(0, 0, 0, 0.87); margin: 0;">
-              <a href="${cleanedUrl}" target="_blank" rel="noopener nofollow" style="color: var(--bs-primary); text-decoration: none;">Network</a>
+              <a
+                href="${cleanedUrl}"
+                target="_blank"
+                rel="noopener nofollow"
+                aria-label="View network (opens in a new tab)"
+                style="color: var(--bs-primary); text-decoration: none; display: inline-block;"
+              >View network</a>
             </p>
-        </div>`;
+          </div>`;
         
         item.appendChild(container);
       list.appendChild(item);
@@ -4463,6 +4697,12 @@ Object.entries(nTags).forEach(([key, value]) => {
   if (lk === "building" || key === "building") {
     const s = String(value).trim().toLowerCase();
     displayValue = s === "yes" || s === "true" || s === "1" ? "Unspecified" : formatValueForDisplay(String(value));
+  } else if (lk === "branch" || key === "branch") {
+    // Branch can contain multiple language values in a single string (e.g. "Vilnius / Wilno").
+    // Keep only the first/primary value to effectively show an English version.
+    const raw = String(value ?? "").trim();
+    const primary = raw.split(/[\/|;]/).map((p) => p.trim()).filter(Boolean)[0] || raw;
+    displayValue = formatValueForDisplay(primary);
   } else if (lk === "height" || key === "height") {
     const heightNum = parseFloat(value);
     if (!isNaN(heightNum) && heightNum > 0) {
@@ -4906,16 +5146,23 @@ Object.entries(nTags).forEach(([key, value]) => {
     if (viewer) {
       const mapillaryItem = document.createElement("div");
       mapillaryItem.className = "list-group-item";
-      mapillaryItem.style.padding = SECTION_PADDING;
-      mapillaryItem.style.borderTop = "1px solid";
-      mapillaryItem.style.borderColor = "rgba(0, 0, 0, 0.12)";
-      mapillaryItem.innerHTML = `
-        <div>
-          <h6 style="font-size: 0.875rem; font-weight: 500; color: rgba(0, 0, 0, 0.6); margin-bottom: 8px;">Street Imagery</h6>
-          <p style="font-size: 0.875rem; color: rgba(0, 0, 0, 0.87); margin: 0;">
-            <a href="${viewer}" target="_blank" rel="noopener nofollow ugc" style="color: var(--bs-primary); text-decoration: none;">Open in Mapillary</a>
-          </p>
-        </div>`;
+      mapillaryItem.style.padding = "0";
+
+      const container = document.createElement("div");
+      container.style.padding = SECTION_PADDING;
+      container.style.paddingBottom = SECTION_PADDING;
+      container.style.borderTop = "1px solid";
+      container.style.borderColor = "rgba(0, 0, 0, 0.12)";
+      container.style.minHeight = "60px"; // keep consistent with other link sections
+
+      container.innerHTML = `
+        <h6 style="font-size: 1.125rem; font-weight: 600; color: rgba(0, 0, 0, 0.87); letter-spacing: -0.01em; margin: 0 0 4px 0;">Street Imagery</h6>
+        <p style="font-size: 0.875rem; color: rgba(0, 0, 0, 0.87); margin: 0;">
+          <a href="${viewer}" target="_blank" rel="noopener nofollow ugc">Open in Mapillary</a>
+        </p>
+      `;
+
+      mapillaryItem.appendChild(container);
       list.appendChild(mapillaryItem);
     }
   }
@@ -5019,12 +5266,22 @@ function renderDepartureSuggestions(items, { loading = false } = {}) {
 
       const handleSelect = (item) => {
         toggleDepartureSuggestions(false);
+        if (item?.kind === "my_location") {
+          ensureFromIsMyLocation({ fit: false }).catch(console.error);
+          return;
+        }
         selectDepartureSuggestion(item); // existing logic
+      };
+
+      const myLocationItem = {
+        kind: "my_location",
+        name: "Your location",
+        subtitle: "Use current location",
       };
 
       departureSuggestionsRoot.render(
         React.createElement(DepartureSuggestionsReact, {
-          items: items || [],
+          items: [myLocationItem, ...(items || [])],
           loading,
           onSelect: handleSelect,
         })
@@ -5309,13 +5566,15 @@ function reverseAddressAt(latlng) {
   });
 }
 
-async function getMyLocationLatLng() {
+async function getMyLocationLatLng({ silent = false } = {}) {
   if (myLocationLatLng) return myLocationLatLng;
 
   if (typeof navigator === "undefined" || !navigator.geolocation) {
-    toastWarn("Geolocation not supported. Please set a starting point.", {
-      important: true,
-    });
+    if (!silent) {
+      toastWarn("Geolocation not supported. Please set a starting point.", {
+        important: true,
+      });
+    }
     return null;
   }
 
@@ -5325,10 +5584,12 @@ async function getMyLocationLatLng() {
     if (navigator.permissions?.query) {
       const status = await navigator.permissions.query({ name: "geolocation" });
       if (status?.state === "denied") {
-        toastWarn(
-          "Location access is blocked in your browser. Please enable location permission for this site, then try again.",
-          { important: true }
-        );
+        if (!silent) {
+          toastWarn(
+            "Location access is blocked in your browser. Please enable location permission for this site, then try again.",
+            { important: true }
+          );
+        }
         return null;
       }
       // If state is "prompt", calling getCurrentPosition will prompt again.
@@ -5346,17 +5607,19 @@ async function getMyLocationLatLng() {
       },
       (error) => {
         const userDeniedGeolocation = error.code === 1;
-        if (userDeniedGeolocation) {
-          toastWarn(
-            "Location permission denied. Please enable location permission for this site or choose a starting point manually.",
-            { important: true }
-          );
-        } else {
-          console.error(error);
-          toastError(
-            "Could not get your location. Please set a starting point.",
-            { important: true }
-          );
+        if (!silent) {
+          if (userDeniedGeolocation) {
+            toastWarn(
+              "Location permission denied. Please enable location permission for this site or choose a starting point manually.",
+              { important: true }
+            );
+          } else {
+            console.error(error);
+            toastError(
+              "Could not get your location. Please set a starting point.",
+              { important: true }
+            );
+          }
         }
         resolve(null);
       }
@@ -5365,10 +5628,11 @@ async function getMyLocationLatLng() {
 }
 
 async function ensureFromIsMyLocation(opts = {}) {
+  const { silent = false, ...setOpts } = opts || {};
   if (fromLatLng && fromLatLng.lat && fromLatLng.lng) return;
-  const ll = await getMyLocationLatLng();
+  const ll = await getMyLocationLatLng({ silent });
   if (!ll) return;
-  await setFrom(ll, "My location", opts);
+  await setFrom(ll, "My location", setOpts);
 }
 
 function startNeedsInput() {
@@ -5430,6 +5694,14 @@ async function openDirectionsToPlace(latlng, { fit = false } = {}) {
     elements.departureSearchInput.value = "";
   }
   setStartHintUi(needsStart);
+
+  // Google-like: if start is empty, silently attempt geolocation once.
+  if (needsStart && !autoFromGeolocateAttempted) {
+    autoFromGeolocateAttempted = true;
+    // Silent = don't spam toasts on auto-attempt; user can still click "Your location"/button to retry.
+    await ensureFromIsMyLocation({ fit: false, silent: true });
+  }
+
   elements.departureSearchInput.focus();
 }
 
@@ -6311,7 +6583,8 @@ export async function initMap(user = null) {
     debounce((e) => {
       const searchQuery = e.target.value.trim();
       if (!searchQuery) {
-        toggleDepartureSuggestions(false);
+        // Google-like: when field is empty, still show "Your location" suggestion.
+        renderDepartureSuggestions([], { loading: false });
         return;
       }
 
@@ -6327,6 +6600,14 @@ export async function initMap(user = null) {
       });
     }, 200)
   );
+
+  // Google-like: show "Your location" suggestion when focusing the From field (even if empty)
+  elements.departureSearchInput.addEventListener("focus", (e) => {
+    const q = e?.target?.value?.trim?.() || "";
+    if (!q) {
+      renderDepartureSuggestions([], { loading: false });
+    }
+  });
 
   document.addEventListener("click", hideSuggestionsIfClickedOutside);
 

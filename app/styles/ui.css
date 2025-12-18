@@ -42,6 +42,15 @@
   padding-bottom: 0 !important;
 }
 
+/* Details panel links should use the brand primary color (consistent across all sections) */
+#details-list a {
+  color: var(--bs-primary);
+}
+
+#details-list a:hover {
+  color: color-mix(in srgb, var(--bs-primary) 78%, #000);
+}
+
 .search-suggestions button {
   padding-top: 10px;
   padding-bottom: 10px;
@@ -294,29 +303,174 @@
 }
 
 .directions-panel {
-  border-radius: 24px;
-  padding: 10px 12px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background-color: #fff;
-  max-width: 360px;
-  margin: 0 auto;
+  /* Spacing scale for a cleaner, more consistent layout */
+  --dp-radius: 20px;
+  --dp-pad-x: 20px;
+  --dp-pad-y: 18px;
+  --dp-gap: 16px;
+  --dp-card-bg: #fff;
+  --dp-border: 1px solid rgba(15, 23, 42, 0.10);
+  --dp-shadow: 0 14px 34px rgba(15, 23, 42, 0.10);
+
+  border-radius: var(--dp-radius);
+  padding: var(--dp-pad-y) var(--dp-pad-x);
+  border: var(--dp-border);
+  background: var(--dp-card-bg);
+  box-shadow: var(--dp-shadow);
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--dp-gap);
+}
+
+/* Directions UI card when embedded in the right drawer (drawer itself is transparent) */
+#directions-ui.directions-panel {
+  background: var(--dp-card-bg);
+  box-shadow: var(--dp-shadow);
+  border: var(--dp-border);
+  border-radius: var(--dp-radius);
+  padding: var(--dp-pad-y) var(--dp-pad-x);
+  position: relative;
+  z-index: 5; /* keep above map overlays */
 }
 
 .directions-panel .form-label {
-  margin-bottom: 4px !important;
+  margin-bottom: 6px !important;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.7);
 }
 
 .route-inputs {
   position: relative;
-  padding-right: 52px; /* space for swap button on the right */
+  padding-right: 60px; /* space for swap button on the right */
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .route-inputs__swap {
   position: absolute !important;
-  right: 8px;
+  right: 12px;
   top: 50%;
   transform: translateY(-50%);
   z-index: 2;
+  background: #fff !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.10);
+  border-radius: 12px;
+}
+
+.route-inputs__swap:hover {
+  background: rgba(15, 23, 42, 0.03) !important;
+}
+
+/* Panel header */
+.directions-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 2px;
+}
+
+.directions-panel__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.directions-panel__title-text {
+  font-size: 1.0625rem;
+  font-weight: 750;
+  color: rgba(15, 23, 42, 0.92);
+  letter-spacing: -0.01em;
+}
+
+.directions-panel__badge {
+  font-size: 0.75rem;
+  font-weight: 650;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(var(--bs-primary-rgb), 0.10);
+  color: var(--bs-primary);
+  border: 1px solid rgba(var(--bs-primary-rgb), 0.18);
+  white-space: nowrap;
+}
+
+.directions-panel__mode-btn.MuiIconButton-root {
+  width: 36px;
+  height: 36px;
+  background-color: var(--mode-icon-bg);
+  color: var(--mode-icon-fg);
+}
+
+.directions-panel__mode-btn.MuiIconButton-root:hover {
+  background-color: var(--mode-icon-bg-hover);
+}
+
+/* Route fields */
+.route-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(15, 23, 42, 0.02);
+}
+
+.route-field__marker {
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #fff;
+  flex: none;
+  margin-top: 22px; /* align with label/input stack */
+  user-select: none;
+}
+
+.route-field__marker--from {
+  background: #16a34a;
+}
+
+.route-field__marker--to {
+  background: rgba(var(--bs-primary-rgb), 1);
+}
+
+.route-field__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.route-field__chips {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.btn.route-chip {
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  color: rgba(15, 23, 42, 0.78);
+}
+
+.btn.route-chip:hover,
+.btn.route-chip:focus {
+  background: rgba(15, 23, 42, 0.06);
+  border-color: rgba(15, 23, 42, 0.16);
+  color: rgba(15, 23, 42, 0.84);
 }
 
 /* Search icon on the search bar (always visible) */
@@ -325,6 +479,108 @@
   /* Keep it subtle and consistent across pages */
   color: rgba(0, 0, 0, 0.6);
   pointer-events: none;
+}
+
+/* Make MUI inputs feel like “cards” inside the Directions panel */
+#directions-ui .MuiOutlinedInput-root {
+  background: #fff;
+  border-radius: 14px;
+}
+
+#directions-ui .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(15, 23, 42, 0.14);
+}
+
+#directions-ui .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(15, 23, 42, 0.22);
+}
+
+#directions-ui .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(var(--bs-primary-rgb), 1);
+  border-width: 2px;
+}
+
+#directions-ui .search-suggestions {
+  border-radius: 12px;
+  overflow: hidden;
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 20;
+}
+
+#directions-ui .search-suggestions .list-group-item {
+  cursor: pointer;
+}
+
+#directions-ui .search-suggestions .list-group-item:hover {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+/* Route action buttons */
+.route-actions-bottom {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.btn.route-btn {
+  /* Match a more “normal” button size (avoid giant pill buttons) */
+  border-radius: 12px;
+  padding: 8px 14px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.btn.route-btn--primary {
+  background: rgba(var(--bs-primary-rgb), 1);
+  border-color: rgba(var(--bs-primary-rgb), 1);
+  color: #fff;
+  flex: 0 0 auto;
+}
+
+.btn.route-btn--primary:hover,
+.btn.route-btn--primary:focus {
+  background: color-mix(in srgb, rgba(var(--bs-primary-rgb), 1) 88%, #000);
+  border-color: color-mix(in srgb, rgba(var(--bs-primary-rgb), 1) 88%, #000);
+  color: #fff;
+}
+
+.btn.route-btn--secondary {
+  background: #fff;
+  border-color: rgba(15, 23, 42, 0.16);
+  color: rgba(15, 23, 42, 0.78);
+}
+
+.btn.route-btn--secondary:hover,
+.btn.route-btn--secondary:focus {
+  background: rgba(15, 23, 42, 0.03);
+  border-color: rgba(15, 23, 42, 0.22);
+  color: rgba(15, 23, 42, 0.84);
+}
+
+@media (max-width: 420px) {
+  .directions-panel {
+    --dp-pad-x: 16px;
+    --dp-pad-y: 14px;
+    --dp-gap: 14px;
+  }
+  .route-actions-bottom {
+    flex-direction: row;
+  }
+  .btn.route-btn--primary,
+  .btn.route-btn--secondary {
+    width: auto;
+  }
+  .route-inputs {
+    padding-right: 0;
+  }
+  .route-inputs__swap {
+    position: static !important;
+    transform: none;
+    margin: 6px auto 0;
+  }
 }
 
 .btn.btn-route-secondary {

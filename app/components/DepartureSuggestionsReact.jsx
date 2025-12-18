@@ -4,9 +4,11 @@ import Paper from "@mui/material/Paper";
 import List from "@mui/material/List";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
+import ListItemIcon from "@mui/material/ListItemIcon";
 import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
 import Typography from "@mui/material/Typography";
+import MyLocationIcon from "@mui/icons-material/MyLocation";
 
 export default function DepartureSuggestionsReact({
   items,
@@ -48,9 +50,14 @@ export default function DepartureSuggestionsReact({
             role="option"
             onClick={() => onSelect(item)}
           >
+            {item?.kind === "my_location" ? (
+              <ListItemIcon sx={{ minWidth: 36 }}>
+                <MyLocationIcon fontSize="small" />
+              </ListItemIcon>
+            ) : null}
             <ListItemText
               primary={item.name}
-              // secondary={item.properties?.city || item.properties?.country}
+              secondary={item?.kind === "my_location" ? item?.subtitle : undefined}
             />
           </ListItemButton>
         ))}
