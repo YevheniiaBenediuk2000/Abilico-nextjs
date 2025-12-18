@@ -8,6 +8,11 @@ const OVERPASS_ENDPOINTS = [
   "https://overpass.kumi.systems/api/interpreter",
 ];
 
+const HEADERS = {
+  "User-Agent":
+    "Abilico/1.0 (https://github.com/YevheniiaBenediuk2000/Abilico)",
+};
+
 let placeGeometryAbortController = null;
 
 export async function fetchPlaceGeometry(osmType, osmId) {
@@ -20,7 +25,7 @@ export async function fetchPlaceGeometry(osmType, osmId) {
   const type = { N: "node", W: "way", R: "relation" }[osmType];
 
   const query = `
-    [out:json];
+    [out:json][timeout:25];
     ${type}(${osmId});
     out geom;
   `;
@@ -34,6 +39,7 @@ export async function fetchPlaceGeometry(osmType, osmId) {
         try {
           const response = await fetch(endpoint, {
             method: "POST",
+            headers: HEADERS,
             body: query,
             signal,
           });
@@ -80,7 +86,7 @@ export async function fetchPlace(osmType, osmId) {
   const type = { N: "node", W: "way", R: "relation" }[osmType];
 
   const query = `
-    [out:json];
+    [out:json][timeout:25];
     ${type}(${osmId});
     out center tags;
   `;
@@ -93,6 +99,7 @@ export async function fetchPlace(osmType, osmId) {
         try {
           const response = await fetch(endpoint, {
             method: "POST",
+            headers: HEADERS,
             body: query,
             signal,
           });
@@ -164,50 +171,54 @@ function buildAccessibilityClauses(allowed) {
   return Array.from(clauses);
 }
 
-const AMENITY_FOCUS_LOW = [
-  // bigger / civic / fewer items
-  "bank",
-  "atm",
-  "pharmacy",
+const AMENITY_FOCUS_LOWEST = [
   "hospital",
-  "clinic",
-  "library",
   "university",
-  "college",
-  "school",
   "theatre",
   "cinema",
-  "place_of_worship",
+  "marketplace",
   "police",
+  "social_facility",
+  "library",
+  "college",
+  "school",
+  "community_centre",
+];
+
+const AMENITY_FOCUS_LOW = [
+  ...AMENITY_FOCUS_LOWEST,
+  "fast_food",
+  "cafe",
+  "restaurant",
+  "fire_station",
+  "doctors",
+  "toilets",
+  "parking",
+  "clinic",
+  "pharmacy",
+  "arts_centre",
+  "courthouse",
+  "place_of_worship",
   "post_office",
   "townhall",
 ];
 
+const TOURISM_FOCUS_LOWEST = ["museum", "attraction"];
+
 const TOURISM_FOCUS_LOW = [
-  "attraction",
-  "museum",
-  "gallery",
+  ...TOURISM_FOCUS_LOWEST,
+  "hotel",
+  "hostel",
   "zoo",
   "theme_park",
-  "aquarium",
-  "viewpoint",
-  "hotel",
+  "gallery",
 ];
 
-const LEISURE_FOCUS_LOW = [
-  "stadium",
-  "sports_centre",
-  "swimming_pool",
-  "fitness_centre",
-];
+const LEISURE_FOCUS_LOW = ["sports_centre", "swimming_pool", "fitness_centre"];
 
-const SHOP_FOCUS_LOW = [
-  "mall",
-  "department_store",
-  "supermarket",
-  "convenience",
-  "bakery",
-];
+const SHOP_FOCUS_LOWEST = ["mall", "department_store", "supermarket"];
+
+const SHOP_FOCUS_LOW = [...SHOP_FOCUS_LOWEST, "bakery", "convenience"];
 
 // Build the base selectors depending on zoom
 function selectorsForZoom(
@@ -244,24 +255,39 @@ function selectorsForZoom(
   // Far zoom: only “important” types to keep counts small
   const LOW = [
     `node["amenity"]["amenity"~"^(${AMENITY_FOCUS_LOW.join("|")})$"]`,
+    `node["shop"]["shop"~"^(${SHOP_FOCUS_LOW.join("|")})$"]`,
     `node["tourism"]["tourism"~"^(${TOURISM_FOCUS_LOW.join("|")})$"]`,
     `node["leisure"]["leisure"~"^(${LEISURE_FOCUS_LOW.join("|")})$"]`,
     `node["healthcare"]["healthcare"~"^(hospital|clinic)$"]`,
     `node["historic"]`,
   ];
 
+  const LOW_15 = [
+    `node["amenity"]["amenity"~"^(${AMENITY_FOCUS_LOW.join("|")})$"]`,
+    `node["tourism"]["tourism"~"^(${TOURISM_FOCUS_LOW.join("|")})$"]`,
+    `node["shop"]["shop"~"^(${SHOP_FOCUS_LOW.join("|")})$"]`,
+  ];
+
+  const LOWEST = [
+    `node["amenity"]["amenity"~"^(${AMENITY_FOCUS_LOWEST.join("|")})$"]`,
+    `node["tourism"]["tourism"~"^(${TOURISM_FOCUS_LOWEST.join("|")})$"]`,
+    `node["shop"]["shop"~"^(${SHOP_FOCUS_LOWEST.join("|")})$"]`,
+  ];
+
   // Heuristic bands — tweak to taste
-  if (zoom >= 17) return FULL;
-  if (zoom >= 15) return MID;
-  return LOW; // zoom < 15
+  if (zoom >= 18) return FULL;
+  if (zoom >= 17) return MID;
+  if (zoom >= 16) return LOW;
+  if (zoom >= 15) return LOW_15;
+  return LOWEST; // zoom < 15
 }
 
 // Optional: cap results at lower zooms (Overpass supports a numeric limit on `out`)
 // 0 = no cap
 function limitForZoom(zoom) {
   if (zoom >= 17) return 0;
-  if (zoom >= 15) return 300; // mid zoom
-  return 120; // far zoom
+  if (zoom >= 15) return 0; // mid zoom
+  return 0; // far zoom
 }
 
 let placesAbortController = null;
@@ -343,6 +369,7 @@ export async function fetchPlaces(bounds, zoom, options) {
           // console.log("📡 POST →", endpoint, "query:", query.slice(0, 300));
           const response = await fetch(endpoint, {
             method: "POST",
+            headers: HEADERS,
             body: query,
             signal,
           });
@@ -390,4 +417,173 @@ export async function fetchPlaces(bounds, zoom, options) {
   }
 
   console.error("Places fetch failed on all Overpass endpoints:", lastError);
+}
+
+let placeIdsAbortController = null;
+
+export async function fetchPlaceIds(bounds, zoom, options) {
+  const { accessibilityFilter } = options;
+
+  const showNoPlaces = zoom < SHOW_PLACES_ZOOM;
+  if (showNoPlaces) {
+    return [];
+  }
+
+  if (placeIdsAbortController) {
+    placeIdsAbortController.abort();
+  }
+  placeIdsAbortController = new AbortController();
+  const { signal } = placeIdsAbortController;
+
+  const s = bounds.getSouth();
+  const w = bounds.getWest();
+  const n = bounds.getNorth();
+  const e = bounds.getEast();
+  const boundingBox = `${s},${w},${n},${e}`;
+
+  const AMENITY_EXCLUDED =
+    "bench|waste_basket|bicycle_parking|vending_machine|fountain|ice_cream|grit_bin|drinking_water|give_box|parcel_locker|water_point|recycling|waste_basket|waste_disposal";
+  const LEISURE_EXCLUDED = "park|picnic_table";
+  const MAN_MADE_EXCLUDED =
+    "surveillance|pump|pipeline|pier|groyne|flagpole|embankment|dyke|clearcut|cutline";
+  const MILITARY_EXCLUDED = "trench";
+
+  if (accessibilityFilter.size === 0) {
+    return [];
+  }
+
+  const baseSelectors = selectorsForZoom(zoom, {
+    AMENITY_EXCLUDED,
+    LEISURE_EXCLUDED,
+    MAN_MADE_EXCLUDED,
+    MILITARY_EXCLUDED,
+  });
+
+  const accClauses = buildAccessibilityClauses(accessibilityFilter);
+
+  const queryParts = [];
+  for (const base of baseSelectors) {
+    if (accClauses.length === 1 && accClauses[0] === "") {
+      queryParts.push(`${base}(${boundingBox})`);
+    } else {
+      for (const clause of accClauses) {
+        queryParts.push(`${base}${clause}(${boundingBox})`);
+      }
+    }
+  }
+
+  const query = `
+    [out:json][timeout:25];
+    (
+      ${queryParts.join(";\n      ")};
+    );
+    out ids;
+  `;
+
+  let lastError = null;
+
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      return await pRetry(async () => {
+        try {
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: HEADERS,
+            body: query,
+            signal,
+          });
+
+          if (!response.ok) {
+            throw new Error(`Overpass error ${response.status} @ ${endpoint}`);
+          }
+
+          const data = await response.json();
+          return data.elements || [];
+        } catch (error) {
+          if (error?.name === "AbortError") {
+            return [];
+          }
+          throw error;
+        }
+      }, pRetryConfig);
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        return [];
+      }
+      lastError = error;
+      if (
+        !error?.message?.includes("504") &&
+        !error?.message?.includes("timeout")
+      ) {
+        console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
+      }
+    }
+  }
+
+  if (lastError?.name === "AbortError") {
+    return [];
+  }
+
+  console.error("Place IDs fetch failed on all Overpass endpoints:", lastError);
+  return [];
+}
+
+export async function fetchPlacesByIds(ids) {
+  if (!ids || ids.length === 0)
+    return { type: "FeatureCollection", features: [] };
+
+  // Group by type
+  const nodes = ids.filter((i) => i.type === "node").map((i) => i.id);
+  const ways = ids.filter((i) => i.type === "way").map((i) => i.id);
+  const relations = ids.filter((i) => i.type === "relation").map((i) => i.id);
+
+  const queryParts = [];
+  if (nodes.length) queryParts.push(`node(id:${nodes.join(",")})`);
+  if (ways.length) queryParts.push(`way(id:${ways.join(",")})`);
+  if (relations.length) queryParts.push(`relation(id:${relations.join(",")})`);
+
+  if (queryParts.length === 0)
+    return { type: "FeatureCollection", features: [] };
+
+  const query = `
+    [out:json][timeout:25];
+    (
+      ${queryParts.join(";\n      ")};
+    );
+    out center tags;
+  `;
+
+  let lastError = null;
+
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      return await pRetry(async () => {
+        try {
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: HEADERS,
+            body: query,
+          });
+
+          if (!response.ok) {
+            throw new Error(`Overpass error ${response.status} @ ${endpoint}`);
+          }
+
+          const data = await response.json();
+          return osmtogeojson(data);
+        } catch (error) {
+          throw error;
+        }
+      }, pRetryConfig);
+    } catch (error) {
+      lastError = error;
+      console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
+    }
+  }
+
+  console.error(
+    "Places fetch by IDs failed on all Overpass endpoints:",
+    lastError
+  );
+  return { type: "FeatureCollection", features: [] };
 }

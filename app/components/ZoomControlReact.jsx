@@ -6,7 +6,13 @@ import RemoveIcon from "@mui/icons-material/Remove";
 import Divider from "@mui/material/Divider";
 import { Button } from "@mui/material";
 
-export default function ZoomControlReact({ onZoomIn, onZoomOut }) {
+export default function ZoomControlReact({
+  onZoomIn,
+  onZoomOut,
+  currentZoom,
+  minZoom,
+  maxZoom,
+}) {
   const borderRadius = 1;
   const commonButtonSx = {
     minWidth: "36px",
@@ -15,6 +21,9 @@ export default function ZoomControlReact({ onZoomIn, onZoomOut }) {
     color: "text.primary",
     "&:hover": { bgcolor: "action.hover" },
   };
+
+  const isMaxZoom = currentZoom >= maxZoom;
+  const isMinZoom = currentZoom <= minZoom;
 
   return (
     <Paper
@@ -27,6 +36,7 @@ export default function ZoomControlReact({ onZoomIn, onZoomOut }) {
         onClick={onZoomIn}
         aria-label="Zoom in"
         size="small"
+        disabled={isMaxZoom}
         sx={{
           ...commonButtonSx,
           borderTopLeftRadius: (theme) =>
@@ -47,6 +57,7 @@ export default function ZoomControlReact({ onZoomIn, onZoomOut }) {
         onClick={onZoomOut}
         aria-label="Zoom out"
         size="small"
+        disabled={isMinZoom}
         sx={{
           ...commonButtonSx,
           borderTopLeftRadius: 0,

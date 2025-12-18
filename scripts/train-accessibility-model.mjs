@@ -7,6 +7,10 @@ import { pipeline } from "stream/promises";
 
 // Configuration
 const OVERPASS_API_URL = "https://overpass-api.de/api/interpreter";
+const HEADERS = {
+  "User-Agent":
+    "Abilico/1.0 (https://github.com/YevheniiaBenediuk2000/Abilico)",
+};
 const BBOX = "-90,-180,90,180"; // World
 let CACHE_FILE = `osm_data_cache_${BBOX.replace(/,/g, "_")}.json`;
 // CACHE_FILE = "osm_data_cache.json";
@@ -243,8 +247,9 @@ function computeClassWeights(labels, alpha = 0.5) {
   const weights = {};
   for (const k of Object.keys(counts)) {
     const c = counts[k];
+
     const w = total / (nClasses * c);
-    weights[k] = Math.pow(w, alpha); // alpha=0.5 => sqrt
+    weights[k] = Math.pow(w, alpha);
   }
   return weights;
 }
@@ -312,7 +317,7 @@ async function fetchOSMData() {
         const bbox = `${south},${west},${north},${east}`;
 
         const query = `
-    [out:json][timeout:90000];
+    [out:json][timeout:3600];
     (
       node["wheelchair"](${bbox});
     );
@@ -326,6 +331,7 @@ async function fetchOSMData() {
           try {
             const response = await fetch(OVERPASS_API_URL, {
               method: "POST",
+              headers: HEADERS,
               body: query,
             });
 
@@ -530,14 +536,14 @@ async function trainModel(trainDataset, valDataset, inputDim, classWeight) {
     minDelta: 0.001,
   });
 
-  await model.fitDataset(trainDataset, {
+  const history = await model.fitDataset(trainDataset, {
     epochs: 50,
     validationData: valDataset,
     classWeight,
     callbacks: [saveBestEarlyStop],
   });
 
-  return model;
+  return { model, history };
 }
 
 async function main() {
@@ -588,7 +594,7 @@ async function main() {
       `Training on ${trainExamples.length} samples. Validating on ${valExamples.length}.`
     );
 
-    const model = await trainModel(
+    const { model, history } = await trainModel(
       trainDataset,
       valDataset,
       inputDim,
@@ -667,12 +673,161 @@ async function main() {
           support: x.support,
         }))
       );
+      return { cm, report: rep };
     }
 
-    await evalOnVal(model, valExamples, schema);
+    const evalMetrics = await evalOnVal(model, valExamples, schema);
+
+    // --- NEW: Save Debug Info & Generate Report ---
+    const debugDir = "debug_output";
+    if (!fs.existsSync(debugDir)) fs.mkdirSync(debugDir, { recursive: true });
+
+    const debugData = {
+      history: history.history,
+      evaluation: evalMetrics,
+      classWeight,
+      inputDim,
+      schemaStats: schema.numericStats,
+      vocabSizes: Object.fromEntries(
+        Object.entries(schema.vocab).map(([k, v]) => [k, v.length])
+      ),
+    };
+
+    fs.writeFileSync(
+      path.join(debugDir, "debug_data.json"),
+      JSON.stringify(debugData, null, 2)
+    );
+    console.log(
+      `Debug data saved to ${path.join(debugDir, "debug_data.json")}`
+    );
+
+    generateHtmlReport(debugDir, debugData);
   } catch (error) {
     console.error("Error:", error);
   }
+}
+
+function generateHtmlReport(dir, data) {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Accessibility Model Training Report</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 20px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .chart-container { width: 100%; max-width: 600px; margin: 20px auto; }
+    .metrics-table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    .metrics-table th, .metrics-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    .metrics-table th { background-color: #f2f2f2; }
+    .cm-table { border-collapse: collapse; margin: 20px auto; }
+    .cm-table td, .cm-table th { border: 1px solid #333; padding: 10px; text-align: center; width: 50px; height: 50px; }
+    .cm-bg { background-color: #f0f0f0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Training Report</h1>
+    
+    <h2>Training History</h2>
+    <div style="display: flex; flex-wrap: wrap;">
+      <div class="chart-container">
+        <canvas id="lossChart"></canvas>
+      </div>
+      <div class="chart-container">
+        <canvas id="accChart"></canvas>
+      </div>
+    </div>
+
+    <h2>Evaluation Results</h2>
+    <p><strong>Macro F1:</strong> ${data.evaluation.report.macroF1.toFixed(
+      4
+    )}</p>
+    
+    <h3>Per-Class Metrics</h3>
+    <table class="metrics-table">
+      <thead>
+        <tr><th>Class</th><th>Precision</th><th>Recall</th><th>F1-Score</th><th>Support</th></tr>
+      </thead>
+      <tbody>
+        ${data.evaluation.report.perClass
+          .map(
+            (c) => `
+          <tr>
+            <td>${c.k}</td>
+            <td>${c.precision.toFixed(4)}</td>
+            <td>${c.recall.toFixed(4)}</td>
+            <td>${c.f1.toFixed(4)}</td>
+            <td>${c.support}</td>
+          </tr>
+        `
+          )
+          .join("")}
+      </tbody>
+    </table>
+
+    <h3>Confusion Matrix</h3>
+    <table class="cm-table">
+      <tr>
+        <th rowspan="4">True</th>
+        <th colspan="3">Predicted</th>
+      </tr>
+      <tr>
+        <th>0</th><th>1</th><th>2</th>
+      </tr>
+      ${data.evaluation.cm
+        .map(
+          (row, i) => `
+        <tr>
+          <th>${i}</th>
+          ${row.map((cell) => `<td>${cell}</td>`).join("")}
+        </tr>
+      `
+        )
+        .join("")}
+    </table>
+
+    <h2>Model Info</h2>
+    <p><strong>Input Dimension:</strong> ${data.inputDim}</p>
+    <p><strong>Class Weights:</strong> ${JSON.stringify(data.classWeight)}</p>
+  </div>
+
+  <script>
+    const history = ${JSON.stringify(data.history)};
+    
+    // Loss Chart
+    new Chart(document.getElementById('lossChart'), {
+      type: 'line',
+      data: {
+        labels: history.loss.map((_, i) => i + 1),
+        datasets: [
+          { label: 'Train Loss', data: history.loss, borderColor: 'blue', fill: false },
+          { label: 'Val Loss', data: history.val_loss, borderColor: 'red', fill: false }
+        ]
+      },
+      options: { responsive: true, plugins: { title: { display: true, text: 'Loss' } } }
+    });
+
+    // Accuracy Chart
+    new Chart(document.getElementById('accChart'), {
+      type: 'line',
+      data: {
+        labels: history.acc.map((_, i) => i + 1),
+        datasets: [
+          { label: 'Train Acc', data: history.acc, borderColor: 'green', fill: false },
+          { label: 'Val Acc', data: history.val_acc, borderColor: 'orange', fill: false }
+        ]
+      },
+      options: { responsive: true, plugins: { title: { display: true, text: 'Accuracy' } } }
+    });
+  </script>
+</body>
+</html>
+  `;
+
+  fs.writeFileSync(path.join(dir, "report.html"), html);
+  console.log(`Report generated at ${path.join(dir, "report.html")}`);
 }
 
 main();
