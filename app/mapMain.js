@@ -3323,16 +3323,20 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   
   // Determine which brand value to show (prioritize UI language, then default, then any available)
   let brandValue = null;
-  if (brandTags && typeof brandTags === 'object') {
+  if (brandTags && typeof brandTags === 'object' && !Array.isArray(brandTags)) {
     if (brandTags[uiLang]) {
       brandValue = brandTags[uiLang];
     } else if (brandTags.default || brandTags[""]) {
       brandValue = brandTags.default || brandTags[""];
     } else {
       // Fallback to any available brand value
-      const availableBrands = Object.values(brandTags).filter(Boolean);
-      if (availableBrands.length > 0) {
-        brandValue = availableBrands[0];
+      try {
+        const availableBrands = Object.values(brandTags).filter(Boolean);
+        if (availableBrands.length > 0) {
+          brandValue = availableBrands[0];
+        }
+      } catch (e) {
+        console.warn("Error processing brand tags:", e);
       }
     }
   }

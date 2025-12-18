@@ -296,11 +296,12 @@ export default function AuthPage() {
                           inputPadding: "16px",
                           buttonPadding: "16px",
                         },
-                        fontSizes: {
-                          baseBodySize: "14px",
-                          baseInputSize: "16px",
-                          labelText: "14px",
-                        },
+                          fontSizes: {
+                            baseBodySize: "14px",
+                            baseInputSize: "16px",
+                            labelText: "14px",
+                            inputPlaceholder: "11px",
+                          },
                         radii: {
                           borderRadiusButton: "8px",
                           buttonBorderRadius: "8px",

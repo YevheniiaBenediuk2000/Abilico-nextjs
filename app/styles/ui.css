@@ -680,6 +680,7 @@
 [data-theme="default"] input[type="text"]::placeholder {
   color: #9e9e9e !important;
   opacity: 1 !important;
+  font-size: 11px !important;
 }
 
 /* Label styling */
@@ -745,7 +746,7 @@
 [data-theme="default"] p[data-state="default"],
 [data-theme="default"] p[class*="hint"],
 [data-theme="default"] p[class*="description"] {
-  font-size: 14px !important;
+  font-size: 11px !important;
   color: #9e9e9e !important;
   margin-top: -1rem !important;
   margin-bottom: 1rem !important;
