@@ -1550,7 +1550,7 @@ async function renderReviewsList() {
             // Apply highlighting style if it matches user preferences - improved
             if (isUserPreference) {
               categoryItem.style.backgroundColor = "rgba(var(--bs-primary-rgb), 0.08)";
-              categoryItem.style.borderLeft = "3px solid rgba(var(--bs-primary-rgb), 0.5)";
+              categoryItem.style.borderLeft = "1px solid rgba(var(--bs-primary-rgb), 0.5)";
             } else {
               categoryItem.style.backgroundColor = "transparent";
             }
@@ -1991,6 +1991,30 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     }
   }
   
+  // Extract smoking information
+  const smokingValue = nTags.smoking || nTags.Smoking || null;
+  const smokingYes = nTags["smoking:yes"] || nTags["smoking_yes"] || null;
+  const smokingNo = nTags["smoking:no"] || nTags["smoking_no"] || null;
+  const smokingDedicated = nTags["smoking:dedicated"] || nTags["smoking_dedicated"] || null;
+  
+  // Priority: smoking:dedicated > smoking:yes/smoking:no > smoking=yes/no
+  if (smokingDedicated && String(smokingDedicated).toLowerCase().trim() === "yes") {
+    features.push({ type: "smoking", label: "Smoking room available", icon: "smoking_rooms" });
+  } else if (smokingYes && String(smokingYes).toLowerCase().trim() === "yes") {
+    features.push({ type: "smoking", label: "Smoking allowed", icon: "smoking_rooms" });
+  } else if (smokingNo && String(smokingNo).toLowerCase().trim() === "yes") {
+    features.push({ type: "smoking", label: "No smoking", icon: "smoke_free" });
+  } else if (smokingValue) {
+    const smokingLower = String(smokingValue).toLowerCase().trim();
+    if (smokingLower === "yes" || smokingLower === "outside" || smokingLower === "isolated") {
+      features.push({ type: "smoking", label: "Smoking allowed", icon: "smoking_rooms" });
+    } else if (smokingLower === "no") {
+      features.push({ type: "smoking", label: "No smoking", icon: "smoke_free" });
+    } else if (smokingLower === "dedicated" || smokingLower === "separated") {
+      features.push({ type: "smoking", label: "Smoking room available", icon: "smoking_rooms" });
+    }
+  }
+  
   // Consistent padding constant for all detail sections (24px = MUI spacing 3)
   const SECTION_PADDING = "24px";
   
@@ -2214,16 +2238,30 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   // Remove raw "contact" tag (e.g. contact=yes) from generic details,
   // we only want the rich Contact section (website/phone/email).
+  if (nTags && typeof nTags === 'object') {
   for (const key of Object.keys(nTags)) {
     if (key && key.trim().toLowerCase() === "contact") {
       delete nTags[key];
+      }
     }
   }
   
-  // Extract phone numbers (phone, contact:phone, contact:mobile, etc.)
+  // Extract phone numbers (phone, contact:phone, contact:mobile, phone:mobile, etc.)
   const phoneNumbers = [];
+  // Collect all phone-related keys (including phone:mobile, phone:*, etc.)
   const phoneKeys = ["phone", "contact:phone", "contact:mobile", "mobile", "contact:fax"];
-  phoneKeys.forEach((key) => {
+  // Also check for phone:* variants (phone:mobile, phone:landline, etc.)
+  if (nTags && typeof nTags === 'object') {
+    Object.keys(nTags).forEach((key) => {
+      const lk = key.toLowerCase();
+      if (lk.startsWith("phone:") || lk.startsWith("phone_") || lk.startsWith("phone-")) {
+        phoneKeys.push(key);
+      }
+    });
+  }
+  // Remove duplicates
+  const uniquePhoneKeys = [...new Set(phoneKeys)];
+  uniquePhoneKeys.forEach((key) => {
     const value = nTags[key];
     if (value) {
       const phones = splitMulti(value).filter(Boolean);
@@ -3183,6 +3221,171 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     }
   }
 
+  // --- COMMUNICATION TOWER: Simplify technical fields into user-friendly display ---
+  const manMade = nTags.man_made || nTags["man_made"] || nTags["man-made"] || null;
+  const towerType = nTags["tower:type"] || nTags["tower_type"] || nTags["tower-type"] || null;
+  const towerConstruction = nTags["tower:construction"] || nTags["tower_construction"] || nTags["tower-construction"] || null;
+  const isCommunicationTower = (manMade && String(manMade).toLowerCase().trim() === "mast") ||
+                                (towerType && String(towerType).toLowerCase().trim() === "communication");
+  
+  if (isCommunicationTower) {
+    // Collect communication network types
+    const communicationNetworks = [];
+    const commTags = ["communication:gsm", "communication:lte", "communication:mobile_phone", "communication:umts",
+                      "communication_gsm", "communication_lte", "communication_mobile_phone", "communication_umts"];
+    
+    commTags.forEach(tag => {
+      const val = nTags[tag];
+      if (val && String(val).toLowerCase().trim() === "yes") {
+        const networkType = tag.includes("gsm") ? "2G" :
+                           tag.includes("umts") ? "3G" :
+                           tag.includes("lte") ? "4G" :
+                           tag.includes("mobile_phone") || tag.includes("mobile-phone") ? "Mobile" : null;
+        if (networkType && !communicationNetworks.includes(networkType)) {
+          communicationNetworks.push(networkType);
+        }
+      }
+    });
+    
+    const towerItem = document.createElement("div");
+    towerItem.className = "list-group-item";
+    towerItem.style.padding = "0";
+    
+    const container = document.createElement("div");
+    container.style.padding = SECTION_PADDING;
+    container.style.paddingBottom = SECTION_PADDING;
+    container.style.borderTop = "1px solid";
+    container.style.borderColor = "rgba(0, 0, 0, 0.12)";
+    container.style.minHeight = "auto";
+    
+    const header = document.createElement("h6");
+    header.style.fontSize = "1.125rem";
+    header.style.fontWeight = "600";
+    header.style.color = "rgba(0, 0, 0, 0.87)";
+    header.style.letterSpacing = "-0.01em";
+    header.style.margin = "0 0 4px 0";
+    header.textContent = "Type";
+    container.appendChild(header);
+    
+    const typeP = document.createElement("p");
+    typeP.className = "small mb-1";
+    typeP.style.margin = "0";
+    typeP.textContent = "Mobile communication tower";
+    container.appendChild(typeP);
+    
+    // Add network support info if available
+    if (communicationNetworks.length > 0) {
+      const supportsP = document.createElement("p");
+      supportsP.className = "small mb-1";
+      supportsP.style.margin = "4px 0 0 0";
+      supportsP.textContent = `Supports: ${communicationNetworks.join(" / ")} mobile networks`;
+      container.appendChild(supportsP);
+    }
+    
+    towerItem.appendChild(container);
+    list.appendChild(towerItem);
+  }
+
+  // --- BRAND: Combine brand variants into a single localized display ---
+  // Get UI language (default to browser language, fallback to 'en')
+  const getUILanguage = () => {
+    if (typeof window !== 'undefined') {
+      const htmlLang = document.documentElement.lang;
+      if (htmlLang) return htmlLang.toLowerCase().split('-')[0]; // e.g., "en-US" -> "en"
+      const navLang = navigator.language || navigator.userLanguage;
+      if (navLang) return navLang.toLowerCase().split('-')[0];
+    }
+    return 'en'; // Default fallback
+  };
+  
+  const uiLang = getUILanguage();
+  
+  // Collect all brand tags (safety check for nTags)
+  const brandTags = {};
+  if (nTags && typeof nTags === 'object') {
+    Object.keys(nTags).forEach(key => {
+      const lk = key.toLowerCase();
+      if (lk === "brand" || lk.startsWith("brand:")) {
+        const langMatch = key.match(/^brand:([a-z]{2,3})$/i);
+        const lang = langMatch ? langMatch[1].toLowerCase() : null;
+        brandTags[lang || "default"] = nTags[key];
+      }
+    });
+  }
+  
+  // Normalize brand value by removing language prefixes (e.g., "en:TUI Group" -> "TUI Group")
+  const normalizeBrand = (raw) => {
+    if (!raw) return '';
+    const trimmed = String(raw).trim();
+    // Strip language prefix like "en:", "uk:", etc.
+    return trimmed.replace(/^[a-z]{2}:/i, '');
+  };
+  
+  // Determine which brand value to show (prioritize UI language, then default, then any available)
+  let brandValue = null;
+  if (brandTags && typeof brandTags === 'object') {
+    if (brandTags[uiLang]) {
+      brandValue = brandTags[uiLang];
+    } else if (brandTags.default || brandTags[""]) {
+      brandValue = brandTags.default || brandTags[""];
+    } else {
+      // Fallback to any available brand value
+      const availableBrands = Object.values(brandTags).filter(Boolean);
+      if (availableBrands.length > 0) {
+        brandValue = availableBrands[0];
+      }
+    }
+  }
+  
+  // Normalize the brand value to remove language prefixes
+  if (brandValue) {
+    brandValue = normalizeBrand(brandValue);
+  }
+  
+  // Show brand if we have a value and it doesn't match the place name
+  // Brand is used internally for search/filter, but don't show if title already matches it
+  if (brandValue && String(brandValue).trim()) {
+    const brandValueTrimmed = String(brandValue).trim();
+    const placeName = titleText || "";
+    const placeNameTrimmed = placeName.trim();
+    
+    // Compare brand with place name (case-insensitive)
+    // If they match, don't show brand (it's redundant)
+    const brandMatchesName = placeNameTrimmed && 
+      brandValueTrimmed.toLowerCase() === placeNameTrimmed.toLowerCase();
+    
+    if (!brandMatchesName) {
+      const brandItem = document.createElement("div");
+      brandItem.className = "list-group-item";
+      brandItem.style.padding = "0";
+      
+      const container = document.createElement("div");
+      container.style.padding = SECTION_PADDING;
+      container.style.paddingBottom = SECTION_PADDING;
+      container.style.borderTop = "1px solid";
+      container.style.borderColor = "rgba(0, 0, 0, 0.12)";
+      container.style.minHeight = "auto";
+      
+      const header = document.createElement("h6");
+      header.style.fontSize = "1.125rem";
+      header.style.fontWeight = "600";
+      header.style.color = "rgba(0, 0, 0, 0.87)";
+      header.style.letterSpacing = "-0.01em";
+      header.style.margin = "0 0 4px 0";
+      header.textContent = "Brand";
+      container.appendChild(header);
+      
+      const brandP = document.createElement("p");
+      brandP.className = "small mb-1";
+      brandP.style.margin = "0";
+      brandP.textContent = brandValueTrimmed;
+      container.appendChild(brandP);
+      
+      brandItem.appendChild(container);
+      list.appendChild(brandItem);
+    }
+  }
+
   // --- Render basic tags (address, amenity, etc.) ---
 Object.entries(nTags).forEach(([key, value]) => {
   const lk = key.trim().toLowerCase();
@@ -3207,7 +3410,10 @@ Object.entries(nTags).forEach(([key, value]) => {
   if (isWebsiteVariant) return;
 
   const isPhoneVariant =
-    /^(phone|contact:phone|contact:mobile|mobile|contact:fax)$/i.test(key);
+    /^(phone|contact:phone|contact:mobile|mobile|contact:fax)$/i.test(key) ||
+    /^phone:(mobile|landline|fax|.*)$/i.test(key) ||
+    /^phone_(mobile|landline|fax|.*)$/i.test(key) ||
+    /^phone-(mobile|landline|fax|.*)$/i.test(key);
   if (isPhoneVariant) return;
 
   const isEmailVariant = /^(email|contact:email)$/i.test(key);
@@ -3280,6 +3486,82 @@ Object.entries(nTags).forEach(([key, value]) => {
       key === "payment:credit_cards" || key === "payment:debit_cards" || key === "payment:cash") {
     return;
   }
+  
+  // Skip smoking tags - will be handled in Features section
+  if (lk === "smoking" || lk === "smoking:yes" || lk === "smoking:no" || lk === "smoking:dedicated" ||
+      key === "smoking" || key === "smoking:yes" || key === "smoking:no" || key === "smoking:dedicated") {
+    return;
+  }
+  
+  // Skip store tag - not useful for users
+  if (lk === "store" || key === "store") {
+    return;
+  }
+  
+  // Skip brand tags - will be handled in Brand section (single localized display)
+  if (lk === "brand" || lk.startsWith("brand:") || key === "brand" || key.startsWith("brand:")) {
+    return;
+  }
+  
+  // Skip official name tags - technical/legal OSM data, not needed in main UI
+  if (lk === "official_name" || lk.startsWith("official_name:") || 
+      key === "official_name" || key.startsWith("official_name:") ||
+      lk === "official-name" || lk.startsWith("official-name:") ||
+      key === "official-name" || key.startsWith("official-name:")) {
+    return;
+  }
+  
+  // Skip technical OSM fields - not useful for users
+  // osm_value: OSM tagging info (e.g., landuse=residential, highway=residential) - internal only
+  if (lk === "osm_value" || key === "osm_value") {
+    return;
+  }
+  
+  // extent: bounding box coordinates - purely technical, only used for map zooming
+  if (lk === "extent" || key === "extent" || lk === "boundingbox" || key === "boundingbox") {
+    return;
+  }
+  
+  // Skip technical communication tower fields - handled in special Communication Tower section
+  if (lk === "man_made" || lk === "man-made" || key === "man_made" || key === "man-made") {
+    // Only skip if it's a communication tower (mast), otherwise show it
+    const manMadeVal = String(value).toLowerCase().trim();
+    if (manMadeVal === "mast") return;
+  }
+  if (lk === "tower:type" || lk === "tower_type" || lk === "tower-type" ||
+      key === "tower:type" || key === "tower_type" || key === "tower-type") {
+    return;
+  }
+  if (lk === "tower:construction" || lk === "tower_construction" || lk === "tower-construction" ||
+      key === "tower:construction" || key === "tower_construction" || key === "tower-construction") {
+    return;
+  }
+  
+  // Skip individual communication tags (gsm, lte, umts, mobile_phone) - they're combined in Communication Tower section
+  if (/^communication:(gsm|lte|umts|mobile_phone|mobile-phone)$/i.test(key) ||
+      /^communication_(gsm|lte|umts|mobile_phone|mobile_phone)$/i.test(key)) {
+    const commVal = String(value).toLowerCase().trim();
+    if (commVal === "yes") return; // Only skip "yes" values, show others if any
+  }
+  
+  // Height: only show if it's a number and seems useful (not for communication towers)
+  if (lk === "height" || key === "height") {
+    // Skip height for communication towers (too technical)
+    const manMadeVal = nTags.man_made || nTags["man_made"] || nTags["man-made"] || null;
+    const towerTypeVal = nTags["tower:type"] || nTags["tower_type"] || nTags["tower-type"] || null;
+    const isCommTower = (manMadeVal && String(manMadeVal).toLowerCase().trim() === "mast") ||
+                        (towerTypeVal && String(towerTypeVal).toLowerCase().trim() === "communication");
+    if (isCommTower) return;
+    
+    // For other places, format height nicely if it's a number
+    const heightNum = parseFloat(value);
+    if (!isNaN(heightNum) && heightNum > 0) {
+      // Format as "Height: ~18 m" and continue to render it
+      // We'll handle the formatting in the display section below
+    } else {
+      return; // Skip non-numeric height values
+    }
+  }
 
   // Skip amenity=yes (useless)
   if (lk === "amenity" && lv === "yes") return;
@@ -3333,12 +3615,25 @@ Object.entries(nTags).forEach(([key, value]) => {
       const title = m[2].replace(/\s/g, "_");
       const href = `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(title)}`;
       const displayTitle = m[2].replace(/_/g, " ");
-    item.innerHTML = `
-      <div class="me-2">
-          <h6 class="mb-1 fw-semibold">About the subject</h6>
-          <p class="small mb-1"><a href="${href}" target="_blank" rel="noopener">${displayTitle} (Wikipedia)</a></p>
-      </div>`;
-    list.appendChild(item);
+      
+      // Use consistent structure with other sections
+      item.className = "list-group-item";
+      item.style.padding = "0";
+      
+      const container = document.createElement("div");
+      container.style.padding = SECTION_PADDING;
+      container.style.paddingBottom = SECTION_PADDING;
+      container.style.borderTop = "1px solid";
+      container.style.borderColor = "rgba(0, 0, 0, 0.12)";
+      container.style.minHeight = "60px"; // Minimum height for consistent spacing
+      
+      container.innerHTML = `
+        <h6 style="font-size: 1.125rem; font-weight: 600; color: rgba(0, 0, 0, 0.87); letter-spacing: -0.01em; margin: 0 0 4px 0;">About the subject</h6>
+        <p class="small mb-1" style="margin: 0;"><a href="${href}" target="_blank" rel="noopener">${displayTitle} (Wikipedia)</a></p>
+      `;
+      
+      item.appendChild(container);
+      list.appendChild(item);
       return;
     }
   }
@@ -3357,8 +3652,8 @@ Object.entries(nTags).forEach(([key, value]) => {
           return word.toLowerCase();
         })
         .join(" ");
-      item.innerHTML = `
-        <div class="me-2">
+    item.innerHTML = `
+      <div class="me-2">
           <h6 class="mb-1 fw-semibold">Type</h6>
           <p class="small mb-1">Memorial – ${formattedType}</p>
         </div>`;
@@ -3370,8 +3665,8 @@ Object.entries(nTags).forEach(([key, value]) => {
         <div class="me-2">
           <h6 class="mb-1 fw-semibold">Type</h6>
           <p class="small mb-1">Memorial</p>
-        </div>`;
-      list.appendChild(item);
+      </div>`;
+    list.appendChild(item);
       return;
     }
   }
@@ -3390,11 +3685,24 @@ Object.entries(nTags).forEach(([key, value]) => {
       const href = `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(
         title
       )}`;
-      item.innerHTML = `
-        <div class="me-2">
-          <h6 class="mb-1 fw-semibold">Wikipedia</h6>
-          <p class="small mb-1"><a href="${href}" target="_blank" rel="noopener">Wikipedia (${lang})</a></p>
-        </div>`;
+      
+      // Use consistent structure with other sections
+      item.className = "list-group-item";
+      item.style.padding = "0";
+      
+      const container = document.createElement("div");
+      container.style.padding = SECTION_PADDING;
+      container.style.paddingBottom = SECTION_PADDING;
+      container.style.borderTop = "1px solid";
+      container.style.borderColor = "rgba(0, 0, 0, 0.12)";
+      container.style.minHeight = "60px"; // Minimum height for consistent spacing
+      
+      container.innerHTML = `
+        <h6 style="font-size: 1.125rem; font-weight: 600; color: rgba(0, 0, 0, 0.87); letter-spacing: -0.01em; margin: 0 0 4px 0;">Wikipedia</h6>
+        <p class="small mb-1" style="margin: 0;"><a href="${href}" target="_blank" rel="noopener">Wikipedia (${lang})</a></p>
+      `;
+      
+      item.appendChild(container);
       list.appendChild(item);
       return;
     }
@@ -3424,12 +3732,12 @@ Object.entries(nTags).forEach(([key, value]) => {
             <p style="font-size: 0.875rem; color: rgba(0, 0, 0, 0.87); margin: 0;">
               <a href="${cleanedUrl}" target="_blank" rel="noopener nofollow" style="color: var(--bs-primary); text-decoration: none;">Network</a>
             </p>
-          </div>`;
+        </div>`;
         
         item.appendChild(container);
-        list.appendChild(item);
-        return;
-      }
+      list.appendChild(item);
+      return;
+    }
     }
     // If URL cleaning failed, skip this tag
     return;
@@ -3441,6 +3749,8 @@ Object.entries(nTags).forEach(([key, value]) => {
     displayKey = "Address";
   } else if (lk === "amenity") {
     displayKey = "Category"; // Rename "Amenity" to "Category"
+  } else if (lk === "height") {
+    displayKey = "Height"; // Simple label for height
   } else {
     displayKey = key
       .replace(/^Addr_?/i, "")
@@ -3479,16 +3789,27 @@ Object.entries(nTags).forEach(([key, value]) => {
     return trimmed;
   };
 
-  const displayValue = String(value)
+  // Special formatting for height field
+  let displayValue;
+  if (lk === "height" || key === "height") {
+    const heightNum = parseFloat(value);
+    if (!isNaN(heightNum) && heightNum > 0) {
+      displayValue = `~${heightNum} m`;
+    } else {
+      displayValue = formatValueForDisplay(String(value));
+    }
+  } else {
+    displayValue = String(value)
     .split(";")
     .map((part) => part.trim())
     .filter((part) => part)
-    .map((part) => {
-      // Clean URLs before formatting
-      const cleaned = cleanUrlInValue(part);
-      return formatValueForDisplay(cleaned);
-    })
-    .join(" • ");
+      .map((part) => {
+        // Clean URLs before formatting
+        const cleaned = cleanUrlInValue(part);
+        return formatValueForDisplay(cleaned);
+      })
+      .join(" • ");
+  }
 
   // 🧨 Final safety net:
   // If this generic row would have the label "Contact", skip it completely.
@@ -3773,8 +4094,19 @@ Object.entries(nTags).forEach(([key, value]) => {
   }
 
   // ✅ Fetch reviews ONCE (with small retry for consistency)
+  // Only fetch reviews if we have a valid UUID (not an OSM ID)
   const key = showLoading("reviews-load");
   globals.reviews = [];
+  
+  // Check if placeId is a valid UUID (not an OSM ID like "node/123")
+  const isValidUUID = (id) => {
+    if (!id || typeof id !== 'string') return false;
+    // UUID format: 8-4-4-4-12 hex characters
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(id) && !id.includes('/'); // Also reject OSM IDs with "/"
+  };
+  
+  if (isValidUUID(globals.detailsCtx.placeId)) {
   try {
     let retries = 3;
     while (retries-- > 0) {
@@ -3787,6 +4119,10 @@ Object.entries(nTags).forEach(([key, value]) => {
       }
     }
   } finally {
+      hideLoading(key);
+    }
+  } else {
+    console.warn("⚠️ Skipping review fetch: placeId is not a valid UUID:", globals.detailsCtx.placeId);
     hideLoading(key);
   }
 
@@ -4465,26 +4801,104 @@ async function selectDestinationSuggestion(res) {
     if (polyLike) {
       selectedPlaceLayer = L.geoJSON(geojsonGeometry, {
         style: {
-          color: "#d33",
+          color: "var(--bs-primary)",
           weight: 2,
           opacity: 0.8,
-          fillColor: "#f03",
+          fillColor: "var(--bs-primary)",
           fillOpacity: 0.1,
           dashArray: "6,4",
         },
       });
       map.fitBounds(selectedPlaceLayer.getBounds());
     } else {
-      const icon = waypointDivIcon("", WP_COLORS.end);
-      selectedPlaceLayer = L.marker(L.latLng(res.center), {
-        icon,
+      // Get the computed primary color value (CSS variables don't work in inline HTML)
+      const primaryColor = getComputedStyle(document.documentElement)
+        .getPropertyValue('--bs-primary')
+        .trim() || '#0c77d2';
+      
+      // Parse RGB values for opacity
+      const rgbMatch = primaryColor.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+      const r = rgbMatch ? parseInt(rgbMatch[1], 16) : 12;
+      const g = rgbMatch ? parseInt(rgbMatch[2], 16) : 119;
+      const b = rgbMatch ? parseInt(rgbMatch[3], 16) : 210;
+      
+      // Create background highlight circle (centered on place location, behind the marker)
+      const highlightCircle = L.circleMarker(L.latLng(res.center), {
+        radius: 40, // 40px radius = 80px diameter
+        fillColor: primaryColor,
+        fillOpacity: 0.2,
+        color: '#ffffff',
+        weight: 3,
+        opacity: 1,
+        interactive: false,
+        className: 'selected-place-highlight',
+        pane: 'markerPane', // Use marker pane but with lower z-index
+      });
+      
+      // Create speech bubble marker with Material Icon inside
+      // Using Directions icon as it's appropriate for a selected place
+      const selectedPlaceIcon = L.divIcon({
+        className: "selected-place-marker",
+        html: `
+          <div style="
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            background: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+          ">
+            <!-- Material Icon inside -->
+            <span class="material-icons" style="
+              font-size: 20px;
+              color: ${primaryColor};
+              line-height: 1;
+            ">place</span>
+            <!-- Triangle pointer -->
+            <div style="
+              position: absolute;
+              bottom: -6px;
+              left: 50%;
+              transform: translateX(-50%);
+              width: 0;
+              height: 0;
+              border-width: 6px 6px 0 6px;
+              border-style: solid;
+              border-color: #ffffff transparent transparent transparent;
+            "></div>
+          </div>
+        `,
+        iconSize: [36, 42], // 36px width, 42px height (36 + 6px pointer)
+        iconAnchor: [18, 42], // Center horizontally, bottom at pointer tip
+        popupAnchor: [0, -36],
+      });
+      
+      // Create the speech bubble marker
+      const speechBubbleMarker = L.marker(L.latLng(res.center), {
+        icon: selectedPlaceIcon,
         keyboard: false,
         interactive: false,
+        zIndexOffset: 1000, // Ensure it appears on top of other markers and the circle
+        pane: 'markerPane',
       });
-      map.setView(selectedPlaceLayer.getLatLng(), 18);
+      
+      // Create layer group to hold both circle (behind) and marker (on top)
+      selectedPlaceLayer = L.layerGroup([
+        highlightCircle, // Add circle first (will be behind)
+        speechBubbleMarker, // Add marker second (will be on top)
+      ]);
+      
+      map.setView(L.latLng(res.center), 18);
     }
 
     selectedPlaceLayer.addTo(map);
+    // Bring to front to ensure it's visible above other markers
+    if (selectedPlaceLayer.bringToFront) {
+      selectedPlaceLayer.bringToFront();
+    }
     await setTo(L.latLng(res.center), res.name);
 
     // 🧭 STEP 1: basic Photon tags
@@ -4867,7 +5281,29 @@ export async function initMap(user = null) {
         const { latitude, longitude } = position.coords;
         myLocationLatLng = L.latLng(latitude, longitude);
         map.setView([latitude, longitude], DEFAULT_ZOOM);
-        L.marker([latitude, longitude]).addTo(map);
+        // Avoid Leaflet's default marker-icon.png (often 404 in Next builds).
+        // Use a lightweight divIcon instead.
+        const myLocIcon = L.divIcon({
+          className: "abilico-my-location-icon",
+          html: `
+            <div style="
+              width: 14px;
+              height: 14px;
+              background: var(--bs-primary);
+              border: 3px solid #fff;
+              border-radius: 9999px;
+              box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+            "></div>
+          `,
+          iconSize: [20, 20],
+          iconAnchor: [10, 10],
+        });
+
+        L.marker([latitude, longitude], {
+          icon: myLocIcon,
+          interactive: false,
+          keyboard: false,
+        }).addTo(map);
       },
       (error) => {
         const userDeniedGeolocation = error.code === 1;
@@ -5141,12 +5577,35 @@ export async function initMap(user = null) {
     const submitBtn = e.target.querySelector("#submit-review-btn");
     try {
       console.log("🧭 Review submit ctx:", globals.detailsCtx);
-      const placeId =
+      
+      // Helper to validate UUID
+      const isValidUUID = (id) => {
+        if (!id || typeof id !== 'string') return false;
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        return uuidRegex.test(id) && !id.includes('/');
+      };
+      
+      let placeId =
         globals.detailsCtx.placeId ??
         (await ensurePlaceExists(
           globals.detailsCtx.tags,
           globals.detailsCtx.latlng
         ));
+      
+      // If placeId is not a valid UUID, try to get it from ensurePlaceExists
+      if (!isValidUUID(placeId)) {
+        placeId = await ensurePlaceExists(
+          globals.detailsCtx.tags,
+          globals.detailsCtx.latlng
+        );
+      }
+      
+      // Only proceed if we have a valid UUID
+      if (!isValidUUID(placeId)) {
+        toastError("Could not identify place. Please try again.");
+        return;
+      }
+      
       const newReview = { text, place_id: placeId };
 
       await withButtonLoading(

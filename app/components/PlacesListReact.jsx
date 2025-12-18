@@ -1975,7 +1975,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
               {hasPlaces
                 ? `${items.length} place${items.length === 1 ? "" : "s"}`
                 : zoom && zoom < SHOW_PLACES_ZOOM
-                ? "Zoom in to see accessible places"
+                ? "Zoom in on the map to see accessible places."
                 : "No places match your filters in this area."}
             </Typography>
           </Box>
@@ -2029,7 +2029,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
               }}
             >
               {zoom && zoom < SHOW_PLACES_ZOOM
-                ? "Zoom in on the map to load accessible points of interest."
+                ? "Zoom in on the map to see accessible places."
                 : photosOnly
                 ? 'No places with photos here yet. Try moving the map, zooming in, or turning off "Only places with photos".'
                 : "Try moving the map, changing accessibility filters, or clearing filters."}
@@ -2048,7 +2048,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
                     }}
                   >
                     {zoom && zoom < SHOW_PLACES_ZOOM
-                      ? "Zoom in on the map to load accessible points of interest."
+                      ? "Zoom in on the map to see accessible places."
                       : "Try moving the map, changing accessibility filters, or clearing filters."}
                   </Typography>
                 </Box>

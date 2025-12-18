@@ -895,7 +895,7 @@ export default function MapContainer({
         ) : (
           <Box sx={{ p: 2 }}>
             <Typography variant="body2" color="text.secondary">
-              Zoom in on the map to load accessible points of interest.
+              Zoom in on the map to see accessible places.
             </Typography>
           </Box>
         )}

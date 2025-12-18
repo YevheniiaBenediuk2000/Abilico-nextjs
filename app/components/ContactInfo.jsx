@@ -342,7 +342,7 @@ export default function ContactInfo({ website, phone, email }) {
                     },
                   }}
                 >
-                  <ListItemIcon sx={{ minWidth: 56, mr: 2 }}>
+                  <ListItemIcon sx={{ minWidth: 56, mr: 1 }}>
                     <Box
                       sx={{
                         display: "flex",
