@@ -2022,6 +2022,17 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     }
   }
   
+  // Extract fee information and map to friendly text
+  const feeValue = nTags.fee || nTags.Fee || null;
+  if (feeValue) {
+    const feeLower = String(feeValue).toLowerCase().trim();
+    if (feeLower === "no" || feeLower === "false") {
+      features.push({ type: "fee", label: "Free entry", icon: "local_offer" });
+    } else if (feeLower === "yes" || feeLower === "true") {
+      features.push({ type: "fee", label: "Paid entry", icon: "attach_money" });
+    }
+  }
+  
   // Consistent padding constant for all detail sections (24px = MUI spacing 3)
   const SECTION_PADDING = "24px";
   
@@ -3598,6 +3609,11 @@ Object.entries(nTags).forEach(([key, value]) => {
   
   // Skip drive_through - will be handled in Features section (only show if yes and relevant)
   if (lk === "drive_through" || lk === "drive-through") return;
+  
+  // Skip fee tag - will be handled in Features section as "Free entry" or "Paid entry"
+  if (lk === "fee" || key === "fee") {
+    return;
+  }
   
   // Skip payment tags - will be handled in Features section as a single chip
   if (lk === "payment:credit_cards" || lk === "payment:debit_cards" || lk === "payment:cash" ||
