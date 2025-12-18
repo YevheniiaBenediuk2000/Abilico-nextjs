@@ -1837,17 +1837,16 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
     let filtered = rawItems;
 
     if (activeTypeFilters) {
-      // Build an easy lookup of selected sublabels by group
-      const selected = new Map();
-      Object.entries(activeTypeFilters).forEach(([groupLabel, subs]) => {
-        const activeSubLabels = Object.entries(subs || {})
-          .filter(([, isOn]) => !!isOn)
-          .map(([subLabel]) => subLabel);
-        if (activeSubLabels.length) selected.set(groupLabel, activeSubLabels);
+      // If the saved filter is incomplete (e.g. only has "Shops"), do NOT hide other groups.
+      // Only hide things the user explicitly turned off.
+      let anyOn = false;
+      Object.values(activeTypeFilters).forEach((subs) => {
+        if (!subs || typeof subs !== "object" || Array.isArray(subs)) return;
+        if (Object.values(subs).some(Boolean)) anyOn = true;
       });
 
-      // if nothing is selected at all -> show nothing
-      if (selected.size === 0) {
+      // If nothing is selected at all -> show nothing (user explicitly deselected everything)
+      if (!anyOn) {
         filtered = [];
       } else {
         const labelForMajor = {
@@ -1868,9 +1867,18 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
           const subLabel = (item.typeSub || "other")
             .toString()
             .replace(/[_-]/g, " ");
-          const allowedSubs = selected.get(majorLabel);
-          if (!allowedSubs) return false;
-          return allowedSubs.includes(subLabel);
+
+          const group = activeTypeFilters[majorLabel];
+          // Group missing from saved filter => allow (avoid hiding categories unexpectedly)
+          if (!group || typeof group !== "object" || Array.isArray(group)) {
+            return true;
+          }
+
+          const val = group[subLabel];
+          // Subtype missing from saved filter => allow (avoid hiding new types)
+          if (typeof val === "undefined") return true;
+
+          return !!val;
         });
       }
     }

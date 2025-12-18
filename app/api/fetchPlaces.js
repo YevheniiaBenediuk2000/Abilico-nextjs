@@ -8,6 +8,14 @@ const OVERPASS_ENDPOINTS = [
   "https://overpass.kumi.systems/api/interpreter",
 ];
 
+// Helpful for Overpass operators + can reduce aggressive throttling in some deployments.
+// (User requirement: keep all categories; this only affects request metadata.)
+const HEADERS = {
+  "Content-Type": "text/plain;charset=UTF-8",
+  Accept: "application/json",
+  "User-Agent": "Abilico/1.0",
+};
+
 function isRateLimitError(err) {
   const msg = String(err?.message || "");
   return /\bOverpass error 429\b/.test(msg) || /\b429\b/.test(msg);
@@ -29,7 +37,7 @@ export async function fetchPlaceGeometry(osmType, osmId) {
   const type = { N: "node", W: "way", R: "relation" }[osmType];
 
   const query = `
-    [out:json];
+    [out:json][timeout:25];
     ${type}(${osmId});
     out geom;
   `;
@@ -37,13 +45,14 @@ export async function fetchPlaceGeometry(osmType, osmId) {
   let lastError = null;
 
   try {
-    for (const endpoint of OVERPASS_ENDPOINTS) {
+  for (const endpoint of OVERPASS_ENDPOINTS) {
     // console.log(`🌍 Trying Overpass endpoint: ${endpoint}`);
     try {
       return await pRetry(async () => {
         try {
           const response = await fetch(endpoint, {
             method: "POST",
+            headers: HEADERS,
             body: query,
             signal,
           });
@@ -98,7 +107,7 @@ export async function fetchPlace(osmType, osmId) {
   const type = { N: "node", W: "way", R: "relation" }[osmType];
 
   const query = `
-    [out:json];
+    [out:json][timeout:25];
     ${type}(${osmId});
     out center tags;
   `;
@@ -106,35 +115,36 @@ export async function fetchPlace(osmType, osmId) {
   let lastError = null;
 
   try {
-    for (const endpoint of OVERPASS_ENDPOINTS) {
-      try {
-        return await pRetry(async () => {
-          try {
-            const response = await fetch(endpoint, {
-              method: "POST",
-              body: query,
-              signal,
-            });
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      return await pRetry(async () => {
+        try {
+          const response = await fetch(endpoint, {
+            method: "POST",
+              headers: HEADERS,
+            body: query,
+            signal,
+          });
 
-            if (!response.ok) throw new Error("Overpass " + response.status);
-            const data = await response.json();
+          if (!response.ok) throw new Error("Overpass " + response.status);
+          const data = await response.json();
 
-            return data.elements[0].tags;
-          } catch (error) {
-            if (error?.name === "AbortError") {
-              return {};
-            }
-            throw error;
+          return data.elements[0].tags;
+        } catch (error) {
+          if (error?.name === "AbortError") {
+            return {};
           }
-        }, pRetryConfig);
-      } catch (error) {
-        if (error?.name === "AbortError") {
-          return {};
+          throw error;
         }
-
-        lastError = error;
-        console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
+      }, pRetryConfig);
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        return {};
       }
+
+      lastError = error;
+      console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
+    }
     }
   } finally {
     const current = placeAbortControllers.get(placeKey);
@@ -240,18 +250,20 @@ function selectorsForZoom(
   { AMENITY_EXCLUDED, LEISURE_EXCLUDED, MAN_MADE_EXCLUDED, MILITARY_EXCLUDED }
 ) {
   return [
-    `node["amenity"]["amenity"!~"${AMENITY_EXCLUDED}"]`,
-    `node["shop"]`,
-    `node["tourism"]`,
-    `node["leisure"]["leisure"!~"${LEISURE_EXCLUDED}"]`,
-    `node["healthcare"]`,
-    `node["building"]`,
-    `node["office"]`,
-    `node["craft"]`,
-    `node["historic"]`,
-    `node["man_made"]["man_made"!~"${MAN_MADE_EXCLUDED}"]`,
-    `node["military"]["military"!~"${MILITARY_EXCLUDED}"]`,
-    `node["sport"]`,
+    // Use `nwr` to include nodes + ways + relations.
+    // Many POIs (especially amenities/buildings) are mapped as ways, so node-only queries can look like "only shops".
+    `nwr["amenity"]["amenity"!~"${AMENITY_EXCLUDED}"]`,
+    `nwr["shop"]`,
+    `nwr["tourism"]`,
+    `nwr["leisure"]["leisure"!~"${LEISURE_EXCLUDED}"]`,
+    `nwr["healthcare"]`,
+    `nwr["building"]`,
+    `nwr["office"]`,
+    `nwr["craft"]`,
+    `nwr["historic"]`,
+    `nwr["man_made"]["man_made"!~"${MAN_MADE_EXCLUDED}"]`,
+    `nwr["military"]["military"!~"${MILITARY_EXCLUDED}"]`,
+    `nwr["sport"]`,
   ];
 }
 
@@ -317,12 +329,14 @@ export async function fetchPlaces(bounds, zoom, options) {
   }
 
   const outLimit = limitForZoom(zoom);
+  // `qt` speeds up output processing on Overpass (quick timestamps / faster output mode).
+  // Keep tags + centers as before.
   const outLine = outLimit
-    ? `out center tags ${outLimit};`
-    : `out center tags;`;
+    ? `out center tags ${outLimit} qt;`
+    : `out center tags qt;`;
 
   const query = `
-    [out:json][timeout:180];
+    [out:json][timeout:60];
     (
       ${queryParts.join(";\n      ")};
     );
@@ -339,6 +353,7 @@ export async function fetchPlaces(bounds, zoom, options) {
           // console.log("📡 POST →", endpoint, "query:", query.slice(0, 300));
           const response = await fetch(endpoint, {
             method: "POST",
+            headers: HEADERS,
             body: query,
             signal,
           });

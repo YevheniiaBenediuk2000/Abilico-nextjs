@@ -215,7 +215,7 @@ function isFeatureAllowedByTypeFilter(feature) {
   let totalFilters = 0;
   for (const groupLabel in placeTypeFilterState) {
     const group = placeTypeFilterState[groupLabel];
-    if (group && typeof group === 'object') {
+    if (group && typeof group === "object") {
       for (const subLabel in group) {
         totalFilters++;
         if (group[subLabel] === true) {
@@ -226,10 +226,8 @@ function isFeatureAllowedByTypeFilter(feature) {
       if (hasAnyActiveFilter) break;
     }
   }
-  
+
   // If filters are defined (totalFilters > 0) but none are selected, hide all places
-  // This allows users to deselect everything to see no places
-  // But if no filters are defined at all (empty object), show all (fallback to default behavior)
   if (totalFilters > 0 && !hasAnyActiveFilter) return false;
 
   const props = feature.properties || {};
@@ -262,7 +260,6 @@ function isFeatureAllowedByTypeFilter(feature) {
 
   const groupLabel = labelForMajor[major] || "Other";
 
-  // build subLabel exactly like in PlacesListReact
   const subRaw =
     tags[major] ||
     tags.amenity ||
@@ -279,10 +276,15 @@ function isFeatureAllowedByTypeFilter(feature) {
   const subLabel = subRaw.toString().replace(/[_-]/g, " ");
 
   const group = placeTypeFilterState[groupLabel];
-  if (!group) return false;
+
+  // 🔁 If user never configured this group, don't filter it out
+  if (!group) return true;
 
   const val = group[subLabel];
-  // if subLabel never existed in this group, treat as off
+
+  // 🔁 If this subtype was never seen/saved, treat it as ON by default
+  if (typeof val === "undefined") return true;
+
   return !!val;
 }
 
@@ -294,9 +296,25 @@ function placeKeyFromFeature(feature) {
     return `user/${p.id}`; // e.g. "user/uuid-here"
   }
 
-  // OSM places have osm_type and osm_id
-  const osmType = p.osm_type || p.type;
-  const osmId = p.osm_id || p.id;
+  // OSM places have osm_type and osm_id (or `type`/`id` from osmtogeojson)
+  let osmType = p.osm_type || p.type || null;
+  let osmId = p.osm_id || p.id || null;
+
+  // osmtogeojson often sets feature.id like "node/123", "way/456", "relation/789"
+  if ((!osmType || !osmId) && typeof feature?.id === "string") {
+    const parts = feature.id.split("/");
+    if (parts.length === 2) {
+      osmType = osmType || parts[0];
+      osmId = osmId || parts[1];
+    }
+  }
+
+  // Normalize long types to the short form used elsewhere in this app.
+  const typeMap = { node: "N", way: "W", relation: "R" };
+  if (typeof osmType === "string") {
+    const t = osmType.toLowerCase();
+    osmType = typeMap[t] || osmType;
+  }
 
   if (!osmType || !osmId) return null;
   return `${osmType}/${osmId}`; // e.g. "N/123456789"
@@ -864,10 +882,21 @@ async function refreshPlaces() {
     // ✅ 1. Try to reuse from cache (no network at all if present)
     let geojson = queryClient.getQueryData(queryKey);
 
+    // IMPORTANT: if we previously cached an empty Overpass response (rate limit/timeout),
+    // don't get stuck with it for a long time — force a refetch.
+    if (
+      geojson &&
+      Array.isArray(geojson.features) &&
+      geojson.features.length === 0
+    ) {
+      geojson = null;
+    }
+
     // ✅ 2. If not cached yet, fetch & cache via react-query
     if (!geojson) {
       geojson = await queryClient.fetchQuery({
         queryKey,
+        staleTime: 30 * 1000,
         queryFn: () => fetchPlaces(bounds, zoom, { accessibilityFilter }),
       });
     }
