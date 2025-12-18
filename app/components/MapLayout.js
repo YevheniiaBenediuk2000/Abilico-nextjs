@@ -174,9 +174,14 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
                 <IconButton
                   size="large"
                   edge="start"
-                  color="inherit"
                   aria-label={isPlacesListOpen ? "close places list" : "open places list"}
                   onClick={() => setIsPlacesListOpen((prev) => !prev)}
+                  sx={{
+                    color: "rgba(0, 0, 0, 0.54)",
+                    "&:hover": {
+                      backgroundColor: "rgba(0, 0, 0, 0.04)",
+                    },
+                  }}
                 >
                   {isPlacesListOpen ? <CloseIcon /> : <MenuIcon />}
                 </IconButton>

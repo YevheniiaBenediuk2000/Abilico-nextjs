@@ -1274,7 +1274,8 @@ async function renderReviewsList() {
 
   if (!globals.reviews || globals.reviews.length === 0) {
     const emptyContainer = document.createElement("div");
-    emptyContainer.style.padding = "24px";
+    emptyContainer.style.padding = "0";
+    emptyContainer.style.paddingTop = "8px";
     emptyContainer.style.textAlign = "center";
     
     const emptyMsg = document.createElement("div");

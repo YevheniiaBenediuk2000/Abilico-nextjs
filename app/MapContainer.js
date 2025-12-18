@@ -1432,7 +1432,7 @@ export default function MapContainer({
                             alignItems: "center",
                             justifyContent: "space-between",
                             gap: 2,
-                            mb: !reviewStats.count ? 2 : 1,
+                            mb: 2,
                           }}
                         >
                           <Typography variant="h6">
@@ -1447,16 +1447,32 @@ export default function MapContainer({
                             }}
                           >
                             {!reviewStats.count ? (
-                              <>
-                                <StarBorderIcon sx={{ fontSize: "1.25rem", color: "text.secondary" }} />
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 0.5,
+                                }}
+                              >
+                                <StarBorderIcon 
+                                  sx={{ 
+                                    fontSize: "0.875rem", 
+                                    color: "text.secondary",
+                                    display: "block",
+                                    lineHeight: 1,
+                                  }} 
+                                />
                                 <Typography
                                   variant="caption"
                                   color="text.secondary"
-                                  sx={{ fontSize: "0.75rem" }}
+                                  sx={{ 
+                                    fontSize: "0.75rem", 
+                                    lineHeight: 1,
+                                  }}
                                 >
                                   No reviews yet
                                 </Typography>
-                              </>
+                              </Box>
                             ) : (
                               <>
                                 <Rating
@@ -1484,8 +1500,8 @@ export default function MapContainer({
                               display: "flex",
                               flexDirection: "column",
                               alignItems: "center",
-                              gap: 1.5,
-                              mb: 2,
+                              gap: 2,
+                              mb: 1,
                             }}
                           >
                             <Button
