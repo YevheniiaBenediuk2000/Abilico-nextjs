@@ -51,6 +51,10 @@ import { supabase } from "./api/supabaseClient.js";
 import { ensurePlaceExists, reviewStorage } from "./api/reviewStorage.js";
 import { formatAddressFromTags, formatAreaFromTags, formatLevel } from "./utils/formatAddress.mjs";
 import {
+  BRAND_WIKIDATA_MAP,
+  SUPPRESSED_BRAND_WIKIDATA,
+} from "./constants/brandWikidataMap.js";
+import {
   cleanUrl,
   hostLabel,
   linkLabel,
@@ -301,6 +305,13 @@ function placeKeyFromFeature(feature) {
 async function showQuickRoutePopup(latlng) {
   // Reverse geocode to get location name
   let locationName = null;
+  const escapeHtml = (value) =>
+    String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng.lat}&lon=${latlng.lng}&zoom=18&addressdetails=1`;
     const response = await fetch(url, {
@@ -338,15 +349,24 @@ async function showQuickRoutePopup(latlng) {
     console.warn("Reverse geocoding failed:", err);
   }
 
+  const safeLocationName = locationName ? escapeHtml(locationName) : null;
+  const locationLabel = safeLocationName || "Selected location";
   const html = `
     <div class="quick-route-popup-container">
-      <button id="qp-directions" type="button" class="quick-route-btn" aria-label="Get directions to this place">
-        <span class="material-icons quick-route-icon">directions</span>
-        <span class="quick-route-text">Directions</span>
-      </button>
-      <button id="qp-close" type="button" class="quick-route-close" aria-label="Close">
-        <span class="material-icons">close</span>
-      </button>
+      <div class="quick-route-bubble" role="group" aria-label="Directions">
+        <button id="qp-close" type="button" class="quick-route-close" aria-label="Close">
+          <span class="material-icons">close</span>
+        </button>
+        <div class="quick-route-location" title="${locationLabel}">
+          ${locationLabel}
+        </div>
+        <div class="quick-route-actions">
+          <button id="qp-directions" type="button" class="quick-route-btn" aria-label="Get directions to this place">
+            <span class="material-icons quick-route-icon">directions</span>
+            <span class="quick-route-text">Directions</span>
+          </button>
+        </div>
+      </div>
     </div>
   `;
 
@@ -2100,6 +2120,35 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     }
     // Skip if no or missing - don't show "No indoor seating" to avoid clutter
   }
+
+  // Banking services (service info, not accessibility)
+  // Only show when the value is explicitly known (true/false).
+  const bankingServices = [];
+  const parseKnownBool = (v) => {
+    if (v == null) return null;
+    const s = String(v).trim().toLowerCase();
+    if (!s) return null;
+    if (s === "yes" || s === "true" || s === "1") return true;
+    if (s === "no" || s === "false" || s === "0") return false;
+    return null; // unknown / ambiguous -> don't show
+  };
+
+  const atmBool = parseKnownBool(nTags.atm || nTags.ATM || null);
+  if (atmBool !== null) {
+    bankingServices.push(`ATM: ${atmBool ? "Available" : "Not available"}`);
+  }
+
+  const cashInBool = parseKnownBool(
+    nTags.cash_in ||
+      nTags["cash-in"] ||
+      nTags["cash in"] ||
+      nTags.Cash_in ||
+      nTags["Cash In"] ||
+      null
+  );
+  if (cashInBool !== null) {
+    bankingServices.push(`Cash-in deposits: ${cashInBool ? "Available" : "Not available"}`);
+  }
   
   // Consistent padding constant for all detail sections (24px = MUI spacing 3)
   const SECTION_PADDING = "24px";
@@ -3170,6 +3219,46 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     list.appendChild(addressItem);
   }
 
+  // --- BANKING SERVICES: ATM & cash-in deposits (clean grouped display) ---
+  if (bankingServices && bankingServices.length > 0) {
+    const bankingItem = document.createElement("div");
+    bankingItem.className = "list-group-item";
+    bankingItem.style.padding = "0";
+
+    const container = document.createElement("div");
+    container.style.padding = SECTION_PADDING;
+    container.style.paddingBottom = SECTION_PADDING;
+    container.style.borderTop = "1px solid";
+    container.style.borderColor = "rgba(0, 0, 0, 0.12)";
+    container.style.minHeight = "auto";
+
+    const header = document.createElement("h6");
+    header.style.fontSize = "1.125rem";
+    header.style.fontWeight = "600";
+    header.style.color = "rgba(0, 0, 0, 0.87)";
+    header.style.letterSpacing = "-0.01em";
+    header.style.margin = "0 0 12px 0";
+    header.textContent = "Banking services";
+    container.appendChild(header);
+
+    const ul = document.createElement("ul");
+    ul.style.margin = "0";
+    ul.style.paddingLeft = "18px";
+    ul.style.fontSize = "0.875rem";
+    ul.style.color = "rgba(0, 0, 0, 0.87)";
+    ul.style.lineHeight = "1.6";
+
+    bankingServices.forEach((line) => {
+      const li = document.createElement("li");
+      li.textContent = line;
+      ul.appendChild(li);
+    });
+
+    container.appendChild(ul);
+    bankingItem.appendChild(container);
+    list.appendChild(bankingItem);
+  }
+
   // --- FEATURES: Drive-through, Dispensing, etc. ---
   // Reuse the features array that was already created for header chips
   // Only show Features section if there are features to display
@@ -3613,13 +3702,30 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   
   // Collect all brand tags (safety check for nTags)
   const brandTags = {};
+  let brandWikidata = null;
   if (nTags && typeof nTags === 'object') {
     Object.keys(nTags).forEach(key => {
       const lk = key.toLowerCase();
-      if (lk === "brand" || lk.startsWith("brand:")) {
-        const langMatch = key.match(/^brand:([a-z]{2,3})$/i);
-        const lang = langMatch ? langMatch[1].toLowerCase() : null;
-        brandTags[lang || "default"] = nTags[key];
+
+      // Track technical Wikidata brand id separately (never display raw Q-IDs)
+      if (lk === "brand:wikidata" || lk === "brand_wikidata" || lk === "brand-wikidata") {
+        const v = nTags[key];
+        if (v != null && String(v).trim()) brandWikidata = String(v).trim();
+        return;
+      }
+
+      // Only accept human-readable brand text:
+      // - `brand`
+      // - language variants like `brand:en`, `brand:uk`, etc.
+      if (lk === "brand") {
+        brandTags.default = nTags[key];
+        return;
+      }
+
+      const langMatch = lk.match(/^brand:([a-z]{2,3})$/i);
+      if (langMatch) {
+        const lang = langMatch[1].toLowerCase();
+        brandTags[lang] = nTags[key];
       }
     });
   }
@@ -3631,6 +3737,10 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     // Strip language prefix like "en:", "uk:", etc.
     return trimmed.replace(/^[a-z]{2}:/i, '');
   };
+
+  // Raw Wikidata Q-IDs are technical metadata and must never be shown to users.
+  // Note: this is intentionally strict so brands like "7-Eleven" are NOT hidden.
+  const isWikidataQid = (v) => /^Q\d+$/i.test(String(v ?? "").trim());
   
   // Determine which brand value to show (prioritize UI language, then default, then any available)
   let brandValue = null;
@@ -3656,11 +3766,30 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   if (brandValue) {
     brandValue = normalizeBrand(brandValue);
   }
+
+  // If we only have `brand:wikidata=Q...`, optionally map it to a readable brand name.
+  // If it's unknown, we hide the Brand row rather than showing the Q-ID.
+  let uiBrandValue = (brandValue && String(brandValue).trim()) ? String(brandValue).trim() : null;
+
+  // Hard suppression for specific known-bad `brand:wikidata` ids: hide Brand row completely.
+  if (brandWikidata && SUPPRESSED_BRAND_WIKIDATA?.has?.(brandWikidata)) {
+    uiBrandValue = null;
+  }
+
+  if (!uiBrandValue && brandWikidata && BRAND_WIKIDATA_MAP[brandWikidata]) {
+    uiBrandValue = String(BRAND_WIKIDATA_MAP[brandWikidata]).trim();
+  }
+
+  // Defensive: if data import incorrectly stored a Q-ID in `brand`, never show it.
+  // If we can map it, show the mapped name; otherwise hide the Brand row.
+  if (uiBrandValue && isWikidataQid(uiBrandValue)) {
+    uiBrandValue = BRAND_WIKIDATA_MAP[uiBrandValue] ? String(BRAND_WIKIDATA_MAP[uiBrandValue]).trim() : null;
+  }
   
   // Show brand if we have a value and it doesn't match the place name
   // Brand is used internally for search/filter, but don't show if title already matches it
-  if (brandValue && String(brandValue).trim()) {
-    const brandValueTrimmed = String(brandValue).trim();
+  if (uiBrandValue && String(uiBrandValue).trim()) {
+    const brandValueTrimmed = String(uiBrandValue).trim();
     const placeName = titleText || "";
     const placeNameTrimmed = placeName.trim();
     
@@ -3824,6 +3953,12 @@ Object.entries(nTags).forEach(([key, value]) => {
   
   // Skip drive_through - will be handled in Features section (only show if yes and relevant)
   if (lk === "drive_through" || lk === "drive-through") return;
+
+  // Skip ATM tag - will be handled in Banking services section (only show when value is known)
+  if (lk === "atm") return;
+
+  // Skip cash_in tag - will be handled in Banking services section
+  if (lk === "cash_in" || lk === "cash-in" || lk === "cash in") return;
   
   // Skip fee tag - will be handled in Features section as "Free entry" or "Paid entry"
   if (lk === "fee" || key === "fee") {

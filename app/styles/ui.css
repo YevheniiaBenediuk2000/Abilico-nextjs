@@ -75,50 +75,79 @@
   display: inline-block;
 }
 
-.quick-route-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  background-color: var(--bs-primary);
-  color: white;
-  border: 2px solid white;
-  border-radius: 24px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1);
-  transition: all 0.2s ease-in-out;
+.quick-route-bubble {
   position: relative;
-  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 240px;
+  max-width: 320px;
+  padding: 12px 14px 12px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 18px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
-.quick-route-btn::before {
+/* Pointer/triangle belongs to the WHITE bubble (not the blue button) */
+.quick-route-bubble::before {
   content: "";
   position: absolute;
-  bottom: -12px;
   left: 50%;
+  bottom: -12px;
   transform: translateX(-50%);
   width: 0;
   height: 0;
   border-left: 12px solid transparent;
   border-right: 12px solid transparent;
-  border-top: 12px solid white;
-  z-index: -1;
+  border-top: 12px solid rgba(0, 0, 0, 0.12);
 }
 
-.quick-route-btn::after {
+.quick-route-bubble::after {
   content: "";
   position: absolute;
-  bottom: -10px;
   left: 50%;
+  bottom: -11px;
   transform: translateX(-50%);
   width: 0;
   height: 0;
-  border-left: 10px solid transparent;
-  border-right: 10px solid transparent;
-  border-top: 10px solid var(--bs-primary);
-  z-index: 0;
+  border-left: 11px solid transparent;
+  border-right: 11px solid transparent;
+  border-top: 11px solid #fff;
+}
+
+.quick-route-location {
+  padding-right: 28px; /* room for the close button */
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgba(0, 0, 0, 0.88);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quick-route-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.quick-route-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background-color: var(--bs-primary);
+  color: white;
+  border: 1px solid var(--bs-primary);
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14), 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s ease-in-out;
+  position: relative;
+  z-index: 1;
 }
 
 .quick-route-btn:hover {
@@ -143,8 +172,8 @@
 
 .quick-route-close {
   position: absolute;
-  top: -8px;
-  right: -8px;
+  top: -10px;
+  right: -10px;
   width: 24px;
   height: 24px;
   display: flex;
