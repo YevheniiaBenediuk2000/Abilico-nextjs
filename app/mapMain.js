@@ -4231,13 +4231,22 @@ export async function initMap(user = null) {
   // Instead of repeating fetch + error handling in both functions,
   // we define a helper that guarantees consistent error messages.
   const safeFetch = async (url) => {
-    const res = await fetch(url);
+    try {
+      const res = await fetch(url);
 
-    // If Photon responds with non-2xx (e.g., 403 or 500), throw a descriptive error.
-    if (!res.ok) throw new Error(`Photon HTTP ${res.status}`);
+      // If Photon responds with non-2xx (e.g., 403 or 500), throw a descriptive error.
+      if (!res.ok) throw new Error(`Photon HTTP ${res.status}`);
 
-    // Parse JSON — Photon always returns valid GeoJSON FeatureCollection.
-    return res.json();
+      // Parse JSON — Photon always returns valid GeoJSON FeatureCollection.
+      return res.json();
+    } catch (error) {
+      // Handle network errors (Failed to fetch, CORS, etc.)
+      if (error instanceof TypeError && error.message === "Failed to fetch") {
+        throw new Error("Network error: Unable to reach geocoding service. Please check your internet connection.");
+      }
+      // Re-throw other errors as-is
+      throw error;
+    }
   };
 
   // ------------------------------------------------------------
