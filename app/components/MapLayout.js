@@ -26,6 +26,7 @@ import Divider from "@mui/material/Divider";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import { deepOrange, deepPurple } from "@mui/material/colors";
 import MenuIcon from "@mui/icons-material/Menu";
+import CloseIcon from "@mui/icons-material/Close";
 import SearchIcon from "@mui/icons-material/Search";
 import LogoutIcon from "@mui/icons-material/Logout";
 import PersonIcon from "@mui/icons-material/Person";
@@ -174,10 +175,10 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
                   size="large"
                   edge="start"
                   color="inherit"
-                  aria-label="open places list"
+                  aria-label={isPlacesListOpen ? "close places list" : "open places list"}
                   onClick={() => setIsPlacesListOpen((prev) => !prev)}
                 >
-                  <MenuIcon />
+                  {isPlacesListOpen ? <CloseIcon /> : <MenuIcon />}
                 </IconButton>
               )}
 
