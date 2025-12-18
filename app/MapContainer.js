@@ -957,21 +957,26 @@ export default function MapContainer({
         hideBackdrop
         PaperProps={{
           sx: (theme) => ({
-            width: 420,
+            // A bit wider on desktop so route inputs/details breathe more
+            width: { xs: "100vw", sm: 420, md: 520 },
             maxWidth: "80vw",
             px: 0,
             py: 0,
             bgcolor: "transparent",
             boxShadow: "none", // ✅ remove the right-hand shadow
             borderLeft: "none",
+            // Base: behave like a normal persistent drawer on mobile
             top: 56,
+            right: 0,
             height: "calc(100% - 56px)",
             overflow: "hidden",
             display: "flex",
             flexDirection: "column",
             [theme.breakpoints.up("sm")]: {
-              top: 64,
-              height: "calc(100% - 64px)",
+              // Desktop/tablet: add a little breathing room from the viewport edge + header
+              right: theme.spacing(2),
+              top: `calc(64px + ${theme.spacing(2)})`,
+              height: `calc(100% - 64px - ${theme.spacing(4)})`,
             },
           }),
         }}
@@ -1526,7 +1531,13 @@ export default function MapContainer({
       {/* === Obstacle Management Overlay (for non-logged-in users) === */}
       {!user && obstacleOverlayPrefLoaded && showObstacleManagementOverlay && (
         <div id="obstacle-management-overlay" className="position-absolute">
-          <Card sx={{ maxWidth: 280 }}>
+          <Card
+            sx={{
+              // Keep this overlay compact while staying usable on small screens
+              width: { xs: "calc(100vw - 32px)", sm: 240 },
+              maxWidth: 240,
+            }}
+          >
             <CardContent>
               <Box
                 sx={{
@@ -1538,9 +1549,9 @@ export default function MapContainer({
               >
                 <LockIcon fontSize="small" aria-hidden="true" />
                 <Typography
-                  variant="subtitle1"
+                  variant="subtitle2"
                   component="h6"
-                  sx={{ lineHeight: 1.2, flexGrow: 1 }}
+                  sx={{ lineHeight: 1.2, flexGrow: 1, fontSize: "0.95rem" }}
                 >
                   Log in to manage obstacles
                 </Typography>
@@ -1565,12 +1576,19 @@ export default function MapContainer({
                 </IconButton>
               </Box>
             </CardContent>
-            <CardActions sx={{ pt: 0 }}>
+            <CardActions sx={{ pt: 0, pb: 1.5, justifyContent: "center" }}>
               <Button
                 variant="contained"
                 color="primary"
                 size="small"
-                fullWidth
+                sx={{
+                  minWidth: 112,
+                  px: 2.5,
+                  py: 0.75,
+                  borderRadius: 999, // pill
+                  fontSize: "0.75rem",
+                  letterSpacing: "0.04em",
+                }}
                 onClick={() => router.push("/auth")}
               >
                 LOG IN

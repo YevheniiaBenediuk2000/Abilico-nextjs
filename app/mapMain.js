@@ -2368,6 +2368,77 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     // Skip if no or missing - don't show "No indoor seating" to avoid clutter
   }
 
+  // Services: Barber (attribute, not a place type)
+  // OSM: shop=hairdresser + barber=yes|only|no (sometimes amenity=hairdresser)
+  // Show only when relevant, and avoid rendering awkward "Barber: yes" rows.
+  const barberValue = nTags.barber || nTags.Barber || null;
+  const barberLower = barberValue != null ? String(barberValue).toLowerCase().trim() : "";
+  const amenityLowerForBarber = nTags.amenity ? String(nTags.amenity).toLowerCase().trim() : "";
+  const shopLowerForBarber = nTags.shop ? String(nTags.shop).toLowerCase().trim() : "";
+  const isHairdresserForBarber = amenityLowerForBarber === "hairdresser" || shopLowerForBarber === "hairdresser";
+  if (isHairdresserForBarber) {
+    if (barberLower === "only") {
+      features.push({ type: "barber", label: "Barber services only", icon: "content_cut" });
+    } else if (barberLower === "yes" || barberLower === "true" || barberLower === "1") {
+      features.push({ type: "barber", label: "Barber services", icon: "content_cut" });
+    }
+  }
+
+  // Audience / gender targeting (attribute, not a place type)
+  // OSM can use: male=yes/no/only and female=yes/no/only (sometimes unisex=yes).
+  // Avoid rendering awkward rows like "Male: yes" and instead show a clean Audience section.
+  // Note: some data uses prefixed variants like toilets:male=yes. We treat those as audience hints too.
+  const unisexValue =
+    nTags.unisex ||
+    nTags.Unisex ||
+    nTags["toilets:unisex"] ||
+    nTags["toilets_unisex"] ||
+    nTags["toilets-unisex"] ||
+    null;
+  const unisexLower = unisexValue != null ? String(unisexValue).toLowerCase().trim() : "";
+  const maleValue =
+    nTags.male ||
+    nTags.Male ||
+    nTags["toilets:male"] ||
+    nTags["toilets_male"] ||
+    nTags["toilets-male"] ||
+    null;
+  const femaleValue =
+    nTags.female ||
+    nTags.Female ||
+    nTags["toilets:female"] ||
+    nTags["toilets_female"] ||
+    nTags["toilets-female"] ||
+    null;
+  const maleLower = maleValue != null ? String(maleValue).toLowerCase().trim() : "";
+  const femaleLower = femaleValue != null ? String(femaleValue).toLowerCase().trim() : "";
+
+  const isTruthy = (v) => v === "yes" || v === "true" || v === "1";
+  const isOnly = (v) => v === "only";
+  const isFalsey = (v) => v === "no" || v === "false" || v === "0";
+
+  let audienceLabel = null;
+  if (isTruthy(unisexLower)) {
+    audienceLabel = "Unisex";
+  } else if ((isTruthy(maleLower) || isOnly(maleLower)) && (isFalsey(femaleLower))) {
+    audienceLabel = "Men only";
+  } else if ((isTruthy(femaleLower) || isOnly(femaleLower)) && (isFalsey(maleLower))) {
+    audienceLabel = "Women only";
+  } else if ((isTruthy(maleLower) || isOnly(maleLower)) && (isTruthy(femaleLower) || isOnly(femaleLower))) {
+    audienceLabel = "Men and women";
+  } else if (isTruthy(maleLower) || isOnly(maleLower)) {
+    audienceLabel = "For men";
+  } else if (isTruthy(femaleLower) || isOnly(femaleLower)) {
+    audienceLabel = "For women";
+  }
+
+  const audienceInfo = audienceLabel
+    ? {
+        label: audienceLabel,
+        icon: audienceLabel === "Men and women" || audienceLabel === "Unisex" ? "groups" : "person",
+      }
+    : null;
+
   // Diet: Vegetarian (attribute, not a place type)
   // OSM: diet:vegetarian=yes|only|no (legacy: vegetarian=yes|only|no)
   // Show only when relevant (restaurants/cafes/bars/fast food, and a few food-related shops),
@@ -3637,6 +3708,51 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     list.appendChild(featuresItem);
   }
 
+  // --- AUDIENCE: Render male/female/unisex as a dedicated section (chips) ---
+  if (audienceInfo) {
+    const audienceItem = document.createElement("div");
+    audienceItem.className = "list-group-item";
+    audienceItem.style.padding = "0";
+
+    const container = document.createElement("div");
+    container.style.padding = SECTION_PADDING;
+    container.style.paddingBottom = SECTION_PADDING;
+    container.style.borderTop = "1px solid";
+    container.style.borderColor = "rgba(0, 0, 0, 0.12)";
+    container.style.minHeight = "auto";
+
+    const header = document.createElement("h6");
+    header.style.fontSize = "1.125rem";
+    header.style.fontWeight = "600";
+    header.style.color = "rgba(0, 0, 0, 0.87)";
+    header.style.letterSpacing = "-0.01em";
+    header.style.margin = "0 0 16px 0";
+    header.textContent = "Audience";
+    container.appendChild(header);
+
+    const chipsContainer = document.createElement("div");
+    chipsContainer.className = "tag-chip-group";
+    chipsContainer.style.marginBottom = "0";
+
+    const chip = document.createElement("span");
+    chip.className = "tag-chip";
+
+    const icon = document.createElement("span");
+    icon.className = "material-icons tag-chip__icon";
+    icon.textContent = audienceInfo.icon;
+
+    const label = document.createElement("span");
+    label.textContent = audienceInfo.label;
+
+    chip.appendChild(icon);
+    chip.appendChild(label);
+    chipsContainer.appendChild(chip);
+
+    container.appendChild(chipsContainer);
+    audienceItem.appendChild(container);
+    list.appendChild(audienceItem);
+  }
+
   // --- CAPACITY: Combine Beds and Rooms into a single Capacity section ---
   const rooms = nTags.rooms || nTags.Rooms || null;
   const beds = nTags.beds || nTags.Beds || null;
@@ -4221,6 +4337,10 @@ Object.entries(nTags).forEach(([key, value]) => {
   // Skip "type" entirely
   if (lk === "type") return;
 
+  // Skip roof levels (technical building metadata like roof:levels=2)
+  // Prevents showing "Roof Levels" in the place details overview.
+  if (/^roof[:_-]?levels([:_-]|$)/i.test(lk) || /^roof[:_-]?levels([:_-]|$)/i.test(key)) return;
+
   // Skip "osm_key" and "osm_type" - only useful for mappers
   if (lk === "osm_key" || lk === "osm_type" || key === "Osm Key") return;
 
@@ -4282,6 +4402,12 @@ Object.entries(nTags).forEach(([key, value]) => {
   // Skip embassy/diplomatic tags from generic rendering — they are treated as category (header chip).
   // Prevents rows like "Embassy: Yes" or "Diplomatic: Embassy".
   if (lk === "embassy" || lk === "diplomatic") return;
+
+  // Skip barber=yes/no/only from generic rendering — it is rendered as a friendly "Barber services" chip instead.
+  if (lk === "barber") return;
+
+  // Skip audience tags (male/female/unisex) from generic rendering — rendered as a friendly chip instead.
+  if (lk === "male" || lk === "female" || lk === "unisex") return;
   
   // Skip level (already rendered in Address section)
   if (lk === "level") return;
@@ -5368,7 +5494,15 @@ function setRouteActionsUi(hasRoute) {
 
 function fitRouteToView() {
   if (!routeLayer || !map) return;
-  const bounds = routeLayer.getBounds();
+  // Leaflet: `LayerGroup` doesn't implement `getBounds()`, but `FeatureGroup` and
+  // most vector layers do. Be defensive because `routeLayer` has historically
+  // changed shape (geojson layer vs group).
+  const bounds =
+    typeof routeLayer?.getBounds === "function"
+      ? routeLayer.getBounds()
+      : typeof routeLayer?.getLayers === "function"
+        ? L.featureGroup(routeLayer.getLayers()).getBounds?.()
+        : null;
   if (bounds && bounds.isValid()) {
     map.fitBounds(bounds, { padding: [40, 40], animate: true, duration: 0.6 });
   }
@@ -5488,9 +5622,9 @@ async function updateRoute({ fit = true } = {}) {
       interactive: false,
     });
     
-    // Keep a single handle for cleanup; compute bounds from routeLine (GeoJSON has getBounds()).
-    // (Some builds may not expose getBounds() on featureGroup reliably.)
-    routeLayer = L.layerGroup([routeOutline, routeLine]).addTo(map);
+    // Keep a single handle for cleanup. Use FeatureGroup so `fitRouteToView()`
+    // can reliably call `getBounds()` (LayerGroup doesn't implement it).
+    routeLayer = L.featureGroup([routeOutline, routeLine]).addTo(map);
 
     setRouteActionsUi(true);
 

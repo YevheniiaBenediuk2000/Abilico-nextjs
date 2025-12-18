@@ -33,6 +33,7 @@
     "lodash.debounce": "^4.0.8",
     "next": "16.0.1",
     "onnxruntime-web": "^1.23.2",
+    "opening_hours": "^3.9.0",
     "osmtogeojson": "^3.0.0-beta.5",
     "p-retry": "^7.1.0",
     "react": "19.2.0",

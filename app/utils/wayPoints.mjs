@@ -1,6 +1,9 @@
 export const WP_COLORS = {
-  start: "var(--bs-primary)",
-  end: "var(--bs-danger)",
+  // Match Directions panel colors:
+  // - A (start) = green
+  // - B (end) = primary blue
+  start: "#16a34a",
+  end: "var(--bs-primary)",
   via: "var(--bs-secondary)",
 };
 

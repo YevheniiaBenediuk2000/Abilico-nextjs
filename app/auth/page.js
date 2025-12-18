@@ -3,7 +3,6 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
-import { ThemeProvider } from "@mui/material/styles";
 import Button from "@mui/material/Button";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
@@ -16,7 +15,7 @@ import { toastError, toastSuccess } from "../utils/toast.mjs";
 import { DIALOG_BORDER_RADIUS, PRIMARY_BLUE } from "../constants/constants.mjs";
 import ToastHost from "../components/ToastHost";
 import AbilicoLogo from "../components/AbilicoLogo";
-import { theme } from "../theme/theme";
+import styles from "./auth.module.css";
 
 export { supabase } from "../api/supabaseClient";
 
@@ -154,33 +153,30 @@ export default function AuthPage() {
   // Don't render anything until mounted to prevent hydration mismatch
   if (!mounted) {
     return (
-      <ThemeProvider theme={theme}>
-        <Box
-          sx={{
-            minHeight: "100vh",
-            display: "flex",
-            background: "#ffffff",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Typography variant="body2" color="text.secondary">
-            Loading...
-          </Typography>
-        </Box>
-      </ThemeProvider>
-    );
-  }
-
-  return (
-    <ThemeProvider theme={theme}>
       <Box
         sx={{
           minHeight: "100vh",
           display: "flex",
           background: "#ffffff",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
+        <Typography variant="body2" color="text.secondary">
+          Loading...
+        </Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <Box
+      sx={{
+        minHeight: "100vh",
+        display: "flex",
+        background: "#ffffff",
+      }}
+    >
       {!pendingMFA ? (
           <Box
             sx={{
@@ -265,6 +261,7 @@ export default function AuthPage() {
 
               {/* Auth Form Container */}
               <Box
+                className={styles.authForm}
                 sx={{
                   width: "100%",
                   maxWidth: "440px",
@@ -473,7 +470,6 @@ export default function AuthPage() {
       
       {/* Toast Notifications */}
       <ToastHost />
-      </Box>
-    </ThemeProvider>
+    </Box>
   );
 }

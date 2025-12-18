@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { ThemeProvider } from "@mui/material/styles";
 import { useRouter } from "next/navigation";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "../styles/ui.css";
@@ -11,7 +10,6 @@ import "../styles/poi-badge.css";
 import MapContainer from "../MapContainer";
 import { supabase } from "../auth/page";
 import { getNextRegistrationStep } from "../utils/userPreferences";
-import { theme } from "../theme/theme";
 
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
@@ -154,9 +152,8 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
   }, [isDashboard, user, router]);
 
   return (
-    <ThemeProvider theme={theme}>
-      <QueryClientProvider client={queryClient}>
-        <div className="d-flex flex-column min-vh-100">
+    <QueryClientProvider client={queryClient}>
+      <div className="d-flex flex-column min-vh-100">
         {/* === MUI AppBar with burger + search + account === */}
         <AppBar
           elevation={1}
@@ -263,7 +260,8 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
                     top: "100%",
                     left: 0,
                     right: 0,
-                    zIndex: 1001,
+                    // Keep suggestions above drawers/offcanvas panels (MUI Drawer is ~1200).
+                    zIndex: 2000,
                     marginTop: 4,
                   }}
                 ></ul>
@@ -312,6 +310,19 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
                   variant="outlined"
                   color="inherit"
                   onClick={() => router.push("/auth")}
+                  sx={{
+                    borderRadius: "25px",
+                    px: 2,
+                    py: 0.75,
+                    textTransform: "none",
+                    fontWeight: 500,
+                    fontSize: "0.875rem",
+                    borderColor: "rgba(0, 0, 0, 0.5)",
+                    "&:hover": {
+                      borderColor: "rgba(0, 0, 0, 0.8)",
+                      backgroundColor: "rgba(0, 0, 0, 0.04)",
+                    },
+                  }}
                 >
                   Log in
                 </Button>
@@ -422,8 +433,7 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
 
         {/* Global Toast Notifications */}
         <ToastHost />
-        </div>
-      </QueryClientProvider>
-    </ThemeProvider>
+      </div>
+    </QueryClientProvider>
   );
 }

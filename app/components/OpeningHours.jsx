@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import OpeningHoursLib from "opening_hours";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Divider from "@mui/material/Divider";
-import IconButton from "@mui/material/IconButton";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import CardActionArea from "@mui/material/CardActionArea";
@@ -15,239 +15,32 @@ import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 
-/**
- * Parse OSM opening_hours format
- * Examples:
- * - "Mo-Fr 08:00-18:00"
- * - "Mo-We 12:00-24:00; Th 12:00-25:00; Fr 12:00-01:00; Sa 15:00-28:00; Su 15:00-23:00"
- * - "Mo 00:00-08:30,19:00-08:30; Tu-Fr 19:00-08:30; Sa 12:00-00:00; Su 00:00-24:00"
- * - "24/7" or "24/7 open"
- */
-function parseOpeningHours(openingHoursStr) {
-  if (!openingHoursStr || typeof openingHoursStr !== "string") {
-    return null;
-  }
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-  const dayOrder = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
-
-  // Handle 24/7
-  if (/^24\s*\/\s*7/i.test(openingHoursStr.trim())) {
-    const result = {};
-    dayOrder.forEach((day) => {
-      result[day] = ["00:00-24:00"];
-    });
-    return result;
-  }
-
-  // Split by semicolon to get different day ranges
-  const parts = openingHoursStr.split(";").map((p) => p.trim()).filter(Boolean);
-
-  const result = {};
-
-  parts.forEach((part) => {
-    // Match day range (e.g., "Mo-Fr", "Mo-We", "Sa", "Su")
-    // Also handle cases like "Mo-We 12:00-24:00"
-    const dayRangeMatch = part.match(/^([A-Za-z]{2}(?:-[A-Za-z]{2})?)\s+(.+)$/);
-    if (!dayRangeMatch) {
-      // Try to match without space: "Mo-Fr08:00-18:00"
-      const noSpaceMatch = part.match(/^([A-Za-z]{2}(?:-[A-Za-z]{2})?)(.+)$/);
-      if (noSpaceMatch) {
-        const dayRange = noSpaceMatch[1];
-        const times = noSpaceMatch[2];
-        parseDayRange(dayRange, times, result, dayOrder);
-      }
-      return;
-    }
-
-    const dayRange = dayRangeMatch[1];
-    const times = dayRangeMatch[2];
-    parseDayRange(dayRange, times, result, dayOrder);
-  });
-
-  return result;
+function startOfDay(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
 }
 
-function parseDayRange(dayRange, times, result, dayOrder) {
-  // Parse day range
-  let dayKeys = [];
-  if (dayRange.includes("-")) {
-    const [start, end] = dayRange.split("-");
-    const startIdx = dayOrder.indexOf(start);
-    const endIdx = dayOrder.indexOf(end);
-    if (startIdx !== -1 && endIdx !== -1) {
-      for (let i = startIdx; i <= endIdx; i++) {
-        dayKeys.push(dayOrder[i]);
-      }
-    }
-  } else {
-    dayKeys = [dayRange];
-  }
-
-  // Parse times (can be multiple ranges like "00:00-08:30,19:00-08:30")
-  const timeRanges = times.split(",").map((t) => t.trim()).filter(Boolean);
-
-  dayKeys.forEach((dayKey) => {
-    if (!result[dayKey]) {
-      result[dayKey] = [];
-    }
-    result[dayKey].push(...timeRanges);
-  });
+function addDays(date, days) {
+  return new Date(date.getTime() + days * MS_PER_DAY);
 }
 
-function formatTimeRange(timeStr) {
-  // Handle 24-hour format and next-day times (e.g., "25:00" = 1:00 next day)
-  if (!timeStr) return "";
-
-  // Parse times like "00:00-08:30" or "19:00-08:30" (next day)
-  const parts = timeStr.split("-");
-  if (parts.length !== 2) return timeStr;
-
-  let [start, end] = parts.map((t) => t.trim());
-
-  // Handle next-day times (e.g., "25:00" means 1:00 next day, "28:00" means 4:00 next day)
-  const parseTime = (time) => {
-    const [hours, minutes = "00"] = time.split(":");
-    let h = parseInt(hours, 10);
-    const m = minutes;
-    if (h >= 24) {
-      h = h - 24;
-      return `${h.toString().padStart(2, "0")}:${m}`;
-    }
-    return time;
-  };
-
-  start = parseTime(start);
-  end = parseTime(end);
-
-  // ✅ Only treat as "Open 24 hours" if the range is exactly 00:00-24:00
-  // This must be checked after normalizing times but before other formatting
-  if (start === "00:00" && end === "24:00") {
-    return "Open 24 hours";
-  }
-
-  // If end is 00:00, it means midnight (end of day)
-  if (end === "00:00" && start !== "00:00") {
-    return `${start}-00:00`;
-  }
-
-  return `${start}-${end}`;
+function isSameLocalDay(a, b) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
 }
 
-/**
- * Parse time string (HH:MM) to minutes since midnight
- * Handles next-day times (e.g., 25:00 = 1:00 next day)
- */
-function parseTimeToMinutes(timeStr) {
-  if (!timeStr) return null;
-  const [hours, minutes = "00"] = timeStr.split(":");
-  let h = parseInt(hours, 10);
-  const m = parseInt(minutes, 10);
-  // Handle next-day times (e.g., 25:00 = 1440 + 60 = 1500 minutes)
-  if (h >= 24) {
-    h = h - 24;
-  }
-  return h * 60 + m;
-}
-
-/**
- * Check if current time falls within an interval
- * Handles next-day times (e.g., 22:00-02:00 spans midnight)
- */
-function isTimeInInterval(currentMinutes, startStr, endStr) {
-  const startMinutes = parseTimeToMinutes(startStr);
-  const endMinutes = parseTimeToMinutes(endStr);
-  
-  if (startMinutes === null || endMinutes === null) return false;
-
-  // Check if this is a next-day interval (end is before start)
-  const isNextDay = endMinutes <= startMinutes;
-  
-  if (isNextDay) {
-    // Interval spans midnight (e.g., 22:00-02:00)
-    return currentMinutes >= startMinutes || currentMinutes < endMinutes;
-  } else {
-    // Normal interval (e.g., 09:00-18:00)
-    return currentMinutes >= startMinutes && currentMinutes < endMinutes;
-  }
-}
-
-/**
- * Get intervals for a specific day from parsed opening hours
- */
-function getIntervalsForDay(parsed, dayKey) {
-  if (!parsed || !parsed[dayKey]) return [];
-  const times = parsed[dayKey];
-  return times.map((timeStr) => {
-    const parts = timeStr.split("-");
-    if (parts.length !== 2) return null;
-    const [start, end] = parts.map((t) => t.trim());
-    return { start, end, original: timeStr };
-  }).filter(Boolean);
-}
-
-/**
- * Check if currently open based on today's hours
- */
-function checkOpenStatus(parsed, dayKey) {
-  const intervals = getIntervalsForDay(parsed, dayKey);
-  if (intervals.length === 0) return { isOpen: false, nextChange: null };
-
-  const now = new Date();
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-  // Check if we're in any interval
-  for (const interval of intervals) {
-    if (isTimeInInterval(currentMinutes, interval.start, interval.end)) {
-      // We're open, find when we close
-      const startMinutes = parseTimeToMinutes(interval.start);
-      const endMinutes = parseTimeToMinutes(interval.end);
-      const isNextDay = endMinutes <= startMinutes;
-      
-      const nextChange = new Date(now);
-      const endHours = Math.floor(endMinutes / 60);
-      const endMins = endMinutes % 60;
-      
-      // If it's a next-day interval and we're before midnight, closing is tomorrow
-      if (isNextDay && currentMinutes >= startMinutes) {
-        nextChange.setDate(nextChange.getDate() + 1);
-      }
-      nextChange.setHours(endHours, endMins, 0, 0);
-
-      return { isOpen: true, nextChange };
-    }
-  }
-
-  // We're closed, find when we open next
-  // Sort intervals by start time
-  const sortedIntervals = [...intervals].sort((a, b) => {
-    return parseTimeToMinutes(a.start) - parseTimeToMinutes(b.start);
-  });
-
-  for (const interval of sortedIntervals) {
-    const startMinutes = parseTimeToMinutes(interval.start);
-    if (startMinutes > currentMinutes) {
-      // Next opening is today
-      const nextChange = new Date(now);
-      const startHours = Math.floor(startMinutes / 60);
-      const startMins = startMinutes % 60;
-      nextChange.setHours(startHours, startMins, 0, 0);
-      return { isOpen: false, nextChange };
-    }
-  }
-
-  // Next opening is tomorrow (first interval)
-  if (sortedIntervals.length > 0) {
-    const firstInterval = sortedIntervals[0];
-    const startMinutes = parseTimeToMinutes(firstInterval.start);
-    const nextChange = new Date(now);
-    nextChange.setDate(nextChange.getDate() + 1);
-    const startHours = Math.floor(startMinutes / 60);
-    const startMins = startMinutes % 60;
-    nextChange.setHours(startHours, startMins, 0, 0);
-    return { isOpen: false, nextChange };
-  }
-
-  return { isOpen: false, nextChange: null };
+function getWeekStartMonday(date) {
+  const d = startOfDay(date);
+  // JS: 0=Sun..6=Sat → convert to "days since Monday"
+  const daysSinceMonday = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - daysSinceMonday);
+  return d;
 }
 
 /**
@@ -257,12 +50,64 @@ function formatTime(date) {
   return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
+function formatTimeOr24(date, dayEnd) {
+  if (dayEnd && date.getTime() === dayEnd.getTime()) return "24:00";
+  return formatTime(date);
+}
+
 /**
  * Format day name (e.g., "Wed", "Thu")
  */
 function formatDayName(date) {
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   return days[date.getDay()];
+}
+
+function mergeIntervals(intervals) {
+  if (!intervals.length) return [];
+  const sorted = [...intervals].sort((a, b) => a.start.getTime() - b.start.getTime());
+
+  const merged = [sorted[0]];
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = merged[merged.length - 1];
+    const cur = sorted[i];
+    if (cur.start.getTime() <= prev.end.getTime()) {
+      if (cur.end.getTime() > prev.end.getTime()) {
+        prev.end = cur.end;
+      }
+    } else {
+      merged.push(cur);
+    }
+  }
+  return merged;
+}
+
+function getIntervalsForDay(oh, dayStart) {
+  const dayEnd = addDays(dayStart, 1);
+  const queryFrom = addDays(dayStart, -1);
+  const queryTo = addDays(dayStart, 2);
+
+  let raw = [];
+  try {
+    raw = oh.getOpenIntervals(queryFrom, queryTo) || [];
+  } catch (e) {
+    console.error("opening_hours.getOpenIntervals failed:", e);
+    return { dayEnd, intervals: [] };
+  }
+
+  const intersectsDay = raw
+    .map(([start, end]) => ({ start, end }))
+    .filter(({ start, end }) => end > dayStart && start < dayEnd);
+
+  const normalized = intersectsDay.map(({ start, end }) => {
+    const clippedStart = start < dayStart ? dayStart : start;
+    // If it started before this day, clip the end to the day boundary for display.
+    // If it starts within this day, keep the true end so we can show overnight hours.
+    const clippedEnd = start < dayStart ? (end > dayEnd ? dayEnd : end) : end;
+    return { start: clippedStart, end: clippedEnd };
+  });
+
+  return { dayEnd, intervals: mergeIntervals(normalized) };
 }
 
 export default function OpeningHours({ openingHours, holidayHours = null, checkDate = null }) {
@@ -282,71 +127,87 @@ export default function OpeningHours({ openingHours, holidayHours = null, checkD
   // Get current day (0 = Monday, 6 = Sunday)
   const now = new Date();
   const currentDayIndex = (now.getDay() + 6) % 7; // Convert JS day (0=Sun) to Mon=0
-  const currentDayKey = dayOrder[currentDayIndex];
 
-  const parsed = useMemo(() => {
+  const oh = useMemo(() => {
     if (!openingHours) return null;
-    return parseOpeningHours(openingHours);
+    try {
+      // opening_hours constructor: (value, nominatim_object?, optional_conf?)
+      return new OpeningHoursLib(openingHours, null, { locale: "en" });
+    } catch (e) {
+      console.error("Failed to parse opening_hours:", e);
+      return null;
+    }
   }, [openingHours]);
 
-  // Build week data structure
-  const weekData = useMemo(() => {
-    if (!parsed) return [];
-    
-    return dayOrder.map((dayKey, index) => {
-      const intervals = getIntervalsForDay(parsed, dayKey);
+  // Build week data structure (Mon..Sun of the current week)
+  const weekStart = getWeekStartMonday(now);
+  const weekData = oh
+    ? dayOrder.map((dayKey, index) => {
+        const dayStart = addDays(weekStart, index);
+        const { dayEnd, intervals } = getIntervalsForDay(oh, dayStart);
       const isClosedAllDay = intervals.length === 0;
+
+        let formattedHours = "Closed";
+        if (!isClosedAllDay) {
+          if (
+            intervals.length === 1 &&
+            intervals[0].start.getTime() === dayStart.getTime() &&
+            intervals[0].end.getTime() === dayEnd.getTime()
+          ) {
+            formattedHours = "Open 24 hours";
+          } else {
+            formattedHours = intervals
+              .map(({ start, end }) => `${formatTime(start)}-${formatTimeOr24(end, dayEnd)}`)
+              .join(", ");
+          }
+        }
       
       return {
         dayIndex: index,
         dayKey,
         dayLabel: dayNames[dayKey],
+          dayStart,
+          dayEnd,
         intervals,
         isClosedAllDay,
-        formattedHours: isClosedAllDay 
-          ? "Closed" 
-          : intervals.map(i => formatTimeRange(i.original)).join(", "),
-      };
-    });
-  }, [parsed, dayOrder, dayNames]);
+          formattedHours,
+        };
+      })
+    : [];
 
-  // Get today's data
-  const todayData = weekData[currentDayIndex] || null;
-
-  // Check open/closed status
-  const status = useMemo(() => {
-    if (!parsed || !todayData) {
-      return { isOpen: false, message: "Hours not available", nextChange: null };
-    }
-
-    const { isOpen, nextChange } = checkOpenStatus(parsed, currentDayKey);
+  // Check open/closed status using the library (correct around midnight + rule complexity)
+  let status = { isOpen: false, message: "Hours not available", nextChange: null };
+  if (oh) {
+    const isUnknown = oh.getUnknown(now);
+    const isOpen = !isUnknown ? oh.getState(now) : false;
+    const nextChange = !isUnknown ? oh.getNextChange(now) : undefined;
     
     let message = "";
-    if (isOpen && nextChange) {
+    if (isUnknown) {
+      message = "Hours unknown";
+    } else if (isOpen && nextChange) {
       message = `Closes at ${formatTime(nextChange)}`;
     } else if (!isOpen && nextChange) {
-      const nextDayIndex = (nextChange.getDay() + 6) % 7;
-      const isToday = nextDayIndex === currentDayIndex;
-      if (isToday) {
+      if (isSameLocalDay(nextChange, now)) {
         message = `Opens at ${formatTime(nextChange)}`;
       } else {
         message = `Opens ${formatDayName(nextChange)} ${formatTime(nextChange)}`;
       }
-    } else if (isOpen && !nextChange) {
+    } else if (isOpen) {
       message = "Open";
     } else {
       message = "Closed";
     }
 
-    return { isOpen, message, nextChange };
-  }, [parsed, todayData, currentDayIndex, currentDayKey]);
+    status = { isOpen, message, nextChange: nextChange ?? null };
+  }
 
   if (!openingHours) {
     return null;
   }
 
     // If parsing failed, show simple fallback
-    if (!parsed || typeof parsed !== "object" || Object.keys(parsed).length === 0) {
+    if (!oh) {
       return (
         <Box
         sx={{

@@ -60,7 +60,8 @@
 .search-suggestions {
   position: absolute;
   top: 40px;
-  z-index: 1001;
+  /* Must sit above MUI Drawers/Offcanvas panels */
+  z-index: 2000;
   max-height: 320px;
 
   overflow: auto;
@@ -505,7 +506,8 @@
   overflow: hidden;
   max-height: 280px;
   overflow-y: auto;
-  z-index: 20;
+  /* Keep dropdown above other route UI elements within the drawer */
+  z-index: 2000;
 }
 
 #directions-ui .search-suggestions .list-group-item {
