@@ -8,6 +8,22 @@
   --bs-primary-rgb: var(--abilico-primary-rgb);
 }
 
+.abilico-map {
+  /* Soft background while tiles load (prevents white flash). */
+  background: #e5edf5;
+}
+
+/* Fade-in only for the initial tile load to reduce perceived “jumpiness”. */
+.abilico-map.leaflet-container {
+  opacity: 0;
+  transition: opacity 220ms ease;
+  will-change: opacity;
+}
+
+.abilico-map.leaflet-container.is-ready {
+  opacity: 1;
+}
+
 .map-overlay {
   position: absolute;
   z-index: 401;
@@ -563,6 +579,8 @@
   right: 0;
   bottom: 0;
   width: 100%;
+  /* Avoid white/grey flashes while tiles are loading */
+  background: #e5edf5;
 }
 
 /* === Obstacle Management Overlay === */

@@ -13,14 +13,18 @@ function isRateLimitError(err) {
   return /\bOverpass error 429\b/.test(msg) || /\b429\b/.test(msg);
 }
 
-let placeGeometryAbortController = null;
+// Abort controllers scoped per place so one details request doesn't cancel another.
+// Key format: "N/123", "W/456", "R/789"
+const placeGeometryAbortControllers = new Map();
 
 export async function fetchPlaceGeometry(osmType, osmId) {
-  if (placeGeometryAbortController) {
-    placeGeometryAbortController.abort();
-  }
-  placeGeometryAbortController = new AbortController();
-  const { signal } = placeGeometryAbortController;
+  const placeKey = `${osmType}/${osmId}`;
+  const prev = placeGeometryAbortControllers.get(placeKey);
+  if (prev) prev.abort();
+
+  const controller = new AbortController();
+  placeGeometryAbortControllers.set(placeKey, controller);
+  const { signal } = controller;
 
   const type = { N: "node", W: "way", R: "relation" }[osmType];
 
@@ -32,7 +36,8 @@ export async function fetchPlaceGeometry(osmType, osmId) {
 
   let lastError = null;
 
-  for (const endpoint of OVERPASS_ENDPOINTS) {
+  try {
+    for (const endpoint of OVERPASS_ENDPOINTS) {
     // console.log(`🌍 Trying Overpass endpoint: ${endpoint}`);
     try {
       return await pRetry(async () => {
@@ -65,6 +70,11 @@ export async function fetchPlaceGeometry(osmType, osmId) {
       console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
     }
   }
+  } finally {
+    // Clean up controller for this key if we're still the latest call.
+    const current = placeGeometryAbortControllers.get(placeKey);
+    if (current === controller) placeGeometryAbortControllers.delete(placeKey);
+  }
 
   if (lastError?.name === "AbortError") {
     return { type: "FeatureCollection", features: [] };
@@ -74,13 +84,16 @@ export async function fetchPlaceGeometry(osmType, osmId) {
   return { type: "FeatureCollection", features: [] };
 }
 
-let placeAbortController = null;
+// Abort controllers scoped per place for tag fetches.
+const placeAbortControllers = new Map();
 export async function fetchPlace(osmType, osmId) {
-  if (placeAbortController) {
-    placeAbortController.abort();
-  }
-  placeAbortController = new AbortController();
-  const { signal } = placeAbortController;
+  const placeKey = `${osmType}/${osmId}`;
+  const prev = placeAbortControllers.get(placeKey);
+  if (prev) prev.abort();
+
+  const controller = new AbortController();
+  placeAbortControllers.set(placeKey, controller);
+  const { signal } = controller;
 
   const type = { N: "node", W: "way", R: "relation" }[osmType];
 
@@ -92,35 +105,40 @@ export async function fetchPlace(osmType, osmId) {
 
   let lastError = null;
 
-  for (const endpoint of OVERPASS_ENDPOINTS) {
-    try {
-      return await pRetry(async () => {
-        try {
-          const response = await fetch(endpoint, {
-            method: "POST",
-            body: query,
-            signal,
-          });
+  try {
+    for (const endpoint of OVERPASS_ENDPOINTS) {
+      try {
+        return await pRetry(async () => {
+          try {
+            const response = await fetch(endpoint, {
+              method: "POST",
+              body: query,
+              signal,
+            });
 
-          if (!response.ok) throw new Error("Overpass " + response.status);
-          const data = await response.json();
+            if (!response.ok) throw new Error("Overpass " + response.status);
+            const data = await response.json();
 
-          return data.elements[0].tags;
-        } catch (error) {
-          if (error?.name === "AbortError") {
-            return {};
+            return data.elements[0].tags;
+          } catch (error) {
+            if (error?.name === "AbortError") {
+              return {};
+            }
+            throw error;
           }
-          throw error;
+        }, pRetryConfig);
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          return {};
         }
-      }, pRetryConfig);
-    } catch (error) {
-      if (error?.name === "AbortError") {
-        return {};
-      }
 
-      lastError = error;
-      console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
+        lastError = error;
+        console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
+      }
     }
+  } finally {
+    const current = placeAbortControllers.get(placeKey);
+    if (current === controller) placeAbortControllers.delete(placeKey);
   }
 
   if (lastError?.name === "AbortError") {

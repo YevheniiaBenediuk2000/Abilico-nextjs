@@ -20,6 +20,7 @@ export const LS_KEYS = {
   DRAW_HELP: "ui.drawHelp.dismissed",
   ACCESSIBILITY_FILTER: "ui.placeAccessibility.filter",
   PHOTOS_ONLY: "ui.placeList.photosOnly",
+  MAP_VIEW: "ui.map.lastView",
   MAPILLARY_TOKEN: "MAPILLARY_TOKEN",
 };
 

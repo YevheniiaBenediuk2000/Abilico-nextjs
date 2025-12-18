@@ -79,18 +79,23 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       setUser(session?.user ?? null);
       
-      // ✅ Fix gray map issue: invalidate size after authentication
-      if (event === "SIGNED_IN" && typeof window !== "undefined" && window.map) {
-        // After 2FA login, the map needs to refresh its size
-        setTimeout(() => {
+      // ✅ Fix gray map issue: invalidate size after authentication (without causing visible "pan jumps")
+      if (event === "SIGNED_IN" && typeof window !== "undefined") {
+        const safeInvalidate = () => {
           if (window.map && typeof window.map.invalidateSize === "function") {
             try {
-              window.map.invalidateSize();
+              window.map.invalidateSize({ pan: false, animate: false });
             } catch (error) {
-              console.warn("Failed to invalidate map size after sign in:", error);
+              console.warn(
+                "Failed to invalidate map size after sign in:",
+                error
+              );
             }
           }
-        }, 300);
+        };
+
+        // Double-rAF to wait for layout + paint.
+        requestAnimationFrame(() => requestAnimationFrame(safeInvalidate));
       }
       
       // Force map refresh on logout to clear user-specific state

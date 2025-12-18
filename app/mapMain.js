@@ -21,7 +21,7 @@ import {
   DRAW_HELP_LS_KEY,
   DrawHelpAlert,
 } from "./leaflet-controls/DrawHelpAlert.mjs";
-import { ls } from "./utils/localStorage.mjs";
+import { ls, LS_KEYS } from "./utils/localStorage.mjs";
 import {
   duringLoading,
   hideLoading,
@@ -828,6 +828,7 @@ function accessibilityKey() {
 }
 
 let placesReqSeq = 0;
+let detailsReqSeq = 0;
 async function refreshPlaces() {
   const mySeq = ++placesReqSeq; // capture this call’s id
 
@@ -2019,6 +2020,9 @@ function getMuiIconForPlaceType(key, value) {
 }
 
 const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
+  const myDetailsSeq = ++detailsReqSeq;
+  const isStale = () => myDetailsSeq !== detailsReqSeq;
+
   globals.detailsCtx.tags = tags;
   
   // Update vision accessibility control if available
@@ -4668,98 +4672,126 @@ Object.entries(nTags).forEach(([key, value]) => {
   // Pass category, features, and short_name extracted earlier
   openPlaceDetailsPopup(titleText, categoryValue, null, features, shouldShowShortName ? shortName : null);
 
-  let uuid = null;
+  // Build a stable cache key for this place (used for request dedupe/caching only).
+  const placeCacheKey = (() => {
+    // Prefer explicit osm fields if present.
+    const osmType =
+      tags?.osm_type || tags?.osmType || tags?.type || tags?.osm_entity_type;
+    const osmId = tags?.osm_id || tags?.osmId || tags?.id;
+    if (osmType && osmId) return `${osmType}/${osmId}`;
 
-  try {
-    uuid = await ensurePlaceExists(tags, latlng);
-    if (uuid) {
-      globals.detailsCtx.placeId = uuid;
-      console.log("✅ globals.detailsCtx.placeId (UUID):", uuid);
-    } else {
-      console.warn("⚠️ ensurePlaceExists returned null/undefined");
+    // Fallback: lat/lng + name (still stable enough within a session).
+    const lat = latlng?.lat;
+    const lng = latlng?.lng;
+    const name = tags?.name ? String(tags.name) : "";
+    if (typeof lat === "number" && typeof lng === "number") {
+      return `ll/${lat.toFixed(6)},${lng.toFixed(6)}|${name}`;
     }
-  } catch (err) {
-    console.warn("⚠️ ensurePlaceExists failed, skipping reviews:", err);
-    // Don't set placeId to null - keep the OSM ID so ReviewForm can retry
-    // globals.detailsCtx.placeId remains as the OSM ID from line 1205
-  }
+    return `unknown|${name}`;
+  })();
 
-  // ✅ Fetch reviews ONCE (with small retry for consistency)
-  // Only fetch reviews if we have a valid UUID (not an OSM ID)
-  const key = showLoading("reviews-load");
-  globals.reviews = [];
-  
-  // Check if placeId is a valid UUID (not an OSM ID like "node/123")
-  const isValidUUID = (id) => {
-    if (!id || typeof id !== 'string') return false;
-    // UUID format: 8-4-4-4-12 hex characters
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    return uuidRegex.test(id) && !id.includes('/'); // Also reject OSM IDs with "/"
-  };
-  
-  if (isValidUUID(globals.detailsCtx.placeId)) {
-  try {
-    let retries = 3;
-    while (retries-- > 0) {
-      const data = await reviewStorage("GET", {
-        place_id: globals.detailsCtx.placeId,
-      });
-      if (data?.length || retries === 0) {
-        globals.reviews = data;
-        break;
+  // Kick off photos immediately (does not depend on reviews/UUID).
+  const photosTask = (async () => {
+    const keyPhotos = showLoading(Symbol("photos-load"));
+    try {
+      const queryKey = ["place-photos", placeCacheKey];
+      const photos =
+        queryClient.getQueryData(queryKey) ??
+        (await queryClient.fetchQuery({
+          queryKey,
+          // Photos can change (user uploads), so keep this cache short.
+          staleTime: 5 * 60 * 1000,
+          queryFn: () => resolvePlacePhotos(tags, latlng),
+        }));
+
+      if (isStale()) return;
+      showMainPhoto(photos[0]);
+      renderPhotosGrid(photos);
+    } catch (err) {
+      if (!isStale()) {
+        console.warn("Photo resolution failed", err);
+        showMainPhoto(null);
+        renderPhotosGrid([]);
       }
+    } finally {
+      hideLoading(keyPhotos);
     }
-  } finally {
-      hideLoading(key);
+  })();
+
+  // Reviews depend on a UUID from Supabase (ensurePlaceExists).
+  const reviewsTask = (async () => {
+    const keyReviews = showLoading(Symbol("reviews-load"));
+    globals.reviews = [];
+
+    // Check if placeId is a valid UUID (not an OSM ID like "node/123")
+    const isValidUUID = (id) => {
+      if (!id || typeof id !== "string") return false;
+      // UUID format: 8-4-4-4-12 hex characters
+      const uuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      return uuidRegex.test(id) && !id.includes("/"); // Also reject OSM IDs with "/"
+    };
+
+    try {
+      let uuid = null;
+      try {
+        const uuidQueryKey = ["place-uuid", placeCacheKey];
+        uuid =
+          queryClient.getQueryData(uuidQueryKey) ??
+          (await queryClient.fetchQuery({
+            queryKey: uuidQueryKey,
+            // UUID is stable for a place, safe to cache long-term.
+            queryFn: () => ensurePlaceExists(tags, latlng),
+          }));
+      } catch (err) {
+        console.warn("⚠️ ensurePlaceExists failed, skipping reviews:", err);
+      }
+
+      if (isStale()) return;
+
+      if (uuid) {
+        globals.detailsCtx.placeId = uuid;
+        // console.log("✅ globals.detailsCtx.placeId (UUID):", uuid);
+      }
+
+      // Only fetch reviews if we have a valid UUID.
+      if (isValidUUID(globals.detailsCtx.placeId)) {
+        let retries = 3;
+        while (retries-- > 0) {
+          const data = await reviewStorage("GET", {
+            place_id: globals.detailsCtx.placeId,
+          });
+          if (data?.length || retries === 0) {
+            globals.reviews = data;
+            break;
+          }
+        }
+      } else {
+        console.warn(
+          "⚠️ Skipping review fetch: placeId is not a valid UUID:",
+          globals.detailsCtx.placeId
+        );
+      }
+
+      if (isStale()) return;
+
+      // ✅ Render reviews
+      renderReviewsList();
+
+      try {
+        // Load real user preferences from profiles.accessibility_preferences
+        const prefs = await getUserAccessibilityPreferences();
+        computePlaceScores(globals.reviews, prefs);
+      } catch (err) {
+        console.error("❌ computePlaceScores failed:", err);
+      }
+    } finally {
+      hideLoading(keyReviews);
     }
-  } else {
-    console.warn("⚠️ Skipping review fetch: placeId is not a valid UUID:", globals.detailsCtx.placeId);
-    hideLoading(key);
-  }
+  })();
 
-  // ✅ Render reviews
-  renderReviewsList();
-
-  try {
-    console.log("🧮 Before computePlaceScores, reviews:", globals.reviews);
-
-    // Load real user preferences from profiles.accessibility_preferences
-    const prefs = await getUserAccessibilityPreferences();
-
-    const { perCategory, personalScore, globalScore } = computePlaceScores(
-      globals.reviews,
-      prefs
-    );
-
-    console.log("🧮 Accessibility stats for current place:", {
-      perCategory,
-      personalScore,
-      globalScore,
-      prefs,
-    });
-  } catch (err) {
-    console.error("❌ computePlaceScores failed:", err);
-  }
-
-  // --- Photos ---
-  try {
-    const keyPhotos = showLoading("photos-load");
-    const photos = await resolvePlacePhotos(tags, latlng);
-
-    // console.log(
-    //   "📷 resolvePlacePhotos returned",
-    //   photos.length,
-    //   "items:",
-    //   photos
-    // );
-    showMainPhoto(photos[0]);
-    renderPhotosGrid(photos);
-    hideLoading(keyPhotos);
-  } catch (err) {
-    console.warn("Photo resolution failed", err);
-    showMainPhoto(null);
-    renderPhotosGrid([]);
-  }
+  // Wait for both async streams to settle before final keyword recompute.
+  await Promise.allSettled([photosTask, reviewsTask]);
 
   // --- Street Imagery (Mapillary) - shown after Photos ---
   if (nTags.mapillary) {
@@ -4974,7 +5006,7 @@ function fitRouteToView() {
   if (!routeLayer || !map) return;
   const bounds = routeLayer.getBounds();
   if (bounds && bounds.isValid()) {
-    map.fitBounds(bounds, { padding: [40, 40] });
+    map.fitBounds(bounds, { padding: [40, 40], animate: true, duration: 0.6 });
   }
 }
 
@@ -5105,7 +5137,7 @@ async function updateRoute({ fit = true } = {}) {
           ? routeOutline.getBounds()
           : null;
     if (fit && bounds && bounds.isValid()) {
-      map.fitBounds(bounds, { padding: [40, 40] });
+      map.fitBounds(bounds, { padding: [40, 40], animate: true, duration: 0.6 });
     }
   } catch (err) {
     console.error("❌ Route render failed:", err);
@@ -5402,7 +5434,7 @@ async function selectDestinationSuggestion(res) {
           dashArray: "6,4",
         },
       });
-      map.fitBounds(selectedPlaceLayer.getBounds());
+      map.fitBounds(selectedPlaceLayer.getBounds(), { animate: true, duration: 0.6 });
     } else {
       // Get the computed primary color value (CSS variables don't work in inline HTML)
       const primaryColor = getComputedStyle(document.documentElement)
@@ -5416,7 +5448,7 @@ async function selectDestinationSuggestion(res) {
       const b = rgbMatch ? parseInt(rgbMatch[3], 16) : 210;
       
       // Center first (so the rectangle + marker appear in the right context immediately)
-      map.setView(L.latLng(res.center), 18);
+      map.flyTo(L.latLng(res.center), 18, { animate: true, duration: 0.6 });
 
       // Create floating card marker with halo
       const selectedPlaceIcon = L.divIcon({
@@ -5890,12 +5922,88 @@ export async function initMap(user = null) {
   currentBasemapLayer = baseLayers[initialName] || osm;
   currentBasemapLayer.addTo(map);
 
+  // Fade the map in only after the first basemap tiles load (prevents “snap/jump” perception).
+  const mapEl = typeof document !== "undefined" ? document.getElementById("map") : null;
+  if (mapEl) {
+    mapEl.classList.remove("is-ready");
+    const markReady = () => mapEl.classList.add("is-ready");
+    let readyTimeout = setTimeout(markReady, 1500);
+    if (currentBasemapLayer && typeof currentBasemapLayer.once === "function") {
+      currentBasemapLayer.once("load", () => {
+        clearTimeout(readyTimeout);
+        markReady();
+      });
+    }
+  }
+
+  // Give Leaflet an immediate, stable view so it can start loading tiles right away.
+  // Prefer restoring the user's last view to avoid a large “jump” on every page load.
+  const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
+  const loadLastView = () => {
+    try {
+      const raw = ls.get(LS_KEYS.MAP_VIEW);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      const lat = Number(parsed?.lat);
+      const lng = Number(parsed?.lng);
+      const zoom = Number(parsed?.zoom);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(zoom)) return null;
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+      return { lat, lng, zoom };
+    } catch {
+      return null;
+    }
+  };
+
+  const initialView = loadLastView() || { lat: defaultLatLng[0], lng: defaultLatLng[1], zoom: DEFAULT_ZOOM };
+  map.setView([initialView.lat, initialView.lng], initialView.zoom, { animate: false });
+
+  // Persist view to localStorage so future loads start where the user last left the map.
+  const saveLastView = debounce(() => {
+    try {
+      const c = map.getCenter();
+      const z = map.getZoom();
+      if (!c || !Number.isFinite(c.lat) || !Number.isFinite(c.lng) || !Number.isFinite(z)) return;
+      ls.set(LS_KEYS.MAP_VIEW, JSON.stringify({ lat: c.lat, lng: c.lng, zoom: z }));
+    } catch {
+      /* ignore */
+    }
+  }, 500);
+  map.on("moveend", saveLastView);
+
+  // If the user starts interacting before geolocation resolves, don't auto-recenter later.
+  let userInteracted = false;
+  const markUserInteracted = () => {
+    userInteracted = true;
+  };
+  map.on("dragstart", markUserInteracted);
+  map.on("zoomstart", markUserInteracted);
+
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
         myLocationLatLng = L.latLng(latitude, longitude);
-        map.setView([latitude, longitude], DEFAULT_ZOOM);
+        // Center to user's location (only if they haven't started interacting).
+        // To reduce “jumping”, only recenter if we're actually far away from current view.
+        if (!userInteracted) {
+          const currentCenter = map.getCenter?.();
+          const distM =
+            currentCenter && typeof currentCenter.distanceTo === "function"
+              ? currentCenter.distanceTo([latitude, longitude])
+              : Number.POSITIVE_INFINITY;
+
+          const RECENTER_THRESHOLD_M = 800; // avoid tiny moves that feel like jitter
+          if (!Number.isFinite(distM) || distM > RECENTER_THRESHOLD_M) {
+            const targetZoom = map.getZoom() || DEFAULT_ZOOM;
+            // If the map hasn't finished initial render yet, use a non-animated setView().
+            if (!map._loaded) {
+              map.setView([latitude, longitude], targetZoom, { animate: false });
+            } else {
+              map.flyTo([latitude, longitude], targetZoom, { animate: true, duration: 0.6 });
+            }
+          }
+        }
         // Avoid Leaflet's default marker-icon.png (often 404 in Next builds).
         // Use a lightweight divIcon instead.
         const myLocIcon = L.divIcon({
@@ -5928,15 +6036,15 @@ export async function initMap(user = null) {
             important: true,
           });
         }
-
-        const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
-        // const defaultLatLng = [51.5074, -0.1278]; // London, UK
-        map.setView(defaultLatLng, DEFAULT_ZOOM);
+        // Keep current view (already set above).
+      },
+      {
+        enableHighAccuracy: false,
+        timeout: 8000,
+        maximumAge: 5 * 60 * 1000,
       }
     );
   } else {
-    const defaultLatLng = [50.4501, 30.5234]; // Kyiv, Ukraine
-    map.setView(defaultLatLng, DEFAULT_ZOOM);
     toastWarn("Geolocation not supported. Using default location.");
   }
 
@@ -5970,7 +6078,7 @@ export async function initMap(user = null) {
           if (map) {
             const currentZoom = map.getZoom() || DEFAULT_ZOOM;
             const targetZoom = Math.max(currentZoom, 17);
-            map.setView(latlng, targetZoom);
+            map.flyTo(latlng, targetZoom, { animate: true, duration: 0.6 });
           }
         } catch (err) {
           console.error("❌ selectPlaceFromListFeature failed:", err);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import "./styles/ui.css";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -79,6 +79,7 @@ export default function MapContainer({
 }) {
   const [user, setUser] = useState(initialUser);
   const router = useRouter();
+  const mapResizeCleanupRef = useRef(null);
 
   const [detailsTab, setDetailsTab] = useState("overview");
   const [placesListData, setPlacesListData] = useState(null);
@@ -242,19 +243,60 @@ export default function MapContainer({
         await initMap(user); // <— pass user to initMap
         // Store updateUser function globally so we can call it when user changes
         window.updateMapUser = updateUser;
-        
-        // ✅ Fix gray map issue: invalidate size after map initialization
-        // This ensures tiles load properly after navigation/authentication
-        if (window.map && typeof window.map.invalidateSize === "function") {
-          // Use setTimeout to ensure DOM is fully rendered
-          setTimeout(() => {
-            try {
-              window.map.invalidateSize();
-            } catch (error) {
-              console.warn("Failed to invalidate map size after init:", error);
-            }
-          }, 100);
+
+        // Smooth + reliable: invalidate size when the map container actually changes size.
+        // This avoids multiple delayed invalidateSize() calls that can look like "jumping".
+        const attachResizeObserver = () => {
+          if (typeof window === "undefined") return () => {};
+          const map = window.map;
+          const el = document.getElementById("map");
+          if (!map || !el || typeof map.invalidateSize !== "function") return () => {};
+
+          let raf1 = 0;
+          let raf2 = 0;
+          const scheduleInvalidate = () => {
+            if (raf1) cancelAnimationFrame(raf1);
+            if (raf2) cancelAnimationFrame(raf2);
+            // Double-rAF to wait for layout + paint before measuring.
+            raf1 = requestAnimationFrame(() => {
+              raf2 = requestAnimationFrame(() => {
+                try {
+                  map.invalidateSize({ pan: false, animate: false });
+                } catch (error) {
+                  console.warn("Failed to invalidate map size:", error);
+                }
+              });
+            });
+          };
+
+          // Run once immediately after init.
+          scheduleInvalidate();
+
+          let ro = null;
+          if (typeof ResizeObserver !== "undefined") {
+            ro = new ResizeObserver(() => scheduleInvalidate());
+            ro.observe(el);
+          }
+
+          window.addEventListener("resize", scheduleInvalidate);
+
+          return () => {
+            if (ro) ro.disconnect();
+            window.removeEventListener("resize", scheduleInvalidate);
+            if (raf1) cancelAnimationFrame(raf1);
+            if (raf2) cancelAnimationFrame(raf2);
+          };
+        };
+
+        // Replace any previous observer (defensive for hot reload / remount edge cases).
+        if (mapResizeCleanupRef.current) {
+          try {
+            mapResizeCleanupRef.current();
+          } catch {
+            // ignore
+          }
         }
+        mapResizeCleanupRef.current = attachResizeObserver();
 
         // Check if there's a place to select from saved places
         if (
@@ -424,6 +466,14 @@ export default function MapContainer({
 
     return () => {
       isMounted = false;
+      if (mapResizeCleanupRef.current) {
+        try {
+          mapResizeCleanupRef.current();
+        } catch {
+          // ignore
+        }
+        mapResizeCleanupRef.current = null;
+      }
     };
   }, []); // Only run once on mount
 
@@ -433,39 +483,6 @@ export default function MapContainer({
       window.updateMapUser(user);
     }
   }, [user]);
-
-  // ✅ Fix gray map issue: invalidate size when component mounts or after navigation
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    // Helper function to safely call invalidateSize
-    const safeInvalidateSize = () => {
-      if (window.map && typeof window.map.invalidateSize === "function") {
-        try {
-          window.map.invalidateSize();
-        } catch (error) {
-          console.warn("Failed to invalidate map size:", error);
-        }
-      }
-    };
-
-    // Invalidate size after a short delay to ensure DOM is ready
-    const timeoutId = setTimeout(() => {
-      safeInvalidateSize();
-    }, 200);
-
-    // Also handle window resize events
-    const handleResize = () => {
-      safeInvalidateSize();
-    };
-
-    window.addEventListener("resize", handleResize);
-
-    return () => {
-      clearTimeout(timeoutId);
-      window.removeEventListener("resize", handleResize);
-    };
-  }, []); // Run once on mount
 
   // Allow non-React modules (fetchPhotos.mjs, etc.) to switch tabs
   useEffect(() => {
@@ -856,6 +873,7 @@ export default function MapContainer({
       {/* === Map container === */}
       <div
         id="map"
+        className="abilico-map"
         style={{
           position: "absolute",
           top: 0,
