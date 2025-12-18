@@ -232,13 +232,14 @@ const SHOP_FOCUS_LOW = [
   "bakery",
 ];
 
-// Build the base selectors depending on zoom
+// Build the base selectors.
+// IMPORTANT: user requirement is to not hide/remove place types depending on zoom.
+// So we always include the full set of categories; performance comes from caching + rendering optimizations.
 function selectorsForZoom(
-  zoom,
+  _zoom,
   { AMENITY_EXCLUDED, LEISURE_EXCLUDED, MAN_MADE_EXCLUDED, MILITARY_EXCLUDED }
 ) {
-  // Full fat at close zoom
-  const FULL = [
+  return [
     `node["amenity"]["amenity"!~"${AMENITY_EXCLUDED}"]`,
     `node["shop"]`,
     `node["tourism"]`,
@@ -252,39 +253,11 @@ function selectorsForZoom(
     `node["military"]["military"!~"${MILITARY_EXCLUDED}"]`,
     `node["sport"]`,
   ];
-
-  // Medium zoom: most categories, but no super-noisy tails
-  const MID = [
-    `node["amenity"]["amenity"!~"${AMENITY_EXCLUDED}"]`,
-    `node["shop"]["shop"~"^(${SHOP_FOCUS_LOW.join("|")})$"]`,
-    `node["tourism"]`,
-    `node["leisure"]["leisure"!~"${LEISURE_EXCLUDED}"]`,
-    `node["healthcare"]`,
-    `node["historic"]`,
-    // (omit building/craft/man_made/military at this level)
-  ];
-
-  // Far zoom: only “important” types to keep counts small
-  const LOW = [
-    `node["amenity"]["amenity"~"^(${AMENITY_FOCUS_LOW.join("|")})$"]`,
-    `node["tourism"]["tourism"~"^(${TOURISM_FOCUS_LOW.join("|")})$"]`,
-    `node["leisure"]["leisure"~"^(${LEISURE_FOCUS_LOW.join("|")})$"]`,
-    `node["healthcare"]["healthcare"~"^(hospital|clinic)$"]`,
-    `node["historic"]`,
-  ];
-
-  // Heuristic bands — tweak to taste
-  if (zoom >= 17) return FULL;
-  if (zoom >= 15) return MID;
-  return LOW; // zoom < 15
 }
 
-// Optional: cap results at lower zooms (Overpass supports a numeric limit on `out`)
-// 0 = no cap
-function limitForZoom(zoom) {
-  if (zoom >= 17) return 0;
-  if (zoom >= 15) return 300; // mid zoom
-  return 120; // far zoom
+// Do not cap results; capping can drop entire categories/types depending on ordering.
+function limitForZoom(_zoom) {
+  return 0;
 }
 
 let placesAbortController = null;

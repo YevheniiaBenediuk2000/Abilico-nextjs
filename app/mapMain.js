@@ -354,17 +354,12 @@ async function showQuickRoutePopup(latlng) {
     console.warn("Reverse geocoding failed:", err);
   }
 
-  const safeLocationName = locationName ? escapeHtml(locationName) : null;
-  const locationLabel = safeLocationName || "Selected location";
   const html = `
     <div class="quick-route-popup-container">
       <div class="quick-route-bubble" role="group" aria-label="Directions">
         <button id="qp-close" type="button" class="quick-route-close" aria-label="Close">
           <span class="material-icons">close</span>
         </button>
-        <div class="quick-route-location" title="${locationLabel}">
-          ${locationLabel}
-        </div>
         <div class="quick-route-actions">
           <button id="qp-directions" type="button" class="quick-route-btn" aria-label="Get directions to this place">
             <span class="material-icons quick-route-icon">directions</span>
@@ -4756,16 +4751,37 @@ Object.entries(nTags).forEach(([key, value]) => {
 
       // Only fetch reviews if we have a valid UUID.
       if (isValidUUID(globals.detailsCtx.placeId)) {
-        let retries = 3;
-        while (retries-- > 0) {
-          const data = await reviewStorage("GET", {
-            place_id: globals.detailsCtx.placeId,
-          });
-          if (data?.length || retries === 0) {
-            globals.reviews = data;
-            break;
+        const reviewsQueryKey = ["place-reviews", globals.detailsCtx.placeId];
+
+        // 1) If cached, show instantly (fast UI), then refresh if stale.
+        const cached = queryClient.getQueryData(reviewsQueryKey);
+        if (Array.isArray(cached) && cached.length) {
+          globals.reviews = cached;
+          if (!isStale()) {
+            renderReviewsList();
           }
         }
+
+        // 2) Fetch (deduped) with a short stale window. This keeps data fresh without hammering.
+        const data =
+          queryClient.getQueryData(reviewsQueryKey) ??
+          (await queryClient.fetchQuery({
+            queryKey: reviewsQueryKey,
+            staleTime: 30 * 1000,
+            queryFn: async () => {
+              let retries = 3;
+              while (retries-- > 0) {
+                const d = await reviewStorage("GET", {
+                  place_id: globals.detailsCtx.placeId,
+                });
+                if (d?.length || retries === 0) return d || [];
+              }
+              return [];
+            },
+          }));
+
+        if (isStale()) return;
+        globals.reviews = Array.isArray(data) ? data : [];
       } else {
         console.warn(
           "⚠️ Skipping review fetch: placeId is not a valid UUID:",
