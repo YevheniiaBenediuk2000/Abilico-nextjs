@@ -13,7 +13,7 @@ import LockIcon from "@mui/icons-material/Lock";
 import { getNextRegistrationStep } from "../utils/userPreferences";
 import { supabase } from "../api/supabaseClient";
 import { toastError, toastSuccess } from "../utils/toast.mjs";
-import { DIALOG_BORDER_RADIUS } from "../constants/constants.mjs";
+import { DIALOG_BORDER_RADIUS, PRIMARY_BLUE } from "../constants/constants.mjs";
 import ToastHost from "../components/ToastHost";
 import AbilicoLogo from "../components/AbilicoLogo";
 import { theme } from "../theme/theme";
@@ -151,6 +151,27 @@ export default function AuthPage() {
   };
 
 
+  // Don't render anything until mounted to prevent hydration mismatch
+  if (!mounted) {
+    return (
+      <ThemeProvider theme={theme}>
+        <Box
+          sx={{
+            minHeight: "100vh",
+            display: "flex",
+            background: "#ffffff",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Typography variant="body2" color="text.secondary">
+            Loading...
+          </Typography>
+        </Box>
+      </ThemeProvider>
+    );
+  }
+
   return (
     <ThemeProvider theme={theme}>
       <Box
@@ -184,6 +205,7 @@ export default function AuthPage() {
               {/* Logo at top left */}
               <AbilicoLogo
                 logoHeight={48}
+                textColor={PRIMARY_BLUE}
                 sx={{ mb: 4 }}
               />
               
@@ -238,7 +260,7 @@ export default function AuthPage() {
                   alignSelf: "flex-start",
                 }}
               >
-                <AbilicoLogo logoHeight={40} />
+                <AbilicoLogo logoHeight={40} textColor={PRIMARY_BLUE} />
               </Box>
 
               {/* Auth Form Container */}
@@ -250,62 +272,62 @@ export default function AuthPage() {
                   flexDirection: "column",
                 }}
               >
-                {mounted ? (
-                  <Auth
-                    supabaseClient={supabase}
-                    appearance={{
-                      theme: ThemeSupa,
-                      variables: {
-                        default: {
-                          colors: {
-                            brand: "#0c77d2",
-                            brandAccent: "#0c77d2",
-                            inputText: "#000000",
-                            inputLabelText: "#000000",
-                            inputPlaceholder: "#9e9e9e",
-                            inputBorder: "rgba(0, 0, 0, 0.23)",
-                            inputBorderHover: "rgba(0, 0, 0, 0.5)",
-                            inputBorderFocus: "#0c77d2",
-                            messageText: "#000000",
-                            messageTextDanger: "#d32f2f",
-                            anchorTextColor: "#0c77d2",
-                            anchorTextHoverColor: "#0c77d2",
-                          },
-                          space: {
-                            inputPadding: "16px",
-                            buttonPadding: "16px",
-                          },
-                          fontSizes: {
-                            baseBodySize: "14px",
-                            baseInputSize: "16px",
-                            labelText: "14px",
-                          },
-                          radii: {
-                            borderRadiusButton: "8px",
-                            buttonBorderRadius: "8px",
-                            inputBorderRadius: "8px",
-                          },
+                <Auth
+                  supabaseClient={supabase}
+                  appearance={{
+                    theme: ThemeSupa,
+                    variables: {
+                      default: {
+                        colors: {
+                          brand: PRIMARY_BLUE,
+                          brandAccent: PRIMARY_BLUE,
+                          inputText: "#000000",
+                          inputLabelText: "#000000",
+                          inputPlaceholder: "#9e9e9e",
+                          inputBorder: "rgba(0, 0, 0, 0.23)",
+                          inputBorderHover: "rgba(0, 0, 0, 0.5)",
+                          inputBorderFocus: PRIMARY_BLUE,
+                          messageText: "#000000",
+                          messageTextDanger: "#d32f2f",
+                          anchorTextColor: PRIMARY_BLUE,
+                          anchorTextHoverColor: PRIMARY_BLUE,
+                        },
+                        space: {
+                          inputPadding: "16px",
+                          buttonPadding: "16px",
+                        },
+                        fontSizes: {
+                          baseBodySize: "14px",
+                          baseInputSize: "16px",
+                          labelText: "14px",
+                        },
+                        radii: {
+                          borderRadiusButton: "8px",
+                          buttonBorderRadius: "8px",
+                          inputBorderRadius: "8px",
                         },
                       },
-                    }}
-                    providers={["google"]}
-                    redirectTo={redirectTo}
-                  />
-                ) : (
-                  <Box
-                    sx={{
-                      minHeight: "400px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                    suppressHydrationWarning
-                  >
-                    <Typography variant="body2" color="text.secondary">
-                      Loading...
-                    </Typography>
-                  </Box>
-                )}
+                    },
+                  }}
+                  localization={{
+                    variables: {
+                      sign_in: {
+                        email_label: "Email",
+                        password_label: "Password",
+                        email_input_placeholder: "name@example.com",
+                        password_input_placeholder: "",
+                      },
+                      sign_up: {
+                        email_label: "Email",
+                        password_label: "Password",
+                        email_input_placeholder: "name@example.com",
+                        password_input_placeholder: "",
+                      },
+                    },
+                  }}
+                  providers={["google"]}
+                  redirectTo={redirectTo}
+                />
               </Box>
             </Box>
           </Box>
@@ -443,7 +465,7 @@ export default function AuthPage() {
             </Button>
 
             {/* Abilico Logo/Branding */}
-            <AbilicoLogo sx={{ mt: 2 }} />
+            <AbilicoLogo sx={{ mt: 2 }} horizontal={true} logoHeight={32} textColor={PRIMARY_BLUE} />
           </Card>
         </Box>
       )}

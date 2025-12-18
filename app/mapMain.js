@@ -4822,74 +4822,90 @@ async function selectDestinationSuggestion(res) {
       const g = rgbMatch ? parseInt(rgbMatch[2], 16) : 119;
       const b = rgbMatch ? parseInt(rgbMatch[3], 16) : 210;
       
-      // Create background highlight circle (centered on place location, behind the marker)
-      const highlightCircle = L.circleMarker(L.latLng(res.center), {
-        radius: 40, // 40px radius = 80px diameter
-        fillColor: primaryColor,
-        fillOpacity: 0.2,
-        color: '#ffffff',
-        weight: 3,
-        opacity: 1,
-        interactive: false,
-        className: 'selected-place-highlight',
-        pane: 'markerPane', // Use marker pane but with lower z-index
-      });
-      
-      // Create speech bubble marker with Material Icon inside
-      // Using Directions icon as it's appropriate for a selected place
+      // Create floating card marker with halo
       const selectedPlaceIcon = L.divIcon({
-        className: "selected-place-marker",
+        className: "selected-place-marker-wrapper",
         html: `
           <div style="
             position: relative;
-            display: inline-flex;
+            width: 92px;
+            height: 92px;
+            display: flex;
             align-items: center;
             justify-content: center;
-            width: 36px;
-            height: 36px;
-            background: #ffffff;
-            border-radius: 10px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
           ">
-            <!-- Material Icon inside -->
-            <span class="material-icons" style="
-              font-size: 20px;
-              color: ${primaryColor};
-              line-height: 1;
-            ">place</span>
-            <!-- Triangle pointer -->
+            <!-- Big soft halo (radial gradient) -->
             <div style="
               position: absolute;
-              bottom: -6px;
-              left: 50%;
-              transform: translateX(-50%);
-              width: 0;
-              height: 0;
-              border-width: 6px 6px 0 6px;
-              border-style: solid;
-              border-color: #ffffff transparent transparent transparent;
+              inset: -28px;
+              border-radius: 50%;
+              background: radial-gradient(
+                circle,
+                rgba(${r}, ${g}, ${b}, 0.25) 0%,
+                rgba(${r}, ${g}, ${b}, 0.12) 45%,
+                rgba(${r}, ${g}, ${b}, 0) 100%
+              );
+              z-index: 0;
             "></div>
+            
+            <!-- Speech bubble: white rounded square with downward pointer -->
+            <div style="
+              position: relative;
+              z-index: 2;
+              width: 36px;
+              height: 36px;
+              border-radius: 16px;
+              background: #ffffff;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12);
+            ">
+              <!-- Blue icon background inside -->
+              <div style="
+                width: 24px;
+                height: 24px;
+                border-radius: 8px;
+                background: ${primaryColor};
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: #fff;
+              ">
+                <span class="material-icons" style="
+                  font-size: 18px;
+                  color: #fff;
+                  line-height: 1;
+                ">place</span>
+              </div>
+              
+              <!-- Downward triangle pointer -->
+              <div style="
+                position: absolute;
+                left: 50%;
+                transform: translateX(-50%);
+                bottom: -6px;
+                width: 0;
+                height: 0;
+                border-left: 6px solid transparent;
+                border-right: 6px solid transparent;
+                border-top: 6px solid #ffffff;
+                filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+              "></div>
+            </div>
           </div>
         `,
-        iconSize: [36, 42], // 36px width, 42px height (36 + 6px pointer)
-        iconAnchor: [18, 42], // Center horizontally, bottom at pointer tip
-        popupAnchor: [0, -36],
+        iconSize: [92, 92], // Total size including halo
+        iconAnchor: [46, 52], // Center horizontally, anchor at bottom of triangle pointer
+        popupAnchor: [0, -52],
       });
       
-      // Create the speech bubble marker
-      const speechBubbleMarker = L.marker(L.latLng(res.center), {
+      selectedPlaceLayer = L.marker(L.latLng(res.center), {
         icon: selectedPlaceIcon,
         keyboard: false,
         interactive: false,
-        zIndexOffset: 1000, // Ensure it appears on top of other markers and the circle
-        pane: 'markerPane',
+        zIndexOffset: 1000, // Ensure it appears on top of other markers
       });
-      
-      // Create layer group to hold both circle (behind) and marker (on top)
-      selectedPlaceLayer = L.layerGroup([
-        highlightCircle, // Add circle first (will be behind)
-        speechBubbleMarker, // Add marker second (will be on top)
-      ]);
       
       map.setView(L.latLng(res.center), 18);
     }

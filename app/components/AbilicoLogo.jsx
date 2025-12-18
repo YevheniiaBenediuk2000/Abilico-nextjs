@@ -16,14 +16,16 @@ import { PRIMARY_BLUE } from "../constants/constants.mjs";
  * @param {boolean} [props.showText=true] - Whether to show the "ABILICO" text
  * @param {string} [props.textColor] - Color of the text (defaults to PRIMARY_BLUE)
  * @param {string} [props.fontSize="14px"] - Font size of the text
+ * @param {boolean} [props.horizontal=false] - Whether to display logo and text horizontally (side by side)
  * @param {Object} [props.sx] - Additional MUI sx props to apply to the container
  */
 export default function AbilicoLogo({
   logoHeight = 48,
-  logoPath = "/logo.png",
+  logoPath = "/logo-svg.svg",
   showText = true,
   textColor = PRIMARY_BLUE,
   fontSize = "14px",
+  horizontal = false,
   sx = {},
 }) {
   const router = useRouter();
@@ -37,10 +39,11 @@ export default function AbilicoLogo({
       onClick={handleClick}
       sx={{
         display: "flex",
-        flexDirection: "column",
+        flexDirection: horizontal ? "row" : "column",
         alignItems: "center",
         justifyContent: "center",
         cursor: "pointer",
+        gap: horizontal ? 1 : 0,
         ...sx,
       }}
     >
@@ -52,7 +55,7 @@ export default function AbilicoLogo({
           width: "auto",
           height: logoHeight,
           objectFit: "contain",
-          mb: showText ? 1 : 0,
+          mb: !horizontal && showText ? 1 : 0,
         }}
       />
       {showText && (
@@ -63,7 +66,7 @@ export default function AbilicoLogo({
             fontSize: fontSize,
             letterSpacing: "5%",
             color: textColor,
-            textAlign: "left",
+            textAlign: horizontal ? "left" : "center",
             textTransform: "uppercase",
           }}
         >
