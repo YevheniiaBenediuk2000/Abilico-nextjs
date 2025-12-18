@@ -2033,6 +2033,16 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     }
   }
   
+  // Extract indoor_seating information - only show when yes
+  const indoorSeatingValue = nTags.indoor_seating || nTags["indoor-seating"] || nTags.indoor_seating || null;
+  if (indoorSeatingValue) {
+    const indoorSeatingLower = String(indoorSeatingValue).toLowerCase().trim();
+    if (indoorSeatingLower === "yes" || indoorSeatingLower === "true") {
+      features.push({ type: "indoor_seating", label: "Indoor seating available", icon: "event_seat" });
+    }
+    // Skip if no or missing - don't show "No indoor seating" to avoid clutter
+  }
+  
   // Consistent padding constant for all detail sections (24px = MUI spacing 3)
   const SECTION_PADDING = "24px";
   
@@ -3559,6 +3569,11 @@ Object.entries(nTags).forEach(([key, value]) => {
   // Skip outdoor_seating and internet_access - already rendered as Features chips
   if (lk === "outdoor_seating" || lk === "outdoor seating") return;
   if (lk === "internet_access" || lk === "internet_access:fee" || lk === "internet_access_fee") return;
+  
+  // Skip indoor_seating - will be handled in Features section as "Indoor seating available" (only when yes)
+  if (lk === "indoor_seating" || lk === "indoor-seating" || key === "indoor_seating" || key === "indoor-seating") {
+    return;
+  }
   
   // Skip beds and rooms - already rendered as Capacity section
   if (lk === "beds" || lk === "rooms") return;
