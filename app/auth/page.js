@@ -315,13 +315,13 @@ export default function AuthPage() {
                         email_label: "Email",
                         password_label: "Password",
                         email_input_placeholder: "name@example.com",
-                        password_input_placeholder: "",
+                        password_input_placeholder: "Min. 8 chars, A–Z, a–z, 0–9, symbol",
                       },
                       sign_up: {
                         email_label: "Email",
                         password_label: "Password",
                         email_input_placeholder: "name@example.com",
-                        password_input_placeholder: "",
+                        password_input_placeholder: "Min. 8 chars, A–Z, a–z, 0–9, symbol",
                       },
                     },
                   }}
