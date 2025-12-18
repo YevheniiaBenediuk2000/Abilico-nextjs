@@ -100,7 +100,8 @@ export default function AccessibilityInfoLegend() {
         bottom: LEGEND_BOTTOM,
         right: LEGEND_RIGHT,
         zIndex: 1000,
-        maxWidth: 320,
+        width: { xs: "calc(100vw - 20px)", sm: 360 },
+        maxWidth: 380,
       }}
     >
       <Card
@@ -110,22 +111,31 @@ export default function AccessibilityInfoLegend() {
           border: "1px solid",
           borderColor: "rgba(0, 0, 0, 0.08)",
           overflow: "hidden",
+          maxHeight: "65vh",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
-        <CardContent sx={{ p: 3, "&:last-child": { pb: 3 } }}>
+        <CardContent
+          sx={{
+            p: 2.25,
+            "&:last-child": { pb: 2.25 },
+            overflowY: "auto",
+          }}
+        >
           {/* Header */}
           <Box
             sx={{
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              mb: 3,
+              mb: 1.5,
             }}
           >
             <Typography
               variant="h6"
               sx={{
-                fontSize: "1.125rem",
+                fontSize: "1rem",
                 fontWeight: 600,
                 color: "rgba(0, 0, 0, 0.87)",
                 letterSpacing: "-0.01em",
@@ -139,6 +149,8 @@ export default function AccessibilityInfoLegend() {
               aria-label="Close legend"
               sx={{
                 color: "rgba(0, 0, 0, 0.6)",
+                width: 36,
+                height: 36,
                 "&:hover": {
                   backgroundColor: "rgba(0, 0, 0, 0.04)",
                 },
@@ -149,7 +161,7 @@ export default function AccessibilityInfoLegend() {
           </Box>
 
           {/* Legend items */}
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
             {TIER_INFO.map((info) => (
               <Box
                 key={info.tier}
@@ -180,21 +192,16 @@ export default function AccessibilityInfoLegend() {
                       fontSize: "0.875rem",
                       fontWeight: 500,
                       color: "rgba(0, 0, 0, 0.87)",
-                      mb: 0.5,
                       lineHeight: 1.4,
                     }}
                   >
-                    {info.label}
-                  </Typography>
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      fontSize: "0.8125rem",
-                      color: "rgba(0, 0, 0, 0.6)",
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    {info.description}
+                    {info.label}{" "}
+                    <Box
+                      component="span"
+                      sx={{ fontWeight: 400, color: "rgba(0, 0, 0, 0.6)" }}
+                    >
+                      – {info.description}
+                    </Box>
                   </Typography>
                 </Box>
               </Box>
@@ -204,8 +211,8 @@ export default function AccessibilityInfoLegend() {
           {/* Explanation */}
           <Box
             sx={{
-              mt: 3,
-              pt: 3,
+              mt: 1.5,
+              pt: 1.5,
               borderTop: "1px solid",
               borderColor: "rgba(0, 0, 0, 0.12)",
             }}
@@ -213,14 +220,14 @@ export default function AccessibilityInfoLegend() {
             <Typography
               variant="caption"
               sx={{
-                fontSize: "0.8125rem",
+                fontSize: "0.75rem",
                 color: "rgba(0, 0, 0, 0.6)",
                 lineHeight: 1.6,
               }}
             >
-              <strong>Icon shape</strong> = place type
+              Icon shape = place type
               <br />
-              <strong>Color</strong> = wheelchair accessibility
+              Color = wheelchair accessibility
             </Typography>
           </Box>
         </CardContent>

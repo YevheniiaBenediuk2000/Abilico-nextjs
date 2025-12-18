@@ -3722,7 +3722,7 @@ Object.entries(nTags).forEach(([key, value]) => {
   // Skip wheelchair/accessibility tags - already rendered in Accessibility section
   const isWheelchair = /^wheelchair/i.test(key);
   if (isWheelchair) return;
-  
+
   // Skip toilets:wheelchair - already rendered in Accessibility section
   if (lk === "toilets:wheelchair" || lk === "toilets_wheelchair" || lk === "toilets-wheelchair" ||
       lk === "wheelchair:toilets" || lk === "wheelchair_toilets" || lk === "wheelchair-toilets" ||
