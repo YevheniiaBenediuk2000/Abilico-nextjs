@@ -26,6 +26,7 @@ import Tooltip from "@mui/material/Tooltip";
 import AccessibleForwardIcon from "@mui/icons-material/AccessibleForward";
 import SwapVertIcon from "@mui/icons-material/SwapVert";
 import SearchIcon from "@mui/icons-material/Search";
+import StarBorderIcon from "@mui/icons-material/StarBorder";
 import InputAdornment from "@mui/material/InputAdornment";
 import Drawer from "@mui/material/Drawer";
 import Snackbar from "@mui/material/Snackbar";
@@ -1424,60 +1425,83 @@ export default function MapContainer({
                   <DetailsTabPanel value="reviews" active={detailsTab}>
                     <div className="card shadow-sm">
                       <div className="card-body">
+                        {/* Title row: Reviews on left, stars + text on right */}
                         <Box
                           sx={{
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "space-between",
                             gap: 2,
-                            mb: 2,
+                            mb: !reviewStats.count ? 2 : 1,
                           }}
                         >
-                          <Box sx={{ minWidth: 0 }}>
-                            <Typography variant="h6" sx={{ mb: 0.5 }}>
-                              Reviews
-                            </Typography>
-                            <Box
-                              sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 1,
-                                flexWrap: "wrap",
-                              }}
-                            >
-                              <Rating
-                                value={reviewStats.count ? reviewStats.avg : 0}
-                                precision={0.1}
-                                readOnly
-                                size="small"
-                              />
-                              <Typography
-                                variant="body2"
-                                color="text.secondary"
-                              >
-                                {reviewStats.count
-                                  ? `${reviewStats.avg.toFixed(1)} • ${reviewStats.count} ${
-                                      reviewStats.count === 1
-                                        ? "review"
-                                        : "reviews"
-                                    }`
-                                  : "No reviews yet"}
-                              </Typography>
-                          </Box>
-                          </Box>
-
-                              <Button
-                                variant="contained"
-                            size="small"
-                            onClick={() => {
-                              if (user) setReviewWriteOpen(true);
-                              else router.push("/auth");
+                          <Typography variant="h6">
+                            Reviews
+                          </Typography>
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 0.5,
+                              flexWrap: "wrap",
                             }}
                           >
-                            Write a review
-                              </Button>
+                            {!reviewStats.count ? (
+                              <>
+                                <StarBorderIcon sx={{ fontSize: "1.25rem", color: "text.secondary" }} />
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                  sx={{ fontSize: "0.75rem" }}
+                                >
+                                  No reviews yet
+                                </Typography>
+                              </>
+                            ) : (
+                              <>
+                                <Rating
+                                  value={reviewStats.avg}
+                                  precision={0.1}
+                                  readOnly
+                                  size="small"
+                                />
+                                <Typography
+                                  variant="body2"
+                                  color="text.secondary"
+                                >
+                                  {reviewStats.avg.toFixed(1)} • {reviewStats.count}{" "}
+                                  {reviewStats.count === 1 ? "review" : "reviews"}
+                                </Typography>
+                              </>
+                            )}
+                          </Box>
                         </Box>
 
+                        {/* Empty state + CTA button (only show when no reviews) */}
+                        {!reviewStats.count && (
+                          <Box
+                            sx={{
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center",
+                              gap: 1.5,
+                              mb: 2,
+                            }}
+                          >
+                            <Button
+                              variant="contained"
+                              size="small"
+                              onClick={() => {
+                                if (user) setReviewWriteOpen(true);
+                                else router.push("/auth");
+                              }}
+                            >
+                              Write a review
+                            </Button>
+                          </Box>
+                        )}
+
+                        {/* Reviews list */}
                         <ul id="reviews-list" className="list-group"></ul>
                       </div>
                     </div>

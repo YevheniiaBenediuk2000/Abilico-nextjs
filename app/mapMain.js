@@ -1280,8 +1280,7 @@ async function renderReviewsList() {
     const emptyMsg = document.createElement("div");
     emptyMsg.style.color = "rgba(0, 0, 0, 0.6)";
     emptyMsg.style.fontSize = "0.875rem";
-    emptyMsg.style.fontStyle = "italic";
-    emptyMsg.textContent = "No reviews yet. Be the first to share your experience!";
+    emptyMsg.textContent = "Be the first to review this place.";
     
     emptyContainer.appendChild(emptyMsg);
     listEl.appendChild(emptyContainer);
