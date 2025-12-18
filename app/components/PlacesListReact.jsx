@@ -99,16 +99,34 @@ function derivePlaceInfo(feature, center) {
   const distKm =
     center && hasCoord ? haversineKm(center.lat, center.lng, lat, lon) : null;
 
-  const name =
-    tags.name ||
-    tags["addr:housename"] ||
-    tags.amenity ||
-    tags.shop ||
-    tags.tourism ||
-    tags.leisure ||
-    tags.office ||
-    tags.historic ||
-    "Unnamed place";
+  const humanize = (v) => {
+    const s = String(v ?? "")
+      .replace(/[_-]/g, " ")
+      .trim();
+    if (!s) return "";
+    // Avoid showing boolean-ish values like "yes" as labels.
+    if (s.toLowerCase() === "yes" || s.toLowerCase() === "true" || s === "1")
+      return "";
+    return s;
+  };
+
+  const typeLabel =
+    humanize(tags.amenity) ||
+    humanize(tags.shop) ||
+    humanize(tags.tourism) ||
+    humanize(tags.leisure) ||
+    humanize(tags.healthcare) ||
+    humanize(tags.office) ||
+    humanize(tags.historic) ||
+    humanize(tags.natural) ||
+    humanize(tags.sport) ||
+    humanize(tags.craft) ||
+    humanize(tags.man_made) ||
+    humanize(tags.military) ||
+    (String(tags.building ?? "").toLowerCase().trim() === "yes"
+      ? "Building"
+      : humanize(tags.building)) ||
+    "Point of interest";
 
   const majorKey =
     (tags.amenity && "amenity") ||
@@ -120,6 +138,7 @@ function derivePlaceInfo(feature, center) {
     (tags.historic && "historic") ||
     (tags.natural && "natural") ||
     (tags.sport && "sport") ||
+    (tags.building && "building") ||
     "other";
 
   const subKey =
@@ -143,9 +162,18 @@ function derivePlaceInfo(feature, center) {
     tags.office ||
     tags.historic ||
     tags.natural ||
+    tags.building ||
     "";
 
   const address = formatAddressFromTags(tags);
+
+  // Prefer name/brand/operator; otherwise show a useful label instead of "Unnamed place".
+  const name =
+    tags.name ||
+    tags.brand ||
+    tags.operator ||
+    tags["addr:housename"] ||
+    (address ? `${typeLabel} — ${address}` : typeLabel);
 
   const accTier = getAccessibilityTier(tags);
   const accColor = BADGE_COLOR_BY_TIER[accTier] || BADGE_COLOR_BY_TIER.unknown;
@@ -193,6 +221,7 @@ function buildTypeTree(items) {
     historic: "Historic",
     natural: "Natural",
     sport: "Sport",
+    building: "Buildings",
     other: "Other",
   };
 
@@ -228,6 +257,7 @@ const GROUP_ICON_MAP = {
   Healthcare: "hospital",
   Natural: "park",
   Sport: "pitch",
+  Buildings: "building",
 };
 
 const makiIconUrl = (name) => `/icons/maki/${encodeURIComponent(name)}.svg`;
@@ -244,6 +274,7 @@ const GROUP_TO_MAJOR_KEY = {
   Healthcare: "healthcare",
   Natural: "natural",
   Sport: "sport",
+  Buildings: "building",
 };
 
 function loadInitialTypeFilter() {

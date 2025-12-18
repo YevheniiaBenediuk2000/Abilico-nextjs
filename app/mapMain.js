@@ -320,6 +320,42 @@ function placeKeyFromFeature(feature) {
   return `${osmType}/${osmId}`; // e.g. "N/123456789"
 }
 
+function displayNameFromTags(tags = {}) {
+  const humanize = (v) => {
+    const s = String(v ?? "")
+      .replace(/[_-]/g, " ")
+      .trim();
+    if (!s) return "";
+    // Many OSM keys use `yes/no` as a boolean; don't show bare "yes" as a title.
+    if (s.toLowerCase() === "yes" || s.toLowerCase() === "true" || s === "1")
+      return "";
+    return s;
+  };
+
+  return (
+    tags.name ||
+    tags.brand ||
+    tags.operator ||
+    tags["addr:housename"] ||
+    humanize(tags.amenity) ||
+    humanize(tags.shop) ||
+    humanize(tags.tourism) ||
+    humanize(tags.leisure) ||
+    humanize(tags.healthcare) ||
+    humanize(tags.office) ||
+    humanize(tags.historic) ||
+    humanize(tags.natural) ||
+    humanize(tags.sport) ||
+    humanize(tags.craft) ||
+    humanize(tags.man_made) ||
+    humanize(tags.military) ||
+    (String(tags.building ?? "").toLowerCase().trim() === "yes"
+      ? "Building"
+      : humanize(tags.building)) ||
+    "Point of interest"
+  );
+}
+
 async function showQuickRoutePopup(latlng) {
   // Reverse geocode to get location name
   let locationName = null;
@@ -997,7 +1033,7 @@ async function refreshPlaces() {
             renderDetails(tags, L.latLng(latlng), { keepDirectionsUi: true });
           })
           .on("add", () => {
-            const title = tags.name ?? tags.amenity ?? "Unnamed place";
+            const title = displayNameFromTags(tags);
             attachBootstrapTooltip(marker, title);
           })
           .on("remove", () => {
@@ -2054,7 +2090,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     window.visionAccessibilityControl.update(tags);
   }
   
-  const titleText = tags.name || tags.amenity || "Details";
+  const titleText = displayNameFromTags(tags) || "Details";
   
   // Extract short_name (normalize to uppercase, only show if different from name)
   const shortNameRaw = tags.short_name || tags["short_name"] || tags["short-name"] || null;
@@ -4361,6 +4397,8 @@ Object.entries(nTags).forEach(([key, value]) => {
     displayKey = "Category"; // Rename "Amenity" to "Category"
   } else if (lk === "height") {
     displayKey = "Height"; // Simple label for height
+  } else if (lk === "building") {
+    displayKey = "Building";
   } else {
     displayKey = key
       .replace(/^Addr_?/i, "")
@@ -4399,9 +4437,12 @@ Object.entries(nTags).forEach(([key, value]) => {
     return trimmed;
   };
 
-  // Special formatting for height field
+  // Special formatting for building=yes and height field
   let displayValue;
-  if (lk === "height" || key === "height") {
+  if (lk === "building" || key === "building") {
+    const s = String(value).trim().toLowerCase();
+    displayValue = s === "yes" || s === "true" || s === "1" ? "Unspecified" : formatValueForDisplay(String(value));
+  } else if (lk === "height" || key === "height") {
     const heightNum = parseFloat(value);
     if (!isNaN(heightNum) && heightNum > 0) {
       displayValue = `~${heightNum} m`;

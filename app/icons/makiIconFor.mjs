@@ -171,10 +171,11 @@ export function iconFor(tags = {}) {
 
         // 2.5) Building fallback (strict whitelist only)
         // Avoid returning arbitrary building values (building=yes) as icon names.
+        // If building is present but not in our whitelist, use a generic building icon.
         if (key === "building") {
             const m = mapFrom(BUILDING_TO_MAKI, raw);
             if (m) return makiUrl(m);
-            continue;
+            return makiUrl("building");
         }
 
         if (key === "office")         { const m = mapFrom(OFFICE_TO_MAKI, raw);        if (m) return makiUrl(m); }
@@ -190,16 +191,12 @@ export function iconFor(tags = {}) {
         if (key === "landuse")        { const m = mapFrom(LANDUSE_TO_MAKI, raw);       if (m) return makiUrl(m); }
         if (key === "barrier")        { const m = mapFrom(BARRIER_TO_MAKI, raw);       if (m) return makiUrl(m); }
 
-        // 3) Generic fallback for *any* other key:
-        // try to use the value directly if a matching maki icon exists in your set
-        for (const v of variants(raw)) {
-            return makiUrl(v);
-        }
-
-        // 4) Fallback per-category (if it's one we know), else final fallback
+        // 3) Fallback per-category (if it's one we know), else final fallback.
+        // IMPORTANT: Do NOT try to use raw values as icon names (it causes 404s like yes.svg, gabled.svg, etc.)
+        // Keep icons general and reliable.
         if (TAG_PRIORITY.includes(key)) return makiUrl(categoryFallback(key));
     }
 
     // Last resort
-    return makiUrl("information");
+    return makiUrl("marker");
 }
