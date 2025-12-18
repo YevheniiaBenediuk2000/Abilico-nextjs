@@ -9,35 +9,34 @@ import IconButton from "@mui/material/IconButton";
 import CloseIcon from "@mui/icons-material/Close";
 import InfoIcon from "@mui/icons-material/Info";
 
-import { BADGE_COLOR_BY_TIER } from "../constants/constants.mjs";
 
 // Tier labels and descriptions
 const TIER_INFO = [
   {
     tier: "designated",
-    label: "Accessible",
-    description: "Step-free or mostly wheelchair-friendly",
+    label: "Designated",
+    description: "Officially marked accessible",
     color: "#16a34a", // green
     emoji: "🟢",
   },
   {
     tier: "yes",
-    label: "Accessible",
-    description: "Step-free or mostly wheelchair-friendly",
+    label: "Wheelchair accessible",
+    description: "Step-free, usable for most wheelchairs",
     color: "#6cc24a", // green (darker)
     emoji: "🟢",
   },
   {
     tier: "limited",
-    label: "Limited access",
-    description: "Barriers or only partial accessibility",
+    label: "Limited",
+    description: "Some barriers",
     color: "#ffc107", // amber/yellow
     emoji: "🟡",
   },
   {
     tier: "unknown",
     label: "Unknown",
-    description: "No reliable accessibility information yet",
+    description: "Accessibility not checked",
     color: "#6c757d", // slate/gray
     emoji: "⚪️",
   },
@@ -52,14 +51,20 @@ const TIER_INFO = [
 
 export default function AccessibilityInfoLegend() {
   const [open, setOpen] = useState(false);
+  // Fixed positioning requested by UI spec / DOM snapshot:
+  // bottom: 110px; right: 10px;
+  const LEGEND_RIGHT = 10;
+  const LEGEND_BOTTOM = 110;
+  // Slightly larger than zoom buttons (zoom uses 36px)
+  const LEGEND_BUTTON_SIZE = 40;
 
   if (!open) {
     return (
       <Box
         sx={{
           position: "fixed",
-          bottom: 110, // Position above zoom control (zoom control ~72px + 10px margin + 8px gap)
-          right: 10, // Right side, matching zoom control position
+          bottom: LEGEND_BOTTOM,
+          right: LEGEND_RIGHT,
           zIndex: 1000,
         }}
       >
@@ -68,11 +73,12 @@ export default function AccessibilityInfoLegend() {
           sx={{
             backgroundColor: "white",
             border: "1px solid rgba(0,0,0,0.12)",
-            boxShadow: "0 2px 1px -1px rgba(0,0,0,0.2), 0px 1px 1px 0px rgba(0,0,0,0.14), 0px 1px 3px 0px rgba(0,0,0,0.12)",
+            boxShadow:
+              "0 2px 1px -1px rgba(0,0,0,0.2), 0px 1px 1px 0px rgba(0,0,0,0.14), 0px 1px 3px 0px rgba(0,0,0,0.12)",
             borderRadius: 1,
-            width: 36,
-            height: 36,
-            minWidth: 36,
+            width: LEGEND_BUTTON_SIZE,
+            height: LEGEND_BUTTON_SIZE,
+            minWidth: LEGEND_BUTTON_SIZE,
             padding: 0,
             "&:hover": {
               backgroundColor: "rgba(0, 0, 0, 0.04)",
@@ -91,8 +97,8 @@ export default function AccessibilityInfoLegend() {
     <Box
       sx={{
         position: "fixed",
-        bottom: 110, // Position above zoom control
-        right: 10, // Right side, matching zoom control position
+        bottom: LEGEND_BOTTOM,
+        right: LEGEND_RIGHT,
         zIndex: 1000,
         maxWidth: 320,
       }}

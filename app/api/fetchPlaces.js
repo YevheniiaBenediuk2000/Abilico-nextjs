@@ -8,6 +8,11 @@ const OVERPASS_ENDPOINTS = [
   "https://overpass.kumi.systems/api/interpreter",
 ];
 
+function isRateLimitError(err) {
+  const msg = String(err?.message || "");
+  return /\bOverpass error 429\b/.test(msg) || /\b429\b/.test(msg);
+}
+
 let placeGeometryAbortController = null;
 
 export async function fetchPlaceGeometry(osmType, osmId) {
@@ -368,6 +373,9 @@ export async function fetchPlaces(bounds, zoom, options) {
         error?.message?.includes("timeout")
       ) {
         console.warn(`[Overpass] ${endpoint} timed out, trying next endpoint…`);
+      } else if (isRateLimitError(error)) {
+        // 429 is expected under load; avoid scary console errors
+        console.warn(`[Overpass] ${endpoint} rate-limited (429), trying next…`);
       } else if (error?.name !== "AbortError") {
         console.error("❌ Overpass fetch failed:", error);
       }
@@ -378,7 +386,8 @@ export async function fetchPlaces(bounds, zoom, options) {
       // Only warn if it's not a timeout
       if (
         !error?.message?.includes("504") &&
-        !error?.message?.includes("timeout")
+        !error?.message?.includes("timeout") &&
+        !isRateLimitError(error)
       ) {
         console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
       }
@@ -386,6 +395,14 @@ export async function fetchPlaces(bounds, zoom, options) {
   }
 
   if (lastError?.name === "AbortError") {
+    return { type: "FeatureCollection", features: [] };
+  }
+
+  // If we're rate-limited everywhere, fail softly: keep map usable and try again on next refresh.
+  if (isRateLimitError(lastError)) {
+    console.warn(
+      "Places fetch rate-limited on all Overpass endpoints; returning empty result for now."
+    );
     return { type: "FeatureCollection", features: [] };
   }
 
