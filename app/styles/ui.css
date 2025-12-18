@@ -44,10 +44,96 @@
 }
 
 .quick-choose-popup .leaflet-popup-content {
-  margin: 12px 16px;
+  margin: 0;
+  padding: 0;
 }
-.quick-choose-popup .btn {
-  margin: 2px 4px 2px 0;
+
+.quick-route-popup-container {
+  position: relative;
+  display: inline-block;
+}
+
+.quick-route-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background-color: #0f77d2;
+  color: white;
+  border: 2px solid white;
+  border-radius: 24px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease-in-out;
+  position: relative;
+  z-index: 1;
+}
+
+.quick-route-btn::after {
+  content: "";
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid #0f77d2;
+  z-index: 0;
+}
+
+.quick-route-btn:hover {
+  background-color: #0d6bb8;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.12);
+  transform: translateY(-1px);
+}
+
+.quick-route-btn:active {
+  transform: translateY(0);
+}
+
+.quick-route-icon {
+  font-size: 18px !important;
+  width: 18px;
+  height: 18px;
+}
+
+.quick-route-text {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.quick-route-close {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease-in-out;
+  z-index: 2;
+}
+
+.quick-route-close:hover {
+  background-color: rgba(0, 0, 0, 0.8);
+  transform: scale(1.1);
+}
+
+.quick-route-close .material-icons {
+  font-size: 16px !important;
+  width: 16px;
+  height: 16px;
 }
 
 /* === Directions button (single primary action) === */
@@ -209,6 +295,14 @@
   --mode-icon-fg: #0f77d2;
   --mode-icon-bg: rgba(15, 119, 210, 0.12);
   --mode-icon-bg-hover: rgba(15, 119, 210, 0.18);
+
+  /* Shared tag/chip styling (category + feature chips) */
+  --tag-chip-height: 24px;
+  --tag-chip-font-size: 0.75rem;
+  --tag-chip-px: 12px;
+  --tag-chip-icon-size: 14px;
+  --tag-chip-bg: rgba(15, 119, 210, 0.08);
+  --tag-chip-fg: #0f77d2;
 
   --route-btn-secondary-border: var(--bs-secondary);
   --route-btn-secondary-fg: var(--bs-secondary);

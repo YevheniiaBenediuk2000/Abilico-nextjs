@@ -43,9 +43,15 @@ import FormGroup from "@mui/material/FormGroup";
 import PlacesListReact from "./components/PlacesListReact";
 import ReviewForm from "./components/ReviewForm";
 import ObstaclePopupDialog from "./components/ObstaclePopupDialog";
+import AccessibilityInfoLegend from "./components/AccessibilityInfoLegend";
 import { ensurePlaceExists } from "./api/reviewStorage.js";
 import globals from "./constants/globalVariables.js";
 import { toastError, toastSuccess } from "./utils/toast.mjs";
+import {
+  TAG_CHIP_ICON_STYLE,
+  TAG_CHIP_SX,
+  TAG_CHIP_WITH_ICON_SX,
+} from "./constants/tagChips";
 // Import cache clearing utilities (automatically exposes window.clearAllCaches, etc.)
 import "./utils/clearCache.mjs";
 
@@ -1187,16 +1193,7 @@ export default function MapContainer({
                       <Chip
                         label={placeCategory}
                         size="small"
-                        sx={{
-                          height: 24,
-                          fontSize: "0.75rem",
-                          fontWeight: 500,
-                          backgroundColor: "rgba(15, 119, 210, 0.08)",
-                          color: "#0f77d2",
-                          "& .MuiChip-label": {
-                            px: 1.5,
-                          },
-                        }}
+                        sx={TAG_CHIP_SX}
                       />
                     )}
                     {/* Feature chips (Drive-through, Dispensing, etc.) */}
@@ -1206,30 +1203,14 @@ export default function MapContainer({
                         icon={
                           <span
                             className="material-icons"
-                            style={{
-                              fontSize: "14px",
-                              color: "#0f77d2",
-                            }}
+                            style={TAG_CHIP_ICON_STYLE}
                           >
                             {feature.icon}
                           </span>
                         }
                         label={feature.label}
                         size="small"
-                        sx={{
-                          height: 24,
-                          fontSize: "0.75rem",
-                          fontWeight: 500,
-                          backgroundColor: "rgba(15, 119, 210, 0.08)",
-                          color: "#0f77d2",
-                          "& .MuiChip-label": {
-                            px: 1.5,
-                          },
-                          "& .MuiChip-icon": {
-                            marginLeft: "8px",
-                            marginRight: "-4px",
-                          },
-                        }}
+                        sx={TAG_CHIP_WITH_ICON_SX}
                       />
                     ))}
                     {placeDistance && (
@@ -2072,6 +2053,9 @@ export default function MapContainer({
           {saveSnackbarMessage}
         </Alert>
       </Snackbar>
+
+      {/* Accessibility Info Legend */}
+      <AccessibilityInfoLegend />
     </div>
   );
 }

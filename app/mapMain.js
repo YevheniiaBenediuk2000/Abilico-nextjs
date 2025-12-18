@@ -294,10 +294,55 @@ function placeKeyFromFeature(feature) {
   return `${osmType}/${osmId}`; // e.g. "N/123456789"
 }
 
-function showQuickRoutePopup(latlng) {
+async function showQuickRoutePopup(latlng) {
+  // Reverse geocode to get location name
+  let locationName = null;
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng.lat}&lon=${latlng.lng}&zoom=18&addressdetails=1`;
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Abilico/1.0',
+      },
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      const address = data.address || {};
+      const displayName = data.display_name;
+      
+      // Use display_name if available, otherwise build from address components
+      if (displayName) {
+        // Extract just the first part (usually street/place name) before the first comma
+        const parts = displayName.split(',');
+        locationName = parts[0].trim();
+        // If it's too short, include the next part
+        if (locationName.length < 10 && parts.length > 1) {
+          locationName = `${locationName}, ${parts[1].trim()}`;
+        }
+      } else {
+        // Fallback: build from address components
+        const street = address.road || address.street || '';
+        const houseNumber = address.house_number || '';
+        if (street) {
+          locationName = houseNumber ? `${houseNumber} ${street}` : street;
+        } else if (address.city || address.town || address.village) {
+          locationName = address.city || address.town || address.village;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Reverse geocoding failed:", err);
+  }
+
   const html = `
-    <div class="d-flex align-items-center gap-2" role="group" aria-label="Quick route actions">
-      <button id="qp-directions" type="button" class="btn btn-sm btn-directions" aria-label="Get directions to this place">Directions</button>
+    <div class="quick-route-popup-container">
+      <button id="qp-directions" type="button" class="quick-route-btn" aria-label="Get directions to this place">
+        <span class="material-icons quick-route-icon">directions</span>
+        <span class="quick-route-text">Directions</span>
+      </button>
+      <button id="qp-close" type="button" class="quick-route-close" aria-label="Close">
+        <span class="material-icons">close</span>
+      </button>
     </div>
   `;
 
@@ -309,9 +354,9 @@ function showQuickRoutePopup(latlng) {
   clickPopup = L.popup({
     className: "quick-choose-popup",
     offset: [0, -8],
-    autoClose: true,
-    closeOnClick: true,
-    closeButton: true,
+    autoClose: false,
+    closeOnClick: false,
+    closeButton: false,
   })
     .setLatLng(latlng)
     .setContent(html)
@@ -321,7 +366,12 @@ function showQuickRoutePopup(latlng) {
   directionsBtn?.addEventListener("click", async (ev) => {
     L.DomEvent.stop(ev);
     try {
-      await openDirectionsToPlace(L.latLng(latlng), { fit: false });
+      await openDirectionsToPlace(latlng, { fit: false });
+      if (locationName) {
+        await setTo(latlng, locationName, { fit: false });
+      } else {
+        await setTo(latlng, null, { fit: false });
+      }
 
       if (
         typeof window !== "undefined" &&
@@ -331,7 +381,15 @@ function showQuickRoutePopup(latlng) {
       }
     } finally {
       map.closePopup(clickPopup);
+      clickPopup = null;
     }
+  });
+
+  const closeBtn = document.getElementById("qp-close");
+  closeBtn?.addEventListener("click", (ev) => {
+    L.DomEvent.stop(ev);
+      map.closePopup(clickPopup);
+    clickPopup = null;
   });
 }
 
@@ -1907,6 +1965,33 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     features.push({ type: "dispensing", label: "Dispenses prescription medicines", icon: "medical_services" });
   }
   
+  // Extract payment information and create a single payment chip
+  // Check normalized tags (case-insensitive lookup)
+  const paymentCreditCards = nTags["payment:credit_cards"] || nTags["payment_credit_cards"] || null;
+  const paymentDebitCards = nTags["payment:debit_cards"] || nTags["payment_debit_cards"] || null;
+  const paymentCash = nTags["payment:cash"] || nTags["payment_cash"] || null;
+  
+  const creditCardsYes = paymentCreditCards && String(paymentCreditCards).toLowerCase().trim() === "yes";
+  const debitCardsYes = paymentDebitCards && String(paymentDebitCards).toLowerCase().trim() === "yes";
+  const cashYes = paymentCash && String(paymentCash).toLowerCase().trim() === "yes";
+  const cashNo = paymentCash && String(paymentCash).toLowerCase().trim() === "no";
+  const anyCardYes = creditCardsYes || debitCardsYes;
+  
+  if (anyCardYes || cashYes) {
+    let paymentLabel = null;
+    if (cashNo && anyCardYes) {
+      paymentLabel = "Card payments only";
+    } else if (cashYes && !anyCardYes) {
+      paymentLabel = "Cash only";
+    } else if (anyCardYes) {
+      paymentLabel = "Cards accepted";
+    }
+    
+    if (paymentLabel) {
+      features.push({ type: "payment", label: paymentLabel, icon: "credit_card" });
+    }
+  }
+  
   // Consistent padding constant for all detail sections (24px = MUI spacing 3)
   const SECTION_PADDING = "24px";
   
@@ -3206,6 +3291,12 @@ Object.entries(nTags).forEach(([key, value]) => {
   
   // Skip drive_through - will be handled in Features section (only show if yes and relevant)
   if (lk === "drive_through" || lk === "drive-through") return;
+  
+  // Skip payment tags - will be handled in Features section as a single chip
+  if (lk === "payment:credit_cards" || lk === "payment:debit_cards" || lk === "payment:cash" ||
+      key === "payment:credit_cards" || key === "payment:debit_cards" || key === "payment:cash") {
+    return;
+  }
 
   // Skip amenity=yes (useless)
   if (lk === "amenity" && lv === "yes") return;
@@ -3244,17 +3335,66 @@ Object.entries(nTags).forEach(([key, value]) => {
   // Skip raw image URLs – we use Photos block instead
   if (lk === "image") return;
 
-  if (lk === "mapillary") {
-    const viewer = toMapillaryViewerUrl(value);
-    if (!viewer) return;
+  // Skip mapillary - will be shown in Photos section
+  if (lk === "mapillary") return;
+
+  // Skip subject:wikidata - technical ID, not useful for users
+  if (lk === "subject:wikidata") return;
+
+  // Handle subject:wikipedia - show as "About the subject"
+  if (lk === "subject:wikipedia") {
+    const spec = value;
+    const m = String(spec).match(/^([a-z-]+)\s*:\s*(.+)$/i);
+    if (m) {
+      const lang = m[1];
+      const title = m[2].replace(/\s/g, "_");
+      const href = `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(title)}`;
+      const displayTitle = m[2].replace(/_/g, " ");
     item.innerHTML = `
       <div class="me-2">
-        <h6 class="mb-1 fw-semibold">Street Imagery</h6>
-        <p class="small mb-1">
-          <a href="${viewer}" target="_blank" rel="noopener nofollow ugc">Open in Mapillary</a>
-        </p>
+          <h6 class="mb-1 fw-semibold">About the subject</h6>
+          <p class="small mb-1"><a href="${href}" target="_blank" rel="noopener">${displayTitle} (Wikipedia)</a></p>
       </div>`;
     list.appendChild(item);
+      return;
+    }
+  }
+
+  // Combine historic=memorial + memorial=* into one readable line
+  if (lk === "historic" && lv === "memorial") {
+    const memorialType = nTags.memorial || nTags.Memorial || null;
+    if (memorialType) {
+      const formattedType = String(memorialType)
+        .replace(/[_:]/g, " ")
+        .split(" ")
+        .map((word, index) => {
+          if (index === 0) {
+            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+          }
+          return word.toLowerCase();
+        })
+        .join(" ");
+      item.innerHTML = `
+        <div class="me-2">
+          <h6 class="mb-1 fw-semibold">Type</h6>
+          <p class="small mb-1">Memorial – ${formattedType}</p>
+        </div>`;
+      list.appendChild(item);
+      return;
+    } else {
+      // Just show "Memorial" if no memorial type
+      item.innerHTML = `
+        <div class="me-2">
+          <h6 class="mb-1 fw-semibold">Type</h6>
+          <p class="small mb-1">Memorial</p>
+        </div>`;
+      list.appendChild(item);
+      return;
+    }
+  }
+
+  // Skip memorial=* if historic=memorial exists (already combined above)
+  if (lk === "memorial" && nTags.historic && String(nTags.historic).toLowerCase().trim() === "memorial") {
     return;
   }
 
@@ -3677,6 +3817,26 @@ Object.entries(nTags).forEach(([key, value]) => {
     renderPhotosGrid([]);
   }
 
+  // --- Street Imagery (Mapillary) - shown after Photos ---
+  if (nTags.mapillary) {
+    const viewer = toMapillaryViewerUrl(nTags.mapillary);
+    if (viewer) {
+      const mapillaryItem = document.createElement("div");
+      mapillaryItem.className = "list-group-item";
+      mapillaryItem.style.padding = SECTION_PADDING;
+      mapillaryItem.style.borderTop = "1px solid";
+      mapillaryItem.style.borderColor = "rgba(0, 0, 0, 0.12)";
+      mapillaryItem.innerHTML = `
+        <div>
+          <h6 style="font-size: 0.875rem; font-weight: 500; color: rgba(0, 0, 0, 0.6); margin-bottom: 8px;">Street Imagery</h6>
+          <p style="font-size: 0.875rem; color: rgba(0, 0, 0, 0.87); margin: 0;">
+            <a href="${viewer}" target="_blank" rel="noopener nofollow ugc" style="color: var(--bs-primary); text-decoration: none;">Open in Mapillary</a>
+          </p>
+        </div>`;
+      list.appendChild(mapillaryItem);
+    }
+  }
+
   recomputePlaceAccessibilityKeywords().catch(console.error);
 };
 
@@ -3963,15 +4123,44 @@ async function updateRoute({ fit = true } = {}) {
       return;
     }
 
-    routeLayer = L.geoJSON(geojson, {
-      style: { color: "var(--bs-secondary)", weight: 5, opacity: 0.9 },
+    // Create route with white outline (halo) for better visibility
+    // First, create the white outline layer (thicker, underneath)
+    const routeOutline = L.geoJSON(geojson, {
+      style: { 
+        color: "#ffffff", 
+        weight: 8, // Thicker for the outline
+        opacity: 0.8,
+        lineCap: "round",
+        lineJoin: "round"
+      },
       interactive: false,
-    }).addTo(map);
+    });
+    
+    // Then, create the blue route layer (thinner, on top)
+    const routeLine = L.geoJSON(geojson, {
+      style: { 
+        color: "var(--bs-primary)", // Blue primary color
+        weight: 6, // Slightly thicker than before
+        opacity: 1.0,
+        lineCap: "round",
+        lineJoin: "round"
+      },
+      interactive: false,
+    });
+    
+    // Keep a single handle for cleanup; compute bounds from routeLine (GeoJSON has getBounds()).
+    // (Some builds may not expose getBounds() on featureGroup reliably.)
+    routeLayer = L.layerGroup([routeOutline, routeLine]).addTo(map);
 
     setRouteActionsUi(true);
 
-    const bounds = routeLayer.getBounds();
-    if (fit && bounds.isValid()) {
+    const bounds =
+      typeof routeLine?.getBounds === "function"
+        ? routeLine.getBounds()
+        : typeof routeOutline?.getBounds === "function"
+          ? routeOutline.getBounds()
+          : null;
+    if (fit && bounds && bounds.isValid()) {
       map.fitBounds(bounds, { padding: [40, 40] });
     }
   } catch (err) {
@@ -4014,6 +4203,24 @@ async function getMyLocationLatLng() {
     return null;
   }
 
+  // If Permissions API is available, detect "denied" and show a better message.
+  // Note: if user denied location, browsers typically won't re-prompt; they must change settings.
+  try {
+    if (navigator.permissions?.query) {
+      const status = await navigator.permissions.query({ name: "geolocation" });
+      if (status?.state === "denied") {
+        toastWarn(
+          "Location access is blocked in your browser. Please enable location permission for this site, then try again.",
+          { important: true }
+        );
+        return null;
+      }
+      // If state is "prompt", calling getCurrentPosition will prompt again.
+    }
+  } catch {
+    // Ignore permissions API failures and fall back to getCurrentPosition prompt.
+  }
+
   return await new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -4024,9 +4231,10 @@ async function getMyLocationLatLng() {
       (error) => {
         const userDeniedGeolocation = error.code === 1;
         if (userDeniedGeolocation) {
-          toastWarn("Location permission denied. Please set a starting point.", {
-            important: true,
-          });
+          toastWarn(
+            "Location permission denied. Please enable location permission for this site or choose a starting point manually.",
+            { important: true }
+          );
         } else {
           console.error(error);
           toastError(
@@ -4858,7 +5066,7 @@ export async function initMap(user = null) {
     if (t.closest("#btn-clear-route")) {
       clearRouteAll();
     }
-  });
+    });
 
   // ✅ Set up review form handler using event delegation (for old HTML form, kept for backward compatibility)
   // This works even if the form is created dynamically after login
