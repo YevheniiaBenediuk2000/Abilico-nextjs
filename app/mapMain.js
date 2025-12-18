@@ -35,6 +35,7 @@ import {
   BasemapGallery,
   osm,
 } from "./leaflet-controls/BasemapGallery.mjs";
+import { VisionAccessibilityControl } from "./leaflet-controls/VisionAccessibilityControl.mjs";
 import {
   renderPhotosGrid,
   resolvePlacePhotos,
@@ -1907,6 +1908,12 @@ function getMuiIconForPlaceType(key, value) {
 
 const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   globals.detailsCtx.tags = tags;
+  
+  // Update vision accessibility control if available
+  if (typeof window !== "undefined" && window.visionAccessibilityControl) {
+    window.visionAccessibilityControl.update(tags);
+  }
+  
   const titleText = tags.name || tags.amenity || "Details";
 
   elements.detailsPanel.classList.remove("d-none");
@@ -2674,6 +2681,96 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   container.appendChild(cardContainer);
   accItem.appendChild(container);
   list.appendChild(accItem);
+
+  // --- OTHER ACCESSIBILITY: Vision accessibility (blind=no) ---
+  const blindValue = nTags.blind || nTags.Blind || null;
+  if (blindValue && String(blindValue).toLowerCase().trim() === "no") {
+    const visionAccItem = document.createElement("div");
+    visionAccItem.className = "list-group-item";
+    visionAccItem.style.padding = "0";
+    
+    const container = document.createElement("div");
+    container.style.padding = SECTION_PADDING;
+    container.style.borderTop = "1px solid";
+    container.style.borderColor = "rgba(0, 0, 0, 0.12)";
+    
+    // Header section matching Wheelchair Access style
+    const header = document.createElement("div");
+    header.style.display = "flex";
+    header.style.alignItems = "center";
+    header.style.gap = "12px";
+    header.style.marginBottom = "20px";
+    
+    const title = document.createElement("h6");
+    title.style.fontSize = "1.125rem";
+    title.style.fontWeight = "600";
+    title.style.color = "rgba(0, 0, 0, 0.87)";
+    title.style.letterSpacing = "-0.01em";
+    title.style.margin = "0";
+    title.textContent = "Other Accessibility";
+    
+    header.appendChild(title);
+    
+    // Card container matching wheelchair design
+    const cardContainer = document.createElement("div");
+    cardContainer.style.border = "1px solid";
+    cardContainer.style.borderColor = "rgba(0, 0, 0, 0.12)";
+    cardContainer.style.borderRadius = "16px";
+    cardContainer.style.padding = "16px";
+    cardContainer.style.display = "flex";
+    cardContainer.style.alignItems = "center";
+    cardContainer.style.gap = "16px";
+    
+    // Icon container (red for no)
+    const statusIconContainer = document.createElement("div");
+    statusIconContainer.style.display = "flex";
+    statusIconContainer.style.alignItems = "center";
+    statusIconContainer.style.justifyContent = "center";
+    statusIconContainer.style.width = "48px";
+    statusIconContainer.style.height = "48px";
+    statusIconContainer.style.borderRadius = "16px";
+    statusIconContainer.style.backgroundColor = "rgba(220, 53, 69, 0.1)"; // red with 10% opacity
+    statusIconContainer.style.flexShrink = "0";
+    
+    const statusIcon = document.createElement("span");
+    statusIcon.className = "material-icons";
+    statusIcon.style.fontSize = "24px";
+    statusIcon.style.color = "#dc3545"; // red
+    statusIcon.textContent = "blind";
+    statusIconContainer.appendChild(statusIcon);
+    
+    // Content wrapper
+    const contentWrapper = document.createElement("div");
+    contentWrapper.style.flex = "1";
+    contentWrapper.style.minWidth = "0";
+    
+    const labelElement = document.createElement("div");
+    labelElement.style.display = "block";
+    labelElement.style.color = "rgba(0, 0, 0, 0.6)";
+    labelElement.style.fontSize = "0.75rem";
+    labelElement.style.fontWeight = "500";
+    labelElement.style.textTransform = "uppercase";
+    labelElement.style.letterSpacing = "0.5px";
+    labelElement.style.marginBottom = "4px";
+    labelElement.textContent = "Vision accessibility";
+    
+    const valueElement = document.createElement("div");
+    valueElement.style.color = "rgba(0, 0, 0, 0.87)";
+    valueElement.style.fontSize = "0.875rem";
+    valueElement.style.lineHeight = "1.5";
+    valueElement.textContent = "No specific features for blind or low-vision visitors reported (e.g. tactile paths, audio guidance).";
+    
+    contentWrapper.appendChild(labelElement);
+    contentWrapper.appendChild(valueElement);
+    
+    cardContainer.appendChild(statusIconContainer);
+    cardContainer.appendChild(contentWrapper);
+    
+    container.appendChild(header);
+    container.appendChild(cardContainer);
+    visionAccItem.appendChild(container);
+    list.appendChild(visionAccItem);
+  }
 
   // Render other wheelchair tags if any exist (but skip the main wheelchair tag we already rendered)
   if (Object.keys(wheelchairTags).length > 0) {
@@ -5408,6 +5505,11 @@ export async function initMap(user = null) {
     }
 
     await initDrawingObstacles();
+
+    // Add vision accessibility control first (positioned above basemap gallery)
+    const visionAccessibilityControl = new VisionAccessibilityControl();
+    map.addControl(visionAccessibilityControl);
+    window.visionAccessibilityControl = visionAccessibilityControl; // Store globally for updates
 
     map.addControl(new BasemapGallery({ initial: initialName }));
 

@@ -135,6 +135,10 @@ export default function MapContainer({
       };
       window.closePlacePopup = () => {
         setPlacePopupOpen(false);
+        // Clear vision accessibility control when place popup is closed
+        if (typeof window !== "undefined" && window.visionAccessibilityControl) {
+          window.visionAccessibilityControl.clear();
+        }
       };
 
       // Obstacle popup dialog
