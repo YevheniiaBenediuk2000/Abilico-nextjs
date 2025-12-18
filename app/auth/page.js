@@ -315,7 +315,7 @@ export default function AuthPage() {
                             baseBodySize: "14px",
                             baseInputSize: "16px",
                             labelText: "14px",
-                            inputPlaceholder: "11px",
+                            inputPlaceholder: "13px",
                           },
                         radii: {
                           borderRadiusButton: "8px",

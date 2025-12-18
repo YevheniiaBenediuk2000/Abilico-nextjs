@@ -1251,6 +1251,25 @@ async function renderReviewsList() {
   const listEl = elements.reviewsList;
   if (!listEl) return;
 
+  const dispatchReviewsUpdated = () => {
+    try {
+      if (typeof window === "undefined") return;
+      const ratings = (globals.reviews || [])
+        .map((r) => Number(r?.rating ?? r?.overall_rating))
+        .filter((n) => Number.isFinite(n) && n > 0);
+      const count = ratings.length;
+      const avg =
+        count > 0 ? ratings.reduce((sum, n) => sum + n, 0) / count : 0;
+      window.dispatchEvent(
+        new CustomEvent("reviews-updated", {
+          detail: { count, avg },
+        })
+      );
+    } catch {
+      // ignore
+    }
+  };
+
   listEl.innerHTML = "";
 
   if (!globals.reviews || globals.reviews.length === 0) {
@@ -1266,6 +1285,7 @@ async function renderReviewsList() {
     
     emptyContainer.appendChild(emptyMsg);
     listEl.appendChild(emptyContainer);
+    dispatchReviewsUpdated();
     return;
   }
 
@@ -1973,6 +1993,8 @@ async function renderReviewsList() {
 
     listEl.appendChild(li);
   });
+
+  dispatchReviewsUpdated();
 }
 
 async function handleEditReview(review) {

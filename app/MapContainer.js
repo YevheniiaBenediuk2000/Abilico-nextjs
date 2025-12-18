@@ -41,6 +41,9 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Chip from "@mui/material/Chip";
 import Checkbox from "@mui/material/Checkbox";
 import FormGroup from "@mui/material/FormGroup";
+import Rating from "@mui/material/Rating";
+import useMediaQuery from "@mui/material/useMediaQuery";
+import { useTheme } from "@mui/material/styles";
 
 import PlacesListReact from "./components/PlacesListReact";
 import ReviewForm from "./components/ReviewForm";
@@ -81,6 +84,8 @@ export default function MapContainer({
 }) {
   const [user, setUser] = useState(initialUser);
   const router = useRouter();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const mapResizeCleanupRef = useRef(null);
   const [showObstacleManagementOverlay, setShowObstacleManagementOverlay] =
     useState(true);
@@ -132,6 +137,10 @@ export default function MapContainer({
   const [saveSnackbarMessage, setSaveSnackbarMessage] = useState("");
   const [lastCheckedDate, setLastCheckedDate] = useState(null);
 
+  // Reviews UX: reading mode in-tab + separate write flow (modal/sheet)
+  const [reviewWriteOpen, setReviewWriteOpen] = useState(false);
+  const [reviewStats, setReviewStats] = useState({ count: 0, avg: 0 });
+
   // Expose a global function so mapMain.js can open the details drawer
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -157,6 +166,9 @@ export default function MapContainer({
         setPlaceCategory(category);
         setPlaceDistance(distance);
         setPlaceFeatures(features || []);
+        // Reset review UI state when switching places
+        setReviewWriteOpen(false);
+        setReviewStats({ count: 0, avg: 0 });
         setPlacePopupOpen(true);
       };
       window.closePlacePopup = () => {
@@ -185,6 +197,50 @@ export default function MapContainer({
         delete window.openPlacePopup;
         delete window.closePlacePopup;
       }
+    };
+  }, []);
+
+  // Keep review summary in sync with mapMain.js (which renders the list into #reviews-list)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const syncFromGlobals = () => {
+      try {
+        const g = window.globals;
+        const ratings = (g?.reviews || [])
+          .map((r) => Number(r?.rating ?? r?.overall_rating))
+          .filter((n) => Number.isFinite(n) && n > 0);
+        const count = ratings.length;
+        const avg = count ? ratings.reduce((s, n) => s + n, 0) / count : 0;
+        setReviewStats({ count, avg });
+      } catch {
+        // ignore
+      }
+    };
+
+    const onReviewsUpdated = (e) => {
+      const detail = e?.detail;
+      if (detail && typeof detail === "object") {
+        const count = Number(detail.count) || 0;
+        const avg = Number(detail.avg) || 0;
+        setReviewStats({ count, avg });
+      } else {
+        syncFromGlobals();
+      }
+    };
+
+    const onReviewSubmitted = () => {
+      // Close the write modal after a successful submission
+      setReviewWriteOpen(false);
+      // If mapMain hasn't emitted the updated stats yet, sync as a fallback
+      setTimeout(syncFromGlobals, 250);
+    };
+
+    window.addEventListener("reviews-updated", onReviewsUpdated);
+    window.addEventListener("review-submitted", onReviewSubmitted);
+    return () => {
+      window.removeEventListener("reviews-updated", onReviewsUpdated);
+      window.removeEventListener("review-submitted", onReviewSubmitted);
     };
   }, []);
 
@@ -980,8 +1036,9 @@ export default function MapContainer({
             [theme.breakpoints.up("sm")]: {
               // Desktop/tablet: add a little breathing room from the viewport edge + header
               right: theme.spacing(2),
-              top: `calc(64px + ${theme.spacing(2)})`,
-              height: `calc(100% - 64px - ${theme.spacing(4)})`,
+              // Slightly taller than before (smaller top/bottom inset)
+              top: `calc(64px + ${theme.spacing(1)})`,
+              height: `calc(100% - 64px - ${theme.spacing(2)})`,
             },
           }),
         }}
@@ -1003,6 +1060,7 @@ export default function MapContainer({
                   <span className="directions-panel__title-text">Directions</span>
                   <span className="directions-panel__badge">Accessible</span>
                 </div>
+                <div className="directions-panel__header-actions">
                 <Tooltip title="Wheelchair mode" placement="top" arrow>
                   <IconButton
                     aria-label="Wheelchair mode"
@@ -1012,6 +1070,18 @@ export default function MapContainer({
                     <AccessibleForwardIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
+
+                  <Tooltip title="Close" placement="top" arrow>
+                    <IconButton
+                      aria-label="Close directions"
+                      size="small"
+                      className="directions-panel__close-btn"
+                      onClick={handleDetailsDrawerClose}
+                    >
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </div>
               </div>
 
               <div className="route-inputs" aria-label="Route inputs">
@@ -1052,11 +1122,11 @@ export default function MapContainer({
                         }}
                       />
 
-                      <ul
-                        className="list-group w-100 shadow d-none search-suggestions"
+                      <div
+                        className="w-100 d-none search-suggestions"
                         aria-label="Search suggestions"
                         id="departure-suggestions"
-                      ></ul>
+                      ></div>
                     </div>
 
                     <div className="route-field__chips">
@@ -1354,30 +1424,59 @@ export default function MapContainer({
                   <DetailsTabPanel value="reviews" active={detailsTab}>
                     <div className="card shadow-sm">
                       <div className="card-body">
-                        <h6 className="mb-3">Reviews</h6>
-
-                        {user ? (
-                          <Box sx={{ mb: 3 }}>
-                            <ReviewForm />
+                        <Box
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 2,
+                            mb: 2,
+                          }}
+                        >
+                          <Box sx={{ minWidth: 0 }}>
+                            <Typography variant="h6" sx={{ mb: 0.5 }}>
+                              Reviews
+                            </Typography>
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 1,
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              <Rating
+                                value={reviewStats.count ? reviewStats.avg : 0}
+                                precision={0.1}
+                                readOnly
+                                size="small"
+                              />
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                {reviewStats.count
+                                  ? `${reviewStats.avg.toFixed(1)} • ${reviewStats.count} ${
+                                      reviewStats.count === 1
+                                        ? "review"
+                                        : "reviews"
+                                    }`
+                                  : "No reviews yet"}
+                              </Typography>
                           </Box>
-                        ) : (
-                          <div className="card bg-light border mb-3">
-                            <div className="card-body text-center py-4">
-                              <h6 className="mb-2">Want to leave a review?</h6>
-                              <p className="small text-muted mb-3">
-                                Log in or create an account to share your
-                                experience.
-                              </p>
+                          </Box>
+
                               <Button
                                 variant="contained"
-                                color="primary"
-                                onClick={() => router.push("/auth")}
-                              >
-                                Log in / Sign up
+                            size="small"
+                            onClick={() => {
+                              if (user) setReviewWriteOpen(true);
+                              else router.push("/auth");
+                            }}
+                          >
+                            Write a review
                               </Button>
-                            </div>
-                          </div>
-                        )}
+                        </Box>
 
                         <ul id="reviews-list" className="list-group"></ul>
                       </div>
@@ -1535,7 +1634,12 @@ export default function MapContainer({
 
       {/* === Obstacle Management Overlay (for non-logged-in users) === */}
       {!user && obstacleOverlayPrefLoaded && showObstacleManagementOverlay && (
-        <div id="obstacle-management-overlay" className="position-absolute">
+        <div
+          id="obstacle-management-overlay"
+          className={`position-absolute${
+            detailsDrawerOpen ? " obstacle-overlay--with-drawer" : ""
+          }`}
+        >
           <Card
             sx={{
               // Keep this overlay compact while staying usable on small screens
@@ -1618,6 +1722,53 @@ export default function MapContainer({
           }
         }}
       />
+
+      {/* === Write Review Modal / Sheet === */}
+      <Dialog
+        open={reviewWriteOpen}
+        onClose={() => setReviewWriteOpen(false)}
+        fullScreen={isMobile}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle
+          sx={{
+            pr: 6,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 2,
+          }}
+        >
+          <span>Write a review</span>
+          <IconButton
+            aria-label="Close"
+            onClick={() => setReviewWriteOpen(false)}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          {user ? (
+            <ReviewForm />
+          ) : (
+            <Box sx={{ textAlign: "center", py: 2 }}>
+              <Typography variant="h6" sx={{ mb: 1 }}>
+                Log in to write a review
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Create an account to share your experience.
+              </Typography>
+              <Button variant="contained" onClick={() => router.push("/auth")}>
+                Log in / Sign up
+              </Button>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => setReviewWriteOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Inaccuracy Report Modal */}
       <Dialog

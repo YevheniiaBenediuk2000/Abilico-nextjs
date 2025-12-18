@@ -3,11 +3,16 @@
 import { useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Collapse from "@mui/material/Collapse";
 import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import Rating from "@mui/material/Rating";
+import Divider from "@mui/material/Divider";
 import FormHelperText from "@mui/material/FormHelperText";
 import CircularProgress from "@mui/material/CircularProgress";
+import IconButton from "@mui/material/IconButton";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { ACCESSIBILITY_CATEGORIES } from "../constants/accessibilityCategories";
 import { reviewStorage, ensurePlaceExists } from "../api/reviewStorage";
 
@@ -24,12 +29,74 @@ export default function ReviewForm() {
   const [comment, setComment] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [showMoreDetails, setShowMoreDetails] = useState(false);
+
+  const categoriesById = ACCESSIBILITY_CATEGORIES.reduce((acc, cat) => {
+    acc[cat.id] = cat;
+    return acc;
+  }, {});
+
+  // Primary: keep the form lightweight. Secondary: optional details.
+  const primaryCategoryIds = ["entrance", "indoor_mobility", "restroom", "staff"];
+  const secondaryCategoryIds = [
+    "seating",
+    "parking",
+    "visual_auditory",
+    "emergency",
+  ];
+
+  const primaryCategories = primaryCategoryIds
+    .map((id) => categoriesById[id])
+    .filter(Boolean);
+  const secondaryCategories = secondaryCategoryIds
+    .map((id) => categoriesById[id])
+    .filter(Boolean);
 
   const handleCategoryRatingChange = (key, value) => {
     setCategoryRatings((prev) => ({
       ...prev,
       [key]: value || 0,
     }));
+  };
+
+  const renderCategoryRating = (cat) => {
+    return (
+      <Box key={cat.id}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 0.5,
+            gap: 2,
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            <Typography variant="body2">{cat.label}</Typography>
+            {cat.helperText && (
+              <Tooltip title={cat.helperText} arrow placement="top">
+                <IconButton
+                  size="small"
+                  aria-label={`More info about ${cat.label}`}
+                  sx={{ color: "text.secondary" }}
+                >
+                  <InfoOutlinedIcon fontSize="inherit" />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
+
+          <Rating
+            value={categoryRatings[cat.id] || 0}
+            precision={0.5}
+            onChange={(_, newValue) => {
+              handleCategoryRatingChange(cat.id, newValue);
+            }}
+            size="small"
+          />
+        </Box>
+      </Box>
+    );
   };
 
   const handleSubmit = async (e) => {
@@ -205,44 +272,36 @@ export default function ReviewForm() {
         )}
       </Box>
 
+      <Divider sx={{ my: 1 }} />
+
       {/* Category Ratings - Optional */}
-      {ACCESSIBILITY_CATEGORIES.map((cat) => {
-        return (
-          <Box key={cat.id}>
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                mb: 0.5,
-              }}
-            >
-              <Typography variant="body2">{cat.label}</Typography>
-              <Rating
-                value={categoryRatings[cat.id] || 0}
-                precision={0.5}
-                onChange={(_, newValue) => {
-                  handleCategoryRatingChange(cat.id, newValue);
-                }}
-                size="small"
-              />
+      {primaryCategories.map(renderCategoryRating)}
+
+      {secondaryCategories.length > 0 && (
+        <Box sx={{ mt: 0.5 }}>
+          <Button
+            type="button"
+            variant="text"
+            size="small"
+            onClick={() => setShowMoreDetails((v) => !v)}
+            sx={{ px: 0, textTransform: "none" }}
+          >
+            {showMoreDetails
+              ? "Hide accessibility details"
+              : "More accessibility details"}
+          </Button>
+          <Collapse in={showMoreDetails} timeout="auto" unmountOnExit>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 1 }}>
+              {secondaryCategories.map(renderCategoryRating)}
             </Box>
-            {cat.helperText && (
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ display: "block", mt: 0.5 }}
-              >
-                {cat.helperText}
-              </Typography>
-            )}
-          </Box>
-        );
-      })}
+          </Collapse>
+        </Box>
+      )}
 
       {/* Comment Field - Optional */}
       <TextField
         label="Your comments (optional)"
+        placeholder="E.g. entrance step, toilet space, staff, etc."
         multiline
         rows={3}
         value={comment}

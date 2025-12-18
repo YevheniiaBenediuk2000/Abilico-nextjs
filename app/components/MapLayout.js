@@ -36,6 +36,7 @@ import Tooltip from "@mui/material/Tooltip";
 import { queryClient } from "../queryClient";
 import AddPlaceDialog from "./AddPlaceDialog";
 import ToastHost from "./ToastHost";
+import AbilicoLogo from "./AbilicoLogo";
 import { PRIMARY_BLUE } from "../constants/constants.mjs";
 
 // Helper function to get initials from email
@@ -180,24 +181,27 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
                 </IconButton>
               )}
 
-              <Typography
-                variant="h6"
-                noWrap
-                component="div"
+              <Box className="header-logo-container">
+                <AbilicoLogo
+                  logoHeight={26}
+                  showText
+                  horizontal
                 onClick={() => {
                   // Force full page reload to ensure map initializes properly
                   window.location.href = "/";
                 }}
                 sx={{ 
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 0.3, // logo + text closer together
+                  }}
+                  textSx={{
                   display: { xs: "none", sm: "block" },
-                  cursor: "pointer",
-                  "&:hover": {
-                    opacity: 0.8
-                  }
-                }}
-              >
-                Abilico
-              </Typography>
+                    fontSize: { sm: "20px", md: "22px" },
+                    lineHeight: 1,
+                  }}
+                />
+              </Box>
             </Box>
 
             {/* CENTER: search bar, centered in available space */}
@@ -251,20 +255,11 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
                   }}
                 />
 
-                <ul
+                <div
                   id="destination-suggestions"
-                  className="list-group w-100 shadow d-none search-suggestions"
+                  className="w-100 d-none search-suggestions"
                   aria-label="Search suggestions"
-                  style={{
-                    position: "absolute",
-                    top: "100%",
-                    left: 0,
-                    right: 0,
-                    // Keep suggestions above drawers/offcanvas panels (MUI Drawer is ~1200).
-                    zIndex: 2000,
-                    marginTop: 4,
-                  }}
-                ></ul>
+                ></div>
               </Box>
             </Box>
 

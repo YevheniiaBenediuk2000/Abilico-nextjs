@@ -15,8 +15,9 @@ import { PRIMARY_BLUE } from "../constants/constants.mjs";
  * @param {string} [props.logoPath="/logo.png"] - Path to the logo image
  * @param {boolean} [props.showText=true] - Whether to show the "ABILICO" text
  * @param {string} [props.textColor] - Color of the text (defaults to PRIMARY_BLUE)
- * @param {string} [props.fontSize="14px"] - Font size of the text
+ * @param {string|Object|number} [props.fontSize="14px"] - Font size of the text (can be responsive sx value)
  * @param {boolean} [props.horizontal=false] - Whether to display logo and text horizontally (side by side)
+ * @param {Object} [props.textSx] - Additional MUI sx props to apply to the text Typography
  * @param {Object} [props.sx] - Additional MUI sx props to apply to the container
  */
 export default function AbilicoLogo({
@@ -26,11 +27,17 @@ export default function AbilicoLogo({
   textColor = PRIMARY_BLUE,
   fontSize = "14px",
   horizontal = false,
+  onClick,
+  textSx = {},
   sx = {},
 }) {
   const router = useRouter();
 
   const handleClick = () => {
+    if (typeof onClick === "function") {
+      onClick();
+      return;
+    }
     router.push("/");
   };
 
@@ -60,6 +67,7 @@ export default function AbilicoLogo({
       />
       {showText && (
         <Typography
+          className="abilico-brand-text"
           sx={{
             fontFamily: '"Work Sans", sans-serif',
             fontWeight: 800, // ExtraBold
@@ -68,6 +76,7 @@ export default function AbilicoLogo({
             color: textColor,
             textAlign: horizontal ? "left" : "center",
             textTransform: "uppercase",
+            ...textSx,
           }}
         >
           ABILICO
