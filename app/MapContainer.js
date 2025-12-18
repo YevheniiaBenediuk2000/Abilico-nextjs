@@ -944,8 +944,8 @@ export default function MapContainer({
 
           <div className="offcanvas-body">
             {/* === Directions UI === */}
-            <div id="directions-ui" className="mb-3 d-none">
-              {/* Mode + Route actions (above inputs) */}
+            <div id="directions-ui" className="mb-3 d-none directions-panel">
+              {/* Mode icon (above inputs) */}
               <div className="route-toolbar route-toolbar--top">
                 <Tooltip title="Wheelchair mode" placement="top" arrow>
                   <IconButton
@@ -964,33 +964,10 @@ export default function MapContainer({
                     <AccessibleForwardIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
-
-                <div
-                  className="route-toolbar__actions"
-                  role="group"
-                  aria-label="Route actions"
-                >
-                  <button
-                    id="btn-show-route"
-                    type="button"
-                    className="btn btn-sm btn-route-secondary d-none"
-                    aria-label="Show route on the map"
-                  >
-                    Show route
-                  </button>
-                  <button
-                    id="btn-clear-route"
-                    type="button"
-                    className="btn btn-sm btn-route-danger d-none"
-                    aria-label="Clear route"
-                  >
-                    Clear route
-                  </button>
-                </div>
               </div>
 
               <div className="route-inputs">
-                <div className="row g-2 align-items-center mb-1">
+                <div className="row g-1 align-items-center mb-1">
                   <div className="col">
                     <label
                       className="form-label mb-1"
@@ -1041,7 +1018,7 @@ export default function MapContainer({
                   </div>
                 </div>
 
-                <div className="row g-2 align-items-center mb-2">
+                <div className="row g-1 align-items-center mb-1">
                   <div className="col">
                     <label
                       className="form-label mb-1"
@@ -1068,6 +1045,30 @@ export default function MapContainer({
                     <SwapVertIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
+              </div>
+
+              {/* Route actions (after inputs) */}
+              <div
+                className="route-actions-bottom"
+                role="group"
+                aria-label="Route actions"
+              >
+                <button
+                  id="btn-clear-route"
+                  type="button"
+                  className="btn btn-sm btn-outline-secondary d-none"
+                  aria-label="Clear route"
+                >
+                  Clear route
+                </button>
+                <button
+                  id="btn-show-route"
+                  type="button"
+                  className="btn btn-sm btn-primary d-none"
+                  aria-label="Show route on the map"
+                >
+                  Show route
+                </button>
               </div>
             </div>
           </div>

@@ -728,25 +728,12 @@ export default function OpeningHours({ openingHours, holidayHours = null, checkD
         return (
           <Box
             sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 0.5,
               mt: 2,
               pt: 2,
               borderTop: "1px solid",
               borderColor: "divider",
             }}
           >
-            <span
-              className="material-icons"
-              style={{
-                fontSize: "14px",
-                color: "rgba(0, 0, 0, 0.6)",
-                flexShrink: 0,
-              }}
-            >
-              calendar_today
-            </span>
             <Typography
               variant="caption"
               sx={{

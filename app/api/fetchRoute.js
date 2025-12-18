@@ -58,15 +58,21 @@ export async function fetchRoute(coordinates, obstacleFeatures) {
     const data = await response.json();
 
     if (!response.ok) {
-      if (data.error.code === 2004) {
+      const code = data?.error?.code;
+      const message = data?.error?.message || "Route could not be found.";
+
+      if (code === 2004) {
         toastWarn(
           "The distance between points is too long (over 300 km). Please choose closer locations.",
           { important: true }
         );
-        return;
+        return null;
       }
 
-      throw new Error(await data.error.message);
+      // Expected routing failures (e.g., no wheelchair route available) should not throw
+      // to avoid noisy error overlays in dev.
+      toastError(message, { important: true });
+      return null;
     }
 
     console.log("Alternative Route:", data);
@@ -78,9 +84,11 @@ export async function fetchRoute(coordinates, obstacleFeatures) {
     return data;
   } catch (error) {
     if (error?.name === "AbortError") {
-      return;
+      return null;
     }
+    // Network / parsing errors only (unexpected). Keep console error for debugging.
     console.error(error);
     toastError(error?.message || "Routing error.", { important: true });
+    return null;
   }
 }

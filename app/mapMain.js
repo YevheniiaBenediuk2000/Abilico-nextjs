@@ -3956,8 +3956,15 @@ async function updateRoute({ fit = true } = {}) {
     );
     console.log("📦 fetchRoute() returned:", geojson);
 
+    // fetchRoute returns null for expected “no route” / abort cases
+    if (!geojson) {
+      clearRoute();
+      setRouteActionsUi(false);
+      return;
+    }
+
     routeLayer = L.geoJSON(geojson, {
-      style: { color: "var(--bs-indigo)", weight: 5, opacity: 0.9 },
+      style: { color: "var(--bs-secondary)", weight: 5, opacity: 0.9 },
       interactive: false,
     }).addTo(map);
 
@@ -3967,8 +3974,15 @@ async function updateRoute({ fit = true } = {}) {
     if (fit && bounds.isValid()) {
       map.fitBounds(bounds, { padding: [40, 40] });
     }
+  } catch (err) {
+    console.error("❌ Route render failed:", err);
+    clearRoute();
+    setRouteActionsUi(false);
 
-    setRouteActionsUi(true);
+    const msg =
+      (err && typeof err === "object" && "message" in err && err.message) ||
+      "Route could not be found.";
+    toastError(String(msg), { important: true });
   } finally {
     hideLoading(key);
   }

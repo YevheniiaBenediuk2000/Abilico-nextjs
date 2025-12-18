@@ -117,6 +117,26 @@
   align-items: center;
 }
 
+.route-actions-bottom {
+  display: flex;
+  justify-content: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.directions-panel {
+  border-radius: 24px;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background-color: #fff;
+  max-width: 360px;
+  margin: 0 auto;
+}
+
+.directions-panel .form-label {
+  margin-bottom: 4px !important;
+}
+
 .route-inputs {
   position: relative;
   padding-right: 52px; /* space for swap button on the right */
@@ -137,7 +157,25 @@
   color: var(--mode-icon-fg);
   pointer-events: none;
 }
-.MuiInputBase-root:focus-within .route-search-icon {
+/* Show icon when input is focused - works for both departure and destination inputs */
+.MuiInputBase-root:focus-within .route-search-icon,
+.MuiOutlinedInput-root:focus-within .route-search-icon,
+.MuiInputBase-root:focus .route-search-icon,
+.MuiOutlinedInput-root:focus .route-search-icon {
+  opacity: 1;
+}
+/* Fallback: some MUI compositions rely on the focused class rather than :focus-within */
+.MuiInputBase-root.Mui-focused .route-search-icon,
+.MuiOutlinedInput-root.Mui-focused .route-search-icon,
+.MuiInputBase-root.Mui-focused:focus-within .route-search-icon,
+.MuiOutlinedInput-root.Mui-focused:focus-within .route-search-icon {
+  opacity: 1;
+}
+/* Ensure it works for both input IDs */
+#departure-search-input:focus ~ * .route-search-icon,
+#destination-search-input:focus ~ * .route-search-icon,
+#departure-search-bar:focus-within .route-search-icon,
+#destination-search-bar:focus-within .route-search-icon {
   opacity: 1;
 }
 
@@ -187,7 +225,8 @@
 }
 
 .route-toolbar--top {
-  margin-bottom: 10px;
+  margin-bottom: 6px;
+  justify-content: center;
 }
 
 .route-toolbar__actions {
