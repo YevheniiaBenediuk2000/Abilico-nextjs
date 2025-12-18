@@ -34,6 +34,7 @@ import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
+import Divider from "@mui/material/Divider";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import FormControlLabel from "@mui/material/FormControlLabel";
@@ -709,7 +710,11 @@ export default function MapContainer({
             ? selectedRealityStatus
             : null,
         accessibility_issues: mappedIssues,
-        comment: inaccuracyComment.trim() || null,
+        // For "closed or moved", submit immediately with no comment field.
+        comment:
+          selectedInaccuracyReason === "closed"
+            ? null
+            : inaccuracyComment.trim() || null,
       };
 
       console.log("Submitting report data:", reportData);
@@ -1639,88 +1644,37 @@ export default function MapContainer({
                 <FormControlLabel
                   value="accessibility"
                   control={<Radio />}
-                  label={
-                    <Box>
-                      <Typography variant="body1">
-                        Accessibility info is wrong
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Wheelchair access different from what's shown
-                      </Typography>
-                    </Box>
-                  }
-                  sx={{ alignItems: "flex-start", mb: 2 }}
+                  label="Accessibility info is wrong"
+                  sx={{ mb: 1 }}
                 />
                 <FormControlLabel
                   value="closed"
                   control={<Radio />}
-                  label={
-                    <Box>
-                      <Typography variant="body1">
-                        Place is permanently closed
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        No longer exists / moved
-                      </Typography>
-                    </Box>
-                  }
-                  sx={{ alignItems: "flex-start", mb: 2 }}
+                  label="Place is permanently closed or moved"
+                  sx={{ mb: 1 }}
                 />
                 <FormControlLabel
                   value="category"
                   control={<Radio />}
-                  label={
-                    <Box>
-                      <Typography variant="body1">
-                        Wrong category/type of place
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        E.g. shown as café but it's a bank
-                      </Typography>
-                    </Box>
-                  }
-                  sx={{ alignItems: "flex-start", mb: 2 }}
+                  label="Wrong category or type of place"
+                  sx={{ mb: 1 }}
                 />
                 <FormControlLabel
                   value="duplicate"
                   control={<Radio />}
-                  label={
-                    <Box>
-                      <Typography variant="body1">Duplicate place</Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Same place listed twice
-                      </Typography>
-                    </Box>
-                  }
-                  sx={{ alignItems: "flex-start", mb: 2 }}
+                  label="Duplicate place"
+                  sx={{ mb: 1 }}
                 />
                 <FormControlLabel
                   value="address"
                   control={<Radio />}
-                  label={
-                    <Box>
-                      <Typography variant="body1">
-                        Address/location is wrong
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Pin is far away from the real entrance
-                      </Typography>
-                    </Box>
-                  }
-                  sx={{ alignItems: "flex-start", mb: 2 }}
+                  label="Wrong address or pin location"
+                  sx={{ mb: 1 }}
                 />
                 <FormControlLabel
                   value="other"
                   control={<Radio />}
-                  label={
-                    <Box>
-                      <Typography variant="body1">Other</Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Something else is wrong
-                      </Typography>
-                    </Box>
-                  }
-                  sx={{ alignItems: "flex-start" }}
+                  label="Other"
                 />
               </RadioGroup>
             </DialogContent>
@@ -1741,36 +1695,37 @@ export default function MapContainer({
               <Button
                 variant="contained"
                 onClick={() => {
+                  if (selectedInaccuracyReason === "closed") {
+                    // Closed/moved: no comments step, submit immediately.
+                    handleSubmitInaccuracyReport();
+                    return;
+                  }
                   if (selectedInaccuracyReason === "accessibility") {
                     setInaccuracyScreen(2);
-                  } else {
-                    // Skip Screen 2 for non-accessibility reasons, go to Screen 3
-                    setInaccuracyScreen(3);
+                    return;
                   }
+                  // Other reasons: go to optional details/comments screen
+                  setInaccuracyScreen(3);
                 }}
                 disabled={!selectedInaccuracyReason}
                 sx={{ textTransform: "none" }}
               >
-                Next
+                {selectedInaccuracyReason === "closed" ? "Submit" : "Next"}
               </Button>
             </DialogActions>
           </>
         ) : inaccuracyScreen === 2 ? (
           <>
-            <DialogTitle>Accessibility reality</DialogTitle>
+            <DialogTitle>Fix accessibility info</DialogTitle>
             <DialogContent>
-              <Typography variant="subtitle1" sx={{ mb: 3 }}>
-                What's wrong with the accessibility info?
-              </Typography>
-
-              {/* Reality selector */}
-              <Box sx={{ mb: 4 }}>
-                <Typography variant="body2" sx={{ mb: 1.5 }}>
-                  Reality selector
+              {/* Accessibility level */}
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="body2" sx={{ mb: 1.5, fontWeight: 600 }}>
+                  Accessibility level
                 </Typography>
                 <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
                   <Chip
-                    label="🟩 Designated"
+                    label="Designated"
                     onClick={() => setSelectedRealityStatus("designated")}
                     color={
                       selectedRealityStatus === "designated"
@@ -1793,15 +1748,13 @@ export default function MapContainer({
                           : "inherit",
                       borderColor: "#4caf50",
                       "&:hover": {
-                        backgroundColor:
-                          selectedRealityStatus === "designated"
-                            ? "#4caf50"
-                            : "rgba(76, 175, 80, 0.1)",
+                        backgroundColor: "#4caf50",
+                        color: "white",
                       },
                     }}
                   />
                   <Chip
-                    label="🟩 Yes"
+                    label="Yes"
                     onClick={() => setSelectedRealityStatus("yes")}
                     color={
                       selectedRealityStatus === "yes" ? "primary" : "default"
@@ -1818,15 +1771,13 @@ export default function MapContainer({
                         selectedRealityStatus === "yes" ? "white" : "inherit",
                       borderColor: "#4caf50",
                       "&:hover": {
-                        backgroundColor:
-                          selectedRealityStatus === "yes"
-                            ? "#4caf50"
-                            : "rgba(76, 175, 80, 0.1)",
+                        backgroundColor: "#4caf50",
+                        color: "white",
                       },
                     }}
                   />
                   <Chip
-                    label="🟨 Limited"
+                    label="Limited"
                     onClick={() => setSelectedRealityStatus("limited")}
                     color={
                       selectedRealityStatus === "limited"
@@ -1849,15 +1800,13 @@ export default function MapContainer({
                           : "inherit",
                       borderColor: "#ff9800",
                       "&:hover": {
-                        backgroundColor:
-                          selectedRealityStatus === "limited"
-                            ? "#ff9800"
-                            : "rgba(255, 152, 0, 0.1)",
+                        backgroundColor: "#ff9800",
+                        color: "white",
                       },
                     }}
                   />
                   <Chip
-                    label="🟥 No"
+                    label="No"
                     onClick={() => setSelectedRealityStatus("no")}
                     color={
                       selectedRealityStatus === "no" ? "primary" : "default"
@@ -1874,10 +1823,8 @@ export default function MapContainer({
                         selectedRealityStatus === "no" ? "white" : "inherit",
                       borderColor: "#f44336",
                       "&:hover": {
-                        backgroundColor:
-                          selectedRealityStatus === "no"
-                            ? "#f44336"
-                            : "rgba(244, 67, 54, 0.1)",
+                        backgroundColor: "#f44336",
+                        color: "white",
                       },
                     }}
                   />
@@ -1885,9 +1832,10 @@ export default function MapContainer({
               </Box>
 
               {/* Specific issues */}
+              <Divider sx={{ my: 3 }} />
               <Box>
-                <Typography variant="body2" sx={{ mb: 1.5 }}>
-                  Specific issues
+                <Typography variant="body2" sx={{ mb: 1.5, fontWeight: 600 }}>
+                  Details (optional)
                 </Typography>
                 <FormGroup>
                   <FormControlLabel
@@ -1987,7 +1935,7 @@ export default function MapContainer({
                         }}
                       />
                     }
-                    label="Ramp is too steep / unusable"
+                    label="Ramp is too steep or unusable"
                     sx={{ mb: 1 }}
                   />
                   <FormControlLabel
@@ -2012,7 +1960,7 @@ export default function MapContainer({
                         }}
                       />
                     }
-                    label="Door is too narrow / heavy"
+                    label="Door is too narrow or heavy"
                     sx={{ mb: 1 }}
                   />
                   <FormControlLabel

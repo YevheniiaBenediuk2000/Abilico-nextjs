@@ -56,7 +56,13 @@ export default function AuthPage() {
             console.error("Challenge failed:", error);
             // Check registration status before redirecting
             const nextStep = await getNextRegistrationStep(supabase, userId);
-            router.push(nextStep || "/dashboard");
+            const target = nextStep || "/dashboard";
+            // Force full reload to avoid occasional blank Leaflet map after login navigation.
+            if (typeof window !== "undefined") {
+              window.location.assign(target);
+            } else {
+              router.push(target);
+            }
             return;
           }
 
@@ -65,7 +71,13 @@ export default function AuthPage() {
         } else {
           // user has no MFA — check registration status and redirect accordingly
           const nextStep = await getNextRegistrationStep(supabase, userId);
-          router.push(nextStep || "/dashboard");
+          const target = nextStep || "/dashboard";
+          // Force full reload to avoid occasional blank Leaflet map after login navigation.
+          if (typeof window !== "undefined") {
+            window.location.assign(target);
+          } else {
+            router.push(target);
+          }
         }
       }
     });
@@ -145,7 +157,13 @@ export default function AuthPage() {
         data: { user },
       } = await supabase.auth.getUser();
       const nextStep = await getNextRegistrationStep(supabase, user?.id);
-      router.push(nextStep || "/dashboard");
+      const target = nextStep || "/dashboard";
+      // Force full reload to avoid occasional blank Leaflet map after login navigation.
+      if (typeof window !== "undefined") {
+        window.location.assign(target);
+      } else {
+        router.push(target);
+      }
     }
   };
 
