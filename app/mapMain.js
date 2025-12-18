@@ -96,6 +96,9 @@ let currentBasemapLayer = null; // Store basemap layer reference globally
 let clickPopup = null;
 
 let selectedPlaceLayer = null;
+// Track map markers by OSM key so we can temporarily override selected marker color
+const placeMarkersByKey = new Map(); // key -> L.Marker
+let selectedMarkerState = null; // { key, marker, originalIcon }
 let placesPane;
 
 const placeClusterLayer = L.markerClusterGroup(placeClusterConfig);
@@ -404,12 +407,12 @@ function mountInOffcanvas(titleText) {
   }
 }
 
-function openPlaceDetailsPopup(titleText, category = null, distance = null, features = []) {
+function openPlaceDetailsPopup(titleText, category = null, distance = null, features = [], shortName = null) {
   if (
     typeof window !== "undefined" &&
     typeof window.openPlacePopup === "function"
   ) {
-    window.openPlacePopup(titleText, category, distance, features);
+    window.openPlacePopup(titleText, category, distance, features, shortName);
   } else {
     // Fallback: use the drawer if popup is not wired yet
     mountInOffcanvas(titleText);
@@ -889,6 +892,7 @@ async function refreshPlaces() {
     };
 
     placeClusterLayer.clearLayers();
+    placeMarkersByKey.clear();
 
     const placesLayer = L.geoJSON(geojson, {
       filter: (feature) => {
@@ -897,11 +901,14 @@ async function refreshPlaces() {
       },
       pointToLayer: (feature, latlng) => {
         const tags = feature.properties.tags || feature.properties;
+        const placeKey = placeKeyFromFeature(feature);
         const marker = L.marker(latlng, {
           pane: "places-pane",
           icon: makePoiIcon(tags),
         })
           .on("click", () => {
+            // Temporarily override the selected marker badge to brand blue
+            setSelectedPlaceMarker(placeKey, tags);
             renderDetails(tags, L.latLng(latlng), { keepDirectionsUi: true });
           })
           .on("add", () => {
@@ -913,7 +920,15 @@ async function refreshPlaces() {
               marker._bsTooltip.dispose();
               marker._bsTooltip = null;
             }
+            if (placeKey) {
+              placeMarkersByKey.delete(placeKey);
+            }
           });
+
+        if (placeKey) {
+          marker._placeKey = placeKey;
+          placeMarkersByKey.set(placeKey, marker);
+        }
 
         return marker;
       },
@@ -943,6 +958,44 @@ async function refreshPlaces() {
   } finally {
     hideLoading(key);
   }
+}
+
+function restoreSelectedPlaceMarker() {
+  if (!selectedMarkerState) return;
+  try {
+    const { marker, originalIcon } = selectedMarkerState;
+    if (marker && originalIcon && typeof marker.setIcon === "function") {
+      marker.setIcon(originalIcon);
+    }
+  } catch (e) {
+    console.warn("Failed to restore selected marker icon:", e);
+  } finally {
+    selectedMarkerState = null;
+  }
+}
+
+function setSelectedPlaceMarker(placeKey, tags = {}) {
+  if (!placeKey) return;
+
+  // Restore previous selection so its accessibility color comes back
+  restoreSelectedPlaceMarker();
+
+  const marker = placeMarkersByKey.get(placeKey);
+  if (!marker || typeof marker.setIcon !== "function") return;
+
+  // Store original icon so we can restore it when selection changes
+  selectedMarkerState = {
+    key: placeKey,
+    marker,
+    originalIcon: marker.options?.icon,
+  };
+
+  // Override badge color to brand blue (do not change accessibility tier permanently)
+  marker.setIcon(
+    makePoiIcon(tags, {
+      badgeOverride: "var(--bs-primary)",
+    })
+  );
 }
 
 function moveDepartureSearchBarUnderTo() {
@@ -1915,6 +1968,11 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   }
   
   const titleText = tags.name || tags.amenity || "Details";
+  
+  // Extract short_name (normalize to uppercase, only show if different from name)
+  const shortNameRaw = tags.short_name || tags["short_name"] || tags["short-name"] || null;
+  const shortName = shortNameRaw ? String(shortNameRaw).trim().toUpperCase() : null;
+  const shouldShowShortName = shortName && shortName !== titleText.trim().toUpperCase();
 
   elements.detailsPanel.classList.remove("d-none");
   const list = elements.detailsPanel.querySelector("#details-list");
@@ -2703,6 +2761,104 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   accItem.appendChild(container);
   list.appendChild(accItem);
 
+  // --- WHEELCHAIR-ACCESSIBLE RESTROOM: Show if toilets:wheelchair exists ---
+  const toiletsWheelchair = nTags["toilets:wheelchair"] || nTags["toilets_wheelchair"] || nTags["toilets-wheelchair"] || 
+                             nTags["wheelchair:toilets"] || nTags["wheelchair_toilets"] || nTags["wheelchair-toilets"] || null;
+  if (toiletsWheelchair) {
+    const toiletsWheelchairLower = String(toiletsWheelchair).toLowerCase().trim();
+    const isYes = toiletsWheelchairLower === "yes" || toiletsWheelchairLower === "true";
+    const isNo = toiletsWheelchairLower === "no" || toiletsWheelchairLower === "false";
+    
+    if (isYes || isNo) {
+      const restroomAccItem = document.createElement("div");
+      restroomAccItem.className = "list-group-item";
+      restroomAccItem.style.padding = "0";
+      
+      const restroomContainer = document.createElement("div");
+      restroomContainer.style.padding = SECTION_PADDING;
+      restroomContainer.style.borderTop = "1px solid";
+      restroomContainer.style.borderColor = "rgba(0, 0, 0, 0.12)";
+      
+      // Card container matching wheelchair design
+      const restroomCardContainer = document.createElement("div");
+      restroomCardContainer.style.border = "1px solid";
+      restroomCardContainer.style.borderColor = "rgba(0, 0, 0, 0.12)";
+      restroomCardContainer.style.borderRadius = "16px";
+      restroomCardContainer.style.padding = "16px";
+      restroomCardContainer.style.display = "flex";
+      restroomCardContainer.style.alignItems = "center";
+      restroomCardContainer.style.gap = "16px";
+      
+      // Determine color and label based on value (same logic as vision accessibility)
+      const restroomColor = isYes ? "#6cc24a" : "#dc3545"; // green for yes, red for no
+      const restroomLabel = isYes ? "Available" : "Not available";
+      
+      // Icon container (green for yes, red for no)
+      const restroomIconContainer = document.createElement("div");
+      restroomIconContainer.style.display = "flex";
+      restroomIconContainer.style.alignItems = "center";
+      restroomIconContainer.style.justifyContent = "center";
+      restroomIconContainer.style.width = "48px";
+      restroomIconContainer.style.height = "48px";
+      restroomIconContainer.style.borderRadius = "16px";
+      restroomIconContainer.style.backgroundColor = hexToRgba(restroomColor, 0.1); // 10% opacity
+      restroomIconContainer.style.flexShrink = "0";
+      
+      const restroomIcon = document.createElement("div");
+      restroomIcon.style.width = "24px";
+      restroomIcon.style.height = "24px";
+      restroomIcon.style.display = "inline-block";
+      restroomIcon.style.backgroundColor = restroomColor;
+      restroomIcon.style.maskImage = "url('/icons/maki/toilet.svg')";
+      restroomIcon.style.maskSize = "contain";
+      restroomIcon.style.maskRepeat = "no-repeat";
+      restroomIcon.style.maskPosition = "center";
+      restroomIcon.style.webkitMaskImage = "url('/icons/maki/toilet.svg')";
+      restroomIcon.style.webkitMaskSize = "contain";
+      restroomIcon.style.webkitMaskRepeat = "no-repeat";
+      restroomIcon.style.webkitMaskPosition = "center";
+      restroomIconContainer.appendChild(restroomIcon);
+      
+      // Content wrapper
+      const restroomContentWrapper = document.createElement("div");
+      restroomContentWrapper.style.flex = "1";
+      restroomContentWrapper.style.minWidth = "0";
+      
+      const restroomLabelElement = document.createElement("div");
+      restroomLabelElement.style.display = "block";
+      restroomLabelElement.style.color = "rgba(0, 0, 0, 0.6)";
+      restroomLabelElement.style.fontSize = "0.75rem";
+      restroomLabelElement.style.fontWeight = "500";
+      restroomLabelElement.style.textTransform = "uppercase";
+      restroomLabelElement.style.letterSpacing = "0.5px";
+      restroomLabelElement.style.marginBottom = "4px";
+      restroomLabelElement.textContent = "WHEELCHAIR-ACCESSIBLE RESTROOM";
+      
+      // Chip/badge with color and label (matching wheelchair style)
+      const restroomChip = document.createElement("div");
+      restroomChip.style.display = "inline-block";
+      restroomChip.style.padding = "0.375rem 0.75rem";
+      restroomChip.style.borderRadius = "1rem";
+      restroomChip.style.backgroundColor = restroomColor;
+      restroomChip.style.color = "white";
+      restroomChip.style.fontSize = "0.9375rem";
+      restroomChip.style.fontWeight = "500";
+      restroomChip.style.lineHeight = "1.25";
+      restroomChip.style.fontFamily = "inherit";
+      restroomChip.textContent = restroomLabel;
+      
+      restroomContentWrapper.appendChild(restroomLabelElement);
+      restroomContentWrapper.appendChild(restroomChip);
+      
+      restroomCardContainer.appendChild(restroomIconContainer);
+      restroomCardContainer.appendChild(restroomContentWrapper);
+      
+      restroomContainer.appendChild(restroomCardContainer);
+      restroomAccItem.appendChild(restroomContainer);
+      list.appendChild(restroomAccItem);
+    }
+  }
+
   // --- OTHER ACCESSIBILITY: Vision accessibility (blind=yes/no) ---
   const blindValue = nTags.blind || nTags.Blind || null;
   if (blindValue) {
@@ -3270,16 +3426,36 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     // For now, we'll skip it to keep only positive features
   }
   
+  // Second-hand goods - only show when "yes"
+  const secondHand = nTags.second_hand || nTags["second_hand"] || nTags["second-hand"] || null;
+  if (secondHand) {
+    const secondHandValue = String(secondHand).toLowerCase().trim();
+    if (secondHandValue === "yes" || secondHandValue === "true") {
+      featureChips.push("Second-hand goods");
+    }
+    // Skip "no" values - don't show negative features
+  }
+  
+  // Restrooms - show in Facilities when toilets=yes
+  const toilets = nTags.toilets || nTags.Toilets || null;
+  if (toilets) {
+    const toiletsValue = String(toilets).toLowerCase().trim();
+    if (toiletsValue === "yes" || toiletsValue === "true") {
+      featureChips.push("Restrooms");
+    }
+    // Skip "no" values - don't show negative features
+  }
+  
   // Render Features section if we have any chips
   if (featureChips.length > 0) {
     const featuresItem = document.createElement("div");
     featuresItem.className = "list-group-item";
     featuresItem.style.padding = "0";
     featuresItem.style.marginBottom = "12px";
+    featuresItem.style.border = "none"; // Remove Bootstrap list-group-item border
       
       const container = document.createElement("div");
-    container.style.border = "1px solid";
-    container.style.borderColor = "rgba(0, 0, 0, 0.12)";
+    container.style.border = "1px solid rgba(0, 0, 0, 0.12)";
     container.style.borderRadius = "16px";
     container.style.padding = SECTION_PADDING;
       container.style.display = "flex";
@@ -3299,7 +3475,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     title.style.color = "rgba(0, 0, 0, 0.87)";
     title.style.letterSpacing = "-0.01em";
       title.style.margin = "0";
-      title.textContent = "Features";
+      title.textContent = "Facilities";
       
       header.appendChild(title);
       
@@ -3530,7 +3706,15 @@ Object.entries(nTags).forEach(([key, value]) => {
   const lk = key.trim().toLowerCase();
   
   // Skip check_date - will be rendered at the bottom
-  if (checkDateKeys.includes(lk)) return;
+  // Also skip check_date:opening_hours - it's displayed in OpeningHours component
+  // Handle various formats: check_date:opening_hours, check_date_opening_hours, check-date:opening-hours
+  // Check both lowercase key (lk) and original key for maximum coverage
+  if (checkDateKeys.includes(lk) || 
+      lk === "check_date:opening_hours" || 
+      lk === "check_date_opening_hours" ||
+      lk === "check-date:opening-hours" ||
+      /^check[_-]?date[:_-]opening[_-]hours$/i.test(key) ||
+      /^check[_-]?date[:_-]opening[_-]hours$/i.test(lk)) return;
   
   const isOpeningHours = /^opening_hours/i.test(key);
   if (isOpeningHours) return; // Skip opening_hours - already rendered above
@@ -3538,6 +3722,11 @@ Object.entries(nTags).forEach(([key, value]) => {
   // Skip wheelchair/accessibility tags - already rendered in Accessibility section
   const isWheelchair = /^wheelchair/i.test(key);
   if (isWheelchair) return;
+  
+  // Skip toilets:wheelchair - already rendered in Accessibility section
+  if (lk === "toilets:wheelchair" || lk === "toilets_wheelchair" || lk === "toilets-wheelchair" ||
+      lk === "wheelchair:toilets" || lk === "wheelchair_toilets" || lk === "wheelchair-toilets" ||
+      /^toilets[:_-]wheelchair$/i.test(key) || /^wheelchair[:_-]toilets$/i.test(key)) return;
   const lv = String(value).trim().toLowerCase();
 
   // 🔒 1) Never show the bare "contact" tag at all
@@ -3619,6 +3808,17 @@ Object.entries(nTags).forEach(([key, value]) => {
   // Skip level (already rendered in Address section)
   if (lk === "level") return;
 
+  // Skip toilets - will be handled in Features section (only show when "yes")
+  if (lk === "toilets" || key === "toilets") {
+    const toiletsValue = String(value).toLowerCase().trim();
+    // Skip "no" values - don't show negative features
+    if (toiletsValue === "no" || toiletsValue === "false") {
+      return;
+    }
+    // If "yes", it will be handled in Features section, so skip here too
+    return;
+  }
+
   // Skip dispensing - will be handled in Features section
   if (lk === "dispensing") return;
   
@@ -3639,6 +3839,18 @@ Object.entries(nTags).forEach(([key, value]) => {
   // Skip smoking tags - will be handled in Features section
   if (lk === "smoking" || lk === "smoking:yes" || lk === "smoking:no" || lk === "smoking:dedicated" ||
       key === "smoking" || key === "smoking:yes" || key === "smoking:no" || key === "smoking:dedicated") {
+    return;
+  }
+  
+  // Skip second_hand - will be handled in Features section (only show when "yes")
+  // Hide when "no" as it's not useful for accessibility
+  if (lk === "second_hand" || lk === "second-hand" || key === "second_hand" || key === "second-hand") {
+    const secondHandValue = String(value).toLowerCase().trim();
+    // Skip "no" values - don't show negative features
+    if (secondHandValue === "no" || secondHandValue === "false") {
+      return;
+    }
+    // If "yes", it will be handled in Features section, so skip here too
     return;
   }
   
@@ -4209,7 +4421,16 @@ Object.entries(nTags).forEach(([key, value]) => {
   }
 
   // Store checkDateValue in globals for footer display (removed from details list)
-  globals.detailsCtx.checkDate = checkDateValue || null;
+  // Only store if it's different from opening hours check date to avoid duplication
+  // Reuse the formattedOpeningHoursCheckDate that was extracted earlier (around line 2564)
+  
+  // Only store generic check_date if it's different from opening hours check date
+  if (checkDateValue && formattedOpeningHoursCheckDate && checkDateValue === formattedOpeningHoursCheckDate) {
+    // Same date as opening hours - don't show duplicate at bottom
+    globals.detailsCtx.checkDate = null;
+  } else {
+    globals.detailsCtx.checkDate = checkDateValue || null;
+  }
 
   globals.detailsCtx.latlng = latlng;
   globals.detailsCtx.placeId = tags.id ?? tags.osm_id ?? tags.place_id;
@@ -4227,8 +4448,8 @@ Object.entries(nTags).forEach(([key, value]) => {
   }
 
   // Open the floating place-details popup (overview / reviews / photos).
-  // Pass category and features extracted earlier
-  openPlaceDetailsPopup(titleText, categoryValue, null, features);
+  // Pass category, features, and short_name extracted earlier
+  openPlaceDetailsPopup(titleText, categoryValue, null, features, shouldShowShortName ? shortName : null);
 
   let uuid = null;
 
@@ -4922,6 +5143,8 @@ async function selectDestinationSuggestion(res) {
   toggleDestinationSuggestions(false);
 
   if (selectedPlaceLayer) map.removeLayer(selectedPlaceLayer);
+  // Restore previously selected marker's accessibility color
+  restoreSelectedPlaceMarker();
 
   showDetailsLoading(
     elements.detailsPanel,
@@ -4975,6 +5198,9 @@ async function selectDestinationSuggestion(res) {
       const g = rgbMatch ? parseInt(rgbMatch[2], 16) : 119;
       const b = rgbMatch ? parseInt(rgbMatch[3], 16) : 210;
       
+      // Center first (so the rectangle + marker appear in the right context immediately)
+      map.setView(L.latLng(res.center), 18);
+
       // Create floating card marker with halo
       const selectedPlaceIcon = L.divIcon({
         className: "selected-place-marker-wrapper",
@@ -5053,14 +5279,14 @@ async function selectDestinationSuggestion(res) {
         popupAnchor: [0, -52],
       });
       
-      selectedPlaceLayer = L.marker(L.latLng(res.center), {
+      const selectionMarker = L.marker(L.latLng(res.center), {
         icon: selectedPlaceIcon,
         keyboard: false,
         interactive: false,
         zIndexOffset: 1000, // Ensure it appears on top of other markers
       });
-      
-      map.setView(L.latLng(res.center), 18);
+
+      selectedPlaceLayer = selectionMarker;
     }
 
     selectedPlaceLayer.addTo(map);
@@ -5073,6 +5299,9 @@ async function selectDestinationSuggestion(res) {
     // 🧭 STEP 1: basic Photon tags
     let tags = res.properties.tags || res.properties || {};
     console.log("🔍 Photon basic tags:", tags);
+
+    // Temporarily override selected place marker badge to brand blue
+    setSelectedPlaceMarker(osmKey, tags);
 
     // 🧭 STEP 2: fetch Overpass enrichment
     const enriched =

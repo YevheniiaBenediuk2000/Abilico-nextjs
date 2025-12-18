@@ -742,7 +742,7 @@ export default function OpeningHours({ openingHours, holidayHours = null, checkD
                 fontWeight: 400,
               }}
             >
-              Last checked: {checkDate}
+              Last checked: Opening Hours – {checkDate}
               {isVeryOld && (
                 <Typography
                   component="span"

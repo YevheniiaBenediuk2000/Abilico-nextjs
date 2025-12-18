@@ -5,10 +5,13 @@ import { BADGE_COLOR_BY_TIER } from "../constants/constants.mjs";
 /** Returns an L.divIcon with a fixed 33px badge whose background
  *  color reflects accessibility and whose glyph comes from makiIconFor.
  */
-export function makePoiIcon(tags = {}) {
+export function makePoiIcon(tags = {}, opts = {}) {
   const glyphUrl = iconFor(tags);
   const tier = getAccessibilityTier(tags);
-  const badge = BADGE_COLOR_BY_TIER[tier] || BADGE_COLOR_BY_TIER.unknown;
+  const badge =
+    opts?.badgeOverride ??
+    BADGE_COLOR_BY_TIER[tier] ??
+    BADGE_COLOR_BY_TIER.unknown;
 
   const html = `
     <div class="poi-badge" style="--badge:${badge}">

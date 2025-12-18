@@ -87,6 +87,7 @@ export default function MapContainer({
 
   const [placePopupOpen, setPlacePopupOpen] = useState(false);
   const [placePopupTitle, setPlacePopupTitle] = useState("Details");
+  const [placeShortName, setPlaceShortName] = useState(null);
   const [placeCategory, setPlaceCategory] = useState(null);
   const [placeDistance, setPlaceDistance] = useState(null);
   const [placeFeatures, setPlaceFeatures] = useState([]);
@@ -126,8 +127,9 @@ export default function MapContainer({
       };
 
       // NEW: floating place-details popup
-      window.openPlacePopup = (titleText, category = null, distance = null, features = []) => {
+      window.openPlacePopup = (titleText, category = null, distance = null, features = [], shortName = null) => {
         if (titleText) setPlacePopupTitle(titleText);
+        setPlaceShortName(shortName);
         setPlaceCategory(category);
         setPlaceDistance(distance);
         setPlaceFeatures(features || []);
@@ -1129,20 +1131,39 @@ export default function MapContainer({
                     mb: 1,
                   }}
                 >
-                  <Typography
-                    variant="h5"
-                    component="h2"
-                    sx={{
-                      flex: 1,
-                      mr: 1,
-                      fontWeight: 600,
-                      fontSize: "1.5rem",
-                      lineHeight: 1.2,
-                      color: "text.primary",
-                    }}
-                  >
-                    {placePopupTitle}
-                  </Typography>
+                  <Box sx={{ flex: 1, mr: 1 }}>
+                    <Typography
+                      variant="h5"
+                      component="h2"
+                      sx={{
+                        fontWeight: 600,
+                        fontSize: "1.5rem",
+                        lineHeight: 1.2,
+                        color: "text.primary",
+                        mb: placeShortName ? 0.5 : 0,
+                      }}
+                    >
+                      {placePopupTitle}
+                    </Typography>
+                    {placeShortName && placeShortName.trim() !== placePopupTitle.trim() && (
+                      <Chip
+                        label={placeShortName.toUpperCase()}
+                        size="small"
+                        sx={{
+                          height: 20,
+                          fontSize: "0.6875rem",
+                          fontWeight: 500,
+                          bgcolor: "rgba(0, 0, 0, 0.06)",
+                          color: "text.secondary",
+                          "& .MuiChip-label": {
+                            px: 1,
+                          },
+                        }}
+                        title={`Abbreviation: ${placeShortName}`}
+                        aria-label={`Abbreviation: ${placeShortName}`}
+                      />
+                    )}
+                  </Box>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
                     <Tooltip
                       title={isPlaceSaved ? "Remove from saved" : "Save place"}
@@ -1348,20 +1369,9 @@ export default function MapContainer({
                   sx={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 0.5,
                     flex: 1,
                   }}
                 >
-                  <span
-                    className="material-icons"
-                    style={{
-                      fontSize: "14px",
-                      color: "rgba(0, 0, 0, 0.6)",
-                      flexShrink: 0,
-                    }}
-                  >
-                    calendar_today
-                  </span>
                   <Typography
                     variant="caption"
                     sx={{

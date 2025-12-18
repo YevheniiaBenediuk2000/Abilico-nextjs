@@ -58,8 +58,8 @@ export default function AccessibilityInfoLegend() {
       <Box
         sx={{
           position: "fixed",
-          bottom: 16,
-          left: 16,
+          bottom: 110, // Position above zoom control (zoom control ~72px + 10px margin + 8px gap)
+          right: 10, // Right side, matching zoom control position
           zIndex: 1000,
         }}
       >
@@ -67,14 +67,15 @@ export default function AccessibilityInfoLegend() {
           onClick={() => setOpen(true)}
           sx={{
             backgroundColor: "white",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.15), 0 2px 4px rgba(0,0,0,0.1)",
-            borderRadius: 2,
-            width: 40,
-            height: 40,
+            border: "1px solid rgba(0,0,0,0.12)",
+            boxShadow: "0 2px 1px -1px rgba(0,0,0,0.2), 0px 1px 1px 0px rgba(0,0,0,0.14), 0px 1px 3px 0px rgba(0,0,0,0.12)",
+            borderRadius: 1,
+            width: 36,
+            height: 36,
+            minWidth: 36,
+            padding: 0,
             "&:hover": {
-              backgroundColor: "rgba(255,255,255,0.95)",
-              boxShadow: "0 6px 16px rgba(0,0,0,0.2), 0 2px 6px rgba(0,0,0,0.12)",
-              transform: "translateY(-1px)",
+              backgroundColor: "rgba(0, 0, 0, 0.04)",
             },
             transition: "all 0.2s ease-in-out",
           }}
@@ -90,8 +91,8 @@ export default function AccessibilityInfoLegend() {
     <Box
       sx={{
         position: "fixed",
-        bottom: 16,
-        left: 16,
+        bottom: 110, // Position above zoom control
+        right: 10, // Right side, matching zoom control position
         zIndex: 1000,
         maxWidth: 320,
       }}
