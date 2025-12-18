@@ -1,3 +1,13 @@
+:root {
+  /* Brand primary (single source of truth) */
+  --abilico-primary: #0c77d2;
+  --abilico-primary-rgb: 12, 119, 210;
+
+  /* Bootstrap override for consistent button/link blues */
+  --bs-primary: var(--abilico-primary);
+  --bs-primary-rgb: var(--abilico-primary-rgb);
+}
+
 .map-overlay {
   position: absolute;
   z-index: 401;
@@ -46,6 +56,18 @@
 .quick-choose-popup .leaflet-popup-content {
   margin: 0;
   padding: 0;
+  background: transparent;
+}
+
+.quick-choose-popup .leaflet-popup-content-wrapper {
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.quick-choose-popup .leaflet-popup-tip {
+  background: transparent;
+  box-shadow: none;
 }
 
 .quick-route-popup-container {
@@ -58,7 +80,7 @@
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
-  background-color: #0f77d2;
+  background-color: var(--bs-primary);
   color: white;
   border: 2px solid white;
   border-radius: 24px;
@@ -71,22 +93,36 @@
   z-index: 1;
 }
 
-.quick-route-btn::after {
+.quick-route-btn::before {
   content: "";
   position: absolute;
-  bottom: -8px;
+  bottom: -12px;
   left: 50%;
   transform: translateX(-50%);
   width: 0;
   height: 0;
-  border-left: 8px solid transparent;
-  border-right: 8px solid transparent;
-  border-top: 8px solid #0f77d2;
+  border-left: 12px solid transparent;
+  border-right: 12px solid transparent;
+  border-top: 12px solid white;
+  z-index: -1;
+}
+
+.quick-route-btn::after {
+  content: "";
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-top: 10px solid var(--bs-primary);
   z-index: 0;
 }
 
 .quick-route-btn:hover {
-  background-color: #0d6bb8;
+  background-color: color-mix(in srgb, var(--bs-primary) 86%, #000);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.12);
   transform: translateY(-1px);
 }
@@ -292,23 +328,50 @@
 /* === Wheelchair mode icon + route actions (Directions panel) === */
 :root {
   /* match existing blue used in place cards */
-  --mode-icon-fg: #0f77d2;
-  --mode-icon-bg: rgba(15, 119, 210, 0.12);
-  --mode-icon-bg-hover: rgba(15, 119, 210, 0.18);
+  --mode-icon-fg: var(--bs-primary);
+  --mode-icon-bg: rgba(var(--bs-primary-rgb), 0.12);
+  --mode-icon-bg-hover: rgba(var(--bs-primary-rgb), 0.18);
 
   /* Shared tag/chip styling (category + feature chips) */
   --tag-chip-height: 24px;
   --tag-chip-font-size: 0.75rem;
   --tag-chip-px: 12px;
   --tag-chip-icon-size: 14px;
-  --tag-chip-bg: rgba(15, 119, 210, 0.08);
-  --tag-chip-fg: #0f77d2;
+  --tag-chip-bg: rgba(var(--bs-primary-rgb), 0.08);
+  --tag-chip-fg: var(--bs-primary);
 
   --route-btn-secondary-border: var(--bs-secondary);
   --route-btn-secondary-fg: var(--bs-secondary);
 
   --route-btn-danger-border: var(--bs-danger);
   --route-btn-danger-fg: var(--bs-danger);
+}
+
+.tag-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--tag-chip-height);
+  padding: 0 var(--tag-chip-px);
+  border-radius: 9999px;
+  background-color: var(--tag-chip-bg);
+  color: var(--tag-chip-fg);
+  font-size: var(--tag-chip-font-size);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.tag-chip__icon.material-icons {
+  font-size: var(--tag-chip-icon-size);
+  line-height: 1;
 }
 
 .route-toolbar {
@@ -607,7 +670,7 @@
 [data-theme="default"] input[type="email"]:focus,
 [data-theme="default"] input[type="password"]:focus,
 [data-theme="default"] input[type="text"]:focus {
-  border-color: #0a3f89 !important;
+  border-color: var(--bs-primary) !important;
   border-width: 2px !important;
   outline: none !important;
 }
@@ -632,7 +695,7 @@
 
 /* Button styling - Register/Sign in button */
 [data-theme="default"] button[type="submit"] {
-  background-color: #0a3f89 !important;
+  background-color: var(--bs-primary) !important;
   color: #ffffff !important;
   border: none !important;
   border-radius: 8px !important;
@@ -647,17 +710,17 @@
 }
 
 [data-theme="default"] button[type="submit"]:hover {
-  background-color: #082d63 !important;
+  background-color: color-mix(in srgb, var(--bs-primary) 86%, #000) !important;
 }
 
 [data-theme="default"] button[type="submit"]:active {
-  background-color: #06204a !important;
+  background-color: color-mix(in srgb, var(--bs-primary) 78%, #000) !important;
 }
 
 /* Link styling */
 [data-theme="default"] a,
 .supabase-auth-ui_ui-anchor {
-  color: #0a3f89 !important;
+  color: var(--bs-primary) !important;
   text-decoration: none !important;
   font-size: 14px !important;
   transition: color 0.2s ease !important;
@@ -665,7 +728,7 @@
 
 [data-theme="default"] a:hover,
 .supabase-auth-ui_ui-anchor:hover {
-  color: #082d63 !important;
+  color: color-mix(in srgb, var(--bs-primary) 78%, #000) !important;
   text-decoration: none !important;
 }
 

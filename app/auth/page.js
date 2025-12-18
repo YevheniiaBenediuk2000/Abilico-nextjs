@@ -250,7 +250,7 @@ export default function AuthPage() {
                   flexDirection: "column",
                 }}
               >
-                {mounted && (
+                {mounted ? (
                   <Auth
                     supabaseClient={supabase}
                     appearance={{
@@ -258,27 +258,27 @@ export default function AuthPage() {
                       variables: {
                         default: {
                           colors: {
-                            brand: "#0a3f89",
-                            brandAccent: "#0a3f89",
+                            brand: "#0c77d2",
+                            brandAccent: "#0c77d2",
                             inputText: "#000000",
                             inputLabelText: "#000000",
                             inputPlaceholder: "#9e9e9e",
                             inputBorder: "rgba(0, 0, 0, 0.23)",
                             inputBorderHover: "rgba(0, 0, 0, 0.5)",
-                            inputBorderFocus: "#0a3f89",
+                            inputBorderFocus: "#0c77d2",
                             messageText: "#000000",
                             messageTextDanger: "#d32f2f",
-                            anchorTextColor: "#0a3f89",
-                            anchorTextHoverColor: "#082d63",
+                            anchorTextColor: "#0c77d2",
+                            anchorTextHoverColor: "#0c77d2",
                           },
                           space: {
                             inputPadding: "16px",
                             buttonPadding: "16px",
                           },
                           fontSizes: {
-                            baseBodySize: "16px",
+                            baseBodySize: "14px",
                             baseInputSize: "16px",
-                            labelText: "16px",
+                            labelText: "14px",
                           },
                           radii: {
                             borderRadiusButton: "8px",
@@ -291,6 +291,20 @@ export default function AuthPage() {
                     providers={["google"]}
                     redirectTo={redirectTo}
                   />
+                ) : (
+                  <Box
+                    sx={{
+                      minHeight: "400px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    suppressHydrationWarning
+                  >
+                    <Typography variant="body2" color="text.secondary">
+                      Loading...
+                    </Typography>
+                  </Box>
                 )}
               </Box>
             </Box>
@@ -335,9 +349,10 @@ export default function AuthPage() {
 
             {/* Title */}
             <Typography
-              variant="h5"
+              variant="h6"
               sx={{
-                fontWeight: 700,
+                fontSize: "1.25rem",
+                fontWeight: 600,
                 mb: 1,
                 color: "text.primary",
                 textAlign: "center",
@@ -350,6 +365,7 @@ export default function AuthPage() {
             <Typography
               variant="body2"
               sx={{
+                fontSize: "0.875rem",
                 color: "text.secondary",
                 mb: 4,
                 textAlign: "center",
@@ -380,7 +396,7 @@ export default function AuthPage() {
                     maxLength: 1,
                     style: {
                       textAlign: "center",
-                      fontSize: "1.5rem",
+                      fontSize: "1.25rem",
                       fontWeight: 600,
                       padding: "12px 0",
                     },
@@ -419,8 +435,8 @@ export default function AuthPage() {
                 py: 1.5,
                 borderRadius: 2,
                 textTransform: "none",
-                fontSize: "1rem",
-                fontWeight: 600,
+                fontSize: "0.875rem",
+                fontWeight: 500,
               }}
             >
               Verify

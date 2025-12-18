@@ -80,7 +80,7 @@ export function showDetailsLoading(
   spinner.style.width = "32px";
   spinner.style.height = "32px";
   spinner.style.borderWidth = "3px";
-  spinner.style.color = "#0f77d2"; // Use ICON_SECONDARY_COLOR from design system (matches category chip, address icon, etc.)
+  spinner.style.color = "var(--bs-primary)"; // Use brand primary
   spinnerContainer.appendChild(spinner);
   
   // Loading text with better typography

@@ -366,11 +366,10 @@ async function showQuickRoutePopup(latlng) {
   directionsBtn?.addEventListener("click", async (ev) => {
     L.DomEvent.stop(ev);
     try {
+      // openDirectionsToPlace() already sets destination; avoid double reverse-geocode calls.
       await openDirectionsToPlace(latlng, { fit: false });
       if (locationName) {
-        await setTo(latlng, locationName, { fit: false });
-      } else {
-        await setTo(latlng, null, { fit: false });
+        elements.destinationSearchInput.value = locationName;
       }
 
       if (
@@ -1043,11 +1042,11 @@ async function renderReviewsList() {
       // === Inline edit mode === - improved styling
       const cardContainer = document.createElement("div");
       cardContainer.style.border = "1px solid";
-      cardContainer.style.borderColor = "rgba(10, 63, 137, 0.3)";
+      cardContainer.style.borderColor = "rgba(var(--bs-primary-rgb), 0.3)";
       cardContainer.style.borderRadius = "16px";
       cardContainer.style.padding = "20px";
       cardContainer.style.backgroundColor = "#ffffff";
-      cardContainer.style.boxShadow = "0 2px 8px rgba(10, 63, 137, 0.15)";
+      cardContainer.style.boxShadow = "0 2px 8px rgba(var(--bs-primary-rgb), 0.15)";
       
       const form = document.createElement("form");
       form.style.display = "flex";
@@ -1127,7 +1126,7 @@ async function renderReviewsList() {
       textarea.style.transition = "border-color 0.2s";
       textarea.setAttribute("aria-label", "Edit your review comment");
       textarea.addEventListener("focus", () => {
-        textarea.style.borderColor = "rgba(10, 63, 137, 0.5)";
+        textarea.style.borderColor = "rgba(var(--bs-primary-rgb), 0.5)";
         textarea.style.outline = "none";
       });
       textarea.addEventListener("blur", () => {
@@ -1194,7 +1193,7 @@ async function renderReviewsList() {
 
       const saveBtn = document.createElement("button");
       saveBtn.type = "submit";
-      saveBtn.style.background = "rgba(10, 63, 137, 0.87)";
+      saveBtn.style.background = "rgba(var(--bs-primary-rgb), 0.87)";
       saveBtn.style.border = "none";
       saveBtn.style.borderRadius = "4px";
       saveBtn.style.padding = "6px 16px";
@@ -1205,10 +1204,10 @@ async function renderReviewsList() {
       saveBtn.style.transition = "all 0.2s";
       saveBtn.textContent = "Save";
       saveBtn.addEventListener("mouseenter", () => {
-        saveBtn.style.backgroundColor = "rgba(10, 63, 137, 1)";
+        saveBtn.style.backgroundColor = "rgba(var(--bs-primary-rgb), 1)";
       });
       saveBtn.addEventListener("mouseleave", () => {
-        saveBtn.style.backgroundColor = "rgba(10, 63, 137, 0.87)";
+        saveBtn.style.backgroundColor = "rgba(var(--bs-primary-rgb), 0.87)";
       });
 
       actions.appendChild(cancelBtn);
@@ -1297,7 +1296,7 @@ async function renderReviewsList() {
       // Add hover effect
       cardContainer.addEventListener("mouseenter", () => {
         cardContainer.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.1)";
-        cardContainer.style.borderColor = "rgba(10, 63, 137, 0.3)";
+        cardContainer.style.borderColor = "rgba(var(--bs-primary-rgb), 0.3)";
       });
       cardContainer.addEventListener("mouseleave", () => {
         cardContainer.style.boxShadow = "0 1px 3px rgba(0, 0, 0, 0.05)";
@@ -1503,7 +1502,7 @@ async function renderReviewsList() {
         detailsBtn.style.padding = "0";
         detailsBtn.style.cursor = "pointer";
         detailsBtn.style.fontSize = "0.875rem";
-        detailsBtn.style.color = "rgba(10, 63, 137, 0.87)";
+        detailsBtn.style.color = "rgba(var(--bs-primary-rgb), 0.87)";
         detailsBtn.style.fontWeight = "500";
         detailsBtn.style.display = "flex";
         detailsBtn.style.alignItems = "center";
@@ -1514,10 +1513,10 @@ async function renderReviewsList() {
         detailsBtn.setAttribute("aria-label", "Toggle category rating details");
 
         detailsBtn.addEventListener("mouseenter", () => {
-          detailsBtn.style.color = "rgba(10, 63, 137, 1)";
+          detailsBtn.style.color = "rgba(var(--bs-primary-rgb), 1)";
         });
         detailsBtn.addEventListener("mouseleave", () => {
-          detailsBtn.style.color = "rgba(10, 63, 137, 0.87)";
+          detailsBtn.style.color = "rgba(var(--bs-primary-rgb), 0.87)";
         });
 
         // Create collapsible details content - improved styling
@@ -1550,8 +1549,8 @@ async function renderReviewsList() {
             
             // Apply highlighting style if it matches user preferences - improved
             if (isUserPreference) {
-              categoryItem.style.backgroundColor = "rgba(10, 63, 137, 0.08)";
-              categoryItem.style.borderLeft = "3px solid rgba(10, 63, 137, 0.5)";
+              categoryItem.style.backgroundColor = "rgba(var(--bs-primary-rgb), 0.08)";
+              categoryItem.style.borderLeft = "3px solid rgba(var(--bs-primary-rgb), 0.5)";
             } else {
               categoryItem.style.backgroundColor = "transparent";
             }
@@ -1560,7 +1559,7 @@ async function renderReviewsList() {
             const label = document.createElement("span");
             label.style.fontWeight = isUserPreference ? "600" : "500";
             label.style.fontSize = "0.875rem";
-            label.style.color = isUserPreference ? "rgba(10, 63, 137, 0.87)" : "rgba(0, 0, 0, 0.87)";
+            label.style.color = isUserPreference ? "rgba(var(--bs-primary-rgb), 0.87)" : "rgba(0, 0, 0, 0.87)";
             label.textContent = ACCESSIBILITY_CATEGORY_LABELS[categoryId] || categoryId;
 
             // Rating display (stars) - improved styling
@@ -1996,8 +1995,8 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   const SECTION_PADDING = "24px";
   
   // Icon styling variables for Category and Address sections
-  const ICON_SECONDARY_COLOR = "#0f77d2"; // Secondary blue for Category/Address icons
-  const ICON_BACKGROUND_COLOR = "#edf4fb"; // Light blue background for icon containers
+  const ICON_SECONDARY_COLOR = "var(--bs-primary)"; // Brand blue for Category/Address icons
+  const ICON_BACKGROUND_COLOR = "rgba(var(--bs-primary-rgb), 0.08)"; // Light blue background for icon containers
   const ICON_SIZE = "48px"; // Icon container size (width and height)
   const ICON_BORDER_RADIUS = "12px"; // Border radius for icon containers
   
@@ -2336,7 +2335,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       // Hover effect - use secondary color
       card.addEventListener("mouseenter", () => {
         card.style.borderColor = ICON_SECONDARY_COLOR;
-        card.style.boxShadow = `0 2px 8px rgba(15, 119, 210, 0.15)`;
+        card.style.boxShadow = `0 2px 8px rgba(var(--bs-primary-rgb), 0.15)`;
         card.style.transform = "translateY(-1px)";
       });
       card.addEventListener("mouseleave", () => {
@@ -2852,8 +2851,10 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     
     const container = document.createElement("div");
     container.style.padding = SECTION_PADDING;
+    container.style.paddingBottom = SECTION_PADDING; // Ensure consistent bottom padding
     container.style.borderTop = "1px solid";
     container.style.borderColor = "rgba(0, 0, 0, 0.12)";
+    container.style.minHeight = "auto"; // No default height, let content determine
     
     // Header: "Features" (no icon, matching Opening Hours style)
     const header = document.createElement("h6");
@@ -2865,36 +2866,25 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     header.textContent = "Features";
     container.appendChild(header);
     
-    // Features list
+    // Features chips (same styling as category chip via CSS vars)
     const featuresContainer = document.createElement("div");
-    featuresContainer.style.display = "flex";
-    featuresContainer.style.flexDirection = "column";
-    featuresContainer.style.gap = "8px";
-    
+    featuresContainer.className = "tag-chip-group";
+    featuresContainer.style.marginBottom = "0"; // Ensure no extra margin at bottom
+
     features.forEach((feature) => {
-      const featureRow = document.createElement("div");
-      featureRow.style.display = "flex";
-      featureRow.style.alignItems = "center";
-      featureRow.style.gap = "8px";
-      
-      // Icon
+      const chip = document.createElement("span");
+      chip.className = "tag-chip";
+
       const icon = document.createElement("span");
-      icon.className = "material-icons";
-      icon.style.fontSize = "18px";
-      icon.style.color = ICON_SECONDARY_COLOR;
-      icon.style.flexShrink = "0";
+      icon.className = "material-icons tag-chip__icon";
       icon.textContent = feature.icon;
-      featureRow.appendChild(icon);
-      
-      // Label
+
       const label = document.createElement("span");
-      label.style.fontSize = "0.875rem";
-      label.style.color = "rgba(0, 0, 0, 0.87)";
-      label.style.lineHeight = "1.5";
       label.textContent = feature.label;
-      featureRow.appendChild(label);
-      
-      featuresContainer.appendChild(featureRow);
+
+      chip.appendChild(icon);
+      chip.appendChild(label);
+      featuresContainer.appendChild(chip);
     });
     
     container.appendChild(featuresContainer);
@@ -3140,26 +3130,13 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       
       header.appendChild(title);
       
-    // Chips container
+    // Chips container (same styling as category chip via CSS vars)
     const chipsContainer = document.createElement("div");
-    chipsContainer.style.display = "flex";
-    chipsContainer.style.flexWrap = "wrap";
-    chipsContainer.style.gap = "8px";
+    chipsContainer.className = "tag-chip-group";
     
     featureChips.forEach((chipLabel) => {
-      const chip = document.createElement("div");
-      chip.style.display = "inline-block";
-      chip.style.padding = "0.375rem 0.75rem";
-      chip.style.borderRadius = "1rem";
-      chip.style.backgroundColor = "rgba(10, 63, 137, 0.08)";
-      chip.style.color = "rgba(10, 63, 137, 0.87)";
-      chip.style.fontSize = "0.8125rem";
-      chip.style.fontWeight = "500";
-      chip.style.lineHeight = "1.25";
-      chip.style.fontFamily = "inherit";
-      chip.style.border = "1px solid rgba(10, 63, 137, 0.2)";
-      chip.style.cursor = "default";
-      chip.style.width = "fit-content";
+      const chip = document.createElement("span");
+      chip.className = "tag-chip";
       chip.textContent = chipLabel;
       
       chipsContainer.appendChild(chip);
@@ -3259,6 +3236,12 @@ Object.entries(nTags).forEach(([key, value]) => {
   
   // Skip all other ref:* tags - too technical for regular users
   if (lk.startsWith("ref:") || key.startsWith("ref:")) return;
+  
+  // Skip bare "ref" tag (mapping metadata like "Ref: 18")
+  if (lk === "ref") return;
+  
+  // Skip network:wikidata (mapping metadata like "Network Wikidata: Q3008464")
+  if (lk === "network:wikidata" || key === "network:wikidata") return;
   
   // Skip Facebook/Instagram/social media tags - already handled in Social Media section
   if (lk === "facebook" || lk === "instagram" || lk === "twitter" || 
@@ -3417,6 +3400,40 @@ Object.entries(nTags).forEach(([key, value]) => {
     }
   }
 
+  // Handle source:ref - show as "Network" link (clean URL, don't show ugly URL)
+  if (lk === "source:ref" || lk === "source_ref" || key === "source:ref" || key === "source_ref") {
+    const urlValue = String(value).trim();
+    if (urlValue) {
+      // Clean the URL using cleanUrl function
+      const cleanedUrl = cleanUrl(urlValue);
+      if (cleanedUrl) {
+        // Use consistent structure with other sections
+        item.className = "list-group-item";
+        item.style.padding = "0";
+        
+        const container = document.createElement("div");
+        container.style.padding = SECTION_PADDING;
+        container.style.paddingBottom = SECTION_PADDING; // Ensure consistent bottom padding
+        container.style.borderTop = "1px solid";
+        container.style.borderColor = "rgba(0, 0, 0, 0.12)";
+        container.style.minHeight = "auto"; // No default height, let content determine
+        
+        container.innerHTML = `
+          <div>
+            <h6 style="font-size: 1.125rem; font-weight: 600; color: rgba(0, 0, 0, 0.87); letter-spacing: -0.01em; margin: 0 0 8px 0;">Network</h6>
+            <p style="font-size: 0.875rem; color: rgba(0, 0, 0, 0.87); margin: 0;">
+              <a href="${cleanedUrl}" target="_blank" rel="noopener nofollow" style="color: var(--bs-primary); text-decoration: none;">Network</a>
+            </p>
+          </div>`;
+        
+        item.appendChild(container);
+        list.appendChild(item);
+        return;
+      }
+    }
+    // If URL cleaning failed, skip this tag
+    return;
+  }
 
   // Default label/value
   let displayKey;
@@ -4183,13 +4200,46 @@ function reverseAddressAt(latlng) {
   const key = showLoading("reverse");
 
   return new Promise((resolve) => {
-    geocoder.reverse(latlng, map.options.crs.scale(18), (items) => {
-      console.log("📍 reverseAddressAt → got items:", items);
+    const fallback = () =>
+      latlng && typeof latlng.lat === "number" && typeof latlng.lng === "number"
+        ? `${latlng.lat}, ${latlng.lng}`
+        : "Unknown location";
+
+    let done = false;
+    const finish = (value) => {
+      if (done) return;
+      done = true;
       hideLoading(key);
+      resolve(value);
+    };
+
+    // If geocoder is unavailable or reverse never returns, don’t hang the UI.
+    const timeout = setTimeout(() => finish(fallback()), 1500);
+
+    try {
+      if (!geocoder || typeof geocoder.reverse !== "function") {
+        clearTimeout(timeout);
+        finish(fallback());
+        return;
+      }
+
+      const scale =
+        map?.options?.crs?.scale && typeof map.options.crs.scale === "function"
+          ? map.options.crs.scale(18)
+          : 1;
+
+      geocoder.reverse(latlng, scale, (items) => {
+        clearTimeout(timeout);
+        console.log("📍 reverseAddressAt → got items:", items);
 
       const best = items?.[0]?.name;
-      resolve(best || `${latlng.lat}, ${latlng.lng}`);
+        finish(best || fallback());
     });
+    } catch (err) {
+      clearTimeout(timeout);
+      console.error("❌ reverseAddressAt failed:", err);
+      finish(fallback());
+    }
   });
 }
 
