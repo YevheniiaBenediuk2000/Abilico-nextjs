@@ -346,12 +346,12 @@ function mountInOffcanvas(titleText) {
   }
 }
 
-function openPlaceDetailsPopup(titleText) {
+function openPlaceDetailsPopup(titleText, category = null, distance = null, features = []) {
   if (
     typeof window !== "undefined" &&
     typeof window.openPlacePopup === "function"
   ) {
-    window.openPlacePopup(titleText);
+    window.openPlacePopup(titleText, category, distance, features);
   } else {
     // Fallback: use the drawer if popup is not wired yet
     mountInOffcanvas(titleText);
@@ -1858,6 +1858,55 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   const nTags = normalizeTagsCase(tags);
   
+  // Extract category for header display
+  const categoryKeys = ["amenity", "tourism", "shop", "leisure", "healthcare", "office", "historic", "sport"];
+  let categoryValue = null;
+  for (const key of categoryKeys) {
+    if (nTags[key]) {
+      const value = String(nTags[key]).trim();
+      if (value && value !== "yes") {
+        // Format category value: "local_pharmacy" -> "Pharmacy", "fast_food" -> "Fast food"
+        categoryValue = value
+          .replace(/[_-]/g, " ")
+          .split(" ")
+          .map((word, index) => {
+            if (index === 0) {
+              return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+            }
+            return word.toLowerCase();
+          })
+          .join(" ");
+        break;
+      }
+    }
+  }
+  
+  // Extract features for header chips (drive_through, dispensing, etc.)
+  const features = [];
+  
+  // Check if drive_through is available and relevant for this category
+  const driveThroughValue = nTags.drive_through || nTags["drive-through"] || nTags.drive_through || null;
+  const relevantCategoriesForDriveThrough = [
+    "pharmacy", "local_pharmacy", "fast_food", "cafe", "coffee_shop", 
+    "bank", "atm", "restaurant", "fuel"
+  ];
+  const categoryLower = categoryValue ? categoryValue.toLowerCase() : "";
+  const isRelevantForDriveThrough = relevantCategoriesForDriveThrough.some(cat => 
+    categoryLower.includes(cat.replace(/_/g, " ")) || 
+    categoryLower === cat.replace(/_/g, " ")
+  );
+  
+  if (driveThroughValue && String(driveThroughValue).toLowerCase().trim() === "yes" && isRelevantForDriveThrough) {
+    features.push({ type: "drive_through", label: "Drive-through available", icon: "directions_car" });
+  }
+  
+  // Check if dispensing is available (for pharmacies)
+  const dispensingValue = nTags.dispensing || nTags.Dispensing || null;
+  const isPharmacy = categoryLower.includes("pharmacy");
+  if (dispensingValue && String(dispensingValue).toLowerCase().trim() === "yes" && isPharmacy) {
+    features.push({ type: "dispensing", label: "Dispenses prescription medicines", icon: "medical_services" });
+  }
+  
   // Consistent padding constant for all detail sections (24px = MUI spacing 3)
   const SECTION_PADDING = "24px";
   
@@ -2302,6 +2351,10 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   // OPENING HOURS - Render with React component
   const openingHours = nTags.opening_hours || nTags["opening_hours"] || null;
+  // Extract check_date:opening_hours specifically for opening hours
+  const openingHoursCheckDate = nTags["check_date:opening_hours"] || nTags["check_date_opening_hours"] || null;
+  const formattedOpeningHoursCheckDate = openingHoursCheckDate ? formatDateForDisplay(String(openingHoursCheckDate)) : null;
+  
   if (openingHours) {
     const hoursContainer = document.createElement("div");
     hoursContainer.className = "list-group-item";
@@ -2326,6 +2379,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
           React.createElement(OpeningHours, {
             openingHours: openingHours,
             holidayHours: nTags["opening_hours:holiday"] || null,
+            checkDate: formattedOpeningHoursCheckDate,
           })
         );
       } catch (err) {
@@ -2703,6 +2757,66 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     list.appendChild(addressItem);
   }
 
+  // --- FEATURES: Drive-through, Dispensing, etc. ---
+  // Reuse the features array that was already created for header chips
+  // Only show Features section if there are features to display
+  if (features.length > 0) {
+    const featuresItem = document.createElement("div");
+    featuresItem.className = "list-group-item";
+    featuresItem.style.padding = "0";
+    
+    const container = document.createElement("div");
+    container.style.padding = SECTION_PADDING;
+    container.style.borderTop = "1px solid";
+    container.style.borderColor = "rgba(0, 0, 0, 0.12)";
+    
+    // Header: "Features" (no icon, matching Opening Hours style)
+    const header = document.createElement("h6");
+    header.style.fontSize = "1.125rem";
+    header.style.fontWeight = "600";
+    header.style.color = "rgba(0, 0, 0, 0.87)";
+    header.style.letterSpacing = "-0.01em";
+    header.style.margin = "0 0 16px 0";
+    header.textContent = "Features";
+    container.appendChild(header);
+    
+    // Features list
+    const featuresContainer = document.createElement("div");
+    featuresContainer.style.display = "flex";
+    featuresContainer.style.flexDirection = "column";
+    featuresContainer.style.gap = "8px";
+    
+    features.forEach((feature) => {
+      const featureRow = document.createElement("div");
+      featureRow.style.display = "flex";
+      featureRow.style.alignItems = "center";
+      featureRow.style.gap = "8px";
+      
+      // Icon
+      const icon = document.createElement("span");
+      icon.className = "material-icons";
+      icon.style.fontSize = "18px";
+      icon.style.color = ICON_SECONDARY_COLOR;
+      icon.style.flexShrink = "0";
+      icon.textContent = feature.icon;
+      featureRow.appendChild(icon);
+      
+      // Label
+      const label = document.createElement("span");
+      label.style.fontSize = "0.875rem";
+      label.style.color = "rgba(0, 0, 0, 0.87)";
+      label.style.lineHeight = "1.5";
+      label.textContent = feature.label;
+      featureRow.appendChild(label);
+      
+      featuresContainer.appendChild(featureRow);
+    });
+    
+    container.appendChild(featuresContainer);
+    featuresItem.appendChild(container);
+    list.appendChild(featuresItem);
+  }
+
   // --- CAPACITY: Combine Beds and Rooms into a single Capacity section ---
   const rooms = nTags.rooms || nTags.Rooms || null;
   const beds = nTags.beds || nTags.Beds || null;
@@ -2992,11 +3106,14 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   }
 
   // --- LAST CHECKED DATE: Extract and format check_date before generic tags loop ---
+  // Exclude check_date:opening_hours as it's handled separately in OpeningHours component
   const checkDateKeys = ["check_date", "check date", "last_checked", "last checked", "last_updated", "last updated"];
   let checkDateValue = null;
   let checkDateKey = null;
   
   for (const key of checkDateKeys) {
+    // Skip check_date:opening_hours - it's displayed in OpeningHours component
+    if (key === "check_date:opening_hours" || key === "check_date_opening_hours") continue;
     if (nTags[key]) {
       checkDateValue = formatDateForDisplay(String(nTags[key]));
       checkDateKey = key;
@@ -3084,6 +3201,12 @@ Object.entries(nTags).forEach(([key, value]) => {
   // Skip level (already rendered in Address section)
   if (lk === "level") return;
 
+  // Skip dispensing - will be handled in Features section
+  if (lk === "dispensing") return;
+  
+  // Skip drive_through - will be handled in Features section (only show if yes and relevant)
+  if (lk === "drive_through" || lk === "drive-through") return;
+
   // Skip amenity=yes (useless)
   if (lk === "amenity" && lv === "yes") return;
 
@@ -3098,6 +3221,12 @@ Object.entries(nTags).forEach(([key, value]) => {
     /^(name|alt_name|short_name|display_name):/i.test(key);
   const isCountryKey = /^country$/i.test(key);
   const isWikiDataKey = /^wikidata(?::[a-z-]+)?$/i.test(key);
+
+  // Skip technical OSM fields (brand:wikidata, brand:wikipedia, operator:wikidata, operator:wikipedia)
+  const isTechnicalField = 
+    /^(brand|operator):(wikidata|wikipedia)$/i.test(key) ||
+    /^(brand|operator)_(wikidata|wikipedia)$/i.test(key);
+  if (isTechnicalField) return;
 
   const isExcluded =
     EXCLUDED_PROPS.has(key) ||
@@ -3213,76 +3342,12 @@ Object.entries(nTags).forEach(([key, value]) => {
   }
 
   // Check if this is a place type that should be styled like Wheelchair Access (amenity, tourism, shop, leisure, healthcare, office, historic, sport)
+  // SKIP place types - they're now shown in the header as a category chip
   const isPlaceType = ["amenity", "tourism", "shop", "leisure", "healthcare", "office", "historic", "sport"].includes(lk);
   
   if (isPlaceType) {
-    item.className = "list-group-item";
-    item.style.padding = "0";
-    
-    const container = document.createElement("div");
-    container.style.padding = SECTION_PADDING;
-    container.style.borderTop = "1px solid";
-    container.style.borderColor = "rgba(0, 0, 0, 0.12)";
-    
-    // Layout: Icon on left, title and value on right (title aligned with icon, value below title)
-    const layoutContainer = document.createElement("div");
-    layoutContainer.style.display = "flex";
-    layoutContainer.style.alignItems = "flex-start";
-    layoutContainer.style.gap = "12px";
-    
-    // Icon container
-    const iconContainer = document.createElement("div");
-    iconContainer.style.display = "flex";
-    iconContainer.style.alignItems = "center";
-    iconContainer.style.justifyContent = "center";
-    iconContainer.style.width = ICON_SIZE;
-    iconContainer.style.height = ICON_SIZE;
-    iconContainer.style.borderRadius = ICON_BORDER_RADIUS;
-    iconContainer.style.backgroundColor = ICON_BACKGROUND_COLOR;
-    iconContainer.style.color = ICON_SECONDARY_COLOR;
-    iconContainer.style.flexShrink = "0";
-    
-    // Decide icon name for this type (hotel, local_cafe, museum, etc.)
-    const iconName = getMuiIconForPlaceType(lk, value);
-    
-    const icon = document.createElement("span");
-    icon.className = "material-icons";
-    icon.style.fontSize = "24px";
-    icon.style.color = ICON_SECONDARY_COLOR;
-    icon.textContent = iconName;
-    iconContainer.appendChild(icon);
-    
-    // Content wrapper (title and value)
-    const contentWrapper = document.createElement("div");
-    contentWrapper.style.flex = "1";
-    contentWrapper.style.minWidth = "0";
-    contentWrapper.style.display = "flex";
-    contentWrapper.style.flexDirection = "column";
-    contentWrapper.style.justifyContent = "center";
-    
-    // Title - aligned with icon center
-    const title = document.createElement("h6");
-    title.style.fontSize = "1.125rem";
-    title.style.fontWeight = "600";
-    title.style.color = "rgba(0, 0, 0, 0.87)";
-    title.style.letterSpacing = "-0.01em";
-    title.style.margin = "0 0 4px 0"; // Small margin below for value
-    title.textContent = displayKey; // e.g. "Category"
-    contentWrapper.appendChild(title);
-    
-    // Value text
-    const valueText = document.createElement("p");
-    valueText.style.margin = "0";
-    valueText.style.fontSize = "0.875rem";
-    valueText.style.color = "rgba(0, 0, 0, 0.87)";
-    valueText.style.lineHeight = "1.5";
-    valueText.textContent = displayValue; // e.g. "Cafe", "Hotel"
-    contentWrapper.appendChild(valueText);
-    
-    layoutContainer.appendChild(iconContainer);
-    layoutContainer.appendChild(contentWrapper);
-    container.appendChild(layoutContainer);
-    item.appendChild(container);
+    // Skip rendering place type as a separate section - it's shown in the header as a category chip
+    return;
   } else {
     // Default styling for other items (like Cuisine, Brand, etc.)
     item.className = "list-group-item";
@@ -3405,45 +3470,115 @@ Object.entries(nTags).forEach(([key, value]) => {
   list.appendChild(item);
 });
 
-  // --- LAST CHECKED DATE: Display at the bottom in subtle secondary style ---
-  if (checkDateValue) {
-    const lastCheckedItem = document.createElement("div");
-    lastCheckedItem.className = "list-group-item";
-    lastCheckedItem.style.padding = "0";
+  // --- DISPENSING: Show prescription medicine availability for pharmacies/clinics ---
+  // Note: Dispensing is now shown in Features section if it's "yes" for pharmacies
+  // This section is kept for backwards compatibility but should not render if already in features
+  const dispensingValueForSection = nTags.dispensing || nTags.Dispensing || null;
+  const amenityValue = (nTags.amenity || nTags.Amenity || "").toLowerCase();
+  const healthcareValue = (nTags.healthcare || nTags.Healthcare || "").toLowerCase();
+  
+  // Only show dispensing for pharmacies and healthcare facilities
+  // But skip if it's already in the features array (which means it's "yes" for pharmacy)
+  const isRelevantForDispensing = 
+    amenityValue === "pharmacy" || 
+    healthcareValue === "pharmacy" ||
+    healthcareValue === "clinic" ||
+    amenityValue === "clinic";
+  
+  // Check if dispensing is already in features (means it's "yes" for pharmacy, so show in Features section instead)
+  const isDispensingInFeatures = features.some(f => f.type === "dispensing");
+  
+  if (dispensingValueForSection && isRelevantForDispensing && !isDispensingInFeatures) {
+    const dispensingItem = document.createElement("div");
+    dispensingItem.className = "list-group-item";
+    dispensingItem.style.padding = "0";
     
     const container = document.createElement("div");
-    container.style.padding = `${SECTION_PADDING} ${SECTION_PADDING} 16px ${SECTION_PADDING}`; // Less bottom padding
+    container.style.padding = SECTION_PADDING;
     container.style.borderTop = "1px solid";
     container.style.borderColor = "rgba(0, 0, 0, 0.12)";
     
-    // Container for icon and text
-    const contentWrapper = document.createElement("div");
-    contentWrapper.style.display = "flex";
-    contentWrapper.style.alignItems = "center";
-    contentWrapper.style.gap = "8px";
+    // Layout: Icon on left, title and badge on right
+    const layoutContainer = document.createElement("div");
+    layoutContainer.style.display = "flex";
+    layoutContainer.style.alignItems = "flex-start";
+    layoutContainer.style.gap = "12px";
     
-    // Calendar icon
+    // Icon container with medical icon
+    const iconContainer = document.createElement("div");
+    iconContainer.style.display = "flex";
+    iconContainer.style.alignItems = "center";
+    iconContainer.style.justifyContent = "center";
+    iconContainer.style.width = ICON_SIZE;
+    iconContainer.style.height = ICON_SIZE;
+    iconContainer.style.borderRadius = ICON_BORDER_RADIUS;
+    iconContainer.style.backgroundColor = ICON_BACKGROUND_COLOR;
+    iconContainer.style.color = ICON_SECONDARY_COLOR;
+    iconContainer.style.flexShrink = "0";
+    
     const icon = document.createElement("span");
     icon.className = "material-icons";
-    icon.style.fontSize = "16px";
-    icon.style.color = "rgba(0, 0, 0, 0.6)";
-    icon.style.flexShrink = "0";
-    icon.textContent = "calendar_today";
-    contentWrapper.appendChild(icon);
+    icon.style.fontSize = "24px";
+    icon.style.color = ICON_SECONDARY_COLOR;
+    // Use MedicalServices icon for dispensing
+    icon.textContent = "medical_services";
+    iconContainer.appendChild(icon);
     
-    // Date text
-    const dateText = document.createElement("span");
-    dateText.style.fontSize = "0.75rem";
-    dateText.style.color = "rgba(0, 0, 0, 0.6)";
-    dateText.style.lineHeight = "1.5";
-    dateText.style.fontWeight = "400";
-    dateText.textContent = `Last checked: ${checkDateValue}`;
-    contentWrapper.appendChild(dateText);
+    // Content wrapper
+    const contentWrapper = document.createElement("div");
+    contentWrapper.style.flex = "1";
+    contentWrapper.style.minWidth = "0";
+    contentWrapper.style.display = "flex";
+    contentWrapper.style.flexDirection = "column";
+    contentWrapper.style.justifyContent = "center";
     
-    container.appendChild(contentWrapper);
-    lastCheckedItem.appendChild(container);
-    list.appendChild(lastCheckedItem);
+    // Title
+    const title = document.createElement("h6");
+    title.style.fontSize = "1.125rem";
+    title.style.fontWeight = "600";
+    title.style.color = "rgba(0, 0, 0, 0.87)";
+    title.style.letterSpacing = "-0.01em";
+    title.style.margin = "0 0 8px 0";
+    title.textContent = "Prescription Medicines";
+    contentWrapper.appendChild(title);
+    
+    // Badge with status - using same styling as category chip in header (reusing existing variables)
+    const dispensingLower = String(dispensingValueForSection).toLowerCase().trim();
+    const isDispensing = dispensingLower === "yes";
+    const badge = document.createElement("div");
+    badge.style.display = "inline-block";
+    badge.style.height = "24px"; // Same height as category chip
+    badge.style.padding = "0 12px"; // px: 1.5 (MUI spacing) - matches category chip
+    badge.style.borderRadius = ICON_BORDER_RADIUS; // Reuse existing variable (12px)
+    badge.style.fontSize = "0.75rem"; // Same as category chip
+    badge.style.fontWeight = "500";
+    badge.style.lineHeight = "24px"; // Center text vertically
+    badge.style.fontFamily = "inherit";
+    badge.style.whiteSpace = "nowrap"; // Prevent text wrapping - keeps it narrow
+    
+    if (isDispensing) {
+      // Green for available - using similar opacity approach as category chip
+      badge.style.backgroundColor = "rgba(76, 175, 80, 0.12)"; // Green with opacity (similar to ICON_BACKGROUND_COLOR approach)
+      badge.style.color = "#4caf50"; // Green text
+      badge.textContent = "Available";
+    } else {
+      // Gray for not available - matching secondary text style
+      badge.style.backgroundColor = "rgba(0, 0, 0, 0.08)"; // Lighter gray (similar opacity to category chip)
+      badge.style.color = "rgba(0, 0, 0, 0.6)"; // Secondary text color
+      badge.textContent = "Not available";
+    }
+    
+    contentWrapper.appendChild(badge);
+    
+    layoutContainer.appendChild(iconContainer);
+    layoutContainer.appendChild(contentWrapper);
+    container.appendChild(layoutContainer);
+    dispensingItem.appendChild(container);
+    list.appendChild(dispensingItem);
   }
+
+  // Store checkDateValue in globals for footer display (removed from details list)
+  globals.detailsCtx.checkDate = checkDateValue || null;
 
   globals.detailsCtx.latlng = latlng;
   globals.detailsCtx.placeId = tags.id ?? tags.osm_id ?? tags.place_id;
@@ -3461,7 +3596,8 @@ Object.entries(nTags).forEach(([key, value]) => {
   }
 
   // Open the floating place-details popup (overview / reviews / photos).
-  openPlaceDetailsPopup(titleText);
+  // Pass category and features extracted earlier
+  openPlaceDetailsPopup(titleText, categoryValue, null, features);
 
   let uuid = null;
 
@@ -3723,6 +3859,69 @@ function clearRoute() {
   }
 }
 
+function setRouteActionsUi(hasRoute) {
+  const showBtn = document.getElementById("btn-show-route");
+  const clearBtn = document.getElementById("btn-clear-route");
+  if (showBtn) showBtn.classList.toggle("d-none", !hasRoute);
+  if (clearBtn) clearBtn.classList.toggle("d-none", !hasRoute);
+}
+
+function fitRouteToView() {
+  if (!routeLayer || !map) return;
+  const bounds = routeLayer.getBounds();
+  if (bounds && bounds.isValid()) {
+    map.fitBounds(bounds, { padding: [40, 40] });
+  }
+}
+
+function clearRouteAll() {
+  clearRoute();
+  setRouteActionsUi(false);
+
+  if (fromMarker) {
+    map.removeLayer(fromMarker);
+    fromMarker = null;
+  }
+  if (toMarker) {
+    map.removeLayer(toMarker);
+    toMarker = null;
+  }
+
+  fromLatLng = null;
+  toLatLng = null;
+
+  if (elements.departureSearchInput) elements.departureSearchInput.value = "";
+  if (elements.destinationSearchInput) elements.destinationSearchInput.value = "";
+
+  // Start is needed again
+  setStartHintUi(true);
+  elements.departureSearchInput?.focus?.();
+}
+
+function swapRouteEndpoints() {
+  if (!fromLatLng || !toLatLng) return;
+
+  const oldFrom = fromLatLng;
+  const oldTo = toLatLng;
+
+  // Swap coordinates
+  fromLatLng = oldTo;
+  toLatLng = oldFrom;
+
+  // Swap input text
+  const fromText = elements.departureSearchInput?.value ?? "";
+  const toText = elements.destinationSearchInput?.value ?? "";
+  if (elements.departureSearchInput) elements.departureSearchInput.value = toText;
+  if (elements.destinationSearchInput) elements.destinationSearchInput.value = fromText;
+
+  // Move markers if they exist
+  if (fromMarker) fromMarker.setLatLng(fromLatLng);
+  if (toMarker) toMarker.setLatLng(toLatLng);
+
+  // Recompute route
+  updateRoute({ fit: false });
+}
+
 async function updateRoute({ fit = true } = {}) {
   console.log("🧭 updateRoute() called:", { fromLatLng, toLatLng });
 
@@ -3743,6 +3942,7 @@ async function updateRoute({ fit = true } = {}) {
   }
 
   clearRoute();
+  setRouteActionsUi(false);
 
   const key = showLoading("route");
 
@@ -3761,10 +3961,14 @@ async function updateRoute({ fit = true } = {}) {
       interactive: false,
     }).addTo(map);
 
+    setRouteActionsUi(true);
+
     const bounds = routeLayer.getBounds();
     if (fit && bounds.isValid()) {
       map.fitBounds(bounds, { padding: [40, 40] });
     }
+
+    setRouteActionsUi(true);
   } finally {
     hideLoading(key);
   }
@@ -3833,6 +4037,16 @@ function startNeedsInput() {
   return !fromLatLng || !fromLatLng.lat || !fromLatLng.lng;
 }
 
+function isValidLatLng(latlng) {
+  return (
+    !!latlng &&
+    typeof latlng.lat === "number" &&
+    typeof latlng.lng === "number" &&
+    !Number.isNaN(latlng.lat) &&
+    !Number.isNaN(latlng.lng)
+  );
+}
+
 function setStartHintUi(needsStart) {
   // Hint text + optional "Use my location" chip/button
   if (elements.departureSearchInput) {
@@ -3851,6 +4065,14 @@ function setStartHintUi(needsStart) {
 }
 
 async function openDirectionsToPlace(latlng, { fit = false } = {}) {
+  if (!isValidLatLng(latlng)) {
+    console.warn("⚠️ openDirectionsToPlace aborted: invalid destination latlng", {
+      latlng,
+    });
+    toastError("Could not determine this place’s location for directions.");
+    return;
+  }
+
   elements.directionsUi.classList.remove("d-none");
   moveDepartureSearchBarUnderTo();
   mountInOffcanvas("Directions");
@@ -3869,6 +4091,12 @@ async function openDirectionsToPlace(latlng, { fit = false } = {}) {
 
 async function setFrom(latlng, text, opts = {}) {
   console.log("➡️ setFrom() called with:", { latlng, text, opts });
+
+  if (!isValidLatLng(latlng)) {
+    console.warn("⚠️ setFrom aborted: invalid latlng", { latlng });
+    toastWarn("Please choose a valid starting point.", { important: true });
+    return;
+  }
 
   fromLatLng = latlng;
   if (fromMarker) map.removeLayer(fromMarker);
@@ -3897,6 +4125,13 @@ async function setTo(latlng, text, opts = {}) {
     "ℹ️ directionsUi visible?",
     !elements.directionsUi.classList.contains("d-none")
   );
+
+  if (!isValidLatLng(latlng)) {
+    console.warn("⚠️ setTo aborted: invalid latlng", { latlng });
+    toastWarn("Please choose a valid destination.", { important: true });
+    return;
+  }
+
   toLatLng = latlng;
   const directionsActive = !elements.directionsUi.classList.contains("d-none");
   if (directionsActive) {
@@ -4232,13 +4467,13 @@ export async function initMap(user = null) {
   // we define a helper that guarantees consistent error messages.
   const safeFetch = async (url) => {
     try {
-      const res = await fetch(url);
+    const res = await fetch(url);
 
-      // If Photon responds with non-2xx (e.g., 403 or 500), throw a descriptive error.
-      if (!res.ok) throw new Error(`Photon HTTP ${res.status}`);
+    // If Photon responds with non-2xx (e.g., 403 or 500), throw a descriptive error.
+    if (!res.ok) throw new Error(`Photon HTTP ${res.status}`);
 
-      // Parse JSON — Photon always returns valid GeoJSON FeatureCollection.
-      return res.json();
+    // Parse JSON — Photon always returns valid GeoJSON FeatureCollection.
+    return res.json();
     } catch (error) {
       // Handle network errors (Failed to fetch, CORS, etc.)
       if (error instanceof TypeError && error.message === "Failed to fetch") {
@@ -4556,12 +4791,12 @@ export async function initMap(user = null) {
 
     if (!directionsBtn && !legacyStart && !legacyGo) return;
 
-    if (
-      typeof window !== "undefined" &&
-      typeof window.closePlacePopup === "function"
-    ) {
-      window.closePlacePopup();
-    }
+      if (
+        typeof window !== "undefined" &&
+        typeof window.closePlacePopup === "function"
+      ) {
+        window.closePlacePopup();
+      }
 
     if (directionsBtn) {
       await openDirectionsToPlace(globals.detailsCtx.latlng, { fit: false });
@@ -4589,6 +4824,26 @@ export async function initMap(user = null) {
     if (!(t instanceof Element)) return;
     if (!t.closest("#btn-use-my-location")) return;
     await ensureFromIsMyLocation({ fit: false });
+  });
+
+  // Route actions: show/clear
+  document.addEventListener("click", (ev) => {
+    const t = ev.target;
+    if (!(t instanceof Element)) return;
+
+    if (t.closest("#btn-swap-route")) {
+      swapRouteEndpoints();
+      return;
+    }
+
+    if (t.closest("#btn-show-route")) {
+      fitRouteToView();
+      return;
+    }
+
+    if (t.closest("#btn-clear-route")) {
+      clearRouteAll();
+    }
   });
 
   // ✅ Set up review form handler using event delegation (for old HTML form, kept for backward compatibility)

@@ -52,13 +52,52 @@ export function showDetailsLoading(
 ) {
   container.classList.remove("d-none");
   const list = container.querySelector("#details-list");
-  list.innerHTML = `
-    <div class="list-group-item">
-      <div class="d-flex align-items-center gap-2">
-        <span class="spinner-border" role="status" aria-hidden="true"></span>
-        <span>Loading details…</span>
-      </div>
-    </div>`;
+  
+  // Create a beautiful loading state with proper spacing and modern styling
+  const loadingItem = document.createElement("div");
+  loadingItem.className = "list-group-item";
+  loadingItem.style.padding = "0";
+  
+  const loadingContainer = document.createElement("div");
+  loadingContainer.style.padding = "48px 24px"; // Generous padding for breathing room
+  loadingContainer.style.display = "flex";
+  loadingContainer.style.flexDirection = "column";
+  loadingContainer.style.alignItems = "center";
+  loadingContainer.style.justifyContent = "center";
+  loadingContainer.style.gap = "16px"; // Space between spinner and text
+  loadingContainer.style.minHeight = "200px"; // Minimum height for better visual presence
+  
+  // Spinner container with better styling
+  const spinnerContainer = document.createElement("div");
+  spinnerContainer.style.display = "flex";
+  spinnerContainer.style.alignItems = "center";
+  spinnerContainer.style.justifyContent = "center";
+  
+  const spinner = document.createElement("span");
+  spinner.className = "spinner-border";
+  spinner.setAttribute("role", "status");
+  spinner.setAttribute("aria-hidden", "true");
+  spinner.style.width = "32px";
+  spinner.style.height = "32px";
+  spinner.style.borderWidth = "3px";
+  spinner.style.color = "#0f77d2"; // Use ICON_SECONDARY_COLOR from design system (matches category chip, address icon, etc.)
+  spinnerContainer.appendChild(spinner);
+  
+  // Loading text with better typography
+  const loadingText = document.createElement("span");
+  loadingText.textContent = "Loading details…";
+  loadingText.style.fontSize = "0.9375rem";
+  loadingText.style.fontWeight = "500";
+  loadingText.style.color = "rgba(0, 0, 0, 0.87)";
+  loadingText.style.letterSpacing = "-0.01em";
+  
+  loadingContainer.appendChild(spinnerContainer);
+  loadingContainer.appendChild(loadingText);
+  loadingItem.appendChild(loadingContainer);
+  
+  list.innerHTML = "";
+  list.appendChild(loadingItem);
+  
   moveDepartureSearchBarUnderTo();
   mountInOffcanvas(titleText);
 }

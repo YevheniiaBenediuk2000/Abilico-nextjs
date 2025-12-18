@@ -22,6 +22,10 @@ import CloseIcon from "@mui/icons-material/Close";
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
 import Tooltip from "@mui/material/Tooltip";
+import AccessibleForwardIcon from "@mui/icons-material/AccessibleForward";
+import SwapVertIcon from "@mui/icons-material/SwapVert";
+import SearchIcon from "@mui/icons-material/Search";
+import InputAdornment from "@mui/material/InputAdornment";
 import Drawer from "@mui/material/Drawer";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
@@ -77,6 +81,9 @@ export default function MapContainer({
 
   const [placePopupOpen, setPlacePopupOpen] = useState(false);
   const [placePopupTitle, setPlacePopupTitle] = useState("Details");
+  const [placeCategory, setPlaceCategory] = useState(null);
+  const [placeDistance, setPlaceDistance] = useState(null);
+  const [placeFeatures, setPlaceFeatures] = useState([]);
 
   const [obstacleDialogOpen, setObstacleDialogOpen] = useState(false);
   const [selectedObstacle, setSelectedObstacle] = useState(null);
@@ -92,6 +99,7 @@ export default function MapContainer({
   const [savedPlaceId, setSavedPlaceId] = useState(null);
   const [saveSnackbarOpen, setSaveSnackbarOpen] = useState(false);
   const [saveSnackbarMessage, setSaveSnackbarMessage] = useState("");
+  const [lastCheckedDate, setLastCheckedDate] = useState(null);
 
   // Expose a global function so mapMain.js can open the details drawer
   useEffect(() => {
@@ -112,8 +120,11 @@ export default function MapContainer({
       };
 
       // NEW: floating place-details popup
-      window.openPlacePopup = (titleText) => {
+      window.openPlacePopup = (titleText, category = null, distance = null, features = []) => {
         if (titleText) setPlacePopupTitle(titleText);
+        setPlaceCategory(category);
+        setPlaceDistance(distance);
+        setPlaceFeatures(features || []);
         setPlacePopupOpen(true);
       };
       window.closePlacePopup = () => {
@@ -460,7 +471,15 @@ export default function MapContainer({
   }, []);
 
   // Check if current place is saved when place popup opens or place changes
+  // Also update lastCheckedDate from globals
   useEffect(() => {
+    // Update lastCheckedDate from globals
+    if (globals.detailsCtx.checkDate) {
+      setLastCheckedDate(globals.detailsCtx.checkDate);
+    } else {
+      setLastCheckedDate(null);
+    }
+    
     const checkIfPlaceSaved = async () => {
       if (!placePopupOpen || !user || !globals.detailsCtx.placeId) {
         setIsPlaceSaved(false);
@@ -926,59 +945,129 @@ export default function MapContainer({
           <div className="offcanvas-body">
             {/* === Directions UI === */}
             <div id="directions-ui" className="mb-3 d-none">
-              <div className="row g-2 align-items-center mb-1">
-                <div className="col">
-                  <label
-                    className="form-label mb-1"
-                    htmlFor="departure-search-input"
+              {/* Mode + Route actions (above inputs) */}
+              <div className="route-toolbar route-toolbar--top">
+                <Tooltip title="Wheelchair mode" placement="top" arrow>
+                  <IconButton
+                    aria-label="Wheelchair mode"
+                    size="small"
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      backgroundColor: "var(--mode-icon-bg)",
+                      color: "var(--mode-icon-fg)",
+                      "&:hover": {
+                        backgroundColor: "var(--mode-icon-bg-hover)",
+                      },
+                    }}
                   >
-                    From
-                  </label>
-                  <div id="departure-search-bar" className="position-relative">
-                    <TextField
-                      size="small"
-                      id="departure-search-input"
-                      type="search"
-                      variant="outlined"
-                      fullWidth
-                      className="form-control form-control-lg"
-                      placeholder="Choose starting point or click on the map…"
-                      slotProps={{
-                        input: {
-                          "aria-label": "Search places",
-                          "aria-controls": "destination-suggestions",
-                        },
-                      }}
-                    />
+                    <AccessibleForwardIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
 
-                    <ul
-                      className="list-group w-100 shadow d-none search-suggestions"
-                      aria-label="Search suggestions"
-                      id="departure-suggestions"
-                    ></ul>
-                  </div>
-                  <div className="mt-2 d-flex gap-2">
-                    <button
-                      id="btn-use-my-location"
-                      type="button"
-                      className="btn btn-sm btn-outline-secondary d-none"
-                      aria-label="Use my location as the start point"
-                    >
-                      Use my location
-                    </button>
-                  </div>
+                <div
+                  className="route-toolbar__actions"
+                  role="group"
+                  aria-label="Route actions"
+                >
+                  <button
+                    id="btn-show-route"
+                    type="button"
+                    className="btn btn-sm btn-route-secondary d-none"
+                    aria-label="Show route on the map"
+                  >
+                    Show route
+                  </button>
+                  <button
+                    id="btn-clear-route"
+                    type="button"
+                    className="btn btn-sm btn-route-danger d-none"
+                    aria-label="Clear route"
+                  >
+                    Clear route
+                  </button>
                 </div>
               </div>
 
-              <div className="row g-2 align-items-center mb-2">
-                <div className="col">
-                  <label
-                    className="form-label mb-1"
-                    htmlFor="destination-search-input"
-                  >
-                    To
-                  </label>
+              <div className="route-inputs">
+                <div className="row g-2 align-items-center mb-1">
+                  <div className="col">
+                    <label
+                      className="form-label mb-1"
+                      htmlFor="departure-search-input"
+                    >
+                      From
+                    </label>
+                    <div id="departure-search-bar" className="position-relative">
+                      <TextField
+                        size="small"
+                        id="departure-search-input"
+                        type="search"
+                        variant="outlined"
+                        fullWidth
+                        className="form-control form-control-lg"
+                        placeholder="Choose starting point, or click on the map…"
+                        InputProps={{
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <SearchIcon className="route-search-icon" />
+                            </InputAdornment>
+                          ),
+                        }}
+                        slotProps={{
+                          input: {
+                            "aria-label": "Search places",
+                            "aria-controls": "destination-suggestions",
+                          },
+                        }}
+                      />
+
+                      <ul
+                        className="list-group w-100 shadow d-none search-suggestions"
+                        aria-label="Search suggestions"
+                        id="departure-suggestions"
+                      ></ul>
+                    </div>
+                    <div className="mt-2 d-flex gap-2">
+                      <button
+                        id="btn-use-my-location"
+                        type="button"
+                        className="btn btn-sm btn-outline-secondary d-none"
+                        aria-label="Use my location as the start point"
+                      >
+                        Use my location
+                      </button>
+                    </div>
+                  </div>
                 </div>
+
+                <div className="row g-2 align-items-center mb-2">
+                  <div className="col">
+                    <label
+                      className="form-label mb-1"
+                      htmlFor="destination-search-input"
+                    >
+                      To
+                    </label>
+                    {/* destination-search-bar is moved here by mapMain.js */}
+                  </div>
+                </div>
+
+                <Tooltip title="Swap start and destination" placement="left" arrow>
+                  <IconButton
+                    id="btn-swap-route"
+                    className="route-inputs__swap"
+                    aria-label="Swap start and destination"
+                    size="small"
+                    sx={{
+                      color: "rgba(0,0,0,0.6)",
+                      backgroundColor: "rgba(0,0,0,0.04)",
+                      "&:hover": { backgroundColor: "rgba(0,0,0,0.08)" },
+                    }}
+                  >
+                    <SwapVertIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
               </div>
             </div>
           </div>
@@ -1019,60 +1108,143 @@ export default function MapContainer({
           >
             <CardContent sx={{ pt: 2, pb: 1 }}>
               {/* Header */}
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  mb: 1,
-                }}
-              >
-                <Typography
-                  variant="h6"
-                  component="h2"
-                  noWrap
-                  sx={{ flex: 1, mr: 1 }}
+              <Box sx={{ mb: 2 }}>
+                {/* Top row: Title and action buttons */}
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    mb: 1,
+                  }}
                 >
-                  {placePopupTitle}
-                </Typography>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                  <Tooltip
-                    title={isPlaceSaved ? "Remove from saved" : "Save place"}
-                  >
-                    <IconButton
-                      aria-label={
-                        isPlaceSaved ? "Remove from saved" : "Save place"
-                      }
-                      size="small"
-                      onClick={handleToggleSavePlace}
-                      sx={{
-                        color: isPlaceSaved ? "error.main" : "action.active",
-                      }}
-                    >
-                      {isPlaceSaved ? (
-                        <FavoriteIcon fontSize="small" />
-                      ) : (
-                        <FavoriteBorderIcon fontSize="small" />
-                      )}
-                    </IconButton>
-                  </Tooltip>
-                  <IconButton
-                    aria-label="Close place details"
-                    size="small"
-                    onClick={() => {
-                      setPlacePopupOpen(false);
-                      if (
-                        typeof window !== "undefined" &&
-                        typeof window.restoreDestinationSearchBarHome ===
-                          "function"
-                      ) {
-                        window.restoreDestinationSearchBarHome();
-                      }
+                  <Typography
+                    variant="h5"
+                    component="h2"
+                    sx={{
+                      flex: 1,
+                      mr: 1,
+                      fontWeight: 600,
+                      fontSize: "1.5rem",
+                      lineHeight: 1.2,
+                      color: "text.primary",
                     }}
                   >
-                    <CloseIcon fontSize="small" />
-                  </IconButton>
+                    {placePopupTitle}
+                  </Typography>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
+                    <Tooltip
+                      title={isPlaceSaved ? "Remove from saved" : "Save place"}
+                    >
+                      <IconButton
+                        aria-label={
+                          isPlaceSaved ? "Remove from saved" : "Save place"
+                        }
+                        size="small"
+                        onClick={handleToggleSavePlace}
+                        sx={{
+                          color: isPlaceSaved ? "error.main" : "action.active",
+                        }}
+                      >
+                        {isPlaceSaved ? (
+                          <FavoriteIcon fontSize="small" />
+                        ) : (
+                          <FavoriteBorderIcon fontSize="small" />
+                        )}
+                      </IconButton>
+                    </Tooltip>
+                    <IconButton
+                      aria-label="Close place details"
+                      size="small"
+                      onClick={() => {
+                        setPlacePopupOpen(false);
+                        if (
+                          typeof window !== "undefined" &&
+                          typeof window.restoreDestinationSearchBarHome ===
+                            "function"
+                        ) {
+                          window.restoreDestinationSearchBarHome();
+                        }
+                      }}
+                    >
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
                 </Box>
+                
+                {/* Bottom row: Category chip, feature chips, and distance */}
+                {(placeCategory || (placeFeatures && placeFeatures.length > 0) || placeDistance) && (
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    {placeCategory && (
+                      <Chip
+                        label={placeCategory}
+                        size="small"
+                        sx={{
+                          height: 24,
+                          fontSize: "0.75rem",
+                          fontWeight: 500,
+                          backgroundColor: "rgba(15, 119, 210, 0.08)",
+                          color: "#0f77d2",
+                          "& .MuiChip-label": {
+                            px: 1.5,
+                          },
+                        }}
+                      />
+                    )}
+                    {/* Feature chips (Drive-through, Dispensing, etc.) */}
+                    {placeFeatures && placeFeatures.map((feature, index) => (
+                      <Chip
+                        key={index}
+                        icon={
+                          <span
+                            className="material-icons"
+                            style={{
+                              fontSize: "14px",
+                              color: "#0f77d2",
+                            }}
+                          >
+                            {feature.icon}
+                          </span>
+                        }
+                        label={feature.label}
+                        size="small"
+                        sx={{
+                          height: 24,
+                          fontSize: "0.75rem",
+                          fontWeight: 500,
+                          backgroundColor: "rgba(15, 119, 210, 0.08)",
+                          color: "#0f77d2",
+                          "& .MuiChip-label": {
+                            px: 1.5,
+                          },
+                          "& .MuiChip-icon": {
+                            marginLeft: "8px",
+                            marginRight: "-4px",
+                          },
+                        }}
+                      />
+                    ))}
+                    {placeDistance && (
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: "text.secondary",
+                          fontSize: "0.875rem",
+                          fontWeight: 400,
+                        }}
+                      >
+                        {placeDistance}
+                      </Typography>
+                    )}
+                  </Box>
+                )}
               </Box>
 
               {/* MAIN PHOTO – moved from drawer */}
@@ -1183,7 +1355,40 @@ export default function MapContainer({
                 </div>
               </div>
             </CardContent>
-            <CardActions sx={{ justifyContent: "flex-end", px: 2, pb: 2 }}>
+            <CardActions sx={{ justifyContent: "space-between", alignItems: "center", px: 2, pb: 2 }}>
+              {/* Left: Last checked date */}
+              {lastCheckedDate && (
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 0.5,
+                    flex: 1,
+                  }}
+                >
+                  <span
+                    className="material-icons"
+                    style={{
+                      fontSize: "14px",
+                      color: "rgba(0, 0, 0, 0.6)",
+                      flexShrink: 0,
+                    }}
+                  >
+                    calendar_today
+                  </span>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontSize: "0.75rem",
+                      color: "text.secondary",
+                      fontWeight: 400,
+                    }}
+                  >
+                    Last checked: {lastCheckedDate}
+                  </Typography>
+                </Box>
+              )}
+              {/* Right: Found an inaccuracy link */}
               <Button
                 variant="text"
                 size="small"
@@ -1195,7 +1400,7 @@ export default function MapContainer({
                   setSelectedSpecificIssues([]);
                   setInaccuracyComment("");
                 }}
-                sx={{ textTransform: "none" }}
+                sx={{ textTransform: "none", ml: "auto" }}
               >
                 Found an inaccuracy?
               </Button>

@@ -223,9 +223,9 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
                   fullWidth
                   size="small"
                   InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon sx={{ color: "text.secondary" }} />
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <SearchIcon className="route-search-icon" />
                       </InputAdornment>
                     ),
                   }}

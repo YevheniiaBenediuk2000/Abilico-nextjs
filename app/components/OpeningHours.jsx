@@ -265,7 +265,7 @@ function formatDayName(date) {
   return days[date.getDay()];
 }
 
-export default function OpeningHours({ openingHours, holidayHours = null }) {
+export default function OpeningHours({ openingHours, holidayHours = null, checkDate = null }) {
   const [expanded, setExpanded] = useState(false);
 
   const dayOrder = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
@@ -700,6 +700,78 @@ export default function OpeningHours({ openingHours, holidayHours = null }) {
           </Card>
         </>
       )}
+
+      {/* Last checked date - shown at bottom of Opening Hours section */}
+      {checkDate && (() => {
+        // Check if date is very old (more than 2 years)
+        // Parse date format: "01 Oct 2025" -> Date object
+        const monthMap = {
+          Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+          Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11
+        };
+        const parts = checkDate.split(" ");
+        let isVeryOld = false;
+        
+        if (parts.length === 3) {
+          const day = parseInt(parts[0], 10);
+          const month = monthMap[parts[1]];
+          const year = parseInt(parts[2], 10);
+          
+          if (!isNaN(day) && month !== undefined && !isNaN(year)) {
+            const checkDateObj = new Date(year, month, day);
+            const now = new Date();
+            const yearsDiff = (now.getTime() - checkDateObj.getTime()) / (1000 * 60 * 60 * 24 * 365);
+            isVeryOld = yearsDiff > 2;
+          }
+        }
+        
+        return (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 0.5,
+              mt: 2,
+              pt: 2,
+              borderTop: "1px solid",
+              borderColor: "divider",
+            }}
+          >
+            <span
+              className="material-icons"
+              style={{
+                fontSize: "14px",
+                color: "rgba(0, 0, 0, 0.6)",
+                flexShrink: 0,
+              }}
+            >
+              calendar_today
+            </span>
+            <Typography
+              variant="caption"
+              sx={{
+                fontSize: "0.75rem",
+                color: "text.secondary",
+                fontWeight: 400,
+              }}
+            >
+              Last checked: {checkDate}
+              {isVeryOld && (
+                <Typography
+                  component="span"
+                  sx={{
+                    fontSize: "0.75rem",
+                    color: "text.secondary",
+                    ml: 0.5,
+                  }}
+                >
+                  · May be outdated
+                </Typography>
+              )}
+            </Typography>
+          </Box>
+        );
+      })()}
     </Box>
   );
 }
