@@ -8,9 +8,9 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
  */
 export default function DrawToolbarExpandIcon({ expanded }) {
   return expanded ? (
-    <ExpandLessIcon fontSize="small" sx={{ color: "#666666" }} />
+    <ExpandLessIcon fontSize="small" sx={{ color: "#464646" }} />
   ) : (
-    <ExpandMoreIcon fontSize="small" sx={{ color: "#666666" }} />
+    <ExpandMoreIcon fontSize="small" sx={{ color: "#464646" }} />
   );
 }
 

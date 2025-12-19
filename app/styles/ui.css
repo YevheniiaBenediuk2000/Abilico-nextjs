@@ -1037,7 +1037,7 @@
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown,
 .leaflet-control.leaflet-draw a.leaflet-draw-toolbar-button-dropdown {
   font-size: 18px;
-  color: #666 !important;
+  color: #464646 !important;
   /* Remove any default Leaflet.draw sprite/background */
   background-image: none !important;
   background-color: #f5f5f5 !important;
@@ -1064,7 +1064,7 @@
 
 /* Dropdown button uses base hover styles */
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown.expanded {
-  color: #666 !important;
+  color: #464646 !important;
   background-image: none !important;
 }
 
@@ -1094,7 +1094,8 @@
 
 /* Consistent icon sizing for MUI icons - centered */
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"] svg,
-.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"] svg {
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"] svg,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown svg {
   width: 20px !important;
   height: 20px !important;
   margin: 0 auto;
@@ -1207,12 +1208,13 @@
   /* Let Leaflet.draw's default CSS handle the sprite background-image */
 }
 
-/* Ensure drawing tool icons are visible */
+/* Ensure drawing tool icons are visible and centered - same as edit/remove */
 .leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-"] .leaflet-draw-toolbar-icon,
 .leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-"] span {
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
+  margin: 0 auto !important;
 }
 
 /* Ensure toolbar container has clean white background with rounded corners */
@@ -1454,4 +1456,26 @@
   .header-logo-container .MuiTypography-root.abilico-brand-text {
     font-size: 14px !important;
   }
+}
+
+/* === Force draw-toolbar icons to be perfectly centered === */
+
+/* Make every toolbar button a flex box with no extra text/line height */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a,
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  line-height: 1 !important;
+  box-sizing: border-box;
+}
+
+/* Kill extra margins / offsets on inner wrappers and SVGs (MUI + caution icon) */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a > div,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a svg,
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a > div,
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a svg {
+  margin: 0 !important;
+  display: block;
 }
