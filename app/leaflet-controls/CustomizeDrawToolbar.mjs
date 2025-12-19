@@ -99,10 +99,37 @@ export function customizeDrawToolbar(drawControl, map) {
 
     // Create custom marker draw handler for caution tool (only once)
     if (!cautionDrawHandler && typeof L !== 'undefined' && L.Draw && L.Draw.Marker) {
+      // Create a custom marker class that uses obstacles pane
+      const CautionMarker = L.Marker.extend({
+        initialize: function(latlng, options) {
+          options = options || {};
+          options.pane = options.pane || "obstaclesPane";
+          options.zIndexOffset = options.zIndexOffset || 1000;
+          L.Marker.prototype.initialize.call(this, latlng, options);
+        }
+      });
+
       cautionDrawHandler = new L.Draw.Marker(map, {
         icon: cautionIcon,
         repeatMode: false, // Stop drawing after one marker
       });
+
+      // Override the _createMarker method to use obstacles pane
+      const originalCreateMarker = cautionDrawHandler._createMarker;
+      cautionDrawHandler._createMarker = function(latlng) {
+        const marker = originalCreateMarker.call(this, latlng);
+        marker.options.pane = "obstaclesPane";
+        marker.options.zIndexOffset = 1000;
+        marker.options.isCautionMarker = true;
+        // Update the marker's pane if it's already rendered
+        if (marker._icon) {
+          const pane = map.getPane("obstaclesPane");
+          if (pane) {
+            pane.appendChild(marker._icon);
+          }
+        }
+        return marker;
+      };
       
       // Store icon reference for later use
       cautionDrawHandler._cautionIcon = cautionIcon;

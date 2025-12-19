@@ -121,6 +121,8 @@ let myLocationLatLng = null;
 let autoFromGeolocateAttempted = false;
 
 const drawnItems = new L.FeatureGroup();
+// Separate layer group for obstacles (not in cluster group)
+let obstaclesLayer = null;
 let drawHelpAlertControl = null;
 
 // ---------- Bootstrap Modal + Tooltip helpers ----------
@@ -844,10 +846,25 @@ function hookLayerInteractions(layer, props) {
   }
 
   layer.off("click");
-  layer.on("click", () => {
+  layer.on("click", async () => {
     if (drawState.deleting || drawState.editing) return;
-    // ✅ Only allow editing if user is logged in
-    if (!currentUser) {
+    // ✅ Check user login status - check both currentUser and Supabase directly
+    let isLoggedIn = !!currentUser;
+    if (!isLoggedIn) {
+      // Double-check with Supabase in case currentUser is stale
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        isLoggedIn = !!user;
+        // Update currentUser if we found a user
+        if (user && !currentUser) {
+          currentUser = user;
+        }
+      } catch (err) {
+        console.warn("Failed to check user status:", err);
+      }
+    }
+    
+    if (!isLoggedIn) {
       // For non-logged-in users, show a read-only popup with obstacle info
       const title = tooltipTextFromProps(props);
       const popupContent = L.DomUtil.create("div", "p-2");
@@ -5347,31 +5364,82 @@ async function initDrawingObstacles() {
       layer = L.circle([lat, lng], {
         radius: feature.properties.radius,
         color: "red",
+        pane: "obstaclesPane",
       });
     } else if (feature.properties.shape === "rectangle") {
       const bounds = L.geoJSON(feature).getBounds();
-      layer = L.rectangle(bounds, { color: "red" });
+      layer = L.rectangle(bounds, { 
+        color: "red",
+        pane: "obstaclesPane",
+      });
+    } else if (feature.geometry.type === "Point" && feature.properties.shape === "marker") {
+      // Handle caution markers (Point obstacles)
+      const [lng, lat] = feature.geometry.coordinates;
+      const cautionIcon = L.icon({
+        iconUrl: '/icons/maki/caution.svg',
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+        popupAnchor: [0, -12],
+      });
+      layer = L.marker([lat, lng], {
+        icon: cautionIcon,
+        pane: "obstaclesPane",
+        zIndexOffset: 1000,
+      });
     } else {
-      layer = L.geoJSON(feature, { style: { color: "red" } }).getLayers()[0];
+      // For polygons, polylines, etc.
+      const geoJsonLayer = L.geoJSON(feature, { 
+        style: { color: "red" },
+        pointToLayer: (feature, latlng) => {
+          const cautionIcon = L.icon({
+            iconUrl: '/icons/maki/caution.svg',
+            iconSize: [24, 24],
+            iconAnchor: [12, 12],
+            popupAnchor: [0, -12],
+          });
+          return L.marker(latlng, {
+            icon: cautionIcon,
+            pane: "obstaclesPane",
+            zIndexOffset: 1000,
+          });
+        },
+      });
+      layer = geoJsonLayer.getLayers()[0];
+      // Set pane for vector layers
+      if (layer && (layer instanceof L.Polygon || layer instanceof L.Polyline)) {
+        layer.options.pane = "obstaclesPane";
+      }
     }
 
-    layer.options.obstacleId = feature.id;
-    drawnItems.addLayer(layer);
-    hookLayerInteractions(layer, feature.properties);
-    // Attach tooltip with vote counts support after layer is added
-    layer.once("add", () => {
-      attachObstacleTooltip(layer, feature);
-    });
+    if (layer) {
+      layer.options.obstacleId = feature.id;
+      // Add to obstacles layer (not drawnItems, and NOT to cluster group)
+      if (obstaclesLayer) {
+        obstaclesLayer.addLayer(layer);
+      } else {
+        drawnItems.addLayer(layer);
+      }
+      hookLayerInteractions(layer, feature.properties);
+      // Attach tooltip with vote counts support after layer is added
+      layer.once("add", () => {
+        attachObstacleTooltip(layer, feature);
+      });
+    }
   });
 
-  map.addLayer(drawnItems);
+  // Only add drawnItems if obstaclesLayer wasn't created yet (fallback)
+  if (!obstaclesLayer) {
+    map.addLayer(drawnItems);
+  }
 
   // ✅ Only initialize draw controls and event handlers if user is logged in
   if (currentUser) {
     if (!drawControl) {
+      // Use obstaclesLayer for editing if available, otherwise fallback to drawnItems
+      const editFeatureGroup = obstaclesLayer || drawnItems;
       drawControl = new L.Control.Draw({
         position: "topright",
-        edit: { featureGroup: drawnItems },
+        edit: { featureGroup: editFeatureGroup },
         draw: {
           polyline: { shapeOptions: { color: "red" } },
           marker: false,
@@ -6137,10 +6205,12 @@ export function updateUser(user) {
   userPrefsLoaded = false;
   // If user logged in, initialize draw controls if not already done
   if (user && !drawControl && map) {
-    drawControl = new L.Control.Draw({
-      position: "topright",
-      edit: { featureGroup: drawnItems },
-      draw: {
+      // Use obstaclesLayer for editing if available, otherwise fallback to drawnItems
+      const editFeatureGroup = obstaclesLayer || drawnItems;
+      drawControl = new L.Control.Draw({
+        position: "topright",
+        edit: { featureGroup: editFeatureGroup },
+        draw: {
         polyline: { shapeOptions: { color: "red" } },
         marker: false,
         polygon: { allowIntersection: false, shapeOptions: { color: "red" } },
@@ -6212,22 +6282,49 @@ function setupObstacleEventHandlers() {
       layerToAdd = L.circle(e.layer.getLatLng(), {
         radius: e.layer.getRadius(),
         color: "red",
+        pane: "obstaclesPane",
       });
     } else if (isCautionMarker) {
-      // Handle caution marker (point obstacle)
+      // Handle caution marker (point obstacle) - use obstacles pane
       featureToStore = e.layer.toGeoJSON();
-      layerToAdd = e.layer;
+      // Recreate marker with obstacles pane
+      const latlng = e.layer.getLatLng();
+      const icon = e.layer.options.icon;
+      layerToAdd = L.marker(latlng, {
+        icon: icon,
+        pane: "obstaclesPane",
+        zIndexOffset: 1000,
+      });
     } else {
       featureToStore = e.layer.toGeoJSON();
-      layerToAdd = e.layer;
+      // For polygons, polylines, rectangles - add pane option
+      if (e.layer instanceof L.Polygon || e.layer instanceof L.Polyline || e.layer instanceof L.Rectangle) {
+        layerToAdd = e.layer;
+        layerToAdd.options.pane = "obstaclesPane";
+        // Update the pane if layer already has a renderer
+        if (layerToAdd._renderer) {
+          layerToAdd._renderer._container.style.zIndex = 650;
+        }
+      } else {
+        layerToAdd = e.layer;
+      }
     }
 
-    drawnItems.addLayer(layerToAdd);
+    // Add to obstacles layer (not drawnItems, and NOT to cluster group)
+    if (obstaclesLayer) {
+      obstaclesLayer.addLayer(layerToAdd);
+    } else {
+      drawnItems.addLayer(layerToAdd);
+    }
 
     const result = await showObstacleModal();
 
     if (!result) {
-      drawnItems.removeLayer(layerToAdd);
+      if (obstaclesLayer) {
+        obstaclesLayer.removeLayer(layerToAdd);
+      } else {
+        drawnItems.removeLayer(layerToAdd);
+      }
       return;
     }
 
@@ -6259,7 +6356,11 @@ function setupObstacleEventHandlers() {
       console.log("✅ Inserted new obstacle:", newObstacle.id);
     } catch (err) {
       console.error("❌ Failed to save obstacle:", err);
-      drawnItems.removeLayer(layerToAdd);
+      if (obstaclesLayer) {
+        obstaclesLayer.removeLayer(layerToAdd);
+      } else {
+        drawnItems.removeLayer(layerToAdd);
+      }
       toastError("Could not save obstacle.");
     } finally {
       hideLoading(key);
@@ -6657,6 +6758,15 @@ export async function initMap(user = null) {
     // console.log("✅ Leaflet map ready, initializing places...");
     placesPane = map.createPane("places-pane");
     placesPane.style.zIndex = 450;
+
+    // Create dedicated pane for obstacles (above clusters, below popups)
+    const obstaclesPane = map.createPane("obstaclesPane");
+    obstaclesPane.style.zIndex = 650; // clusters are usually around 600
+    obstaclesPane.style.pointerEvents = "auto";
+
+    // Create separate FeatureGroup for obstacles (not in cluster group)
+    // Must be FeatureGroup for Leaflet.draw edit control
+    obstaclesLayer = new L.FeatureGroup().addTo(map);
 
     // Initialize place type filter state from localStorage on map load
     placeTypeFilterState = loadPlaceTypeFilterFromLS();
