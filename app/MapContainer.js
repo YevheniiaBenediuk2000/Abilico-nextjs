@@ -1860,6 +1860,11 @@ export default function MapContainer({
         }}
         maxWidth="sm"
         fullWidth
+        PaperProps={{
+          sx: {
+            minHeight: "500px",
+          },
+        }}
       >
         {inaccuracyScreen === 1 ? (
           <>
@@ -1898,20 +1903,20 @@ export default function MapContainer({
                 <CloseIcon fontSize="small" />
               </IconButton>
             </DialogTitle>
-            <DialogContent sx={{ pt: 2 }}>
+            <DialogContent sx={{ pt: 3.5 }}>
               <Paper
                 elevation={0}
                 sx={{
                   border: "1px solid rgba(0,0,0,0.12)",
                   borderRadius: 3,
-                  p: 2.5,
+                  p: 3,
                 }}
               >
                 <RadioGroup
                   value={selectedInaccuracyReason}
                   onChange={(e) => setSelectedInaccuracyReason(e.target.value)}
                 >
-                  <Stack spacing={1.5}>
+                  <Stack spacing={2}>
                     <FormControlLabel
                       value="accessibility"
                       control={
@@ -1921,18 +1926,21 @@ export default function MapContainer({
                             "&.Mui-checked": {
                               color: PRIMARY_BLUE,
                             },
+                            "& .MuiSvgIcon-root": {
+                              fontSize: 20,
+                            },
                           }}
                         />
                       }
                       label={
-                        <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                        <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
                           Accessibility info is wrong
                         </Typography>
                       }
                       sx={{
                         m: 0,
-                        py: 1,
-                        px: 1.5,
+                        py: 1.5,
+                        px: 2,
                         borderRadius: 1.5,
                         transition: "all 0.2s ease-in-out",
                         "&:hover": {
@@ -1949,18 +1957,21 @@ export default function MapContainer({
                             "&.Mui-checked": {
                               color: PRIMARY_BLUE,
                             },
+                            "& .MuiSvgIcon-root": {
+                              fontSize: 20,
+                            },
                           }}
                         />
                       }
                       label={
-                        <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                        <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
                           Place is permanently closed or moved
                         </Typography>
                       }
                       sx={{
                         m: 0,
-                        py: 1,
-                        px: 1.5,
+                        py: 1.5,
+                        px: 2,
                         borderRadius: 1.5,
                         transition: "all 0.2s ease-in-out",
                         "&:hover": {
@@ -1977,18 +1988,21 @@ export default function MapContainer({
                             "&.Mui-checked": {
                               color: PRIMARY_BLUE,
                             },
+                            "& .MuiSvgIcon-root": {
+                              fontSize: 20,
+                            },
                           }}
                         />
                       }
                       label={
-                        <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                        <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
                           Wrong category or type of place
                         </Typography>
                       }
                       sx={{
                         m: 0,
-                        py: 1,
-                        px: 1.5,
+                        py: 1.5,
+                        px: 2,
                         borderRadius: 1.5,
                         transition: "all 0.2s ease-in-out",
                         "&:hover": {
@@ -2005,18 +2019,21 @@ export default function MapContainer({
                             "&.Mui-checked": {
                               color: PRIMARY_BLUE,
                             },
+                            "& .MuiSvgIcon-root": {
+                              fontSize: 20,
+                            },
                           }}
                         />
                       }
                       label={
-                        <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                        <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
                           Duplicate place
                         </Typography>
                       }
                       sx={{
                         m: 0,
-                        py: 1,
-                        px: 1.5,
+                        py: 1.5,
+                        px: 2,
                         borderRadius: 1.5,
                         transition: "all 0.2s ease-in-out",
                         "&:hover": {
@@ -2033,18 +2050,21 @@ export default function MapContainer({
                             "&.Mui-checked": {
                               color: PRIMARY_BLUE,
                             },
+                            "& .MuiSvgIcon-root": {
+                              fontSize: 20,
+                            },
                           }}
                         />
                       }
                       label={
-                        <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                        <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
                           Wrong address or pin location
                         </Typography>
                       }
                       sx={{
                         m: 0,
-                        py: 1,
-                        px: 1.5,
+                        py: 1.5,
+                        px: 2,
                         borderRadius: 1.5,
                         transition: "all 0.2s ease-in-out",
                         "&:hover": {
@@ -2061,18 +2081,21 @@ export default function MapContainer({
                             "&.Mui-checked": {
                               color: PRIMARY_BLUE,
                             },
+                            "& .MuiSvgIcon-root": {
+                              fontSize: 20,
+                            },
                           }}
                         />
                       }
                       label={
-                        <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                        <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
                           Other
                         </Typography>
                       }
                       sx={{
                         m: 0,
-                        py: 1,
-                        px: 1.5,
+                        py: 1.5,
+                        px: 2,
                         borderRadius: 1.5,
                         transition: "all 0.2s ease-in-out",
                         "&:hover": {
@@ -2145,7 +2168,9 @@ export default function MapContainer({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                pb: 2,
+                pb: 2.5,
+                pt: 4,
+                px: 3,
               }}
             >
               <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
@@ -2176,7 +2201,7 @@ export default function MapContainer({
                 <CloseIcon fontSize="small" />
               </IconButton>
             </DialogTitle>
-            <DialogContent sx={{ pt: 2 }}>
+            <DialogContent sx={{ pt: 2.5, px: 3, pb: 2.5 }}>
               <Stack spacing={2.5}>
                 {/* Accessibility Level */}
                 <Paper
@@ -2368,7 +2393,7 @@ export default function MapContainer({
                             />
                           }
                           label={
-                            <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                            <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
                               Entrance not wheelchair accessible
                             </Typography>
                           }
@@ -2412,7 +2437,7 @@ export default function MapContainer({
                             />
                           }
                           label={
-                            <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                            <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
                               There are steps at the entrance
                             </Typography>
                           }
@@ -2456,7 +2481,7 @@ export default function MapContainer({
                             />
                           }
                           label={
-                            <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                            <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
                               No accessible toilet
                             </Typography>
                           }
@@ -2500,7 +2525,7 @@ export default function MapContainer({
                             />
                           }
                           label={
-                            <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                            <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
                               Ramp is too steep or unusable
                             </Typography>
                           }
@@ -2544,7 +2569,7 @@ export default function MapContainer({
                             />
                           }
                           label={
-                            <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                            <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
                               Door is too narrow or heavy
                             </Typography>
                           }
@@ -2588,7 +2613,7 @@ export default function MapContainer({
                             />
                           }
                           label={
-                            <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                            <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
                               Other accessibility issue
                             </Typography>
                           }
