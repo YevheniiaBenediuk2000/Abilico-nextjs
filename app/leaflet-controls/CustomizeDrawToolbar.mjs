@@ -56,9 +56,11 @@ export function customizeDrawToolbar(drawControl, map) {
     // Store reference to draw tool buttons before moving them
     const drawToolButtonsRef = [...drawToolButtons];
 
-    // Move draw tool buttons into the collapsible container
+    // Move draw tool buttons into the collapsible container and customize them
     drawToolButtons.forEach(btn => {
       drawToolsContainer.appendChild(btn);
+      // Customize each button with MUI icon
+      customizeDrawToolButton(btn);
     });
 
     // Create caution button
@@ -332,6 +334,83 @@ async function customizeEditDeleteButtons(drawContainer, map) {
   };
 
   tryFindEditSection();
+}
+
+/**
+ * Customizes a drawing tool button with a MUI icon
+ */
+async function customizeDrawToolButton(button) {
+  // Determine which icon to use based on button class
+  let iconType = null;
+  const className = button.className || '';
+  
+  if (className.includes('polyline')) {
+    iconType = 'polyline';
+  } else if (className.includes('polygon')) {
+    iconType = 'polygon';
+  } else if (className.includes('rectangle')) {
+    iconType = 'rectangle';
+  } else if (className.includes('circle')) {
+    iconType = 'circle';
+  }
+  
+  if (!iconType) return;
+  
+  // Check if already customized
+  if (button.dataset.muiCustomized === 'true') return;
+  button.dataset.muiCustomized = 'true';
+  
+  // Remove default icon/spans
+  const iconSpans = button.querySelectorAll('span, .leaflet-draw-toolbar-icon');
+  iconSpans.forEach(span => {
+    span.style.display = 'none';
+    span.remove();
+  });
+  
+  // Create container for React icon
+  const iconContainer = document.createElement('div');
+  iconContainer.style.display = 'flex';
+  iconContainer.style.alignItems = 'center';
+  iconContainer.style.justifyContent = 'center';
+  iconContainer.style.width = '100%';
+  iconContainer.style.height = '100%';
+  
+  // Clear button content and add container
+  button.innerHTML = '';
+  button.appendChild(iconContainer);
+  
+  // Mount MUI icon
+  try {
+    const ReactMod = await import('react');
+    const ReactDOMMod = await import('react-dom/client');
+    
+    let IconComponent;
+    if (iconType === 'polyline') {
+      const IconMod = await import('../components/DrawToolbarPolylineIcon.jsx');
+      IconComponent = IconMod.default || IconMod;
+    } else if (iconType === 'polygon') {
+      const IconMod = await import('../components/DrawToolbarPolygonIcon.jsx');
+      IconComponent = IconMod.default || IconMod;
+    } else if (iconType === 'rectangle') {
+      const IconMod = await import('../components/DrawToolbarRectangleIcon.jsx');
+      IconComponent = IconMod.default || IconMod;
+    } else if (iconType === 'circle') {
+      const IconMod = await import('../components/DrawToolbarCircleIcon.jsx');
+      IconComponent = IconMod.default || IconMod;
+    }
+    
+    if (IconComponent) {
+      const React = ReactMod.default || ReactMod;
+      const { createRoot } = ReactDOMMod;
+      const root = createRoot(iconContainer);
+      root.render(React.createElement(IconComponent));
+    }
+  } catch (err) {
+    console.error(`Failed to load MUI ${iconType} icon:`, err);
+    // Fallback
+    iconContainer.textContent = iconType === 'polyline' ? '─' : iconType === 'polygon' ? '⬟' : iconType === 'rectangle' ? '▭' : '●';
+    iconContainer.style.fontSize = '16px';
+  }
 }
 
 /**
