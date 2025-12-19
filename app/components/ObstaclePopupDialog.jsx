@@ -10,14 +10,18 @@ import TextField from "@mui/material/TextField";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import IconButton from "@mui/material/IconButton";
+import Paper from "@mui/material/Paper";
+import Stack from "@mui/material/Stack";
 import CloseIcon from "@mui/icons-material/Close";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import WarningIcon from "@mui/icons-material/Warning";
 import EditIcon from "@mui/icons-material/Edit";
+import ReportProblemIcon from "@mui/icons-material/ReportProblem";
 import { placeVotes, getVoteStatistics } from "../api/placeVotes";
 import { obstacleStorage } from "../api/obstacleStorage";
 import { ensurePlaceExists } from "../api/reviewStorage";
 import { toastError, toastSuccess } from "../utils/toast.mjs";
+import { PRIMARY_BLUE } from "../constants/constants.mjs";
 
 export default function ObstaclePopupDialog({ open, onClose, obstacle, onObstacleUpdate }) {
   const [isEditMode, setIsEditMode] = useState(false);
@@ -195,88 +199,220 @@ export default function ObstaclePopupDialog({ open, onClose, obstacle, onObstacl
       fullWidth
       PaperProps={{
         sx: {
+          maxHeight: "90vh",
           borderRadius: 2,
         },
       }}
     >
-      <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        Obstacle Details
+      <DialogTitle
+        sx={{
+          pb: 2,
+          pt: 3,
+          px: 3,
+          fontSize: "1.625rem",
+          fontWeight: 700,
+          borderBottom: "1px solid",
+          borderColor: "divider",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 1.5,
+          background: `linear-gradient(135deg, ${PRIMARY_BLUE}08 0%, ${PRIMARY_BLUE}02 100%)`,
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          <ReportProblemIcon sx={{ color: PRIMARY_BLUE, fontSize: "1.75rem" }} />
+          Obstacle Details
+        </Box>
         <IconButton
-          aria-label="close"
           onClick={onClose}
-          size="small"
+          disabled={isLoading}
           sx={{
-            color: (theme) => theme.palette.grey[500],
+            color: "text.secondary",
+            "&:hover": {
+              bgcolor: "rgba(0, 0, 0, 0.04)",
+            },
           }}
         >
           <CloseIcon />
         </IconButton>
       </DialogTitle>
 
-      <DialogContent>
-        <Box sx={{ mt: 1 }}>
-          {isEditMode ? (
-            <Box>
-              <TextField
-                fullWidth
-                label="Obstacle Name"
-                value={obstacleName}
-                onChange={(e) => setObstacleName(e.target.value)}
-                placeholder="e.g., Damaged curb ramp"
-                disabled={isLoading}
-                autoFocus
-                sx={{ mb: 2 }}
-              />
-            </Box>
-          ) : (
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Name
+      <DialogContent
+        sx={{
+          overflowY: "auto",
+          maxHeight: "calc(90vh - 140px)",
+          px: 3,
+          py: 2.5,
+          mt: 3,
+        }}
+      >
+        {isEditMode ? (
+          <Paper
+            elevation={0}
+            sx={{
+              p: 2.5,
+              bgcolor: "rgba(0, 0, 0, 0.005)",
+              borderRadius: 2,
+              border: "1px solid",
+              borderColor: "divider",
+              transition: "all 0.2s ease-in-out",
+              "&:hover": {
+                borderColor: PRIMARY_BLUE + "40",
+                boxShadow: `0 2px 8px ${PRIMARY_BLUE}15`,
+              },
+            }}
+          >
+            <Typography
+              variant="h6"
+              sx={{
+                mb: 2,
+                fontSize: "1.125rem",
+                fontWeight: 600,
+              }}
+            >
+              Obstacle Name{" "}
+              <Typography component="span" color="error">
+                *
               </Typography>
-              <Typography variant="body1" sx={{ fontWeight: 500, mb: voteStats?.total > 0 ? 2 : 0 }}>
-                {obstacleName || "Obstacle"}
+            </Typography>
+            <TextField
+              fullWidth
+              label="Obstacle Name"
+              value={obstacleName}
+              onChange={(e) => setObstacleName(e.target.value)}
+              placeholder="e.g., Damaged curb ramp"
+              disabled={isLoading}
+              autoFocus
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: 1.5,
+                  transition: "all 0.2s ease-in-out",
+                  "&:hover:not(.Mui-disabled)": {
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderColor: PRIMARY_BLUE + "80",
+                    },
+                  },
+                  "&.Mui-focused": {
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderWidth: 2,
+                      borderColor: PRIMARY_BLUE,
+                    },
+                  },
+                },
+              }}
+            />
+          </Paper>
+        ) : (
+          <Stack spacing={2.5}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2.5,
+                bgcolor: "rgba(0, 0, 0, 0.005)",
+                borderRadius: 2,
+                border: "1px solid",
+                borderColor: "divider",
+                transition: "all 0.2s ease-in-out",
+                "&:hover": {
+                  borderColor: PRIMARY_BLUE + "40",
+                  boxShadow: `0 2px 8px ${PRIMARY_BLUE}15`,
+                },
+              }}
+            >
+              <Typography
+                variant="h6"
+                sx={{
+                  mb: 2,
+                  fontSize: "1.125rem",
+                  fontWeight: 600,
+                }}
+              >
+                Obstacle Information
               </Typography>
-              
-              {/* Vote Statistics */}
-              {voteStats && voteStats.total > 0 && (
-                <Box
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Name
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                    {obstacleName || "Obstacle"}
+                  </Typography>
+                </Box>
+              </Stack>
+            </Paper>
+
+            {/* Vote Statistics */}
+            {voteStats && voteStats.total > 0 && (
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 2.5,
+                  bgcolor: "rgba(0, 0, 0, 0.005)",
+                  borderRadius: 2,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  transition: "all 0.2s ease-in-out",
+                  "&:hover": {
+                    borderColor: PRIMARY_BLUE + "40",
+                    boxShadow: `0 2px 8px ${PRIMARY_BLUE}15`,
+                  },
+                }}
+              >
+                <Typography
+                  variant="h6"
                   sx={{
-                    mt: 2,
-                    p: 2,
-                    bgcolor: "background.paper",
-                    border: "1px solid",
-                    borderColor: "divider",
-                    borderRadius: 1,
+                    mb: 2,
+                    fontSize: "1.125rem",
+                    fontWeight: 600,
                   }}
                 >
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
-                    Votes
-                  </Typography>
-                  <Box sx={{ display: "flex", gap: 2, mt: 1 }}>
-                    <Box>
-                      <Typography variant="body2" color="success.main" sx={{ fontWeight: 500 }}>
-                        ✅ Confirmed: {voteStats.confirm}
+                  Community Feedback
+                </Typography>
+                <Stack spacing={1.5}>
+                  <Box sx={{ display: "flex", gap: 3, alignItems: "center" }}>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Confirmed
+                      </Typography>
+                      <Typography variant="h6" color="success.main" sx={{ fontWeight: 600 }}>
+                        {voteStats.confirm}
                       </Typography>
                     </Box>
-                    <Box>
-                      <Typography variant="body2" color="warning.main" sx={{ fontWeight: 500 }}>
-                        ⚠️ Reported: {voteStats.issue}
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Reported
+                      </Typography>
+                      <Typography variant="h6" color="warning.main" sx={{ fontWeight: 600 }}>
+                        {voteStats.issue}
                       </Typography>
                     </Box>
-                    <Box>
-                      <Typography variant="body2" color="text.primary" sx={{ fontWeight: 600 }}>
-                        Total: {voteStats.total}
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Total Votes
+                      </Typography>
+                      <Typography variant="h6" color="text.primary" sx={{ fontWeight: 600 }}>
+                        {voteStats.total}
                       </Typography>
                     </Box>
                   </Box>
-                </Box>
-              )}
-            </Box>
-          )}
-        </Box>
+                </Stack>
+              </Paper>
+            )}
+          </Stack>
+        )}
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+      <DialogActions
+        sx={{
+          px: 3,
+          py: 2.5,
+          borderTop: "1px solid",
+          borderColor: "divider",
+          gap: 1.5,
+          bgcolor: "rgba(0, 0, 0, 0.01)",
+        }}
+      >
         {isEditMode ? (
           <>
             <Button
@@ -285,7 +421,18 @@ export default function ObstaclePopupDialog({ open, onClose, obstacle, onObstacl
                 setObstacleName(obstacle.properties?.title || "Obstacle");
               }}
               disabled={isLoading}
-              variant="outlined"
+              sx={{
+                textTransform: "none",
+                fontWeight: 500,
+                px: 3,
+                py: 1,
+                borderRadius: 1.5,
+                transition: "all 0.2s ease-in-out",
+                "&:hover:not(:disabled)": {
+                  bgcolor: "action.hover",
+                  transform: "translateY(-1px)",
+                },
+              }}
             >
               Cancel
             </Button>
@@ -293,6 +440,26 @@ export default function ObstaclePopupDialog({ open, onClose, obstacle, onObstacl
               onClick={handleSaveName}
               disabled={isLoading || !obstacleName.trim()}
               variant="contained"
+              sx={{
+                textTransform: "none",
+                fontWeight: 600,
+                px: 4,
+                py: 1,
+                borderRadius: 1.5,
+                bgcolor: PRIMARY_BLUE,
+                color: "white",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+                transition: "all 0.2s ease-in-out",
+                "&:hover:not(:disabled)": {
+                  bgcolor: PRIMARY_BLUE,
+                  opacity: 0.9,
+                  boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
+                },
+                "&:disabled": {
+                  bgcolor: "action.disabledBackground",
+                  color: "action.disabled",
+                },
+              }}
             >
               Save
             </Button>
@@ -305,6 +472,20 @@ export default function ObstaclePopupDialog({ open, onClose, obstacle, onObstacl
               variant="contained"
               color="success"
               startIcon={<CheckCircleIcon />}
+              sx={{
+                textTransform: "none",
+                fontWeight: 600,
+                px: 3,
+                py: 1,
+                borderRadius: 1.5,
+                boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+                transition: "all 0.2s ease-in-out",
+                "&:hover:not(:disabled)": {
+                  opacity: 0.9,
+                  boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
+                  transform: "translateY(-1px)",
+                },
+              }}
             >
               Confirm
             </Button>
@@ -312,8 +493,31 @@ export default function ObstaclePopupDialog({ open, onClose, obstacle, onObstacl
               onClick={() => handleVote("issue")}
               disabled={isLoading || !placeId}
               variant="contained"
-              color="warning"
               startIcon={<WarningIcon />}
+              sx={{
+                textTransform: "none",
+                fontWeight: 600,
+                px: 3,
+                py: 1,
+                borderRadius: 1.5,
+                bgcolor: "#FFC107",
+                color: "#000000",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+                transition: "all 0.2s ease-in-out",
+                "&:hover:not(:disabled)": {
+                  bgcolor: "#FFC107",
+                  opacity: 0.9,
+                  boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
+                  transform: "translateY(-1px)",
+                },
+                "&:disabled": {
+                  bgcolor: "action.disabledBackground",
+                  color: "action.disabled",
+                },
+                "& .MuiSvgIcon-root": {
+                  color: "#000000",
+                },
+              }}
             >
               Report
             </Button>
@@ -322,6 +526,21 @@ export default function ObstaclePopupDialog({ open, onClose, obstacle, onObstacl
               disabled={isLoading}
               variant="outlined"
               startIcon={<EditIcon />}
+              sx={{
+                textTransform: "none",
+                fontWeight: 500,
+                px: 3,
+                py: 1,
+                borderRadius: 1.5,
+                borderColor: PRIMARY_BLUE,
+                color: PRIMARY_BLUE,
+                transition: "all 0.2s ease-in-out",
+                "&:hover:not(:disabled)": {
+                  bgcolor: PRIMARY_BLUE + "10",
+                  borderColor: PRIMARY_BLUE,
+                  transform: "translateY(-1px)",
+                },
+              }}
             >
               Edit
             </Button>

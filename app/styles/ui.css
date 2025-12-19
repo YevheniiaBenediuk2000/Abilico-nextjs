@@ -921,7 +921,7 @@
 
 /* Separate draw / edit sections with a subtle divider */
 .leaflet-control.leaflet-draw .leaflet-draw-section + .leaflet-draw-section {
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  border-top: none;
 }
 
 /* Toolbar buttons (polyline, polygon, rectangle, circle, edit, delete) */
@@ -949,7 +949,7 @@
 .leaflet-control.leaflet-draw .leaflet-draw-actions {
   border-radius: 0;
   background-color: #fafafa;
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  border-top: none;
 }
 
 .leaflet-control.leaflet-draw .leaflet-draw-actions li {
@@ -1006,7 +1006,7 @@
   background-size: auto !important;
   box-shadow: none !important;
   filter: none !important;
-  border-radius: 0 !important;
+  border-radius: 8px !important;
   width: 40px !important;
   height: 40px !important;
   margin: 4px 6px !important;
@@ -1046,7 +1046,7 @@
   background-size: auto !important;
   box-shadow: none !important;
   filter: none !important;
-  border-radius: 0 !important;
+  border-radius: 8px !important;
   width: 40px !important;
   height: 40px !important;
   margin: 4px 6px !important;
@@ -1075,13 +1075,13 @@
   background-color: transparent !important;
 }
 
-/* Separator line above edit button */
+/* Separator line above edit button - thin, not full width */
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"]::before {
   content: '';
   position: absolute;
   top: -2px;
-  left: 8px;
-  right: 8px;
+  left: 12px;
+  right: 12px;
   height: 1px;
   background-color: #e0e0e0;
   display: block;
@@ -1100,18 +1100,18 @@
   color: #464646 !important;
   width: 40px !important;
   height: 40px !important;
-  border-radius: 0 !important;
+  border-radius: 8px !important;
   margin: 4px 6px !important;
   position: relative !important;
 }
 
-/* Consistent icon sizing for MUI icons - centered */
+/* Consistent icon sizing for MUI icons - centered, slightly smaller */
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"] svg,
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"] svg,
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown svg,
 .leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-"] svg {
-  width: 20px !important;
-  height: 20px !important;
+  width: 18px !important;
+  height: 18px !important;
   margin: 0 auto;
   display: block;
   color: #464646 !important;
@@ -1244,12 +1244,12 @@
 
 /* Drawing tool icons are now MUI React components, handled by the force centering rules at bottom */
 
-/* Ensure toolbar container has clean white background - no rounding */
+/* Ensure toolbar container has clean white background with rounded corners */
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar-top,
 .leaflet-control.leaflet-draw .leaflet-draw-section,
 .leaflet-control.leaflet-draw .leaflet-draw-section:first-child {
   background-color: #ffffff;
-  border-radius: 0;
+  border-radius: 16px;
   box-shadow: none;
   border: none;
 }
@@ -1260,26 +1260,26 @@
   border-bottom: none;
 }
 
-/* Ensure all sections have consistent styling - no rounding */
+/* Ensure all sections have consistent styling with rounded corners */
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar .leaflet-draw-section {
   background-color: #ffffff;
-  border-radius: 0;
+  border-radius: 16px;
   box-shadow: none;
   border: none;
 }
 
-/* Main toolbar container - no rounding */
+/* Main toolbar container - rounded corners */
 .leaflet-control.leaflet-draw {
-  border-radius: 0;
+  border-radius: 16px;
   overflow: hidden;
 }
 
-/* Drawing tools - no rounding */
+/* Drawing tools - rounded buttons */
 .leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-"] {
   background-color: #f5f5f5 !important;
   width: 40px !important;
   height: 40px !important;
-  border-radius: 0 !important;
+  border-radius: 8px !important;
   margin: 4px 6px !important;
   display: flex !important;
   align-items: center !important;
