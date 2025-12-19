@@ -1506,6 +1506,8 @@
 #obstacle-management-overlay .leaflet-control.leaflet-draw {
   border-radius: 16px;
   overflow: visible; /* was hidden – this was clipping the helpers */
+  position: relative;
+  z-index: 10000 !important; /* ensure entire control is above everything */
 }
 
 /* 1) A bit of vertical breathing room for both sections */
@@ -1522,4 +1524,20 @@
   background-color: #e0e0e0;
   /* line is shorter than the white card and sits "outside" the inner boxes */
   margin: 10px 16px 0;  /* top spacing before the line, no bottom spacing */
+}
+
+/* Nice spacing + stacking for the helper text bubble */
+#obstacle-management-overlay .leaflet-control.leaflet-draw .leaflet-draw-actions {
+  margin-top: 8px;        /* pushes helper a bit away from the card */
+  position: relative;
+  z-index: 10000 !important;  /* keep it above everything - map tiles, markers, popups */
+}
+
+/* Optional: pill styling, if you want it to feel like a small hint */
+#obstacle-management-overlay .leaflet-control.leaflet-draw .leaflet-draw-actions a {
+  background: #ffffff;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  border: 1px solid rgba(0,0,0,0.12);
 }
