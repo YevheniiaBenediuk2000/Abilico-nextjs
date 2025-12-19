@@ -21,6 +21,7 @@ import {
   DRAW_HELP_LS_KEY,
   DrawHelpAlert,
 } from "./leaflet-controls/DrawHelpAlert.mjs";
+import { customizeDrawToolbar, getCautionDrawHandler } from "./leaflet-controls/CustomizeDrawToolbar.mjs";
 import { ls, LS_KEYS } from "./utils/localStorage.mjs";
 import {
   duringLoading,
@@ -917,6 +918,8 @@ function toggleObstaclesByZoom() {
     }
 
     map.addControl(drawControl);
+    // Customize the toolbar after adding the control
+    customizeDrawToolbar(drawControl, map);
   } else {
     if (drawHelpAlertControl && !ls.get(DRAW_HELP_LS_KEY)) {
       map.removeControl(drawHelpAlertControl);
@@ -6198,6 +6201,11 @@ function setupObstacleEventHandlers() {
   // CREATE
   map.on(L.Draw.Event.CREATED, async (e) => {
     let layerToAdd, featureToStore;
+    const cautionHandler = getCautionDrawHandler();
+    // Check if this is a caution marker by checking the layer's options
+    const isCautionMarker = 
+      (e.layerType === 'marker' || e.layer instanceof L.Marker) && 
+      e.layer.options.isCautionMarker === true;
 
     if (e.layer instanceof L.Circle) {
       featureToStore = makeCircleFeature(e.layer);
@@ -6205,6 +6213,10 @@ function setupObstacleEventHandlers() {
         radius: e.layer.getRadius(),
         color: "red",
       });
+    } else if (isCautionMarker) {
+      // Handle caution marker (point obstacle)
+      featureToStore = e.layer.toGeoJSON();
+      layerToAdd = e.layer;
     } else {
       featureToStore = e.layer.toGeoJSON();
       layerToAdd = e.layer;
@@ -6251,6 +6263,20 @@ function setupObstacleEventHandlers() {
       toastError("Could not save obstacle.");
     } finally {
       hideLoading(key);
+    }
+
+    // Auto-disable draw mode after placing a caution marker
+    if (isCautionMarker && cautionHandler) {
+      cautionHandler.disable();
+      // Also disable any active mode in the draw control
+      if (drawControl && drawControl._toolbars && drawControl._toolbars.draw && drawControl._toolbars.draw._activeMode) {
+        drawControl._toolbars.draw._activeMode.handler.disable();
+      }
+      // Remove enabled state from caution button
+      const cautionButton = map.getContainer().querySelector('.leaflet-draw-toolbar-button-caution');
+      if (cautionButton) {
+        cautionButton.classList.remove('leaflet-draw-toolbar-button-enabled');
+      }
     }
   });
 
