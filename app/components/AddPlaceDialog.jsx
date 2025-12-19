@@ -39,6 +39,11 @@ import { reverseGeocode } from "../api/reverseGeocode";
 import { supabase } from "../api/supabaseClient";
 import { PRIMARY_BLUE } from "../constants/constants.mjs";
 
+// Accessibility level colors
+const GREEN = "#4caf50";
+const ORANGE = "#ff9800";
+const RED = "#f44336";
+
 // Access Leaflet from window (loaded globally by mapMain.js)
 const getL = () => {
   if (typeof window === "undefined") return null;
@@ -92,6 +97,7 @@ export default function AddPlaceDialog({ open, onClose }) {
 
   // Expandable section state
   const [expandedDetails, setExpandedDetails] = useState(false);
+  const [expandedComments, setExpandedComments] = useState(false);
 
   // Marker and popup for location confirmation
   const [locationMarker, setLocationMarker] = useState(null);
@@ -104,6 +110,7 @@ export default function AddPlaceDialog({ open, onClose }) {
       setSubmitting(false);
       setIsSelectingLocation(false);
       setExpandedDetails(false);
+      setExpandedComments(false);
       
       // If there's a pending location from map selection, use it and reverse geocode
       if (pendingLocation) {
@@ -940,14 +947,58 @@ export default function AddPlaceDialog({ open, onClose }) {
           <Collapse in={expandedDetails}>
             <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
           {/* Accessibility Overview Section */}
+          <Box>
+            <Box
+              sx={{
+                mb: 1.5,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <Typography
+                variant="subtitle2"
+                sx={{
+                  fontWeight: 600,
+                  color: "text.primary",
+                  textTransform: "uppercase",
+                  fontSize: "0.75rem",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                PLACE ACCESSIBILITY
+          </Typography>
+              {(overallAccessibility || stepFreeEntrance || accessibleToilet) && (
+                <Button
+                  onClick={() => {
+                    setOverallAccessibility("");
+                    setStepFreeEntrance("");
+                    setAccessibleToilet("");
+                  }}
+                  sx={{
+                    textTransform: "none",
+                    color: "text.secondary",
+                    fontSize: "0.7rem",
+                    minWidth: "auto",
+                    px: 1,
+                    "&:hover": {
+                      bgcolor: "transparent",
+                      textDecoration: "underline",
+                      color: "text.primary",
+                    },
+                  }}
+                >
+                  Clear accessibility
+                </Button>
+              )}
+            </Box>
           <Paper
             elevation={0}
             sx={{
               p: 2.5,
               bgcolor: "rgba(0, 0, 0, 0.005)",
-              borderRadius: 2,
-              border: "1px solid",
-              borderColor: "divider",
+              borderRadius: 3,
+              border: "1px solid rgba(0,0,0,0.12)",
               transition: "all 0.2s ease-in-out",
               "&:hover": {
                 borderColor: PRIMARY_BLUE + "40",
@@ -955,22 +1006,30 @@ export default function AddPlaceDialog({ open, onClose }) {
               },
             }}
           >
+            <Stack spacing={2.5}>
+          {/* Frame: Accessibility Level */}
+          <Box
+            sx={{
+              p: 2,
+              bgcolor: "rgba(0, 0, 0, 0.02)",
+              borderRadius: 1.5,
+              border: "1px solid",
+              borderColor: "divider",
+            }}
+          >
             <Typography
-              variant="h6"
+              variant="subtitle2"
               sx={{
-                mb: 2,
-                fontSize: "1.125rem",
+                mb: 1.5,
                 fontWeight: 600,
-                display: "flex",
-                alignItems: "center",
-                gap: 1,
+                color: "text.primary",
+                textTransform: "uppercase",
+                fontSize: "0.75rem",
+                letterSpacing: "0.5px",
               }}
             >
-              <AccessibilityNewIcon sx={{ fontSize: "1.25rem", color: PRIMARY_BLUE }} />
-              Accessibility Overview
-          </Typography>
-            <Stack spacing={2}>
-          {/* Overall accessibility level - using OSM values */}
+              Accessibility Level
+            </Typography>
           <TextField
             select
             label="Overall accessibility level"
@@ -978,31 +1037,134 @@ export default function AddPlaceDialog({ open, onClose }) {
             value={overallAccessibility}
             onChange={(e) => setOverallAccessibility(e.target.value)}
             disabled={submitting || isSelectingLocation}
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    borderRadius: 1.5,
-                    transition: "all 0.2s ease-in-out",
-                    "&:hover:not(.Mui-disabled)": {
-                      "& .MuiOutlinedInput-notchedOutline": {
-                        borderColor: PRIMARY_BLUE + "80",
-                      },
-                    },
-                    "&.Mui-focused": {
-                      "& .MuiOutlinedInput-notchedOutline": {
-                        borderWidth: 2,
-                        borderColor: PRIMARY_BLUE,
-                      },
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: 1.5,
+                  transition: "all 0.2s ease-in-out",
+                  "&:hover:not(.Mui-disabled)": {
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderColor: PRIMARY_BLUE + "80",
                     },
                   },
-                }}
-              >
-                <MenuItem value="">Not Selected</MenuItem>
-                <MenuItem value="designated">Designated</MenuItem>
-                <MenuItem value="yes">Accessible</MenuItem>
-                <MenuItem value="limited">Limited</MenuItem>
-                <MenuItem value="no">Not Accessible</MenuItem>
+                  "&.Mui-focused": {
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderWidth: 2,
+                      borderColor: PRIMARY_BLUE,
+                    },
+                  },
+                },
+                "& .MuiMenuItem-root": {
+                  "&:hover": {
+                    bgcolor: "transparent",
+                  },
+                },
+              }}
+            >
+            <MenuItem 
+              value=""
+              sx={{
+                "&:hover": {
+                  bgcolor: "rgba(0, 0, 0, 0.04)",
+                },
+              }}
+            >
+              Not Selected
+            </MenuItem>
+            <MenuItem 
+              value="designated"
+              sx={{
+                borderLeft: `3px solid ${GREEN}`,
+                color: GREEN,
+                "&:hover, &.Mui-selected": {
+                  bgcolor: GREEN,
+                  color: "#fff",
+                },
+                "&.Mui-selected:hover": {
+                  bgcolor: GREEN,
+                  color: "#fff",
+                },
+              }}
+            >
+              Designated
+            </MenuItem>
+            <MenuItem 
+              value="yes"
+              sx={{
+                borderLeft: `3px solid ${GREEN}`,
+                color: GREEN,
+                "&:hover, &.Mui-selected": {
+                  bgcolor: GREEN,
+                  color: "#fff",
+                },
+                "&.Mui-selected:hover": {
+                  bgcolor: GREEN,
+                  color: "#fff",
+                },
+              }}
+            >
+              Accessible
+            </MenuItem>
+            <MenuItem 
+              value="limited"
+              sx={{
+                borderLeft: `3px solid ${ORANGE}`,
+                color: ORANGE,
+                "&:hover, &.Mui-selected": {
+                  bgcolor: ORANGE,
+                  color: "#fff",
+                },
+                "&.Mui-selected:hover": {
+                  bgcolor: ORANGE,
+                  color: "#fff",
+                },
+              }}
+            >
+              Limited
+            </MenuItem>
+            <MenuItem 
+              value="no"
+              sx={{
+                borderLeft: `3px solid ${RED}`,
+                color: RED,
+                "&:hover, &.Mui-selected": {
+                  bgcolor: RED,
+                  color: "#fff",
+                },
+                "&.Mui-selected:hover": {
+                  bgcolor: RED,
+                  color: "#fff",
+                },
+              }}
+            >
+              Not Accessible
+            </MenuItem>
           </TextField>
+          </Box>
 
+          {/* Frame: Features */}
+          <Box
+            sx={{
+              p: 2,
+              bgcolor: "rgba(0, 0, 0, 0.02)",
+              borderRadius: 1.5,
+              border: "1px solid",
+              borderColor: "divider",
+            }}
+          >
+            <Typography
+              variant="subtitle2"
+              sx={{
+                mb: 1.5,
+                fontWeight: 600,
+                color: "text.primary",
+                textTransform: "uppercase",
+                fontSize: "0.75rem",
+                letterSpacing: "0.5px",
+              }}
+            >
+              Features
+            </Typography>
+            <Stack spacing={2.5}>
           {/* Step-free entrance */}
               <FormControl
                 component="fieldset"
@@ -1130,8 +1292,56 @@ export default function AddPlaceDialog({ open, onClose }) {
                   />
             </RadioGroup>
           </FormControl>
+            </Stack>
+          </Box>
 
-          {/* Additional accessibility comments */}
+          {/* Frame: Details (optional) - Expandable */}
+          <Box
+            sx={{
+              borderRadius: 1.5,
+              border: "1px solid",
+              borderColor: "divider",
+              overflow: "hidden",
+            }}
+          >
+            <Box
+              onClick={() => setExpandedComments(!expandedComments)}
+              sx={{
+                p: 2,
+                bgcolor: "rgba(0, 0, 0, 0.02)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                cursor: "pointer",
+                transition: "background-color 0.2s",
+                "&:hover": {
+                  bgcolor: "rgba(0, 0, 0, 0.04)",
+                },
+              }}
+            >
+              <Typography
+                variant="subtitle2"
+                sx={{
+                  fontWeight: 600,
+                  color: "text.primary",
+                  textTransform: "uppercase",
+                  fontSize: "0.75rem",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                Details{" "}
+                <Typography component="span" sx={{ color: "text.secondary", textTransform: "none" }}>
+                  (optional)
+                </Typography>
+              </Typography>
+              {expandedComments ? (
+                <ExpandLessIcon sx={{ color: "text.secondary", fontSize: "1.25rem" }} />
+              ) : (
+                <ExpandMoreIcon sx={{ color: "text.secondary", fontSize: "1.25rem" }} />
+              )}
+            </Box>
+            <Collapse in={expandedComments}>
+              <Box sx={{ p: 2 }}>
           <TextField
             label="Additional comments"
             multiline
@@ -1142,26 +1352,30 @@ export default function AddPlaceDialog({ open, onClose }) {
             disabled={submitting || isSelectingLocation}
             helperText="Anything important about accessibility, issues, time limits, etc."
             placeholder="E.g., Ramp available on the side entrance, accessible parking nearby..."
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    borderRadius: 1.5,
-                    transition: "all 0.2s ease-in-out",
-                    "&:hover:not(.Mui-disabled)": {
-                      "& .MuiOutlinedInput-notchedOutline": {
-                        borderColor: PRIMARY_BLUE + "80",
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: 1.5,
+                      transition: "all 0.2s ease-in-out",
+                      "&:hover:not(.Mui-disabled)": {
+                        "& .MuiOutlinedInput-notchedOutline": {
+                          borderColor: PRIMARY_BLUE + "80",
+                        },
+                      },
+                      "&.Mui-focused": {
+                        "& .MuiOutlinedInput-notchedOutline": {
+                          borderWidth: 2,
+                          borderColor: PRIMARY_BLUE,
+                        },
                       },
                     },
-                    "&.Mui-focused": {
-                      "& .MuiOutlinedInput-notchedOutline": {
-                        borderWidth: 2,
-                        borderColor: PRIMARY_BLUE,
-                      },
-                    },
-                  },
-                }}
-              />
+                  }}
+                />
+              </Box>
+            </Collapse>
+          </Box>
             </Stack>
           </Paper>
+          </Box>
 
           {/* Photos Section */}
           <Paper
