@@ -16,6 +16,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import WarningIcon from "@mui/icons-material/Warning";
 import EditIcon from "@mui/icons-material/Edit";
+import Image from "next/image";
 import ReportProblemIcon from "@mui/icons-material/ReportProblem";
 import { placeVotes, getVoteStatistics } from "../api/placeVotes";
 import { obstacleStorage } from "../api/obstacleStorage";
@@ -470,7 +471,6 @@ export default function ObstaclePopupDialog({ open, onClose, obstacle, onObstacl
               onClick={() => handleVote("confirm")}
               disabled={isLoading || !placeId}
               variant="contained"
-              color="success"
               startIcon={<CheckCircleIcon />}
               sx={{
                 textTransform: "none",
@@ -478,34 +478,12 @@ export default function ObstaclePopupDialog({ open, onClose, obstacle, onObstacl
                 px: 3,
                 py: 1,
                 borderRadius: 1.5,
+                bgcolor: PRIMARY_BLUE,
+                color: "#ffffff",
                 boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
                 transition: "all 0.2s ease-in-out",
                 "&:hover:not(:disabled)": {
-                  opacity: 0.9,
-                  boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
-                  transform: "translateY(-1px)",
-                },
-              }}
-            >
-              Confirm
-            </Button>
-            <Button
-              onClick={() => handleVote("issue")}
-              disabled={isLoading || !placeId}
-              variant="contained"
-              startIcon={<WarningIcon />}
-              sx={{
-                textTransform: "none",
-                fontWeight: 600,
-                px: 3,
-                py: 1,
-                borderRadius: 1.5,
-                bgcolor: "#FFC107",
-                color: "#000000",
-                boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
-                transition: "all 0.2s ease-in-out",
-                "&:hover:not(:disabled)": {
-                  bgcolor: "#FFC107",
+                  bgcolor: PRIMARY_BLUE,
                   opacity: 0.9,
                   boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
                   transform: "translateY(-1px)",
@@ -514,8 +492,46 @@ export default function ObstaclePopupDialog({ open, onClose, obstacle, onObstacl
                   bgcolor: "action.disabledBackground",
                   color: "action.disabled",
                 },
-                "& .MuiSvgIcon-root": {
-                  color: "#000000",
+              }}
+            >
+              Confirm
+            </Button>
+            <Button
+              onClick={() => handleVote("issue")}
+              disabled={isLoading || !placeId}
+              variant="outlined"
+              startIcon={
+                <Box
+                  component="img"
+                  src="/icons/maki/caution.svg"
+                  alt="Caution"
+                  sx={{
+                    width: 20,
+                    height: 20,
+                    display: "block",
+                  }}
+                />
+              }
+              sx={{
+                textTransform: "none",
+                fontWeight: 600,
+                px: 3,
+                py: 1,
+                borderRadius: 1.5,
+                bgcolor: "transparent",
+                color: "#000000",
+                borderColor: "#FFC107",
+                borderWidth: 2,
+                boxShadow: "none",
+                transition: "all 0.2s ease-in-out",
+                "&:hover:not(:disabled)": {
+                  bgcolor: "transparent",
+                  borderColor: "#FFC107",
+                  transform: "translateY(-1px)",
+                },
+                "&:disabled": {
+                  borderColor: "action.disabledBackground",
+                  color: "action.disabled",
                 },
               }}
             >

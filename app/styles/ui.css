@@ -1541,3 +1541,20 @@
   font-size: 11px;
   border: 1px solid rgba(0,0,0,0.12);
 }
+
+/* Make Leaflet.draw helper tooltip ("Click cancel to undo changes…")
+   float above everything (header, toolbar, markers, etc.) */
+.leaflet-draw-tooltip-pane,
+.leaflet-draw-tooltip {
+  z-index: 10050 !important; /* higher than #obstacle-management-overlay (1402) */
+}
+
+/* Optional: keep it clickable-safe and a bit nicer */
+.leaflet-draw-tooltip {
+  pointer-events: none;          /* don't block map clicks */
+  border-radius: 999px;          /* pill look like your toolbar helper */
+  padding: 6px 12px;
+  font-size: 11px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.18);
+  background: #ffffff;
+}
