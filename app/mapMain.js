@@ -799,7 +799,7 @@ async function attachObstacleTooltip(layer, obstacle) {
           html: true,
           title: enhancedText,
         });
-        layer._bsTooltip.show();
+        // Don't show automatically - only on hover
       }
     } catch (error) {
       console.error("Failed to load vote statistics for tooltip:", error);
