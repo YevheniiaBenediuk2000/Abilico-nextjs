@@ -15,31 +15,66 @@ export async function fetchRoute(coordinates, obstacleFeatures) {
   const url =
     "https://api.openrouteservice.org/v2/directions/wheelchair/geojson";
 
-  const obstacleCoordinates = obstacleFeatures.flatMap((f) => {
-    if (f.geometry.type === "Polygon") {
-      return [f.geometry.coordinates];
-    } else if (f.geometry.type === "MultiPolygon") {
-      return f.geometry.coordinates;
-    } else if (f.geometry.type === "Point") {
-      const poly = turfcircle(f.geometry.coordinates, f.properties.radius, {
-        steps: 32,
-        units: "meters",
-      });
-      return [poly.geometry.coordinates];
-    } else if (f.geometry.type === "LineString") {
-      const buffer = turfbuffer(f, 1, { units: "meters", steps: 16 });
-      return [buffer.geometry.coordinates];
-    }
-  });
+  // Filter and process obstacles - exclude invalid ones and caution markers (Point obstacles)
+  // Caution markers (Point obstacles) should not affect route calculation
+  const obstacleCoordinates = (obstacleFeatures || [])
+    .filter((f) => {
+      // Skip if geometry is missing or invalid
+      if (!f.geometry || !f.geometry.type || !f.geometry.coordinates) {
+        return false;
+      }
+      
+      // Skip Point obstacles (caution markers) - they should not affect route calculation
+      if (f.geometry.type === "Point") {
+        return false;
+      }
+      
+      // Validate coordinates are numbers
+      const coords = f.geometry.coordinates;
+      if (Array.isArray(coords)) {
+        const isValid = coords.every((coord) => {
+          if (Array.isArray(coord)) {
+            return coord.every((c) => typeof c === "number" && !isNaN(c));
+          }
+          return typeof coord === "number" && !isNaN(coord);
+        });
+        if (!isValid) {
+          return false;
+        }
+      }
+      
+      return true;
+    })
+    .flatMap((f) => {
+      if (f.geometry.type === "Polygon") {
+        return [f.geometry.coordinates];
+      } else if (f.geometry.type === "MultiPolygon") {
+        return f.geometry.coordinates;
+      } else if (f.geometry.type === "LineString") {
+        try {
+          const buffer = turfbuffer(f, 1, { units: "meters", steps: 16 });
+          if (buffer && buffer.geometry && buffer.geometry.coordinates) {
+            return [buffer.geometry.coordinates];
+          }
+        } catch (err) {
+          console.warn("Failed to buffer LineString obstacle:", err);
+        }
+        return [];
+      }
+      return [];
+    });
 
+  // Only include avoid_polygons if there are valid obstacles (excluding Point/caution markers)
   const requestBody = {
     coordinates,
-    options: {
-      avoid_polygons: {
-        type: "MultiPolygon",
-        coordinates: obstacleCoordinates,
+    ...(obstacleCoordinates.length > 0 && {
+      options: {
+        avoid_polygons: {
+          type: "MultiPolygon",
+          coordinates: obstacleCoordinates,
+        },
       },
-    },
+    }),
   };
 
   // console.log("🧭 RequestBody to ORS:", JSON.stringify(requestBody, null, 2));
