@@ -28,9 +28,12 @@ import AccessibilityNewIcon from "@mui/icons-material/AccessibilityNew";
 import PersonIcon from "@mui/icons-material/Person";
 import AddLocationIcon from "@mui/icons-material/AddLocation";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Chip from "@mui/material/Chip";
+import Collapse from "@mui/material/Collapse";
 import { addUserPlace } from "../api/placeStorage";
 import { reverseGeocode } from "../api/reverseGeocode";
 import { supabase } from "../api/supabaseClient";
@@ -87,6 +90,9 @@ export default function AddPlaceDialog({ open, onClose }) {
   const [submitterName, setSubmitterName] = useState("");
   const [submitterEmail, setSubmitterEmail] = useState("");
 
+  // Expandable section state
+  const [expandedDetails, setExpandedDetails] = useState(false);
+
   // Marker and popup for location confirmation
   const [locationMarker, setLocationMarker] = useState(null);
   const [confirmationPopup, setConfirmationPopup] = useState(null);
@@ -97,6 +103,7 @@ export default function AddPlaceDialog({ open, onClose }) {
       setError("");
       setSubmitting(false);
       setIsSelectingLocation(false);
+      setExpandedDetails(false);
       
       // If there's a pending location from map selection, use it and reverse geocode
       if (pendingLocation) {
@@ -573,12 +580,27 @@ export default function AddPlaceDialog({ open, onClose }) {
           borderColor: "divider",
           display: "flex",
           alignItems: "center",
+          justifyContent: "space-between",
           gap: 1.5,
           background: `linear-gradient(135deg, ${PRIMARY_BLUE}08 0%, ${PRIMARY_BLUE}02 100%)`,
         }}
       >
-        <AddLocationIcon sx={{ color: PRIMARY_BLUE, fontSize: "1.75rem" }} />
-        Add a New Place
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          <AddLocationIcon sx={{ color: PRIMARY_BLUE, fontSize: "1.75rem" }} />
+          Add a New Place
+        </Box>
+        <IconButton
+          onClick={handleClose}
+          disabled={submitting || isSelectingLocation}
+          sx={{
+            color: "text.secondary",
+            "&:hover": {
+              bgcolor: "rgba(0, 0, 0, 0.04)",
+            },
+          }}
+        >
+          <CloseIcon />
+        </IconButton>
       </DialogTitle>
       <DialogContent
         sx={{
@@ -621,7 +643,7 @@ export default function AddPlaceDialog({ open, onClose }) {
               Place Information{" "}
               <Typography component="span" color="error">
                 *
-              </Typography>
+          </Typography>
             </Typography>
             <Stack spacing={2}>
 
@@ -713,7 +735,7 @@ export default function AddPlaceDialog({ open, onClose }) {
             >
               <LocationOnIcon sx={{ fontSize: "1.25rem", color: PRIMARY_BLUE }} />
               Location
-            </Typography>
+          </Typography>
             <Stack spacing={2}>
           {/* Location selection */}
           <Box>
@@ -877,6 +899,46 @@ export default function AddPlaceDialog({ open, onClose }) {
             </Stack>
           </Paper>
 
+          {/* Expandable Details Button */}
+          <Box
+            onClick={() => setExpandedDetails(!expandedDetails)}
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 1,
+              py: 1.5,
+              cursor: "pointer",
+              borderRadius: 1,
+              transition: "background-color 0.2s",
+              "&:hover": {
+                bgcolor: "rgba(0, 0, 0, 0.02)",
+              },
+            }}
+          >
+            <Typography
+              variant="body1"
+              sx={{
+                color: PRIMARY_BLUE,
+                fontWeight: 500,
+                textTransform: "none",
+              }}
+            >
+              {expandedDetails ? "Hide" : "Add"} accessibility details{" "}
+              <Typography component="span" sx={{ color: PRIMARY_BLUE }}>
+                (optional)
+              </Typography>
+            </Typography>
+            {expandedDetails ? (
+              <ExpandLessIcon sx={{ color: PRIMARY_BLUE, fontSize: "1.25rem" }} />
+            ) : (
+              <ExpandMoreIcon sx={{ color: PRIMARY_BLUE, fontSize: "1.25rem" }} />
+            )}
+          </Box>
+
+          {/* Collapsible Sections 3-5 */}
+          <Collapse in={expandedDetails}>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
           {/* Accessibility Overview Section */}
           <Paper
             elevation={0}
@@ -906,7 +968,7 @@ export default function AddPlaceDialog({ open, onClose }) {
             >
               <AccessibilityNewIcon sx={{ fontSize: "1.25rem", color: PRIMARY_BLUE }} />
               Accessibility Overview
-            </Typography>
+          </Typography>
             <Stack spacing={2}>
           {/* Overall accessibility level - using OSM values */}
           <TextField
@@ -941,7 +1003,7 @@ export default function AddPlaceDialog({ open, onClose }) {
                 <MenuItem value="no">Not Accessible</MenuItem>
           </TextField>
 
-              {/* Step-free entrance */}
+          {/* Step-free entrance */}
               <FormControl
                 component="fieldset"
                 disabled={submitting || isSelectingLocation}
@@ -952,10 +1014,10 @@ export default function AddPlaceDialog({ open, onClose }) {
                 >
                   Step-free entrance
                 </FormLabel>
-                <RadioGroup
-                  row
-                  value={stepFreeEntrance}
-                  onChange={(e) => setStepFreeEntrance(e.target.value)}
+            <RadioGroup
+              row
+              value={stepFreeEntrance}
+              onChange={(e) => setStepFreeEntrance(e.target.value)}
                   sx={{ gap: 3, justifyContent: "center" }}
                 >
                   <FormControlLabel
@@ -1131,7 +1193,7 @@ export default function AddPlaceDialog({ open, onClose }) {
             >
               <PhotoCameraIcon sx={{ fontSize: "1.25rem", color: PRIMARY_BLUE }} />
               Photos
-            </Typography>
+          </Typography>
           <Box>
             <input
               accept="image/*"
@@ -1146,11 +1208,11 @@ export default function AddPlaceDialog({ open, onClose }) {
               disabled={submitting || isSelectingLocation}
             />
             <Box sx={{ display: "flex", justifyContent: "center" }}>
-              <label htmlFor="photo-upload-input">
-                <Button
+            <label htmlFor="photo-upload-input">
+              <Button
                   variant="contained"
-                  component="span"
-                  disabled={submitting || isSelectingLocation}
+                component="span"
+                disabled={submitting || isSelectingLocation}
                   sx={{
                     mb: photos.length > 0 ? 1.5 : 0,
                     bgcolor: PRIMARY_BLUE,
@@ -1169,10 +1231,10 @@ export default function AddPlaceDialog({ open, onClose }) {
                       boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
                     },
                   }}
-                >
-                  Upload Photos
-                </Button>
-              </label>
+              >
+                Upload Photos
+              </Button>
+            </label>
             </Box>
             {photos.length > 0 && (
                 <Box>
@@ -1263,8 +1325,8 @@ export default function AddPlaceDialog({ open, onClose }) {
                   ))}
                 </Box>
                   <FormHelperText sx={{ mt: 1.5, fontSize: "0.8125rem" }}>
-                    Upload photos of entrance, ramp, stairs, lift, etc.
-                  </FormHelperText>
+                  Upload photos of entrance, ramp, stairs, lift, etc.
+                </FormHelperText>
               </Box>
             )}
           </Box>
@@ -1298,11 +1360,11 @@ export default function AddPlaceDialog({ open, onClose }) {
               }}
             >
               <PersonIcon sx={{ fontSize: "1.25rem", color: PRIMARY_BLUE }} />
-              Person who submits
-            </Typography>
+              Contact details
+          </Typography>
             <Stack spacing={2}>
           <TextField
-                label="Your name"
+                label="Name"
             fullWidth
             value={submitterName}
             onChange={(e) => setSubmitterName(e.target.value)}
@@ -1327,7 +1389,7 @@ export default function AddPlaceDialog({ open, onClose }) {
           />
 
           <TextField
-                label="Email for contact (not shown on the map)"
+                label="Email"
             type="email"
             fullWidth
             value={submitterEmail}
@@ -1353,6 +1415,8 @@ export default function AddPlaceDialog({ open, onClose }) {
               />
             </Stack>
           </Paper>
+            </Box>
+          </Collapse>
 
           {/* Error message */}
           {error && (
