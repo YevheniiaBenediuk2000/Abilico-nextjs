@@ -962,7 +962,7 @@
 
 /* === Custom Draw Toolbar: Consistent Design === */
 
-/* Base styling for all toolbar buttons - rounded button cards */
+/* Base styling for all toolbar buttons - no rounding */
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar a {
   width: 40px !important;
   height: 40px !important;
@@ -970,7 +970,7 @@
   align-items: center !important;
   justify-content: center !important;
   background-color: #f5f5f5 !important;
-  border-radius: 8px !important;
+  border-radius: 0 !important;
   margin: 4px 6px !important;
   box-shadow: none !important;
   transition: all 0.15s ease;
@@ -1006,7 +1006,7 @@
   background-size: auto !important;
   box-shadow: none !important;
   filter: none !important;
-  border-radius: 8px !important;
+  border-radius: 0 !important;
   width: 40px !important;
   height: 40px !important;
   margin: 4px 6px !important;
@@ -1046,7 +1046,7 @@
   background-size: auto !important;
   box-shadow: none !important;
   filter: none !important;
-  border-radius: 8px !important;
+  border-radius: 0 !important;
   width: 40px !important;
   height: 40px !important;
   margin: 4px 6px !important;
@@ -1075,6 +1075,18 @@
   background-color: transparent !important;
 }
 
+/* Separator line above edit button */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"]::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: 8px;
+  right: 8px;
+  height: 1px;
+  background-color: #e0e0e0;
+  display: block;
+}
+
 /* Edit and Delete buttons - rounded button cards, color #464646 */
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"],
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"] {
@@ -1088,8 +1100,9 @@
   color: #464646 !important;
   width: 40px !important;
   height: 40px !important;
-  border-radius: 8px !important;
+  border-radius: 0 !important;
   margin: 4px 6px !important;
+  position: relative !important;
 }
 
 /* Consistent icon sizing for MUI icons - centered */
@@ -1231,12 +1244,12 @@
 
 /* Drawing tool icons are now MUI React components, handled by the force centering rules at bottom */
 
-/* Ensure toolbar container has clean white background with rounded corners */
+/* Ensure toolbar container has clean white background - no rounding */
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar-top,
 .leaflet-control.leaflet-draw .leaflet-draw-section,
 .leaflet-control.leaflet-draw .leaflet-draw-section:first-child {
   background-color: #ffffff;
-  border-radius: 12px;
+  border-radius: 0;
   box-shadow: none;
   border: none;
 }
@@ -1247,26 +1260,26 @@
   border-bottom: none;
 }
 
-/* Ensure all sections have consistent styling with rounded corners */
+/* Ensure all sections have consistent styling - no rounding */
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar .leaflet-draw-section {
   background-color: #ffffff;
-  border-radius: 12px;
+  border-radius: 0;
   box-shadow: none;
   border: none;
 }
 
-/* Main toolbar container - rounded corners */
+/* Main toolbar container - no rounding */
 .leaflet-control.leaflet-draw {
-  border-radius: 12px;
+  border-radius: 0;
   overflow: hidden;
 }
 
-/* Drawing tools should have rounded button card styling - same as others */
+/* Drawing tools - no rounding */
 .leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-"] {
   background-color: #f5f5f5 !important;
   width: 40px !important;
   height: 40px !important;
-  border-radius: 8px !important;
+  border-radius: 0 !important;
   margin: 4px 6px !important;
   display: flex !important;
   align-items: center !important;
