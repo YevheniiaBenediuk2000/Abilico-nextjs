@@ -1075,7 +1075,7 @@
   background-color: transparent !important;
 }
 
-/* Edit and Delete buttons - rounded button cards, same gray color */
+/* Edit and Delete buttons - rounded button cards, color #464646 */
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"],
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"] {
   background-image: none !important;
@@ -1085,7 +1085,7 @@
   background-size: auto !important;
   box-shadow: none !important;
   filter: none !important;
-  color: #666 !important;
+  color: #464646 !important;
   width: 40px !important;
   height: 40px !important;
   border-radius: 8px !important;
@@ -1099,6 +1099,7 @@
   height: 20px !important;
   margin: 0 auto;
   display: block;
+  color: #464646 !important;
 }
 
 /* Hide default icons in edit/delete buttons */
@@ -1123,6 +1124,7 @@
   background: none !important;
   background-image: none !important;
   background-color: transparent !important;
+  color: #464646 !important;
 }
 
 /* Collapsible draw tools container */
