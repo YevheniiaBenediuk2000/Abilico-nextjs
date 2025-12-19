@@ -65,6 +65,12 @@ import { PRIMARY_BLUE } from "./constants/constants.mjs";
 const GREEN = "#4caf50";
 const ORANGE = "#ff9800";
 const RED = "#f44336";
+
+// Accessibility level labels
+const ACCESSIBILITY_LABEL_DESIGNATED = "Designated";
+const ACCESSIBILITY_LABEL_ACCESSIBLE = "Accessible";
+const ACCESSIBILITY_LABEL_LIMITED = "Limited";
+const ACCESSIBILITY_LABEL_NOT_ACCESSIBLE = "Not Accessible";
 import { toastError, toastSuccess } from "./utils/toast.mjs";
 import {
   TAG_CHIP_ICON_STYLE,
@@ -2196,7 +2202,7 @@ export default function MapContainer({
                   </Typography>
                   <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "center" }}>
                     <Chip
-                      label="Designated"
+                      label={ACCESSIBILITY_LABEL_DESIGNATED}
                       onClick={() => setSelectedRealityStatus("designated")}
                       sx={{
                         height: 32,
@@ -2219,7 +2225,7 @@ export default function MapContainer({
                       }}
                     />
                     <Chip
-                      label="Accessible"
+                      label={ACCESSIBILITY_LABEL_ACCESSIBLE}
                       onClick={() => setSelectedRealityStatus("yes")}
                       sx={{
                         height: 32,
@@ -2240,7 +2246,7 @@ export default function MapContainer({
                       }}
                     />
                     <Chip
-                      label="Limited"
+                      label={ACCESSIBILITY_LABEL_LIMITED}
                       onClick={() => setSelectedRealityStatus("limited")}
                       sx={{
                         height: 32,
@@ -2263,7 +2269,7 @@ export default function MapContainer({
                       }}
                     />
                     <Chip
-                      label="Not Accessible"
+                      label={ACCESSIBILITY_LABEL_NOT_ACCESSIBLE}
                       onClick={() => setSelectedRealityStatus("no")}
                       sx={{
                         height: 32,
@@ -2313,14 +2319,14 @@ export default function MapContainer({
                       variant="subtitle2"
                       sx={{
                         fontWeight: 600,
-                        color: "text.primary",
+                        color: PRIMARY_BLUE,
                         textTransform: "uppercase",
                         fontSize: "0.75rem",
                         letterSpacing: "0.5px",
                       }}
                     >
                       Details{" "}
-                      <Typography component="span" sx={{ color: PRIMARY_BLUE, textTransform: "none" }}>
+                      <Typography component="span" sx={{ color: PRIMARY_BLUE, textTransform: "none", fontWeight: 600, fontSize: "0.75rem", letterSpacing: "0.5px" }}>
                         (optional)
                       </Typography>
                     </Typography>
