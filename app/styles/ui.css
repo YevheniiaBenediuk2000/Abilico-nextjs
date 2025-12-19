@@ -960,26 +960,56 @@
   letter-spacing: 0.04em;
 }
 
-/* === Custom Draw Toolbar: Caution Button & Dropdown === */
+/* === Custom Draw Toolbar: Consistent Design === */
 
-/* Caution button styling - remove all Leaflet.draw default sprites */
+/* Base styling for all toolbar buttons - rounded button cards */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a {
+  width: 40px !important;
+  height: 40px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background-color: #f5f5f5 !important;
+  border-radius: 8px !important;
+  margin: 4px 6px !important;
+  box-shadow: none !important;
+  transition: all 0.15s ease;
+}
+
+/* Same hover state for ALL buttons - no exceptions */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a:hover,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-caution:hover,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown:hover,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"]:hover,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"]:hover,
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-"]:hover {
+  background-color: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12) !important;
+  transform: translateY(-1px);
+}
+
+/* Active/enabled state - same for all */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a.leaflet-draw-toolbar-button-enabled {
+  background-color: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Caution button styling - rounded button card, icon color stays yellow */
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-caution,
 .leaflet-control.leaflet-draw a.leaflet-draw-toolbar-button-caution,
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar a.leaflet-draw-toolbar-button-caution {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
   /* Remove any default Leaflet.draw sprite/background */
   background-image: none !important;
-  background-color: transparent !important;
+  background-color: #f5f5f5 !important;
   background-position: center !important;
   background-repeat: no-repeat !important;
   background-size: auto !important;
   box-shadow: none !important;
-  /* Remove any default gradients */
   filter: none !important;
+  border-radius: 8px !important;
+  width: 40px !important;
+  height: 40px !important;
+  margin: 4px 6px !important;
 }
 
 /* Hide any default Leaflet.draw icon spans or pseudo-elements */
@@ -995,45 +1025,31 @@
 }
 
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-caution svg {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   display: block;
   z-index: 1;
   position: relative;
+  margin: 0 auto;
 }
 
-.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-caution:hover,
-.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-caution:focus {
-  background-color: rgba(0, 0, 0, 0.04);
-  /* Ensure no sprite shows on hover */
-  background-image: none !important;
-}
-
-.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-caution.leaflet-draw-toolbar-button-enabled {
-  background-color: rgba(25, 118, 210, 0.12);
-  /* Ensure no sprite shows when enabled */
-  background-image: none !important;
-}
-
-/* Dropdown toggle button - remove all backgrounds */
+/* Dropdown toggle button - rounded button card */
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown,
 .leaflet-control.leaflet-draw a.leaflet-draw-toolbar-button-dropdown {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  font-size: 12px;
+  font-size: 18px;
   color: #666 !important;
-  transition: transform 0.2s ease;
   /* Remove any default Leaflet.draw sprite/background */
   background-image: none !important;
-  background-color: transparent !important;
+  background-color: #f5f5f5 !important;
   background-position: center !important;
   background-repeat: no-repeat !important;
   background-size: auto !important;
   box-shadow: none !important;
   filter: none !important;
+  border-radius: 8px !important;
+  width: 40px !important;
+  height: 40px !important;
+  margin: 4px 6px !important;
 }
 
 /* Hide any default icon elements in dropdown button */
@@ -1046,35 +1062,10 @@
   background-image: none !important;
 }
 
-/* No hover effect when not active/clicked */
-.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown:hover:not(:active),
-.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown:focus:not(:active) {
-  background-color: transparent !important;
-  background-image: none !important;
-  color: #666 !important;
-}
-
-/* Only show hover when actively clicked */
-.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown:active {
-  background-color: rgba(0, 0, 0, 0.04) !important;
-  background-image: none !important;
-  color: #666 !important;
-}
-
+/* Dropdown button uses base hover styles */
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown.expanded {
   color: #666 !important;
   background-image: none !important;
-}
-
-.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown.expanded:hover:not(:active),
-.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown.expanded:focus:not(:active) {
-  color: #666 !important;
-  background-color: transparent !important;
-}
-
-.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown.expanded:active {
-  color: #666 !important;
-  background-color: rgba(0, 0, 0, 0.04) !important;
 }
 
 /* Ensure React icon container inside dropdown has no background */
@@ -1084,19 +1075,30 @@
   background-color: transparent !important;
 }
 
-/* Edit and Delete buttons - remove Leaflet.draw sprites */
+/* Edit and Delete buttons - rounded button cards, same gray color */
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"],
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"] {
   background-image: none !important;
-  background-color: transparent !important;
+  background-color: #f5f5f5 !important;
   background-position: center !important;
   background-repeat: no-repeat !important;
   background-size: auto !important;
   box-shadow: none !important;
   filter: none !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
+  color: #666 !important;
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 8px !important;
+  margin: 4px 6px !important;
+}
+
+/* Consistent icon sizing for MUI icons - centered */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"] svg,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"] svg {
+  width: 20px !important;
+  height: 20px !important;
+  margin: 0 auto;
+  display: block;
 }
 
 /* Hide default icons in edit/delete buttons */
@@ -1131,6 +1133,7 @@
   box-shadow: none;
   padding: 0;
   margin: 0;
+  border: none;
 }
 
 .leaflet-control.leaflet-draw .leaflet-draw-tools-container[style*="block"] {
@@ -1144,14 +1147,30 @@
   opacity: 1 !important;
 }
 
-/* Remove grey background from Leaflet.draw toolbar */
+/* Remove grey background from Leaflet.draw toolbar and make it wider */
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar {
   background-color: transparent;
+  width: auto !important;
+  min-width: 52px !important;
 }
 
-/* Remove background from toolbar buttons, but allow drawing tools to keep theirs */
-.leaflet-control.leaflet-draw .leaflet-draw-toolbar a {
-  background-color: transparent;
+/* Ensure all icons are same gray color except caution */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"],
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"],
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-"] {
+  color: #666 !important;
+}
+
+/* Ensure drawing tool icons are gray */
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-"] .leaflet-draw-toolbar-icon {
+  opacity: 0.7;
+  filter: grayscale(100%) brightness(0.4);
+}
+
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-"]:hover .leaflet-draw-toolbar-icon {
+  opacity: 1;
+  filter: grayscale(100%) brightness(0.4);
 }
 
 /* Exception: drawing tools need their background-image for sprites - handled by Leaflet.draw's default CSS */
@@ -1162,8 +1181,9 @@
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"],
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"] {
   background-image: none !important;
-  background-color: transparent !important;
+  background-color: #f5f5f5 !important;
 }
+
 
 /* Hide default icons only for custom buttons, NOT for drawing tools */
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-caution .leaflet-draw-toolbar-icon,
@@ -1193,11 +1213,46 @@
   opacity: 1 !important;
 }
 
-/* Ensure toolbar container has clean white background */
+/* Ensure toolbar container has clean white background with rounded corners */
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar-top,
+.leaflet-control.leaflet-draw .leaflet-draw-section,
 .leaflet-control.leaflet-draw .leaflet-draw-section:first-child {
   background-color: #ffffff;
-  border-radius: 0;
+  border-radius: 12px;
+  box-shadow: none;
+  border: none;
+}
+
+/* Remove all separators between sections */
+.leaflet-control.leaflet-draw .leaflet-draw-section {
+  border-top: none;
+  border-bottom: none;
+}
+
+/* Ensure all sections have consistent styling with rounded corners */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar .leaflet-draw-section {
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: none;
+  border: none;
+}
+
+/* Main toolbar container - rounded corners */
+.leaflet-control.leaflet-draw {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* Drawing tools should have rounded button card styling - same as others */
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-"] {
+  background-color: #f5f5f5 !important;
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 8px !important;
+  margin: 4px 6px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
 /* === Supabase Auth UI Custom Styling === */
