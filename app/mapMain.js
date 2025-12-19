@@ -5403,13 +5403,19 @@ async function initDrawingObstacles() {
         pane: "obstaclesPane",
       });
     } else if (feature.geometry.type === "Point" && feature.properties.shape === "marker") {
-      // Handle caution markers (Point obstacles)
+      // Handle caution markers (Point obstacles) - circular badge style like POI
       const [lng, lat] = feature.geometry.coordinates;
-      const cautionIcon = L.icon({
-        iconUrl: '/icons/maki/caution.svg',
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
-        popupAnchor: [0, -12],
+      const cautionIcon = L.divIcon({
+        className: "caution-badge-wrapper",
+        html: `
+          <div class="caution-badge">
+            <img src="/icons/maki/caution.svg" alt="Caution" />
+          </div>
+        `,
+        iconSize: [33, 33],
+        iconAnchor: [16, 30],
+        popupAnchor: [0, -20],
+        tooltipAnchor: [0, -16],
       });
       layer = L.marker([lat, lng], {
         icon: cautionIcon,
@@ -5421,11 +5427,17 @@ async function initDrawingObstacles() {
       const geoJsonLayer = L.geoJSON(feature, { 
         style: { color: "red" },
         pointToLayer: (feature, latlng) => {
-          const cautionIcon = L.icon({
-            iconUrl: '/icons/maki/caution.svg',
-            iconSize: [24, 24],
-            iconAnchor: [12, 12],
-            popupAnchor: [0, -12],
+          const cautionIcon = L.divIcon({
+            className: "caution-badge-wrapper",
+            html: `
+              <div class="caution-badge">
+                <img src="/icons/maki/caution.svg" alt="Caution" style="width: 16px; height: 16px;" />
+              </div>
+            `,
+            iconSize: [33, 33],
+            iconAnchor: [16, 30],
+            popupAnchor: [0, -20],
+            tooltipAnchor: [0, -16],
           });
           return L.marker(latlng, {
             icon: cautionIcon,
@@ -5442,25 +5454,25 @@ async function initDrawingObstacles() {
     }
 
     if (layer) {
-      layer.options.obstacleId = feature.id;
+    layer.options.obstacleId = feature.id;
       // Add to obstacles layer (not drawnItems, and NOT to cluster group)
       if (obstaclesLayer) {
         obstaclesLayer.addLayer(layer);
       // Initial visibility will be set when obstaclesLayer is added to map
       } else {
-        drawnItems.addLayer(layer);
+    drawnItems.addLayer(layer);
       }
-      hookLayerInteractions(layer, feature.properties);
-      // Attach tooltip with vote counts support after layer is added
-      layer.once("add", () => {
-        attachObstacleTooltip(layer, feature);
-      });
+    hookLayerInteractions(layer, feature.properties);
+    // Attach tooltip with vote counts support after layer is added
+    layer.once("add", () => {
+      attachObstacleTooltip(layer, feature);
+    });
     }
   });
 
   // Only add drawnItems if obstaclesLayer wasn't created yet (fallback)
   if (!obstaclesLayer) {
-    map.addLayer(drawnItems);
+  map.addLayer(drawnItems);
   } else if (map) {
     // Add obstacles layer to map only if zoom >= 17
     const showObstacles = map.getZoom() >= 17;
@@ -6245,10 +6257,10 @@ export function updateUser(user) {
   if (user && !drawControl && map) {
       // Use obstaclesLayer for editing if available, otherwise fallback to drawnItems
       const editFeatureGroup = obstaclesLayer || drawnItems;
-      drawControl = new L.Control.Draw({
-        position: "topright",
+    drawControl = new L.Control.Draw({
+      position: "topright",
         edit: { featureGroup: editFeatureGroup },
-        draw: {
+      draw: {
         polyline: { shapeOptions: { color: "red" } },
         marker: false,
         polygon: { allowIntersection: false, shapeOptions: { color: "red" } },
@@ -6323,21 +6335,33 @@ function setupObstacleEventHandlers() {
         pane: "obstaclesPane",
       });
     } else if (isCautionMarker) {
-      // Handle caution marker (point obstacle) - use obstacles pane
+      // Handle caution marker (point obstacle) - use obstacles pane with circular badge
       featureToStore = e.layer.toGeoJSON();
-      // Recreate marker with obstacles pane
+      // Recreate marker with obstacles pane and circular badge style
       const latlng = e.layer.getLatLng();
-      const icon = e.layer.options.icon;
+      const cautionIcon = L.divIcon({
+        className: "caution-badge-wrapper",
+        html: `
+          <div class="caution-badge">
+            <img src="/icons/maki/caution.svg" alt="Caution" />
+          </div>
+        `,
+        iconSize: [33, 33],
+        iconAnchor: [16, 30],
+        popupAnchor: [0, -20],
+        tooltipAnchor: [0, -16],
+      });
       layerToAdd = L.marker(latlng, {
-        icon: icon,
+        icon: cautionIcon,
         pane: "obstaclesPane",
         zIndexOffset: 1000,
+        isCautionMarker: true,
       });
     } else {
       featureToStore = e.layer.toGeoJSON();
       // For polygons, polylines, rectangles - add pane option
       if (e.layer instanceof L.Polygon || e.layer instanceof L.Polyline || e.layer instanceof L.Rectangle) {
-        layerToAdd = e.layer;
+      layerToAdd = e.layer;
         layerToAdd.options.pane = "obstaclesPane";
         // Update the pane if layer already has a renderer
         if (layerToAdd._renderer) {
@@ -6354,7 +6378,7 @@ function setupObstacleEventHandlers() {
       // Visibility controlled by zoom - if zoom < 17, obstaclesLayer won't be on map
       // If zoom >= 17, layer will be visible since obstaclesLayer is on map
     } else {
-      drawnItems.addLayer(layerToAdd);
+    drawnItems.addLayer(layerToAdd);
     }
 
     const result = await showObstacleModal();
@@ -6363,7 +6387,7 @@ function setupObstacleEventHandlers() {
       if (obstaclesLayer) {
         obstaclesLayer.removeLayer(layerToAdd);
       } else {
-        drawnItems.removeLayer(layerToAdd);
+      drawnItems.removeLayer(layerToAdd);
       }
       return;
     }
@@ -6399,7 +6423,7 @@ function setupObstacleEventHandlers() {
       if (obstaclesLayer) {
         obstaclesLayer.removeLayer(layerToAdd);
       } else {
-        drawnItems.removeLayer(layerToAdd);
+      drawnItems.removeLayer(layerToAdd);
       }
       toastError("Could not save obstacle.");
     } finally {

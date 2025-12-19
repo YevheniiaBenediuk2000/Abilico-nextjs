@@ -25,3 +25,30 @@
     background:transparent;
     border:none;
 }
+
+/* Caution badge - circular with border like POI badge */
+.caution-badge{
+    width:33px;
+    height:33px;
+    border-radius:9999px;
+    background: #ffffff;
+    box-shadow:
+            0 6px 16px rgba(0,0,0,.25),
+            inset 0 0 0 2px rgba(0,0,0,.15);
+    display:grid;
+    place-items:center;
+}
+
+/* Caution icon inside badge - same size as POI glyph */
+.caution-badge img{
+    width:16px;
+    height:16px;
+    display:block;
+    object-fit:contain;
+}
+
+/* Remove default Leaflet div-icon box for caution badge */
+.caution-badge-wrapper.leaflet-div-icon{
+    background:transparent;
+    border:none;
+}

@@ -91,12 +91,18 @@ export function customizeDrawToolbar(drawControl, map) {
         cautionButton.style.color = '#FFC107';
       });
 
-    // Create caution icon for marker
-    const cautionIcon = L.icon({
-      iconUrl: '/icons/maki/caution.svg',
-      iconSize: [24, 24],
-      iconAnchor: [12, 12],
-      popupAnchor: [0, -12],
+    // Create caution icon for marker - circular badge style like POI
+    const cautionIcon = L.divIcon({
+      className: "caution-badge-wrapper",
+      html: `
+        <div class="caution-badge">
+          <img src="/icons/maki/caution.svg" alt="Caution" />
+        </div>
+      `,
+      iconSize: [33, 33],
+      iconAnchor: [16, 30],
+      popupAnchor: [0, -20],
+      tooltipAnchor: [0, -16],
     });
 
     // Create custom marker draw handler for caution tool (only once)

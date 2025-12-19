@@ -46,16 +46,16 @@ export async function fetchRoute(coordinates, obstacleFeatures) {
       return true;
     })
     .flatMap((f) => {
-      if (f.geometry.type === "Polygon") {
-        return [f.geometry.coordinates];
-      } else if (f.geometry.type === "MultiPolygon") {
-        return f.geometry.coordinates;
-      } else if (f.geometry.type === "LineString") {
+    if (f.geometry.type === "Polygon") {
+      return [f.geometry.coordinates];
+    } else if (f.geometry.type === "MultiPolygon") {
+      return f.geometry.coordinates;
+    } else if (f.geometry.type === "LineString") {
         try {
-          const buffer = turfbuffer(f, 1, { units: "meters", steps: 16 });
+      const buffer = turfbuffer(f, 1, { units: "meters", steps: 16 });
           if (buffer && buffer.geometry && buffer.geometry.coordinates) {
-            return [buffer.geometry.coordinates];
-          }
+      return [buffer.geometry.coordinates];
+    }
         } catch (err) {
           console.warn("Failed to buffer LineString obstacle:", err);
         }
@@ -68,12 +68,12 @@ export async function fetchRoute(coordinates, obstacleFeatures) {
   const requestBody = {
     coordinates,
     ...(obstacleCoordinates.length > 0 && {
-      options: {
-        avoid_polygons: {
-          type: "MultiPolygon",
-          coordinates: obstacleCoordinates,
-        },
+    options: {
+      avoid_polygons: {
+        type: "MultiPolygon",
+        coordinates: obstacleCoordinates,
       },
+    },
     }),
   };
 

@@ -1075,17 +1075,7 @@
   background-color: transparent !important;
 }
 
-/* Separator line above edit button - thin, not full width */
-.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"]::before {
-  content: '';
-  position: absolute;
-  top: -2px;
-  left: 12px;
-  right: 12px;
-  height: 1px;
-  background-color: #e0e0e0;
-  display: block;
-}
+/* Separator line removed - now using section-level pseudo-elements */
 
 /* Edit and Delete buttons - rounded button cards, color #464646 */
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"],
@@ -1272,6 +1262,8 @@
 .leaflet-control.leaflet-draw {
   border-radius: 16px;
   overflow: hidden;
+  padding-top: 5px;
+  padding-bottom: 5px;
 }
 
 /* Drawing tools - rounded buttons */
@@ -1505,4 +1497,29 @@
 .leaflet-control.leaflet-draw .leaflet-draw-tools-container a svg {
   margin: 0 !important;
   display: block;
+}
+
+/* --- Thin separators in the custom draw toolbar (scoped to obstacle management) --- */
+
+/* 0) Let Leaflet.draw helper actions (Finish / Cancel / Delete last point)
+      render outside the white card */
+#obstacle-management-overlay .leaflet-control.leaflet-draw {
+  border-radius: 16px;
+  overflow: visible; /* was hidden – this was clipping the helpers */
+}
+
+/* 1) A bit of vertical breathing room for both sections */
+#obstacle-management-overlay .leaflet-control.leaflet-draw .leaflet-draw-section {
+  padding: 4px 0 8px;
+}
+
+/* 2) ONE separator, just under the expand icon (i.e. under the first section) */
+#obstacle-management-overlay .leaflet-control.leaflet-draw
+  .leaflet-draw-section:first-child::after {
+  content: "";
+  display: block;
+  height: 1px;
+  background-color: #e0e0e0;
+  /* line is shorter than the white card and sits "outside" the inner boxes */
+  margin: 10px 16px 0;  /* top spacing before the line, no bottom spacing */
 }
