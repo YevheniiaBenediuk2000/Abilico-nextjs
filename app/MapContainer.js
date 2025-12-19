@@ -48,6 +48,10 @@ import { useTheme } from "@mui/material/styles";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import ReportProblemIcon from "@mui/icons-material/ReportProblem";
+import AccessibilityNewIcon from "@mui/icons-material/AccessibilityNew";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import Collapse from "@mui/material/Collapse";
 
 import PlacesListReact from "./components/PlacesListReact";
 import ReviewForm from "./components/ReviewForm";
@@ -56,6 +60,11 @@ import AccessibilityInfoLegend from "./components/AccessibilityInfoLegend";
 import { ensurePlaceExists } from "./api/reviewStorage.js";
 import globals from "./constants/globalVariables.js";
 import { PRIMARY_BLUE } from "./constants/constants.mjs";
+
+// Accessibility level colors
+const GREEN = "#4caf50";
+const ORANGE = "#ff9800";
+const RED = "#f44336";
 import { toastError, toastSuccess } from "./utils/toast.mjs";
 import {
   TAG_CHIP_ICON_STYLE,
@@ -151,6 +160,7 @@ export default function MapContainer({
   const [selectedRealityStatus, setSelectedRealityStatus] = useState("");
   const [selectedSpecificIssues, setSelectedSpecificIssues] = useState([]);
   const [inaccuracyComment, setInaccuracyComment] = useState("");
+  const [expandedDetails, setExpandedDetails] = useState(false);
 
   const [isPlaceSaved, setIsPlaceSaved] = useState(false);
   const [savedPlaceId, setSavedPlaceId] = useState(null);
@@ -1840,6 +1850,7 @@ export default function MapContainer({
           setSelectedRealityStatus("");
           setSelectedSpecificIssues([]);
           setInaccuracyComment("");
+          setExpandedDetails(false);
         }}
         maxWidth="sm"
         fullWidth
@@ -2076,6 +2087,7 @@ export default function MapContainer({
                   setSelectedRealityStatus("");
                   setSelectedSpecificIssues([]);
                   setInaccuracyComment("");
+                  setExpandedDetails(false);
                 }}
                 sx={{
                   textTransform: "none",
@@ -2122,286 +2134,487 @@ export default function MapContainer({
           </>
         ) : inaccuracyScreen === 2 ? (
           <>
-            <DialogTitle>Fix accessibility info</DialogTitle>
-            <DialogContent>
-              {/* Accessibility level */}
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="body2" sx={{ mb: 1.5, fontWeight: 600 }}>
-                  Accessibility level
+            <DialogTitle
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                pb: 2,
+              }}
+            >
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                <AccessibilityNewIcon sx={{ color: PRIMARY_BLUE, fontSize: "1.5rem" }} />
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  Fix accessibility info
                 </Typography>
-                <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-                  <Chip
-                    label="Designated"
-                    onClick={() => setSelectedRealityStatus("designated")}
-                    color={
-                      selectedRealityStatus === "designated"
-                        ? "primary"
-                        : "default"
-                    }
-                    variant={
-                      selectedRealityStatus === "designated"
-                        ? "filled"
-                        : "outlined"
-                    }
-                    sx={{
-                      backgroundColor:
-                        selectedRealityStatus === "designated"
-                          ? "#4caf50"
-                          : "transparent",
-                      color:
-                        selectedRealityStatus === "designated"
-                          ? "white"
-                          : "inherit",
-                      borderColor: "#4caf50",
-                      "&:hover": {
-                        backgroundColor: "#4caf50",
-                        color: "white",
-                      },
-                    }}
-                  />
-                  <Chip
-                    label="Yes"
-                    onClick={() => setSelectedRealityStatus("yes")}
-                    color={
-                      selectedRealityStatus === "yes" ? "primary" : "default"
-                    }
-                    variant={
-                      selectedRealityStatus === "yes" ? "filled" : "outlined"
-                    }
-                    sx={{
-                      backgroundColor:
-                        selectedRealityStatus === "yes"
-                          ? "#4caf50"
-                          : "transparent",
-                      color:
-                        selectedRealityStatus === "yes" ? "white" : "inherit",
-                      borderColor: "#4caf50",
-                      "&:hover": {
-                        backgroundColor: "#4caf50",
-                        color: "white",
-                      },
-                    }}
-                  />
-                  <Chip
-                    label="Limited"
-                    onClick={() => setSelectedRealityStatus("limited")}
-                    color={
-                      selectedRealityStatus === "limited"
-                        ? "primary"
-                        : "default"
-                    }
-                    variant={
-                      selectedRealityStatus === "limited"
-                        ? "filled"
-                        : "outlined"
-                    }
-                    sx={{
-                      backgroundColor:
-                        selectedRealityStatus === "limited"
-                          ? "#ff9800"
-                          : "transparent",
-                      color:
-                        selectedRealityStatus === "limited"
-                          ? "white"
-                          : "inherit",
-                      borderColor: "#ff9800",
-                      "&:hover": {
-                        backgroundColor: "#ff9800",
-                        color: "white",
-                      },
-                    }}
-                  />
-                  <Chip
-                    label="No"
-                    onClick={() => setSelectedRealityStatus("no")}
-                    color={
-                      selectedRealityStatus === "no" ? "primary" : "default"
-                    }
-                    variant={
-                      selectedRealityStatus === "no" ? "filled" : "outlined"
-                    }
-                    sx={{
-                      backgroundColor:
-                        selectedRealityStatus === "no"
-                          ? "#f44336"
-                          : "transparent",
-                      color:
-                        selectedRealityStatus === "no" ? "white" : "inherit",
-                      borderColor: "#f44336",
-                      "&:hover": {
-                        backgroundColor: "#f44336",
-                        color: "white",
-                      },
-                    }}
-                  />
-                </Box>
               </Box>
+              <IconButton
+                onClick={() => {
+                  setInaccuracyModalOpen(false);
+                  setSelectedInaccuracyReason("");
+                  setInaccuracyScreen(1);
+                  setSelectedRealityStatus("");
+                  setSelectedSpecificIssues([]);
+                  setInaccuracyComment("");
+                  setExpandedDetails(false);
+                }}
+                size="small"
+                sx={{
+                  color: "text.secondary",
+                  "&:hover": {
+                    bgcolor: "action.hover",
+                    color: "text.primary",
+                  },
+                }}
+              >
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            </DialogTitle>
+            <DialogContent sx={{ pt: 2 }}>
+              <Stack spacing={2.5}>
+                {/* Accessibility Level */}
+                <Paper
+                  elevation={0}
+                  sx={{
+                    border: "1px solid rgba(0,0,0,0.12)",
+                    borderRadius: 3,
+                    p: 2.5,
+                  }}
+                >
+                  <Typography
+                    variant="subtitle2"
+                    sx={{
+                      mb: 2,
+                      fontWeight: 600,
+                      color: "text.primary",
+                      textTransform: "uppercase",
+                      fontSize: "0.75rem",
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    Accessibility Level
+                  </Typography>
+                  <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "center" }}>
+                    <Chip
+                      label="Designated"
+                      onClick={() => setSelectedRealityStatus("designated")}
+                      sx={{
+                        height: 32,
+                        backgroundColor:
+                          selectedRealityStatus === "designated"
+                            ? GREEN
+                            : "transparent",
+                        color:
+                          selectedRealityStatus === "designated"
+                            ? "white"
+                            : GREEN,
+                        borderColor: GREEN,
+                        borderWidth: 1.5,
+                        borderStyle: "solid",
+                        fontWeight: selectedRealityStatus === "designated" ? 600 : 400,
+                        "&:hover": {
+                          backgroundColor: GREEN,
+                          color: "white",
+                        },
+                      }}
+                    />
+                    <Chip
+                      label="Accessible"
+                      onClick={() => setSelectedRealityStatus("yes")}
+                      sx={{
+                        height: 32,
+                        backgroundColor:
+                          selectedRealityStatus === "yes"
+                            ? GREEN
+                            : "transparent",
+                        color:
+                          selectedRealityStatus === "yes" ? "white" : GREEN,
+                        borderColor: GREEN,
+                        borderWidth: 1.5,
+                        borderStyle: "solid",
+                        fontWeight: selectedRealityStatus === "yes" ? 600 : 400,
+                        "&:hover": {
+                          backgroundColor: GREEN,
+                          color: "white",
+                        },
+                      }}
+                    />
+                    <Chip
+                      label="Limited"
+                      onClick={() => setSelectedRealityStatus("limited")}
+                      sx={{
+                        height: 32,
+                        backgroundColor:
+                          selectedRealityStatus === "limited"
+                            ? ORANGE
+                            : "transparent",
+                        color:
+                          selectedRealityStatus === "limited"
+                            ? "white"
+                            : ORANGE,
+                        borderColor: ORANGE,
+                        borderWidth: 1.5,
+                        borderStyle: "solid",
+                        fontWeight: selectedRealityStatus === "limited" ? 600 : 400,
+                        "&:hover": {
+                          backgroundColor: ORANGE,
+                          color: "white",
+                        },
+                      }}
+                    />
+                    <Chip
+                      label="Not Accessible"
+                      onClick={() => setSelectedRealityStatus("no")}
+                      sx={{
+                        height: 32,
+                        backgroundColor:
+                          selectedRealityStatus === "no"
+                            ? RED
+                            : "transparent",
+                        color:
+                          selectedRealityStatus === "no" ? "white" : RED,
+                        borderColor: RED,
+                        borderWidth: 1.5,
+                        borderStyle: "solid",
+                        fontWeight: selectedRealityStatus === "no" ? 600 : 400,
+                        "&:hover": {
+                          backgroundColor: RED,
+                          color: "white",
+                        },
+                      }}
+                    />
+                  </Box>
+                </Paper>
 
-              {/* Specific issues */}
-              <Divider sx={{ my: 3 }} />
-              <Box>
-                <Typography variant="body2" sx={{ mb: 1.5, fontWeight: 600 }}>
-                  Details (optional)
-                </Typography>
-                <FormGroup>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={selectedSpecificIssues.includes(
-                          "entrance_not_accessible"
-                        )}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedSpecificIssues([
-                              ...selectedSpecificIssues,
-                              "entrance_not_accessible",
-                            ]);
-                          } else {
-                            setSelectedSpecificIssues(
-                              selectedSpecificIssues.filter(
-                                (issue) => issue !== "entrance_not_accessible"
-                              )
-                            );
+                {/* Details (optional) */}
+                <Paper
+                  elevation={0}
+                  sx={{
+                    border: "1px solid rgba(0,0,0,0.12)",
+                    borderRadius: 3,
+                    overflow: "hidden",
+                  }}
+                >
+                  <Box
+                    onClick={() => setExpandedDetails(!expandedDetails)}
+                    sx={{
+                      p: 2.5,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      cursor: "pointer",
+                      transition: "background-color 0.2s",
+                      "&:hover": {
+                        bgcolor: "rgba(0, 0, 0, 0.02)",
+                      },
+                    }}
+                  >
+                    <Typography
+                      variant="subtitle2"
+                      sx={{
+                        fontWeight: 600,
+                        color: "text.primary",
+                        textTransform: "uppercase",
+                        fontSize: "0.75rem",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
+                      Details{" "}
+                      <Typography component="span" sx={{ color: PRIMARY_BLUE, textTransform: "none" }}>
+                        (optional)
+                      </Typography>
+                    </Typography>
+                    {expandedDetails ? (
+                      <ExpandLessIcon sx={{ color: PRIMARY_BLUE, fontSize: "1.25rem" }} />
+                    ) : (
+                      <ExpandMoreIcon sx={{ color: PRIMARY_BLUE, fontSize: "1.25rem" }} />
+                    )}
+                  </Box>
+                  <Collapse in={expandedDetails} timeout="auto" unmountOnExit>
+                    <Box sx={{ px: 2.5, pb: 2.5 }}>
+                      <Stack spacing={1.5}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={selectedSpecificIssues.includes(
+                                "entrance_not_accessible"
+                              )}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedSpecificIssues([
+                                    ...selectedSpecificIssues,
+                                    "entrance_not_accessible",
+                                  ]);
+                                } else {
+                                  setSelectedSpecificIssues(
+                                    selectedSpecificIssues.filter(
+                                      (issue) => issue !== "entrance_not_accessible"
+                                    )
+                                  );
+                                }
+                              }}
+                              sx={{
+                                color: PRIMARY_BLUE + "80",
+                                "&.Mui-checked": {
+                                  color: PRIMARY_BLUE,
+                                },
+                              }}
+                            />
                           }
-                        }}
-                      />
-                    }
-                    label="Entrance not wheelchair accessible"
-                    sx={{ mb: 1 }}
-                  />
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={selectedSpecificIssues.includes(
-                          "steps_at_entrance"
-                        )}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedSpecificIssues([
-                              ...selectedSpecificIssues,
-                              "steps_at_entrance",
-                            ]);
-                          } else {
-                            setSelectedSpecificIssues(
-                              selectedSpecificIssues.filter(
-                                (issue) => issue !== "steps_at_entrance"
-                              )
-                            );
+                          label={
+                            <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                              Entrance not wheelchair accessible
+                            </Typography>
                           }
-                        }}
-                      />
-                    }
-                    label="There are steps at the entrance"
-                    sx={{ mb: 1 }}
-                  />
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={selectedSpecificIssues.includes(
-                          "no_accessible_toilet"
-                        )}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedSpecificIssues([
-                              ...selectedSpecificIssues,
-                              "no_accessible_toilet",
-                            ]);
-                          } else {
-                            setSelectedSpecificIssues(
-                              selectedSpecificIssues.filter(
-                                (issue) => issue !== "no_accessible_toilet"
-                              )
-                            );
+                          sx={{
+                            m: 0,
+                            py: 1,
+                            px: 1.5,
+                            borderRadius: 1.5,
+                            transition: "all 0.2s ease-in-out",
+                            "&:hover": {
+                              bgcolor: "rgba(0, 0, 0, 0.02)",
+                            },
+                          }}
+                        />
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={selectedSpecificIssues.includes(
+                                "steps_at_entrance"
+                              )}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedSpecificIssues([
+                                    ...selectedSpecificIssues,
+                                    "steps_at_entrance",
+                                  ]);
+                                } else {
+                                  setSelectedSpecificIssues(
+                                    selectedSpecificIssues.filter(
+                                      (issue) => issue !== "steps_at_entrance"
+                                    )
+                                  );
+                                }
+                              }}
+                              sx={{
+                                color: PRIMARY_BLUE + "80",
+                                "&.Mui-checked": {
+                                  color: PRIMARY_BLUE,
+                                },
+                              }}
+                            />
                           }
-                        }}
-                      />
-                    }
-                    label="No accessible toilet"
-                    sx={{ mb: 1 }}
-                  />
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={selectedSpecificIssues.includes(
-                          "ramp_too_steep"
-                        )}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedSpecificIssues([
-                              ...selectedSpecificIssues,
-                              "ramp_too_steep",
-                            ]);
-                          } else {
-                            setSelectedSpecificIssues(
-                              selectedSpecificIssues.filter(
-                                (issue) => issue !== "ramp_too_steep"
-                              )
-                            );
+                          label={
+                            <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                              There are steps at the entrance
+                            </Typography>
                           }
-                        }}
-                      />
-                    }
-                    label="Ramp is too steep or unusable"
-                    sx={{ mb: 1 }}
-                  />
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={selectedSpecificIssues.includes(
-                          "door_too_narrow"
-                        )}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedSpecificIssues([
-                              ...selectedSpecificIssues,
-                              "door_too_narrow",
-                            ]);
-                          } else {
-                            setSelectedSpecificIssues(
-                              selectedSpecificIssues.filter(
-                                (issue) => issue !== "door_too_narrow"
-                              )
-                            );
+                          sx={{
+                            m: 0,
+                            py: 1,
+                            px: 1.5,
+                            borderRadius: 1.5,
+                            transition: "all 0.2s ease-in-out",
+                            "&:hover": {
+                              bgcolor: "rgba(0, 0, 0, 0.02)",
+                            },
+                          }}
+                        />
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={selectedSpecificIssues.includes(
+                                "no_accessible_toilet"
+                              )}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedSpecificIssues([
+                                    ...selectedSpecificIssues,
+                                    "no_accessible_toilet",
+                                  ]);
+                                } else {
+                                  setSelectedSpecificIssues(
+                                    selectedSpecificIssues.filter(
+                                      (issue) => issue !== "no_accessible_toilet"
+                                    )
+                                  );
+                                }
+                              }}
+                              sx={{
+                                color: PRIMARY_BLUE + "80",
+                                "&.Mui-checked": {
+                                  color: PRIMARY_BLUE,
+                                },
+                              }}
+                            />
                           }
-                        }}
-                      />
-                    }
-                    label="Door is too narrow or heavy"
-                    sx={{ mb: 1 }}
-                  />
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={selectedSpecificIssues.includes(
-                          "other_accessibility"
-                        )}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedSpecificIssues([
-                              ...selectedSpecificIssues,
-                              "other_accessibility",
-                            ]);
-                          } else {
-                            setSelectedSpecificIssues(
-                              selectedSpecificIssues.filter(
-                                (issue) => issue !== "other_accessibility"
-                              )
-                            );
+                          label={
+                            <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                              No accessible toilet
+                            </Typography>
                           }
-                        }}
-                      />
-                    }
-                    label="Other accessibility issue"
-                  />
-                </FormGroup>
-              </Box>
+                          sx={{
+                            m: 0,
+                            py: 1,
+                            px: 1.5,
+                            borderRadius: 1.5,
+                            transition: "all 0.2s ease-in-out",
+                            "&:hover": {
+                              bgcolor: "rgba(0, 0, 0, 0.02)",
+                            },
+                          }}
+                        />
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={selectedSpecificIssues.includes(
+                                "ramp_too_steep"
+                              )}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedSpecificIssues([
+                                    ...selectedSpecificIssues,
+                                    "ramp_too_steep",
+                                  ]);
+                                } else {
+                                  setSelectedSpecificIssues(
+                                    selectedSpecificIssues.filter(
+                                      (issue) => issue !== "ramp_too_steep"
+                                    )
+                                  );
+                                }
+                              }}
+                              sx={{
+                                color: PRIMARY_BLUE + "80",
+                                "&.Mui-checked": {
+                                  color: PRIMARY_BLUE,
+                                },
+                              }}
+                            />
+                          }
+                          label={
+                            <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                              Ramp is too steep or unusable
+                            </Typography>
+                          }
+                          sx={{
+                            m: 0,
+                            py: 1,
+                            px: 1.5,
+                            borderRadius: 1.5,
+                            transition: "all 0.2s ease-in-out",
+                            "&:hover": {
+                              bgcolor: "rgba(0, 0, 0, 0.02)",
+                            },
+                          }}
+                        />
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={selectedSpecificIssues.includes(
+                                "door_too_narrow"
+                              )}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedSpecificIssues([
+                                    ...selectedSpecificIssues,
+                                    "door_too_narrow",
+                                  ]);
+                                } else {
+                                  setSelectedSpecificIssues(
+                                    selectedSpecificIssues.filter(
+                                      (issue) => issue !== "door_too_narrow"
+                                    )
+                                  );
+                                }
+                              }}
+                              sx={{
+                                color: PRIMARY_BLUE + "80",
+                                "&.Mui-checked": {
+                                  color: PRIMARY_BLUE,
+                                },
+                              }}
+                            />
+                          }
+                          label={
+                            <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                              Door is too narrow or heavy
+                            </Typography>
+                          }
+                          sx={{
+                            m: 0,
+                            py: 1,
+                            px: 1.5,
+                            borderRadius: 1.5,
+                            transition: "all 0.2s ease-in-out",
+                            "&:hover": {
+                              bgcolor: "rgba(0, 0, 0, 0.02)",
+                            },
+                          }}
+                        />
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={selectedSpecificIssues.includes(
+                                "other_accessibility"
+                              )}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedSpecificIssues([
+                                    ...selectedSpecificIssues,
+                                    "other_accessibility",
+                                  ]);
+                                } else {
+                                  setSelectedSpecificIssues(
+                                    selectedSpecificIssues.filter(
+                                      (issue) => issue !== "other_accessibility"
+                                    )
+                                  );
+                                }
+                              }}
+                              sx={{
+                                color: PRIMARY_BLUE + "80",
+                                "&.Mui-checked": {
+                                  color: PRIMARY_BLUE,
+                                },
+                              }}
+                            />
+                          }
+                          label={
+                            <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                              Other accessibility issue
+                            </Typography>
+                          }
+                          sx={{
+                            m: 0,
+                            py: 1,
+                            px: 1.5,
+                            borderRadius: 1.5,
+                            transition: "all 0.2s ease-in-out",
+                            "&:hover": {
+                              bgcolor: "rgba(0, 0, 0, 0.02)",
+                            },
+                          }}
+                        />
+                      </Stack>
+                    </Box>
+                  </Collapse>
+                </Paper>
+              </Stack>
             </DialogContent>
-            <DialogActions sx={{ px: 3, pb: 2 }}>
+            <DialogActions sx={{ px: 3, pb: 2.5, pt: 2 }}>
               <Button
                 onClick={() => {
                   setInaccuracyScreen(1);
                 }}
-                sx={{ textTransform: "none" }}
+                sx={{
+                  textTransform: "none",
+                  color: "text.secondary",
+                  "&:hover": {
+                    bgcolor: "action.hover",
+                  },
+                }}
               >
                 Back
               </Button>
@@ -2410,7 +2623,14 @@ export default function MapContainer({
                 onClick={() => {
                   setInaccuracyScreen(3);
                 }}
-                sx={{ textTransform: "none" }}
+                sx={{
+                  textTransform: "none",
+                  bgcolor: PRIMARY_BLUE,
+                  "&:hover": {
+                    bgcolor: PRIMARY_BLUE,
+                    opacity: 0.9,
+                  },
+                }}
               >
                 Next
               </Button>
