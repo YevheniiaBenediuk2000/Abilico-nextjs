@@ -1187,6 +1187,50 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
   const [sortAnchorEl, setSortAnchorEl] = useState(null);
   const [filterResetKey, setFilterResetKey] = useState(0); // Key to force re-render of filter components
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+
+  // Check if any accessibility filters are active (not all tiers selected)
+  const hasAccessibilityFiltersActive = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const raw = window.localStorage.getItem(ACCESSIBILITY_FILTER_LS_KEY);
+      if (!raw) return false;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return false;
+      // Check if the selected tiers are different from all tiers
+      const selectedSet = new Set(parsed);
+      const allTiersSet = new Set(ALL_ACCESSIBILITY_TIERS);
+      // If they have different lengths or different items, filters are active
+      if (selectedSet.size !== allTiersSet.size) return true;
+      return !ALL_ACCESSIBILITY_TIERS.every((tier) => selectedSet.has(tier));
+    } catch {
+      return false;
+    }
+  }, [filterResetKey]);
+
+  // Clear ONLY accessibility filters
+  const clearAccessibilityFilters = () => {
+    if (typeof window === "undefined") return;
+
+    try {
+      // reset to all tiers selected
+      window.localStorage.setItem(
+        ACCESSIBILITY_FILTER_LS_KEY,
+        JSON.stringify(ALL_ACCESSIBILITY_TIERS)
+      );
+
+      // notify AccessibilityLegendReact + map
+      document.dispatchEvent(
+        new CustomEvent("accessibilityFilterChanged", {
+          detail: ALL_ACCESSIBILITY_TIERS,
+        })
+      );
+
+      // force remount of the legend so UI resets
+      setFilterResetKey((prev) => prev + 1);
+    } catch (err) {
+      console.error("Failed to clear accessibility filters:", err);
+    }
+  };
   // ✅ NEW: remember which city Best for me resolved to
   const [currentBestForMeCity, setCurrentBestForMeCity] = useState(null);
   // ✅ NEW: user prefs + scores
@@ -1367,6 +1411,17 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
 
     return sorted;
   }, [features, center, sortBy, scoresByPlaceKey]);
+
+  // Check if any place in the current area has a photo
+  const hasAnyPhotoInArea = useMemo(
+    () =>
+      rawItems.some((item) => {
+        if (!item.placeKey) return false;
+        const photo = photoByKey[item.placeKey];
+        return !!(photo && (photo.thumb || photo.src || photo.pageUrl));
+      }),
+    [rawItems, photoByKey]
+  );
 
   // Fetch accessibility keywords for visible places
   useEffect(() => {
@@ -2530,8 +2585,56 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
         <DialogContent>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pt: 1 }}>
             {/* Place Accessibility Filters */}
-            <Box key={`accessibility-${filterResetKey}`}>
-              <AccessibilityLegendReact />
+            <Box key={`accessibility-${filterResetKey}`} sx={{ mb: 1.5 }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  mb: 1.5,
+                }}
+              >
+                <Typography
+                  variant="overline"
+                  sx={{
+                    color: "text.primary",
+                    fontWeight: 600,
+                    letterSpacing: 1,
+                    fontSize: "0.7rem",
+                  }}
+                >
+                  PLACE ACCESSIBILITY
+                </Typography>
+
+                <Link
+                  component="button"
+                  onClick={clearAccessibilityFilters}
+                  sx={{
+                    fontSize: "0.7rem",
+                    color: "text.secondary",
+                    textDecoration: "none",
+                    cursor: "pointer",
+                    mt: 0.5,
+                    "&:hover": {
+                      textDecoration: "underline",
+                      color: "text.primary",
+                    },
+                  }}
+                >
+                  Clear accessibility
+                </Link>
+              </Box>
+
+              <Paper
+                elevation={0}
+                sx={{
+                  border: "1px solid rgba(0,0,0,0.12)",
+                  borderRadius: 3,
+                  p: 2.5,
+                }}
+              >
+                <AccessibilityLegendReact hideTitle={true} />
+              </Paper>
             </Box>
 
             {/* Place Type Filters */}
@@ -2541,19 +2644,38 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
               </Box>
             )}
 
-            {/* Photos filter – same state as header toggle */}
-            <Box>
+            {/* Photos filter */}
+            <Box sx={{ mt: 1.5, mb: 1.5 }}>
+              <Typography
+                variant="overline"
+                sx={{
+                  color: "text.primary",
+                  fontWeight: 600,
+                  letterSpacing: 1,
+                  fontSize: "0.7rem",
+                  mb: 0.75,
+                  display: "block",
+                }}
+              >
+                PHOTOS
+              </Typography>
+
               <FormControlLabel
                 control={
                   <Switch
                     size="small"
                     checked={photosOnly}
                     onChange={(e) => setPhotosOnly(e.target.checked)}
+                    disabled={!hasAnyPhotoInArea}
                   />
                 }
                 label={
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography
+                    variant="body2"
+                    color={!hasAnyPhotoInArea ? "text.disabled" : "text.secondary"}
+                  >
                     Only places with photos
+                    {!hasAnyPhotoInArea && " – no photos in this area yet"}
                   </Typography>
                 }
               />

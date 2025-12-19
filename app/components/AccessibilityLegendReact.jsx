@@ -41,7 +41,7 @@ function getInitialSelection() {
   return ALL_TIERS;
 }
 
-export default function AccessibilityLegendReact() {
+export default function AccessibilityLegendReact({ hideTitle = false }) {
   const [selected, setSelected] = useState(getInitialSelection);
 
   // Persist + notify mapMain.js whenever selection changes
@@ -100,19 +100,21 @@ export default function AccessibilityLegendReact() {
 
   return (
     <Box mb={1.5}>
-      <Typography
-        variant="overline"
-        sx={{
-          color: "text.primary",
-          fontWeight: 600,
-          letterSpacing: 1,
-          fontSize: "0.7rem",
-          mb: 1.5,
-          display: "block",
-        }}
-      >
-        PLACE ACCESSIBILITY
-      </Typography>
+      {!hideTitle && (
+        <Typography
+          variant="overline"
+          sx={{
+            color: "text.primary",
+            fontWeight: 600,
+            letterSpacing: 1,
+            fontSize: "0.7rem",
+            mb: 1.5,
+            display: "block",
+          }}
+        >
+          PLACE ACCESSIBILITY
+        </Typography>
+      )}
       <Box
         sx={{
           display: "flex",
@@ -153,18 +155,15 @@ export default function AccessibilityLegendReact() {
                 onClick={() => toggleTier(tier)}
                 sx={{
                   height: 28,
-                  bgcolor: isSelected
-                    ? hexToRgba(solidColor, 0.7)
-                    : hexToRgba(solidColor, 0.3),
+                  bgcolor: solidColor,
                   color: "white",
-                  border: `1px solid ${isSelected ? solidColor : hexToRgba(solidColor, 0.5)}`,
+                  border: `1px solid ${solidColor}`,
                   borderRadius: 3,
                   cursor: "pointer",
                   "&:hover": {
-                    bgcolor: isSelected
-                      ? hexToRgba(solidColor, 0.8)
-                      : hexToRgba(solidColor, 0.4),
+                    bgcolor: solidColor,
                     borderColor: solidColor,
+                    opacity: 0.9,
                   },
                   "& .MuiChip-label": {
                     paddingLeft: 1.5,
@@ -209,18 +208,15 @@ export default function AccessibilityLegendReact() {
                 onClick={() => toggleTier(tier)}
                 sx={{
                   height: 28,
-                  bgcolor: isSelected
-                    ? hexToRgba(solidColor, 0.7)
-                    : hexToRgba(solidColor, 0.3),
+                  bgcolor: solidColor,
                   color: "white",
-                  border: `1px solid ${isSelected ? solidColor : hexToRgba(solidColor, 0.5)}`,
+                  border: `1px solid ${solidColor}`,
                   borderRadius: 3,
                   cursor: "pointer",
                   "&:hover": {
-                    bgcolor: isSelected
-                      ? hexToRgba(solidColor, 0.8)
-                      : hexToRgba(solidColor, 0.4),
+                    bgcolor: solidColor,
                     borderColor: solidColor,
+                    opacity: 0.9,
                   },
                   "& .MuiChip-label": {
                     paddingLeft: 1.5,
