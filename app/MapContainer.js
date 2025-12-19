@@ -45,6 +45,9 @@ import FormGroup from "@mui/material/FormGroup";
 import Rating from "@mui/material/Rating";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useTheme } from "@mui/material/styles";
+import Paper from "@mui/material/Paper";
+import Stack from "@mui/material/Stack";
+import ReportProblemIcon from "@mui/icons-material/ReportProblem";
 
 import PlacesListReact from "./components/PlacesListReact";
 import ReviewForm from "./components/ReviewForm";
@@ -52,6 +55,7 @@ import ObstaclePopupDialog from "./components/ObstaclePopupDialog";
 import AccessibilityInfoLegend from "./components/AccessibilityInfoLegend";
 import { ensurePlaceExists } from "./api/reviewStorage.js";
 import globals from "./constants/globalVariables.js";
+import { PRIMARY_BLUE } from "./constants/constants.mjs";
 import { toastError, toastSuccess } from "./utils/toast.mjs";
 import {
   TAG_CHIP_ICON_STYLE,
@@ -1842,50 +1846,228 @@ export default function MapContainer({
       >
         {inaccuracyScreen === 1 ? (
           <>
-            <DialogTitle>Choose what's wrong</DialogTitle>
-            <DialogContent>
-              <RadioGroup
-                value={selectedInaccuracyReason}
-                onChange={(e) => setSelectedInaccuracyReason(e.target.value)}
+            <DialogTitle
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                pb: 2,
+              }}
+            >
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                <ReportProblemIcon sx={{ color: PRIMARY_BLUE, fontSize: "1.5rem" }} />
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  Choose what's wrong
+                </Typography>
+              </Box>
+              <IconButton
+                onClick={() => {
+                  setInaccuracyModalOpen(false);
+                  setSelectedInaccuracyReason("");
+                  setInaccuracyScreen(1);
+                  setSelectedRealityStatus("");
+                  setSelectedSpecificIssues([]);
+                  setInaccuracyComment("");
+                }}
+                size="small"
+                sx={{
+                  color: "text.secondary",
+                  "&:hover": {
+                    bgcolor: "action.hover",
+                    color: "text.primary",
+                  },
+                }}
               >
-                <FormControlLabel
-                  value="accessibility"
-                  control={<Radio />}
-                  label="Accessibility info is wrong"
-                  sx={{ mb: 1 }}
-                />
-                <FormControlLabel
-                  value="closed"
-                  control={<Radio />}
-                  label="Place is permanently closed or moved"
-                  sx={{ mb: 1 }}
-                />
-                <FormControlLabel
-                  value="category"
-                  control={<Radio />}
-                  label="Wrong category or type of place"
-                  sx={{ mb: 1 }}
-                />
-                <FormControlLabel
-                  value="duplicate"
-                  control={<Radio />}
-                  label="Duplicate place"
-                  sx={{ mb: 1 }}
-                />
-                <FormControlLabel
-                  value="address"
-                  control={<Radio />}
-                  label="Wrong address or pin location"
-                  sx={{ mb: 1 }}
-                />
-                <FormControlLabel
-                  value="other"
-                  control={<Radio />}
-                  label="Other"
-                />
-              </RadioGroup>
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            </DialogTitle>
+            <DialogContent sx={{ pt: 2 }}>
+              <Paper
+                elevation={0}
+                sx={{
+                  border: "1px solid rgba(0,0,0,0.12)",
+                  borderRadius: 3,
+                  p: 2.5,
+                }}
+              >
+                <RadioGroup
+                  value={selectedInaccuracyReason}
+                  onChange={(e) => setSelectedInaccuracyReason(e.target.value)}
+                >
+                  <Stack spacing={1.5}>
+                    <FormControlLabel
+                      value="accessibility"
+                      control={
+                        <Radio
+                          sx={{
+                            color: PRIMARY_BLUE,
+                            "&.Mui-checked": {
+                              color: PRIMARY_BLUE,
+                            },
+                          }}
+                        />
+                      }
+                      label={
+                        <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                          Accessibility info is wrong
+                        </Typography>
+                      }
+                      sx={{
+                        m: 0,
+                        py: 1,
+                        px: 1.5,
+                        borderRadius: 1.5,
+                        transition: "all 0.2s ease-in-out",
+                        "&:hover": {
+                          bgcolor: "rgba(0, 0, 0, 0.02)",
+                        },
+                      }}
+                    />
+                    <FormControlLabel
+                      value="closed"
+                      control={
+                        <Radio
+                          sx={{
+                            color: PRIMARY_BLUE,
+                            "&.Mui-checked": {
+                              color: PRIMARY_BLUE,
+                            },
+                          }}
+                        />
+                      }
+                      label={
+                        <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                          Place is permanently closed or moved
+                        </Typography>
+                      }
+                      sx={{
+                        m: 0,
+                        py: 1,
+                        px: 1.5,
+                        borderRadius: 1.5,
+                        transition: "all 0.2s ease-in-out",
+                        "&:hover": {
+                          bgcolor: "rgba(0, 0, 0, 0.02)",
+                        },
+                      }}
+                    />
+                    <FormControlLabel
+                      value="category"
+                      control={
+                        <Radio
+                          sx={{
+                            color: PRIMARY_BLUE,
+                            "&.Mui-checked": {
+                              color: PRIMARY_BLUE,
+                            },
+                          }}
+                        />
+                      }
+                      label={
+                        <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                          Wrong category or type of place
+                        </Typography>
+                      }
+                      sx={{
+                        m: 0,
+                        py: 1,
+                        px: 1.5,
+                        borderRadius: 1.5,
+                        transition: "all 0.2s ease-in-out",
+                        "&:hover": {
+                          bgcolor: "rgba(0, 0, 0, 0.02)",
+                        },
+                      }}
+                    />
+                    <FormControlLabel
+                      value="duplicate"
+                      control={
+                        <Radio
+                          sx={{
+                            color: PRIMARY_BLUE,
+                            "&.Mui-checked": {
+                              color: PRIMARY_BLUE,
+                            },
+                          }}
+                        />
+                      }
+                      label={
+                        <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                          Duplicate place
+                        </Typography>
+                      }
+                      sx={{
+                        m: 0,
+                        py: 1,
+                        px: 1.5,
+                        borderRadius: 1.5,
+                        transition: "all 0.2s ease-in-out",
+                        "&:hover": {
+                          bgcolor: "rgba(0, 0, 0, 0.02)",
+                        },
+                      }}
+                    />
+                    <FormControlLabel
+                      value="address"
+                      control={
+                        <Radio
+                          sx={{
+                            color: PRIMARY_BLUE,
+                            "&.Mui-checked": {
+                              color: PRIMARY_BLUE,
+                            },
+                          }}
+                        />
+                      }
+                      label={
+                        <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                          Wrong address or pin location
+                        </Typography>
+                      }
+                      sx={{
+                        m: 0,
+                        py: 1,
+                        px: 1.5,
+                        borderRadius: 1.5,
+                        transition: "all 0.2s ease-in-out",
+                        "&:hover": {
+                          bgcolor: "rgba(0, 0, 0, 0.02)",
+                        },
+                      }}
+                    />
+                    <FormControlLabel
+                      value="other"
+                      control={
+                        <Radio
+                          sx={{
+                            color: PRIMARY_BLUE,
+                            "&.Mui-checked": {
+                              color: PRIMARY_BLUE,
+                            },
+                          }}
+                        />
+                      }
+                      label={
+                        <Typography variant="body1" sx={{ fontSize: "0.9375rem" }}>
+                          Other
+                        </Typography>
+                      }
+                      sx={{
+                        m: 0,
+                        py: 1,
+                        px: 1.5,
+                        borderRadius: 1.5,
+                        transition: "all 0.2s ease-in-out",
+                        "&:hover": {
+                          bgcolor: "rgba(0, 0, 0, 0.02)",
+                        },
+                      }}
+                    />
+                  </Stack>
+                </RadioGroup>
+              </Paper>
             </DialogContent>
-            <DialogActions sx={{ px: 3, pb: 2 }}>
+            <DialogActions sx={{ px: 3, pb: 2.5, pt: 2 }}>
               <Button
                 onClick={() => {
                   setInaccuracyModalOpen(false);
@@ -1895,7 +2077,13 @@ export default function MapContainer({
                   setSelectedSpecificIssues([]);
                   setInaccuracyComment("");
                 }}
-                sx={{ textTransform: "none" }}
+                sx={{
+                  textTransform: "none",
+                  color: "text.secondary",
+                  "&:hover": {
+                    bgcolor: "action.hover",
+                  },
+                }}
               >
                 Cancel
               </Button>
@@ -1915,7 +2103,18 @@ export default function MapContainer({
                   setInaccuracyScreen(3);
                 }}
                 disabled={!selectedInaccuracyReason}
-                sx={{ textTransform: "none" }}
+                sx={{
+                  textTransform: "none",
+                  bgcolor: PRIMARY_BLUE,
+                  "&:hover": {
+                    bgcolor: PRIMARY_BLUE,
+                    opacity: 0.9,
+                  },
+                  "&.Mui-disabled": {
+                    bgcolor: "action.disabledBackground",
+                    color: "action.disabled",
+                  },
+                }}
               >
                 {selectedInaccuracyReason === "closed" ? "Submit" : "Next"}
               </Button>
