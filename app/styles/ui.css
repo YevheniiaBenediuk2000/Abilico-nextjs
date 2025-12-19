@@ -1125,10 +1125,10 @@
 
 /* Collapsible draw tools container */
 .leaflet-control.leaflet-draw .leaflet-draw-tools-container {
-  display: block;
+  display: none;
   background-color: #ffffff;
   border-radius: 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: none;
   padding: 0;
   margin: 0;
 }
@@ -1137,24 +1137,60 @@
   display: block !important;
 }
 
-/* Remove grey background from Leaflet.draw toolbar */
-.leaflet-control.leaflet-draw .leaflet-draw-toolbar,
-.leaflet-control.leaflet-draw .leaflet-draw-toolbar a {
-  background-color: transparent;
-  background-image: none !important;
+/* Ensure draw tool buttons inside container are visible when expanded */
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
-/* Remove backgrounds from all toolbar buttons */
+/* Remove grey background from Leaflet.draw toolbar */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar {
+  background-color: transparent;
+}
+
+/* Remove background from toolbar buttons, but allow drawing tools to keep theirs */
 .leaflet-control.leaflet-draw .leaflet-draw-toolbar a {
+  background-color: transparent;
+}
+
+/* Exception: drawing tools need their background-image for sprites - handled by Leaflet.draw's default CSS */
+
+/* Remove backgrounds only from custom buttons, NOT from drawing tools */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-caution,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"],
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"] {
   background-image: none !important;
   background-color: transparent !important;
 }
 
-/* Hide default Leaflet.draw toolbar icons/sprites */
-.leaflet-control.leaflet-draw .leaflet-draw-toolbar .leaflet-draw-toolbar-icon,
-.leaflet-control.leaflet-draw .leaflet-draw-toolbar span {
+/* Hide default icons only for custom buttons, NOT for drawing tools */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-caution .leaflet-draw-toolbar-icon,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-caution span,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown .leaflet-draw-toolbar-icon,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown span,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"] .leaflet-draw-toolbar-icon,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"] span,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"] .leaflet-draw-toolbar-icon,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"] span {
   background-image: none !important;
   background: none !important;
+  display: none !important;
+}
+
+/* Allow drawing tools to show their default Leaflet.draw icons - don't override */
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-"] {
+  background-color: transparent !important;
+  /* Let Leaflet.draw's default CSS handle the sprite background-image */
+}
+
+/* Ensure drawing tool icons are visible */
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-"] .leaflet-draw-toolbar-icon,
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-"] span {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 /* Ensure toolbar container has clean white background */

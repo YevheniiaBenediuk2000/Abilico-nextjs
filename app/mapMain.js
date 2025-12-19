@@ -945,6 +945,36 @@ function toggleObstaclesByZoom() {
 
     map.removeControl(drawControl);
   }
+
+  // Show/hide obstacles based on zoom level (only show at zoom >= 17)
+  const showObstacles = map.getZoom() >= 17;
+  if (obstaclesLayer) {
+    if (showObstacles) {
+      // Show obstacles layer
+      if (!map.hasLayer(obstaclesLayer)) {
+        obstaclesLayer.addTo(map);
+      }
+      // Make all obstacle layers visible
+      obstaclesLayer.eachLayer((layer) => {
+        if (layer.setOpacity) {
+          layer.setOpacity(1);
+        }
+        if (layer._icon) {
+          layer._icon.style.display = '';
+          layer._icon.style.visibility = 'visible';
+        }
+        if (layer._path) {
+          layer._path.style.display = '';
+          layer._path.style.visibility = 'visible';
+        }
+      });
+    } else {
+      // Hide obstacles by removing from map (cleaner than opacity)
+      if (map.hasLayer(obstaclesLayer)) {
+        obstaclesLayer.removeFrom(map);
+      }
+    }
+  }
 }
 
 function serializeBounds(bounds, zoom) {
@@ -5416,6 +5446,7 @@ async function initDrawingObstacles() {
       // Add to obstacles layer (not drawnItems, and NOT to cluster group)
       if (obstaclesLayer) {
         obstaclesLayer.addLayer(layer);
+      // Initial visibility will be set when obstaclesLayer is added to map
       } else {
         drawnItems.addLayer(layer);
       }
@@ -5430,6 +5461,13 @@ async function initDrawingObstacles() {
   // Only add drawnItems if obstaclesLayer wasn't created yet (fallback)
   if (!obstaclesLayer) {
     map.addLayer(drawnItems);
+  } else if (map) {
+    // Add obstacles layer to map only if zoom >= 17
+    const showObstacles = map.getZoom() >= 17;
+    if (showObstacles && !map.hasLayer(obstaclesLayer)) {
+      obstaclesLayer.addTo(map);
+    }
+    // If zoom < 17, don't add to map (will be added when zoom >= 17)
   }
 
   // ✅ Only initialize draw controls and event handlers if user is logged in
@@ -6313,6 +6351,8 @@ function setupObstacleEventHandlers() {
     // Add to obstacles layer (not drawnItems, and NOT to cluster group)
     if (obstaclesLayer) {
       obstaclesLayer.addLayer(layerToAdd);
+      // Visibility controlled by zoom - if zoom < 17, obstaclesLayer won't be on map
+      // If zoom >= 17, layer will be visible since obstaclesLayer is on map
     } else {
       drawnItems.addLayer(layerToAdd);
     }

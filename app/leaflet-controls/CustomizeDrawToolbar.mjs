@@ -51,7 +51,7 @@ export function customizeDrawToolbar(drawControl, map) {
     // Create container for the draw tools that can be collapsed
     const drawToolsContainer = document.createElement('div');
     drawToolsContainer.className = 'leaflet-draw-tools-container';
-    drawToolsContainer.style.display = 'block'; // Show by default
+    drawToolsContainer.style.display = 'none'; // Start collapsed
 
     // Store reference to draw tool buttons before moving them
     const drawToolButtonsRef = [...drawToolButtons];
@@ -197,8 +197,8 @@ export function customizeDrawToolbar(drawControl, map) {
     iconContainer.style.color = '#666';
     dropdownButton.appendChild(iconContainer);
 
-    // Toggle dropdown state - tools are visible by default now
-    let isExpanded = true; // Start expanded since tools are visible
+    // Toggle dropdown state - start collapsed
+    let isExpanded = false; // Start collapsed
     let iconUnmount = null;
 
     // Function to update icon
@@ -231,10 +231,9 @@ export function customizeDrawToolbar(drawControl, map) {
       }
     };
 
-    // Initial icon - tools are visible by default
+    // Initial icon - start collapsed
     updateIcon();
-    dropdownButton.classList.add('expanded');
-    dropdownButton.title = 'Hide drawing tools';
+    dropdownButton.title = 'Show drawing tools';
 
     dropdownButton.addEventListener('click', (e) => {
       e.preventDefault();
