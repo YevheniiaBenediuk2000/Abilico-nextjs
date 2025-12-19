@@ -32,6 +32,12 @@
   width: clamp(240px, 60vw, 420px);
 }
 
+/* Smooth transitions for details tab panels */
+.details-tab-panel {
+  transition: opacity 150ms ease-out;
+  will-change: opacity;
+}
+
 /* Reduce bottom padding in details panel when zoomed out */
 #details-list {
   padding-bottom: 0 !important;

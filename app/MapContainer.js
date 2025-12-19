@@ -63,14 +63,30 @@ import "./utils/clearCache.mjs";
 
 function DetailsTabPanel({ value, active, children }) {
   const hidden = active !== value;
+  const [shouldHide, setShouldHide] = useState(hidden);
+
+  useEffect(() => {
+    if (hidden) {
+      // Delay hiding to allow fade-out animation
+      const timer = setTimeout(() => setShouldHide(true), 150);
+      return () => clearTimeout(timer);
+    } else {
+      // Show immediately
+      setShouldHide(false);
+    }
+  }, [hidden]);
 
   return (
     <div
       role="tabpanel"
       id={`tab-${value}`} // keeps tab-overview / tab-reviews / tab-photos
       aria-labelledby={`${value}-tab`}
-      hidden={hidden}
-      className={hidden ? "d-none" : ""}
+      hidden={shouldHide}
+      className={`details-tab-panel ${shouldHide ? "d-none" : ""}`}
+      style={{
+        opacity: hidden ? 0 : 1,
+        transition: "opacity 150ms ease-out",
+      }}
     >
       {children}
     </div>

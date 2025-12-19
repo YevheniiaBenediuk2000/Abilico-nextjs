@@ -22,6 +22,15 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import IconButton from "@mui/material/IconButton";
 import CloseIcon from "@mui/icons-material/Close";
+import LocationOnIcon from "@mui/icons-material/LocationOn";
+import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
+import AccessibilityNewIcon from "@mui/icons-material/AccessibilityNew";
+import PersonIcon from "@mui/icons-material/Person";
+import AddLocationIcon from "@mui/icons-material/AddLocation";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import Paper from "@mui/material/Paper";
+import Stack from "@mui/material/Stack";
+import Chip from "@mui/material/Chip";
 import { addUserPlace } from "../api/placeStorage";
 import { reverseGeocode } from "../api/reverseGeocode";
 import { supabase } from "../api/supabaseClient";
@@ -549,43 +558,122 @@ export default function AddPlaceDialog({ open, onClose }) {
       PaperProps={{
         sx: {
           maxHeight: "90vh",
+          borderRadius: 2,
         },
       }}
     >
-      <DialogTitle>Add a New Place</DialogTitle>
+      <DialogTitle
+        sx={{
+          pb: 2,
+          pt: 3,
+          px: 3,
+          fontSize: "1.625rem",
+          fontWeight: 700,
+          borderBottom: "1px solid",
+          borderColor: "divider",
+          display: "flex",
+          alignItems: "center",
+          gap: 1.5,
+          background: `linear-gradient(135deg, ${PRIMARY_BLUE}08 0%, ${PRIMARY_BLUE}02 100%)`,
+        }}
+      >
+        <AddLocationIcon sx={{ color: PRIMARY_BLUE, fontSize: "1.75rem" }} />
+        Add a New Place
+      </DialogTitle>
       <DialogContent
         sx={{
           overflowY: "auto",
           maxHeight: "calc(90vh - 140px)",
+          px: 3,
+          py: 2.5,
         }}
       >
         <Box
           component="form"
           onSubmit={handleSubmit}
-          sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}
+          sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}
         >
           {/* 1. Place Information Section */}
-          <Typography variant="h6" sx={{ mt: 1, mb: 1 }}>
-            1. Place Information
-          </Typography>
+          <Paper
+            elevation={0}
+            sx={{
+              mt: 2,
+              p: 2.5,
+              bgcolor: "rgba(0, 0, 0, 0.005)",
+              borderRadius: 2,
+              border: "1px solid",
+              borderColor: "divider",
+              transition: "all 0.2s ease-in-out",
+              "&:hover": {
+                borderColor: PRIMARY_BLUE + "40",
+                boxShadow: `0 2px 8px ${PRIMARY_BLUE}15`,
+              },
+            }}
+          >
+            <Typography
+              variant="h6"
+              sx={{
+                mb: 2,
+                fontSize: "1.125rem",
+                fontWeight: 600,
+              }}
+            >
+              Place Information{" "}
+              <Typography component="span" color="error">
+                *
+              </Typography>
+            </Typography>
+            <Stack spacing={2}>
 
           <TextField
             label="Place Name"
-            required
             fullWidth
             value={name}
             onChange={(e) => setName(e.target.value)}
             disabled={submitting || isSelectingLocation}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: 1.5,
+                    transition: "all 0.2s ease-in-out",
+                    "&:hover:not(.Mui-disabled)": {
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: PRIMARY_BLUE + "80",
+                      },
+                    },
+                    "&.Mui-focused": {
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderWidth: 2,
+                        borderColor: PRIMARY_BLUE,
+                      },
+                    },
+                  },
+                }}
           />
 
           <TextField
             select
             label="Place Type"
-            required
             fullWidth
             value={placeType}
             onChange={(e) => setPlaceType(e.target.value)}
             disabled={submitting || isSelectingLocation}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: 1.5,
+                    transition: "all 0.2s ease-in-out",
+                    "&:hover:not(.Mui-disabled)": {
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: PRIMARY_BLUE + "80",
+                      },
+                    },
+                    "&.Mui-focused": {
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderWidth: 2,
+                        borderColor: PRIMARY_BLUE,
+                      },
+                    },
+                  },
+                }}
           >
             {PLACE_TYPES.map((type) => (
               <MenuItem key={type.value} value={type.value}>
@@ -593,17 +681,46 @@ export default function AddPlaceDialog({ open, onClose }) {
               </MenuItem>
             ))}
           </TextField>
-
-          <Divider sx={{ my: 2 }} />
+            </Stack>
+          </Paper>
 
           {/* 2. Location Section */}
-          <Typography variant="h6" sx={{ mt: 1, mb: 1 }}>
-            2. Location
-          </Typography>
-
+          <Paper
+            elevation={0}
+            sx={{
+              p: 2.5,
+              bgcolor: "rgba(0, 0, 0, 0.005)",
+              borderRadius: 2,
+              border: "1px solid",
+              borderColor: "divider",
+              transition: "all 0.2s ease-in-out",
+              "&:hover": {
+                borderColor: PRIMARY_BLUE + "40",
+                boxShadow: `0 2px 8px ${PRIMARY_BLUE}15`,
+              },
+            }}
+          >
+            <Typography
+              variant="h6"
+              sx={{
+                mb: 2,
+                fontSize: "1.125rem",
+                fontWeight: 600,
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+              }}
+            >
+              <LocationOnIcon sx={{ fontSize: "1.25rem", color: PRIMARY_BLUE }} />
+              Location
+            </Typography>
+            <Stack spacing={2}>
           {/* Location selection */}
           <Box>
-            <Typography variant="body2" sx={{ mb: 1 }}>
+                <Typography
+                  variant="body2"
+                  sx={{ mb: 1, fontWeight: 500, color: "text.secondary" }}
+                >
               Location{" "}
               <Typography component="span" color="error">
                 *
@@ -612,25 +729,65 @@ export default function AddPlaceDialog({ open, onClose }) {
 
             {!location ? (
               <Button
-                variant="outlined"
+                variant="contained"
                 onClick={handleStartLocationSelection}
                 disabled={submitting}
                 fullWidth
+                startIcon={<LocationOnIcon />}
+                sx={{
+                  bgcolor: PRIMARY_BLUE,
+                  color: "white",
+                  py: 1.5,
+                  borderRadius: "25px",
+                  textTransform: "none",
+                  fontWeight: 500,
+                  fontSize: "0.875rem",
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+                  transition: "all 0.2s ease-in-out",
+                  "&:hover": {
+                    bgcolor: PRIMARY_BLUE,
+                    opacity: 0.9,
+                    boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
+                  },
+                }}
               >
                 Select Location on Map
               </Button>
             ) : (
               <Box>
-                <Alert severity="success" sx={{ mb: 1 }}>
+                    <Alert
+                      severity="success"
+                      icon={<CheckCircleIcon />}
+                      sx={{
+                        mb: 1,
+                        borderRadius: 1.5,
+                        bgcolor: "success.light",
+                        "& .MuiAlert-icon": {
+                          alignItems: "center",
+                        },
+                      }}
+                    >
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
                   Location selected: {location.lat.toFixed(5)},{" "}
                   {location.lng.toFixed(5)}
+                      </Typography>
                 </Alert>
                 <Button
                   variant="outlined"
-                  size="small"
+                      size="medium"
                   onClick={handleStartLocationSelection}
                   disabled={submitting}
                   fullWidth
+                      startIcon={<LocationOnIcon />}
+                      sx={{
+                        borderRadius: 1.5,
+                        textTransform: "none",
+                        fontWeight: 500,
+                        transition: "all 0.2s ease-in-out",
+                        "&:hover": {
+                          transform: "translateY(-1px)",
+                        },
+                      }}
                 >
                   Change Location
                 </Button>
@@ -645,13 +802,36 @@ export default function AddPlaceDialog({ open, onClose }) {
             value={city}
             onChange={(e) => setCity(e.target.value)}
             disabled={submitting || isSelectingLocation}
-            helperText={loadingLocation ? "Detecting city from location..." : city ? "Auto-detected from coordinates" : "Will be detected from coordinates"}
+                helperText={
+                  loadingLocation
+                    ? "Detecting city from location..."
+                    : city
+                    ? "Auto-detected from coordinates"
+                    : ""
+                }
             InputProps={{
               endAdornment: loadingLocation ? (
                 <InputAdornment position="end">
                   <CircularProgress size={20} />
                 </InputAdornment>
               ) : null,
+            }}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: 1.5,
+                    transition: "all 0.2s ease-in-out",
+                    "&:hover:not(.Mui-disabled)": {
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: PRIMARY_BLUE + "80",
+                      },
+                    },
+                    "&.Mui-focused": {
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderWidth: 2,
+                        borderColor: PRIMARY_BLUE,
+                      },
+                    },
+                  },
             }}
           />
 
@@ -662,7 +842,13 @@ export default function AddPlaceDialog({ open, onClose }) {
             value={country}
             onChange={(e) => setCountry(e.target.value)}
             disabled={submitting || isSelectingLocation}
-            helperText={loadingLocation ? "Detecting country from location..." : country ? "Auto-detected from coordinates" : "Will be detected from coordinates"}
+                helperText={
+                  loadingLocation
+                    ? "Detecting country from location..."
+                    : country
+                    ? "Auto-detected from coordinates"
+                    : ""
+                }
             InputProps={{
               endAdornment: loadingLocation ? (
                 <InputAdornment position="end">
@@ -670,15 +856,58 @@ export default function AddPlaceDialog({ open, onClose }) {
                 </InputAdornment>
               ) : null,
             }}
-          />
-
-          <Divider sx={{ my: 2 }} />
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: 1.5,
+                    transition: "all 0.2s ease-in-out",
+                    "&:hover:not(.Mui-disabled)": {
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: PRIMARY_BLUE + "80",
+                      },
+                    },
+                    "&.Mui-focused": {
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderWidth: 2,
+                        borderColor: PRIMARY_BLUE,
+                      },
+                    },
+                  },
+                }}
+              />
+            </Stack>
+          </Paper>
 
           {/* Accessibility Overview Section */}
-          <Typography variant="h6" sx={{ mt: 1, mb: 1 }}>
-            3. Accessibility Overview (optional)
-          </Typography>
-
+          <Paper
+            elevation={0}
+            sx={{
+              p: 2.5,
+              bgcolor: "rgba(0, 0, 0, 0.005)",
+              borderRadius: 2,
+              border: "1px solid",
+              borderColor: "divider",
+              transition: "all 0.2s ease-in-out",
+              "&:hover": {
+                borderColor: PRIMARY_BLUE + "40",
+                boxShadow: `0 2px 8px ${PRIMARY_BLUE}15`,
+              },
+            }}
+          >
+            <Typography
+              variant="h6"
+              sx={{
+                mb: 2,
+                fontSize: "1.125rem",
+                fontWeight: 600,
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+              }}
+            >
+              <AccessibilityNewIcon sx={{ fontSize: "1.25rem", color: PRIMARY_BLUE }} />
+              Accessibility Overview
+            </Typography>
+            <Stack spacing={2}>
           {/* Overall accessibility level - using OSM values */}
           <TextField
             select
@@ -687,38 +916,156 @@ export default function AddPlaceDialog({ open, onClose }) {
             value={overallAccessibility}
             onChange={(e) => setOverallAccessibility(e.target.value)}
             disabled={submitting || isSelectingLocation}
-            helperText="This will be saved as wheelchair= tag (OSM standard)"
-          >
-            <MenuItem value="">Not selected</MenuItem>
-            <MenuItem value="designated">Designated (Fully accessible)</MenuItem>
-            <MenuItem value="yes">Yes (Accessible)</MenuItem>
-            <MenuItem value="limited">Limited (Partially accessible)</MenuItem>
-            <MenuItem value="no">No (Not accessible)</MenuItem>
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: 1.5,
+                    transition: "all 0.2s ease-in-out",
+                    "&:hover:not(.Mui-disabled)": {
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: PRIMARY_BLUE + "80",
+                      },
+                    },
+                    "&.Mui-focused": {
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderWidth: 2,
+                        borderColor: PRIMARY_BLUE,
+                      },
+                    },
+                  },
+                }}
+              >
+                <MenuItem value="">Not Selected</MenuItem>
+                <MenuItem value="designated">Designated</MenuItem>
+                <MenuItem value="yes">Accessible</MenuItem>
+                <MenuItem value="limited">Limited</MenuItem>
+                <MenuItem value="no">Not Accessible</MenuItem>
           </TextField>
 
-          {/* Step-free entrance */}
-          <FormControl component="fieldset" disabled={submitting || isSelectingLocation}>
-            <FormLabel component="legend">Step-free entrance</FormLabel>
-            <RadioGroup
-              row
-              value={stepFreeEntrance}
-              onChange={(e) => setStepFreeEntrance(e.target.value)}
-            >
-              <FormControlLabel value="yes" control={<Radio />} label="Yes" />
-              <FormControlLabel value="no" control={<Radio />} label="No" />
+              {/* Step-free entrance */}
+              <FormControl
+                component="fieldset"
+                disabled={submitting || isSelectingLocation}
+              >
+                <FormLabel
+                  component="legend"
+                  sx={{ mb: 1, fontWeight: 500, color: "text.primary", textAlign: "center", display: "block" }}
+                >
+                  Step-free entrance
+                </FormLabel>
+                <RadioGroup
+                  row
+                  value={stepFreeEntrance}
+                  onChange={(e) => setStepFreeEntrance(e.target.value)}
+                  sx={{ gap: 3, justifyContent: "center" }}
+                >
+                  <FormControlLabel
+                    value="yes"
+                    control={
+                      <Radio
+                        sx={{
+                          color: PRIMARY_BLUE + "80",
+                          "&.Mui-checked": {
+                            color: PRIMARY_BLUE,
+                          },
+                          "& .MuiSvgIcon-root": {
+                            fontSize: 20,
+                          },
+                        }}
+                      />
+                    }
+                    label="Yes"
+                    sx={{
+                      "& .MuiFormControlLabel-label": {
+                        fontWeight: 500,
+                      },
+                    }}
+                  />
+                  <FormControlLabel
+                    value="no"
+                    control={
+                      <Radio
+                        sx={{
+                          color: PRIMARY_BLUE + "80",
+                          "&.Mui-checked": {
+                            color: PRIMARY_BLUE,
+                          },
+                          "& .MuiSvgIcon-root": {
+                            fontSize: 20,
+                          },
+                        }}
+                      />
+                    }
+                    label="No"
+                    sx={{
+                      "& .MuiFormControlLabel-label": {
+                        fontWeight: 500,
+                      },
+                    }}
+                  />
             </RadioGroup>
           </FormControl>
 
           {/* Accessible toilet available */}
-          <FormControl component="fieldset" disabled={submitting || isSelectingLocation}>
-            <FormLabel component="legend">Accessible toilet available</FormLabel>
+              <FormControl
+                component="fieldset"
+                disabled={submitting || isSelectingLocation}
+              >
+                <FormLabel
+                  component="legend"
+                  sx={{ mb: 1, fontWeight: 500, color: "text.primary", textAlign: "center", display: "block" }}
+                >
+                  Accessible toilet available
+                </FormLabel>
             <RadioGroup
               row
               value={accessibleToilet}
               onChange={(e) => setAccessibleToilet(e.target.value)}
-            >
-              <FormControlLabel value="yes" control={<Radio />} label="Yes" />
-              <FormControlLabel value="no" control={<Radio />} label="No" />
+                  sx={{ gap: 3, justifyContent: "center" }}
+                >
+                  <FormControlLabel
+                    value="yes"
+                    control={
+                      <Radio
+                        sx={{
+                          color: PRIMARY_BLUE + "80",
+                          "&.Mui-checked": {
+                            color: PRIMARY_BLUE,
+                          },
+                          "& .MuiSvgIcon-root": {
+                            fontSize: 20,
+                          },
+                        }}
+                      />
+                    }
+                    label="Yes"
+                    sx={{
+                      "& .MuiFormControlLabel-label": {
+                        fontWeight: 500,
+                      },
+                    }}
+                  />
+                  <FormControlLabel
+                    value="no"
+                    control={
+                      <Radio
+                        sx={{
+                          color: PRIMARY_BLUE + "80",
+                          "&.Mui-checked": {
+                            color: PRIMARY_BLUE,
+                          },
+                          "& .MuiSvgIcon-root": {
+                            fontSize: 20,
+                          },
+                        }}
+                      />
+                    }
+                    label="No"
+                    sx={{
+                      "& .MuiFormControlLabel-label": {
+                        fontWeight: 500,
+                      },
+                    }}
+                  />
             </RadioGroup>
           </FormControl>
 
@@ -733,15 +1080,58 @@ export default function AddPlaceDialog({ open, onClose }) {
             disabled={submitting || isSelectingLocation}
             helperText="Anything important about accessibility, issues, time limits, etc."
             placeholder="E.g., Ramp available on the side entrance, accessible parking nearby..."
-          />
-
-          <Divider sx={{ my: 2 }} />
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: 1.5,
+                    transition: "all 0.2s ease-in-out",
+                    "&:hover:not(.Mui-disabled)": {
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: PRIMARY_BLUE + "80",
+                      },
+                    },
+                    "&.Mui-focused": {
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderWidth: 2,
+                        borderColor: PRIMARY_BLUE,
+                      },
+                    },
+                  },
+                }}
+              />
+            </Stack>
+          </Paper>
 
           {/* Photos Section */}
-          <Typography variant="h6" sx={{ mt: 1, mb: 1 }}>
-            4. Photos (optional)
-          </Typography>
-
+          <Paper
+            elevation={0}
+            sx={{
+              p: 2.5,
+              bgcolor: "rgba(0, 0, 0, 0.005)",
+              borderRadius: 2,
+              border: "1px solid",
+              borderColor: "divider",
+              transition: "all 0.2s ease-in-out",
+              "&:hover": {
+                borderColor: PRIMARY_BLUE + "40",
+                boxShadow: `0 2px 8px ${PRIMARY_BLUE}15`,
+              },
+            }}
+          >
+            <Typography
+              variant="h6"
+              sx={{
+                mb: 2,
+                fontSize: "1.125rem",
+                fontWeight: 600,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 1,
+              }}
+            >
+              <PhotoCameraIcon sx={{ fontSize: "1.25rem", color: PRIMARY_BLUE }} />
+              Photos
+            </Typography>
           <Box>
             <input
               accept="image/*"
@@ -755,33 +1145,69 @@ export default function AddPlaceDialog({ open, onClose }) {
               }}
               disabled={submitting || isSelectingLocation}
             />
-            <label htmlFor="photo-upload-input">
-              <Button
-                variant="outlined"
-                component="span"
-                disabled={submitting || isSelectingLocation}
-                fullWidth
-                sx={{ mb: 1 }}
-              >
-                Upload Photos
-              </Button>
-            </label>
+            <Box sx={{ display: "flex", justifyContent: "center" }}>
+              <label htmlFor="photo-upload-input">
+                <Button
+                  variant="contained"
+                  component="span"
+                  disabled={submitting || isSelectingLocation}
+                  sx={{
+                    mb: photos.length > 0 ? 1.5 : 0,
+                    bgcolor: PRIMARY_BLUE,
+                    color: "white",
+                    py: 1.5,
+                    px: 3,
+                    borderRadius: "25px",
+                    textTransform: "none",
+                    fontWeight: 500,
+                    fontSize: "0.875rem",
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+                    transition: "all 0.2s ease-in-out",
+                    "&:hover": {
+                      bgcolor: PRIMARY_BLUE,
+                      opacity: 0.9,
+                      boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
+                    },
+                  }}
+                >
+                  Upload Photos
+                </Button>
+              </label>
+            </Box>
             {photos.length > 0 && (
-              <Box sx={{ mt: 1 }}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  {photos.length} photo(s) selected
-                </Typography>
-                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                <Box>
+                  <Chip
+                    label={`${photos.length} photo${photos.length > 1 ? "s" : ""} selected`}
+                    color="primary"
+                    size="small"
+                    sx={{
+                      mb: 1.5,
+                      fontWeight: 600,
+                      bgcolor: PRIMARY_BLUE + "15",
+                      color: PRIMARY_BLUE,
+                      border: `1px solid ${PRIMARY_BLUE}30`,
+                    }}
+                  />
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5 }}>
                   {photos.map((photo, index) => (
                     <Box
                       key={index}
                       sx={{
                         position: "relative",
-                        width: 80,
-                        height: 80,
-                        borderRadius: 1,
+                          width: 100,
+                          height: 100,
+                          borderRadius: 2,
                         overflow: "hidden",
-                        border: "1px solid #ddd",
+                          border: "2px solid",
+                          borderColor: "divider",
+                          boxShadow: `0 2px 8px ${PRIMARY_BLUE}15`,
+                          transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                          "&:hover": {
+                            transform: "scale(1.08) translateY(-2px)",
+                            borderColor: PRIMARY_BLUE,
+                            boxShadow: `0 4px 16px ${PRIMARY_BLUE}30`,
+                            zIndex: 1,
+                          },
                       }}
                     >
                       <img
@@ -793,18 +1219,42 @@ export default function AddPlaceDialog({ open, onClose }) {
                           objectFit: "cover",
                         }}
                       />
+                        <Box
+                          sx={{
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            bgcolor: "rgba(0,0,0,0)",
+                            transition: "background-color 0.2s",
+                            "&:hover": {
+                              bgcolor: "rgba(0,0,0,0.1)",
+                            },
+                        }}
+                      />
                       <IconButton
                         size="small"
                         onClick={() => {
-                          setPhotos((prev) => prev.filter((_, i) => i !== index));
+                            setPhotos((prev) =>
+                              prev.filter((_, i) => i !== index)
+                            );
                         }}
                         sx={{
                           position: "absolute",
-                          top: 0,
-                          right: 0,
-                          bgcolor: "rgba(0,0,0,0.5)",
+                            top: 6,
+                            right: 6,
+                            bgcolor: "rgba(255,255,255,0.95)",
+                            color: "error.main",
+                            width: 32,
+                            height: 32,
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+                            transition: "all 0.2s",
+                            "&:hover": {
+                              bgcolor: "error.main",
                           color: "white",
-                          "&:hover": { bgcolor: "rgba(0,0,0,0.7)" },
+                              transform: "scale(1.1)",
+                            },
                         }}
                       >
                         <CloseIcon fontSize="small" />
@@ -812,49 +1262,151 @@ export default function AddPlaceDialog({ open, onClose }) {
                     </Box>
                   ))}
                 </Box>
-                <FormHelperText>
-                  Upload photos of entrance, ramp, stairs, lift, etc.
-                </FormHelperText>
+                  <FormHelperText sx={{ mt: 1.5, fontSize: "0.8125rem" }}>
+                    Upload photos of entrance, ramp, stairs, lift, etc.
+                  </FormHelperText>
               </Box>
             )}
           </Box>
-
-          <Divider sx={{ my: 2 }} />
+          </Paper>
 
           {/* Submitter Information Section */}
-          <Typography variant="h6" sx={{ mt: 1, mb: 1 }}>
-            5. Person who submits (optional)
-          </Typography>
-
+          <Paper
+            elevation={0}
+            sx={{
+              p: 2.5,
+              bgcolor: "rgba(0, 0, 0, 0.005)",
+              borderRadius: 2,
+              border: "1px solid",
+              borderColor: "divider",
+              transition: "all 0.2s ease-in-out",
+              "&:hover": {
+                borderColor: PRIMARY_BLUE + "40",
+                boxShadow: `0 2px 8px ${PRIMARY_BLUE}15`,
+              },
+            }}
+          >
+            <Typography
+              variant="h6"
+              sx={{
+                mb: 2,
+                fontSize: "1.125rem",
+                fontWeight: 600,
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+              }}
+            >
+              <PersonIcon sx={{ fontSize: "1.25rem", color: PRIMARY_BLUE }} />
+              Person who submits
+            </Typography>
+            <Stack spacing={2}>
           <TextField
-            label="Your name (optional)"
+                label="Your name"
             fullWidth
             value={submitterName}
             onChange={(e) => setSubmitterName(e.target.value)}
             disabled={submitting || isSelectingLocation}
-            sx={{ mb: 2 }}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: 1.5,
+                    transition: "all 0.2s ease-in-out",
+                    "&:hover:not(.Mui-disabled)": {
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: PRIMARY_BLUE + "80",
+                      },
+                    },
+                    "&.Mui-focused": {
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderWidth: 2,
+                        borderColor: PRIMARY_BLUE,
+                      },
+                    },
+                  },
+                }}
           />
 
           <TextField
-            label="Email for contact (optional, not shown on the map)"
+                label="Email for contact (not shown on the map)"
             type="email"
             fullWidth
             value={submitterEmail}
             onChange={(e) => setSubmitterEmail(e.target.value)}
             disabled={submitting || isSelectingLocation}
-            helperText="So you can follow up if needed"
-          />
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: 1.5,
+                    transition: "all 0.2s ease-in-out",
+                    "&:hover:not(.Mui-disabled)": {
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: PRIMARY_BLUE + "80",
+                      },
+                    },
+                    "&.Mui-focused": {
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderWidth: 2,
+                        borderColor: PRIMARY_BLUE,
+                      },
+                    },
+                  },
+                }}
+              />
+            </Stack>
+          </Paper>
 
           {/* Error message */}
           {error && (
-            <Alert severity="error" sx={{ mt: 1 }}>
+            <Alert
+              severity="error"
+              sx={{
+                borderRadius: 1.5,
+                animation: "fadeIn 0.3s ease-in",
+                "@keyframes fadeIn": {
+                  from: {
+                    opacity: 0,
+                    transform: "translateY(-10px)",
+                  },
+                  to: {
+                    opacity: 1,
+                    transform: "translateY(0)",
+                  },
+                },
+                "& .MuiAlert-icon": {
+                  alignItems: "center",
+                },
+              }}
+            >
               {error}
             </Alert>
           )}
         </Box>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={handleClose} disabled={submitting || isSelectingLocation}>
+      <DialogActions
+        sx={{
+          px: 3,
+          py: 2.5,
+          borderTop: "1px solid",
+          borderColor: "divider",
+          gap: 1.5,
+          bgcolor: "rgba(0, 0, 0, 0.01)",
+        }}
+      >
+        <Button
+          onClick={handleClose}
+          disabled={submitting || isSelectingLocation}
+          sx={{
+            textTransform: "none",
+            fontWeight: 500,
+            px: 3,
+            py: 1,
+            borderRadius: 1.5,
+            transition: "all 0.2s ease-in-out",
+            "&:hover:not(:disabled)": {
+              bgcolor: "action.hover",
+              transform: "translateY(-1px)",
+            },
+          }}
+        >
           Cancel
         </Button>
         <Button
@@ -868,10 +1420,30 @@ export default function AddPlaceDialog({ open, onClose }) {
             !location ||
             isSelectingLocation
           }
+          sx={{
+            textTransform: "none",
+            fontWeight: 600,
+            px: 4,
+            py: 1,
+            borderRadius: 1.5,
+            bgcolor: PRIMARY_BLUE,
+            color: "white",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+            transition: "all 0.2s ease-in-out",
+            "&:hover:not(:disabled)": {
+              bgcolor: PRIMARY_BLUE,
+              opacity: 0.9,
+              boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
+            },
+            "&:disabled": {
+              bgcolor: "action.disabledBackground",
+              color: "action.disabled",
+            },
+          }}
         >
           {submitting || uploadingPhotos ? (
             <>
-              <CircularProgress size={20} sx={{ mr: 1 }} />
+              <CircularProgress size={20} sx={{ mr: 1, color: "white" }} />
               {uploadingPhotos ? "Uploading photos…" : "Saving…"}
             </>
           ) : (
