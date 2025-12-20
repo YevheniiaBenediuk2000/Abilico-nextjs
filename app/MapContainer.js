@@ -417,21 +417,31 @@ export default function MapContainer({
         // Check if there's a place to select from saved places
         if (
           typeof window !== "undefined" &&
-          typeof sessionStorage !== "undefined"
+          (typeof sessionStorage !== "undefined" || typeof localStorage !== "undefined")
         ) {
-          const selectedPlaceId = sessionStorage.getItem("selectedPlaceId");
-          const fromSavedPlaces = sessionStorage.getItem("fromSavedPlaces");
+          // Check both sessionStorage (same tab) and localStorage (cross-tab for new tab opens)
+          const selectedPlaceId = sessionStorage?.getItem("selectedPlaceId") || localStorage?.getItem("selectedPlaceId");
+          const fromSavedPlaces = sessionStorage?.getItem("fromSavedPlaces") || localStorage?.getItem("fromSavedPlaces");
 
           if (selectedPlaceId && fromSavedPlaces) {
-            const lat = parseFloat(sessionStorage.getItem("selectedPlaceLat"));
-            const lon = parseFloat(sessionStorage.getItem("selectedPlaceLon"));
+            const lat = parseFloat(sessionStorage?.getItem("selectedPlaceLat") || localStorage?.getItem("selectedPlaceLat"));
+            const lon = parseFloat(sessionStorage?.getItem("selectedPlaceLon") || localStorage?.getItem("selectedPlaceLon"));
 
-            // Clear sessionStorage
-            sessionStorage.removeItem("selectedPlaceId");
-            sessionStorage.removeItem("selectedPlaceLat");
-            sessionStorage.removeItem("selectedPlaceLon");
-            sessionStorage.removeItem("selectedPlaceName");
-            sessionStorage.removeItem("fromSavedPlaces");
+            // Clear both sessionStorage and localStorage
+            if (sessionStorage) {
+              sessionStorage.removeItem("selectedPlaceId");
+              sessionStorage.removeItem("selectedPlaceLat");
+              sessionStorage.removeItem("selectedPlaceLon");
+              sessionStorage.removeItem("selectedPlaceName");
+              sessionStorage.removeItem("fromSavedPlaces");
+            }
+            if (localStorage) {
+              localStorage.removeItem("selectedPlaceId");
+              localStorage.removeItem("selectedPlaceLat");
+              localStorage.removeItem("selectedPlaceLon");
+              localStorage.removeItem("selectedPlaceName");
+              localStorage.removeItem("fromSavedPlaces");
+            }
 
             // Wait for map to be fully ready (tiles loaded), then select the place
             const selectPlaceWhenReady = async () => {
