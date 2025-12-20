@@ -18,11 +18,33 @@ function buildAvoidPolygons(obstacleFeatures = []) {
   for (const f of obstacleFeatures) {
     if (!f?.geometry) continue;
 
-    // Skip Point obstacles (caution markers) - they should not affect route calculation
-    if (f.geometry.type === "Point") continue;
+    let geom = f.geometry;
+
+    // Handle circular obstacles (Point with radius) - convert to Polygon
+    if (geom.type === "Point") {
+      const radius = f.properties?.radius;
+      const shape = f.properties?.shape;
+      
+      // Skip Point obstacles that are caution markers (no radius) - they should not affect route calculation
+      if (!radius || shape !== "circle") continue;
+
+      // Convert circle to polygon using turfcircle
+      try {
+        const [lng, lat] = geom.coordinates;
+        const circle = turfcircle([lng, lat], radius, { units: "meters", steps: 64 });
+        if (circle?.geometry?.coordinates) {
+          geom = circle.geometry;
+        } else {
+          continue;
+        }
+      } catch (err) {
+        console.warn("Failed to convert circle obstacle to polygon:", err);
+        continue;
+      }
+    }
 
     // Validate coordinates are numbers
-    const coords = f.geometry.coordinates;
+    const coords = geom.coordinates;
     if (Array.isArray(coords)) {
       const isValid = coords.every((coord) => {
         if (Array.isArray(coord)) {
@@ -39,8 +61,6 @@ function buildAvoidPolygons(obstacleFeatures = []) {
         continue;
       }
     }
-
-    let geom = f.geometry;
 
     // Buffer LineStrings into polygons
     if (geom.type === "LineString") {

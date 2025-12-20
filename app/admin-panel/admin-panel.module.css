@@ -400,6 +400,17 @@
   font-weight: 600;
 }
 
+.editBtn {
+  background: rgba(12, 119, 210, 0.1);
+  border: 1px solid rgba(12, 119, 210, 0.3);
+  color: #0c77d2;
+}
+
+.editBtn:hover:not(:disabled) {
+  background: rgba(12, 119, 210, 0.2);
+  border-color: rgba(12, 119, 210, 0.5);
+}
+
 /* Status badges */
 .statusActive {
   display: inline-block;
