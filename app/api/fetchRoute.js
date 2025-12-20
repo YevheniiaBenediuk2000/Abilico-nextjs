@@ -77,7 +77,11 @@ export async function fetchRoute(coordinates, obstacleFeatures) {
     }),
   };
 
-  // console.log("🧭 RequestBody to ORS:", JSON.stringify(requestBody, null, 2));
+  console.log("🧭 RequestBody to ORS:", {
+    coordinates: requestBody.coordinates,
+    hasAvoidPolygons: obstacleCoordinates.length > 0,
+    obstacleCount: obstacleCoordinates.length,
+  });
 
   try {
     const response = await fetch(url, {

@@ -6351,6 +6351,7 @@ function swapRouteEndpoints() {
 
 async function updateRoute({ fit = true } = {}) {
   console.log("🧭 updateRoute() called:", { fromLatLng, toLatLng });
+  console.log("🧭 Passing obstacles to fetchRoute:", obstacleFeatures.length, "obstacles");
 
   // 🧩 Defensive guard
   if (
@@ -6374,6 +6375,12 @@ async function updateRoute({ fit = true } = {}) {
   const key = showLoading("route");
 
   try {
+    // Log which obstacles will affect routing (non-caution markers)
+    const routingObstacles = obstacleFeatures.filter(
+      (f) => f.geometry?.type !== "Point"
+    );
+    console.log("🧭 Routing obstacles (non-caution):", routingObstacles.length);
+
     const geojson = await fetchRoute(
       [
         [fromLatLng.lng, fromLatLng.lat],
@@ -7086,11 +7093,18 @@ function setupObstacleEventHandlers() {
       // Attach tooltip with vote counts support
       attachObstacleTooltip(layerToAdd, newObstacle);
       console.log("✅ Inserted new obstacle:", newObstacle.id);
+      console.log("🧭 Current obstacleFeatures count:", obstacleFeatures.length);
 
       // Recalculate route if there's an active route and this obstacle affects routing
       // Caution markers (Point obstacles) don't affect route calculation
       if (!isCautionMarker && fromLatLng && toLatLng) {
-        updateRoute({ fit: false });
+        console.log("🔄 Recalculating route with new obstacle...");
+        await updateRoute({ fit: false });
+        console.log("✅ Route recalculated with obstacle avoidance");
+      } else if (isCautionMarker) {
+        console.log("ℹ️ Caution marker doesn't affect route calculation");
+      } else {
+        console.log("ℹ️ No active route to recalculate");
       }
     } catch (err) {
       console.error("❌ Failed to save obstacle:", err);
@@ -7161,12 +7175,19 @@ function setupObstacleEventHandlers() {
           obstacleFeatures[i] = updated;
           hookLayerInteractions(layer, updated.properties);
           console.log("✅ Updated obstacle:", id);
+          console.log("🧭 Current obstacleFeatures count:", obstacleFeatures.length);
 
           // Recalculate route if there's an active route and this obstacle affects routing
           // Caution markers (Point obstacles) don't affect route calculation
           const isCautionMarker = updated.geometry?.type === "Point";
           if (!isCautionMarker && fromLatLng && toLatLng) {
-            updateRoute({ fit: false });
+            console.log("🔄 Recalculating route after obstacle update...");
+            await updateRoute({ fit: false });
+            console.log("✅ Route recalculated with updated obstacle avoidance");
+          } else if (isCautionMarker) {
+            console.log("ℹ️ Caution marker doesn't affect route calculation");
+          } else {
+            console.log("ℹ️ No active route to recalculate");
           }
         } catch (err) {
           console.error("❌ Failed to update:", err);
@@ -7201,11 +7222,18 @@ function setupObstacleEventHandlers() {
       console.log("🚀 Deleting from Supabase with ID:", id);
       await duringLoading("obstacles-put", obstacleStorage("DELETE", { id }));
       console.log("🗑️ Deleted obstacle:", id);
+      console.log("🧭 Current obstacleFeatures count:", obstacleFeatures.length);
 
       // Recalculate route if there's an active route and this obstacle affected routing
       // Caution markers (Point obstacles) don't affect route calculation
       if (!isCautionMarker && fromLatLng && toLatLng) {
-        updateRoute({ fit: false });
+        console.log("🔄 Recalculating route after obstacle deletion...");
+        await updateRoute({ fit: false });
+        console.log("✅ Route recalculated without deleted obstacle");
+      } else if (isCautionMarker) {
+        console.log("ℹ️ Caution marker doesn't affect route calculation");
+      } else {
+        console.log("ℹ️ No active route to recalculate");
       }
     });
   });

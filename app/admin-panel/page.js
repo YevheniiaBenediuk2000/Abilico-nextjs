@@ -751,13 +751,30 @@ export default function AdminPanel() {
                                 </div>
                               )}
                             </div>
-                            {photonUrl && (
+                            {report.place_id && (
                               <a
-                                href={photonUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                                href="/"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  // Store place ID in sessionStorage for the map to pick up
+                                  if (typeof window !== "undefined" && window.sessionStorage) {
+                                    window.sessionStorage.setItem("selectedPlaceId", report.place_id);
+                                    window.sessionStorage.setItem("fromSavedPlaces", "true"); // Use existing flag
+                                    // Also store coordinates if available for immediate map centering
+                                    if (hasCoordinates) {
+                                      window.sessionStorage.setItem("selectedPlaceLat", place.lat.toString());
+                                      window.sessionStorage.setItem("selectedPlaceLon", place.lon.toString());
+                                    }
+                                    // Store place name if available
+                                    if (placeName && placeName !== "Unknown Place") {
+                                      window.sessionStorage.setItem("selectedPlaceName", placeName);
+                                    }
+                                  }
+                                  // Navigate to main map
+                                  window.location.href = "/";
+                                }}
                                 className={styles.photonLink}
-                                title="Open in Photon (verify place location)"
+                                title="Open place on map with details panel"
                                 style={{ flexShrink: 0 }}
                               >
                                 <OpenInNewIcon sx={{ fontSize: 16 }} />
