@@ -499,7 +499,7 @@ function NestedPlaceTypeFilter({ items }) {
     if (!selection || typeof selection !== 'object' || selection === null) return false;
     const subs = selection[groupLabel];
     if (!subs || typeof subs !== 'object' || subs === null || Array.isArray(subs)) return false;
-    const values = Object.values(subs);
+    const values = Object.values(subs || {});
     if (!values.length) return false;
     return values.every(Boolean);
   };
@@ -508,7 +508,7 @@ function NestedPlaceTypeFilter({ items }) {
     if (!selection || typeof selection !== 'object' || selection === null) return false;
     const subs = selection[groupLabel];
     if (!subs || typeof subs !== 'object' || subs === null || Array.isArray(subs)) return false;
-    const values = Object.values(subs);
+    const values = Object.values(subs || {});
     return values.some(Boolean);
   };
 
@@ -518,7 +518,7 @@ function NestedPlaceTypeFilter({ items }) {
       const next = { ...prev };
       const subs = next[groupLabel];
       if (!subs || typeof subs !== 'object' || subs === null || Array.isArray(subs)) return next;
-      const allChecked = Object.values(subs).every(Boolean);
+      const allChecked = Object.values(subs || {}).every(Boolean);
       const newSubs = {};
       Object.keys(subs).forEach((subLabel) => {
         newSubs[subLabel] = !allChecked; // if all checked -> uncheck all; else check all
@@ -580,9 +580,9 @@ function NestedPlaceTypeFilter({ items }) {
   // Check if any place type is selected (for showing "Clear place types" button)
   const hasAnyPlaceTypeSelected = useMemo(() => {
     if (!selection || typeof selection !== 'object') return false;
-    return Object.values(selection).some((group) => {
+    return Object.values(selection || {}).some((group) => {
       if (!group || typeof group !== 'object' || Array.isArray(group)) return false;
-      return Object.values(group).some(Boolean);
+      return Object.values(group || {}).some(Boolean);
     });
   }, [selection]);
 
@@ -675,7 +675,7 @@ function NestedPlaceTypeFilter({ items }) {
                 // Count selected subcategories
                 const groupSelection = selection && selection[groupLabel];
                 const selectedCount = (groupSelection && typeof groupSelection === 'object' && groupSelection !== null && !Array.isArray(groupSelection)
-                  ? Object.values(groupSelection) 
+                  ? Object.values(groupSelection || {}) 
                   : []).filter(Boolean).length;
                 const totalCount = Object.keys(subs).length;
                 
@@ -941,7 +941,7 @@ function NestedPlaceTypeFilter({ items }) {
                 // Count selected subcategories
                 const groupSelection = selection && selection[groupLabel];
                 const selectedCount = (groupSelection && typeof groupSelection === 'object' && groupSelection !== null && !Array.isArray(groupSelection)
-                  ? Object.values(groupSelection) 
+                  ? Object.values(groupSelection || {}) 
                   : []).filter(Boolean).length;
                 const totalCount = Object.keys(subs).length;
                 
@@ -2071,7 +2071,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
       let anyOn = false;
       Object.values(activeTypeFilters || {}).forEach((subs) => {
         if (!subs || typeof subs !== "object" || Array.isArray(subs)) return;
-        if (Object.values(subs).some(Boolean)) anyOn = true;
+        if (Object.values(subs || {}).some(Boolean)) anyOn = true;
       });
 
       // If nothing is selected at all -> show nothing (user explicitly deselected everything)
