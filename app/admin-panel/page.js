@@ -753,28 +753,28 @@ export default function AdminPanel() {
                             </div>
                             {report.place_id && (
                               <a
-                                href="/"
+                                href={`/?placeId=${encodeURIComponent(report.place_id)}${hasCoordinates ? `&lat=${place.lat}&lon=${place.lon}` : ""}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 onClick={(e) => {
-                                  e.preventDefault();
-                                  // Store place ID in sessionStorage for the map to pick up
-                                  if (typeof window !== "undefined" && window.sessionStorage) {
-                                    window.sessionStorage.setItem("selectedPlaceId", report.place_id);
-                                    window.sessionStorage.setItem("fromSavedPlaces", "true"); // Use existing flag
+                                  // Store place ID in localStorage (shared across tabs) for the map to pick up
+                                  if (typeof window !== "undefined" && window.localStorage) {
+                                    window.localStorage.setItem("selectedPlaceId", report.place_id);
+                                    window.localStorage.setItem("fromSavedPlaces", "true");
                                     // Also store coordinates if available for immediate map centering
                                     if (hasCoordinates) {
-                                      window.sessionStorage.setItem("selectedPlaceLat", place.lat.toString());
-                                      window.sessionStorage.setItem("selectedPlaceLon", place.lon.toString());
+                                      window.localStorage.setItem("selectedPlaceLat", place.lat.toString());
+                                      window.localStorage.setItem("selectedPlaceLon", place.lon.toString());
                                     }
                                     // Store place name if available
                                     if (placeName && placeName !== "Unknown Place") {
-                                      window.sessionStorage.setItem("selectedPlaceName", placeName);
+                                      window.localStorage.setItem("selectedPlaceName", placeName);
                                     }
                                   }
-                                  // Navigate to main map
-                                  window.location.href = "/";
+                                  // Let the browser handle navigation to new tab
                                 }}
                                 className={styles.photonLink}
-                                title="Open place on map with details panel"
+                                title="Open place on map with details panel (new tab)"
                                 style={{ flexShrink: 0 }}
                               >
                                 <OpenInNewIcon sx={{ fontSize: 16 }} />
