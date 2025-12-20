@@ -250,20 +250,19 @@ function selectorsForZoom(
   { AMENITY_EXCLUDED, LEISURE_EXCLUDED, MAN_MADE_EXCLUDED, MILITARY_EXCLUDED }
 ) {
   return [
-    // Use `nwr` to include nodes + ways + relations.
-    // Many POIs (especially amenities/buildings) are mapped as ways, so node-only queries can look like "only shops".
-    `nwr["amenity"]["amenity"!~"${AMENITY_EXCLUDED}"]`,
-    `nwr["shop"]`,
-    `nwr["tourism"]`,
-    `nwr["leisure"]["leisure"!~"${LEISURE_EXCLUDED}"]`,
-    `nwr["healthcare"]`,
-    `nwr["building"]`,
-    `nwr["office"]`,
-    `nwr["craft"]`,
-    `nwr["historic"]`,
-    `nwr["man_made"]["man_made"!~"${MAN_MADE_EXCLUDED}"]`,
-    `nwr["military"]["military"!~"${MILITARY_EXCLUDED}"]`,
-    `nwr["sport"]`,
+    // Use `node` to include only nodes (not ways or relations).
+    `node["amenity"]["amenity"!~"${AMENITY_EXCLUDED}"]`,
+    `node["shop"]`,
+    `node["tourism"]`,
+    `node["leisure"]["leisure"!~"${LEISURE_EXCLUDED}"]`,
+    `node["healthcare"]`,
+    `node["building"]`,
+    `node["office"]`,
+    `node["craft"]`,
+    `node["historic"]`,
+    `node["man_made"]["man_made"!~"${MAN_MADE_EXCLUDED}"]`,
+    `node["military"]["military"!~"${MILITARY_EXCLUDED}"]`,
+    `node["sport"]`,
   ];
 }
 
