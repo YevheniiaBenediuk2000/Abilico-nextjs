@@ -48,12 +48,22 @@ export async function GET(request) {
   try {
     const { data, error: dbError } = await supabase
       .from("place_reports")
-      .select("*")
+      .select(`
+        *,
+        places (
+          id,
+          name,
+          lat,
+          lon,
+          city,
+          country
+        )
+      `)
       .order("created_at", { ascending: false });
 
     if (dbError) throw dbError;
 
-    console.log(`[Admin API] Fetched ${data?.length || 0} place reports`);
+    console.log(`[Admin API] Fetched ${data?.length || 0} place reports with place data`);
     return NextResponse.json({ data });
   } catch (e) {
     console.error("[Admin API] Error fetching place reports:", e);
@@ -102,16 +112,21 @@ export async function PUT(request) {
       );
     }
 
-    // Step 2: Check if report is already handled
-    if (report.status !== "pending") {
-      return NextResponse.json(
-        { error: `Report already ${report.status}` },
-        { status: 400 }
-      );
-    }
-
-    // Step 3: Update report status
+    // Step 2: Determine new status (allow reversibility)
     const newStatus = action === "approve" ? "approved" : "rejected";
+    const isReversal =
+      (report.status === "approved" && action === "reject") ||
+      (report.status === "rejected" && action === "approve");
+
+    // Step 3: Update report status (always allowed for admins)
+    // Note: We allow reversibility, but prevent duplicate actions (idempotency)
+    // If status is already the target status, return success without update
+    if (report.status === newStatus) {
+      console.log(
+        `[Admin API] Report ${id} already ${newStatus}, returning current state`
+      );
+      return NextResponse.json({ data: report });
+    }
     const { data: updatedReport, error: updateError } = await supabase
       .from("place_reports")
       .update({ status: newStatus })
@@ -121,46 +136,72 @@ export async function PUT(request) {
 
     if (updateError) throw updateError;
 
-    // Step 4: If approved, update the place
-    if (action === "approve" && report.place_id) {
+    // Step 4: Update place based on action and report reason
+    if (report.place_id) {
       const placeUpdate = {
         updated_at: new Date().toISOString(),
       };
 
-      // Update accessibility_status if provided
-      if (report.accessibility_reality) {
-        placeUpdate.accessibility_status = report.accessibility_reality;
+      if (action === "approve") {
+        // Approve: Apply report data to place
+        if (report.accessibility_reality) {
+          placeUpdate.accessibility_status = report.accessibility_reality;
+        }
+
+        if (report.accessibility_issues && Array.isArray(report.accessibility_issues)) {
+          placeUpdate.accessibility_keywords = report.accessibility_issues;
+        }
+
+        if (report.comment) {
+          placeUpdate.accessibility_comment = report.comment;
+        }
+
+        // Handle permanently_closed reports
+        if (report.reason === "permanently_closed") {
+          placeUpdate.status = "closed";
+        }
+      } else if (action === "reject" && isReversal) {
+        // Reject (reversal): Revert place state if it was previously approved
+        if (report.reason === "permanently_closed") {
+          // Revert closed status back to active
+          placeUpdate.status = "active";
+        }
+        // For accessibility reports, we leave the place data unchanged
+        // (simpler approach - previous state is preserved)
       }
 
-      // Update accessibility_keywords if provided
-      if (report.accessibility_issues && Array.isArray(report.accessibility_issues)) {
-        placeUpdate.accessibility_keywords = report.accessibility_issues;
-      }
+      // Only update if there are changes to make
+      if (Object.keys(placeUpdate).length > 1) {
+        const { error: placeUpdateError } = await supabase
+          .from("places")
+          .update(placeUpdate)
+          .eq("id", report.place_id);
 
-      // Update accessibility_comment if provided
-      if (report.comment) {
-        placeUpdate.accessibility_comment = report.comment;
-      }
-
-      const { error: placeUpdateError } = await supabase
-        .from("places")
-        .update(placeUpdate)
-        .eq("id", report.place_id);
-
-      if (placeUpdateError) {
-        console.error("[Admin API] Error updating place:", placeUpdateError);
-        // Don't fail the whole request, but log the error
-        // The report is already marked as approved
-      } else {
-        console.log(
-          `[Admin API] Updated place ${report.place_id} with report data`
-        );
+        if (placeUpdateError) {
+          console.error("[Admin API] Error updating place:", placeUpdateError);
+          // Don't fail the whole request, but log the error
+        } else {
+          console.log(
+            `[Admin API] Updated place ${report.place_id} (reversal: ${isReversal})`
+          );
+        }
       }
     }
 
+    // Log action for audit trail
     console.log(
-      `[Admin API] ${action === "approve" ? "Approved" : "Rejected"} report ${id}`
+      `[Admin API] ${action === "approve" ? "Approved" : "Rejected"} report ${id}`,
+      {
+        reportId: id,
+        action,
+        previousStatus: report.status,
+        newStatus: updatedReport.status,
+        isReversal,
+        placeId: report.place_id,
+        placeUpdated: action === "approve" && report.place_id ? true : false,
+      }
     );
+
     return NextResponse.json({ data: updatedReport });
   } catch (e) {
     console.error("[Admin API] Error processing report:", e);

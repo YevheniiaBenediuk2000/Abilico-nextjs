@@ -393,6 +393,13 @@
   border-color: rgba(244, 67, 54, 0.5);
 }
 
+.actionBtnActive {
+  background: rgba(12, 119, 210, 0.15) !important;
+  border-color: rgba(12, 119, 210, 0.4) !important;
+  color: #0c77d2 !important;
+  font-weight: 600;
+}
+
 /* Status badges */
 .statusActive {
   display: inline-block;
@@ -491,4 +498,24 @@
     width: 100%;
     max-width: 200px;
   }
+}
+
+/* Photon link styling */
+.photonLink {
+  display: inline-flex;
+  align-items: center;
+  color: #0c77d2;
+  text-decoration: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.photonLink:hover {
+  background-color: rgba(12, 119, 210, 0.1);
+  text-decoration: none;
+}
+
+.photonLink:active {
+  background-color: rgba(12, 119, 210, 0.2);
 }

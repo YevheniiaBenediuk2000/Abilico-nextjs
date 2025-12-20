@@ -11,6 +11,8 @@ import CloseIcon from "@mui/icons-material/Close";
 import DeleteIcon from "@mui/icons-material/Delete";
 import PlaceIcon from "@mui/icons-material/Place";
 import ReportIcon from "@mui/icons-material/Report";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import { toastSuccess, toastError } from "../utils/toast.mjs";
 
 // Allowed admin emails
 const ALLOWED_ADMINS = [
@@ -243,7 +245,32 @@ export default function AdminPanel() {
   };
 
   const handleReportAction = async (id, action) => {
+    const report = reports.find((r) => r.id === id);
+    if (!report) return;
+
+    // Prevent double-clicks: check if action is already in progress
     const actionKey = `report-${id}-${action}`;
+    if (actionLoading === actionKey) {
+      return; // Action already in progress
+    }
+
+    // Check if this is a reversal (changing an existing decision)
+    const isReversal =
+      (report.status === "approved" && action === "reject") ||
+      (report.status === "rejected" && action === "approve");
+
+    // Show confirmation for reversals
+    if (isReversal) {
+      const confirmMessage =
+        action === "approve"
+          ? "Change previous decision from 'Rejected' to 'Approved'?"
+          : "Change previous decision from 'Approved' to 'Rejected'?";
+
+      if (!confirm(confirmMessage)) {
+        return; // User cancelled
+      }
+    }
+
     setActionLoading(actionKey);
     setError(null);
 
@@ -258,19 +285,48 @@ export default function AdminPanel() {
       });
       const json = await res.json();
       console.log("[Admin Panel] Report action response:", json);
+      
       if (json.data) {
+        const newStatus = json.data.status;
         setReports((prev) =>
-          prev.map((r) => (r.id === id ? { ...r, status: json.data.status } : r))
+          prev.map((r) => (r.id === id ? { ...r, status: newStatus } : r))
         );
+
+        // Show success confirmation
+        const actionText = action === "approve" ? "approved" : "rejected";
+        const placeUpdateText = action === "approve" && report.place_id
+          ? " and applied to place"
+          : "";
+        
+        toastSuccess(
+          `Report ${actionText}${placeUpdateText}.`,
+          {
+            title: action === "approve" ? "Report Approved" : "Report Rejected",
+            delay: 4000,
+          }
+        );
+
+        // Log for verification
+        console.log(`[Admin Panel] ✅ Report ${id} ${actionText}`, {
+          reportId: id,
+          action,
+          newStatus,
+          placeId: report.place_id,
+          isReversal,
+        });
       } else {
-        setError(json.error || `Failed to ${action} report`);
+        const errorMsg = json.error || `Failed to ${action} report`;
+        setError(errorMsg);
+        toastError(errorMsg, { title: "Action Failed" });
       }
     } catch (e) {
       console.error("[Admin Panel] Report action error:", e);
-      setError(e.message);
+      const errorMsg = e.message || "An error occurred";
+      setError(errorMsg);
+      toastError(errorMsg, { title: "Action Failed" });
+    } finally {
+      setActionLoading(null);
     }
-
-    setActionLoading(null);
   };
 
   // Format date helper
@@ -645,6 +701,7 @@ export default function AdminPanel() {
                   <tr>
                     <th>ID</th>
                     <th>Place ID</th>
+                    <th>Place</th>
                     <th>Reason</th>
                     <th>Reality Status</th>
                     <th>Issues</th>
@@ -655,72 +712,124 @@ export default function AdminPanel() {
                   </tr>
                 </thead>
                 <tbody>
-                  {reports.map((report) => (
-                    <tr key={report.id}>
-                      <td className={styles.idCell} title={report.id}>
-                        {report.id.slice(0, 8)}...
-                      </td>
-                      <td className={styles.idCell} title={report.place_id}>
-                        {report.place_id ? report.place_id.slice(0, 8) + "..." : "-"}
-                      </td>
-                      <td>{report.reason || "-"}</td>
-                      <td>{report.accessibility_reality || "-"}</td>
-                      <td>
-                        {report.accessibility_issues && Array.isArray(report.accessibility_issues)
-                          ? report.accessibility_issues.join(", ")
-                          : report.accessibility_issues || "-"}
-                      </td>
-                      <td style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {report.comment || "-"}
-                      </td>
-                      <td>{formatDate(report.created_at)}</td>
-                      <td className={styles.statusCell}>
-                        <span className={getStatusClass(report.status)}>
-                          {report.status || "pending"}
-                        </span>
-                      </td>
-                      <td className={styles.actionsCell}>
-                        <div className={styles.actionsInner}>
-                          {report.status === "pending" ? (
-                            <>
-                              <button
-                                onClick={() => handleReportAction(report.id, "approve")}
-                                disabled={
-                                  actionLoading === `report-${report.id}-approve`
-                                }
-                                className={`${styles.actionBtn} ${styles.approveBtn}`}
-                                title="Approve"
+                  {reports.map((report) => {
+                    // Handle Supabase join: places can be object, array, or null
+                    const place = Array.isArray(report.places) 
+                      ? report.places[0] 
+                      : report.places;
+                    const placeName = place?.name || "Unknown Place";
+                    const placeLocation = place?.city && place?.country
+                      ? `${place.city}, ${place.country}`
+                      : place?.city || place?.country || "";
+                    const hasCoordinates = place?.lat && place?.lon;
+                    const photonUrl = hasCoordinates
+                      ? `https://photon.komoot.io/?lat=${place.lat}&lon=${place.lon}&zoom=18`
+                      : placeName !== "Unknown Place"
+                      ? `https://photon.komoot.io/?q=${encodeURIComponent(placeName)}`
+                      : null;
+
+                    return (
+                      <tr key={report.id}>
+                        <td className={styles.idCell} title={report.id}>
+                          {report.id.slice(0, 8)}...
+                        </td>
+                        <td className={styles.idCell} title={report.place_id}>
+                          {report.place_id ? report.place_id.slice(0, 8) + "..." : "-"}
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                            <div>
+                              <strong>{placeName}</strong>
+                              {placeLocation && (
+                                <div style={{ fontSize: "11px", opacity: 0.6, marginTop: "2px" }}>
+                                  {placeLocation}
+                                </div>
+                              )}
+                              {hasCoordinates && (
+                                <div style={{ fontSize: "10px", opacity: 0.5, marginTop: "2px" }}>
+                                  {place.lat.toFixed(4)}, {place.lon.toFixed(4)}
+                                </div>
+                              )}
+                            </div>
+                            {photonUrl && (
+                              <a
+                                href={photonUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={styles.photonLink}
+                                title="Open in Photon (verify place location)"
+                                style={{ flexShrink: 0 }}
                               >
-                                {actionLoading === `report-${report.id}-approve` ? (
-                                  "..."
-                                ) : (
-                                  <CheckIcon />
-                                )}
-                              </button>
-                              <button
-                                onClick={() => handleReportAction(report.id, "reject")}
-                                disabled={
-                                  actionLoading === `report-${report.id}-reject`
-                                }
-                                className={`${styles.actionBtn} ${styles.rejectBtn}`}
-                                title="Reject"
-                              >
-                                {actionLoading === `report-${report.id}-reject` ? (
-                                  "..."
-                                ) : (
-                                  <CloseIcon />
-                                )}
-                              </button>
-                            </>
-                          ) : (
-                            <span className={styles.actionStatusText}>
-                              {report.status === "approved" ? "Approved" : "Rejected"}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                                <OpenInNewIcon sx={{ fontSize: 16 }} />
+                              </a>
+                            )}
+                          </div>
+                        </td>
+                        <td>{report.reason || "-"}</td>
+                        <td>{report.accessibility_reality || "-"}</td>
+                        <td>
+                          {report.accessibility_issues && Array.isArray(report.accessibility_issues)
+                            ? report.accessibility_issues.join(", ")
+                            : report.accessibility_issues || "-"}
+                        </td>
+                        <td style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {report.comment || "-"}
+                        </td>
+                        <td>{formatDate(report.created_at)}</td>
+                        <td className={styles.statusCell}>
+                          <span className={getStatusClass(report.status)}>
+                            {report.status || "pending"}
+                          </span>
+                        </td>
+                        <td className={styles.actionsCell}>
+                          <div className={styles.actionsInner}>
+                            <button
+                              onClick={() => handleReportAction(report.id, "approve")}
+                              disabled={
+                                actionLoading === `report-${report.id}-approve` ||
+                                actionLoading === `report-${report.id}-reject`
+                              }
+                              className={`${styles.actionBtn} ${styles.approveBtn} ${
+                                report.status === "approved" ? styles.actionBtnActive : ""
+                              }`}
+                              title={
+                                report.status === "approved"
+                                  ? "Currently approved (click to change)"
+                                  : "Approve report"
+                              }
+                            >
+                              {actionLoading === `report-${report.id}-approve` ? (
+                                "..."
+                              ) : (
+                                <CheckIcon />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleReportAction(report.id, "reject")}
+                              disabled={
+                                actionLoading === `report-${report.id}-approve` ||
+                                actionLoading === `report-${report.id}-reject`
+                              }
+                              className={`${styles.actionBtn} ${styles.rejectBtn} ${
+                                report.status === "rejected" ? styles.actionBtnActive : ""
+                              }`}
+                              title={
+                                report.status === "rejected"
+                                  ? "Currently rejected (click to change)"
+                                  : "Reject report"
+                              }
+                            >
+                              {actionLoading === `report-${report.id}-reject` ? (
+                                "..."
+                              ) : (
+                                <CloseIcon />
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

@@ -6114,6 +6114,21 @@ async function initDrawingObstacles() {
     // If zoom < 17, don't add to map (will be added when zoom >= 17)
   }
 
+  // Recalculate route if there's an active route and obstacles that affect routing were loaded
+  // This handles the case where obstacles are loaded from DB and a route already exists
+  if (fromLatLng && toLatLng && obstacleFeatures.length > 0) {
+    // Check if there are any non-caution obstacles (obstacles that affect routing)
+    const hasRoutingObstacles = obstacleFeatures.some(
+      (f) => f.geometry?.type !== "Point"
+    );
+    if (hasRoutingObstacles) {
+      // Use setTimeout to ensure this happens after the map is fully initialized
+      setTimeout(() => {
+        updateRoute({ fit: false });
+      }, 100);
+    }
+  }
+
   // ✅ Only initialize draw controls and event handlers if user is logged in
   if (currentUser) {
     if (!drawControl) {
@@ -7071,6 +7086,12 @@ function setupObstacleEventHandlers() {
       // Attach tooltip with vote counts support
       attachObstacleTooltip(layerToAdd, newObstacle);
       console.log("✅ Inserted new obstacle:", newObstacle.id);
+
+      // Recalculate route if there's an active route and this obstacle affects routing
+      // Caution markers (Point obstacles) don't affect route calculation
+      if (!isCautionMarker && fromLatLng && toLatLng) {
+        updateRoute({ fit: false });
+      }
     } catch (err) {
       console.error("❌ Failed to save obstacle:", err);
       if (obstaclesLayer) {
@@ -7140,6 +7161,13 @@ function setupObstacleEventHandlers() {
           obstacleFeatures[i] = updated;
           hookLayerInteractions(layer, updated.properties);
           console.log("✅ Updated obstacle:", id);
+
+          // Recalculate route if there's an active route and this obstacle affects routing
+          // Caution markers (Point obstacles) don't affect route calculation
+          const isCautionMarker = updated.geometry?.type === "Point";
+          if (!isCautionMarker && fromLatLng && toLatLng) {
+            updateRoute({ fit: false });
+          }
         } catch (err) {
           console.error("❌ Failed to update:", err);
           toastError("Could not update obstacle.");
@@ -7161,6 +7189,10 @@ function setupObstacleEventHandlers() {
 
       const id = layer.options.obstacleId;
 
+      // Check if this is a caution marker before deletion (for route recalculation)
+      const obstacleToDelete = obstacleFeatures.find((f) => f.id === id);
+      const isCautionMarker = obstacleToDelete?.geometry?.type === "Point";
+
       // Safely filter local list
       obstacleFeatures = obstacleFeatures.filter(
         (f) => f.id !== layer.options.obstacleId
@@ -7169,6 +7201,12 @@ function setupObstacleEventHandlers() {
       console.log("🚀 Deleting from Supabase with ID:", id);
       await duringLoading("obstacles-put", obstacleStorage("DELETE", { id }));
       console.log("🗑️ Deleted obstacle:", id);
+
+      // Recalculate route if there's an active route and this obstacle affected routing
+      // Caution markers (Point obstacles) don't affect route calculation
+      if (!isCautionMarker && fromLatLng && toLatLng) {
+        updateRoute({ fit: false });
+      }
     });
   });
 }
