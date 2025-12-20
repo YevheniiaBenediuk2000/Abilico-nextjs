@@ -7457,7 +7457,10 @@ export async function initMap(user = null) {
             important: true,
           });
         }
-        // Keep current view (already set above).
+        // Fall back to default location when geolocation fails or is denied
+        if (!userInteracted) {
+          map.setView(defaultLatLng, DEFAULT_ZOOM, { animate: false });
+        }
       },
       {
         enableHighAccuracy: false,
