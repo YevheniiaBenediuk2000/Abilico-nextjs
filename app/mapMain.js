@@ -4,7 +4,8 @@ import elements from "./constants/domElements.js";
 import {
   fetchPlace,
   fetchPlaceGeometry,
-  fetchPlaces,
+  fetchPlaceIds,
+  fetchPlacesByIds,
 } from "./api/fetchPlaces.js";
 import { fetchUserPlaces } from "./api/fetchUserPlaces.js";
 import { fetchRoute } from "./api/fetchRoute.js";
@@ -21,7 +22,10 @@ import {
   DRAW_HELP_LS_KEY,
   DrawHelpAlert,
 } from "./leaflet-controls/DrawHelpAlert.mjs";
-import { customizeDrawToolbar, getCautionDrawHandler } from "./leaflet-controls/CustomizeDrawToolbar.mjs";
+import {
+  customizeDrawToolbar,
+  getCautionDrawHandler,
+} from "./leaflet-controls/CustomizeDrawToolbar.mjs";
 import { ls, LS_KEYS } from "./utils/localStorage.mjs";
 import {
   duringLoading,
@@ -50,7 +54,15 @@ import { ACCESSIBILITY_CATEGORY_LABELS } from "./constants/accessibilityCategori
 import { makePoiIcon } from "./icons/makePoiIcon.mjs";
 import { supabase } from "./api/supabaseClient.js";
 import { ensurePlaceExists, reviewStorage } from "./api/reviewStorage.js";
-import { formatAddressFromTags, formatAreaFromTags, formatLevel } from "./utils/formatAddress.mjs";
+import {
+  formatAddressFromTags,
+  formatAreaFromTags,
+  formatLevel,
+} from "./utils/formatAddress.mjs";
+import {
+  savePlacesToCache,
+  loadPlacesFromCache,
+} from "./utils/placesPersistence.js";
 import {
   BRAND_WIKIDATA_MAP,
   SUPPRESSED_BRAND_WIKIDATA,
@@ -272,7 +284,10 @@ function isFeatureAllowedByTypeFilter(feature) {
     // prefer a stable subtype rather than falling through to "other".
     if (major === "office" && !tags.office) {
       if (tags.diplomatic) return tags.diplomatic;
-      if (tags.embassy) return String(tags.embassy).toLowerCase().trim() === "yes" ? "embassy" : tags.embassy;
+      if (tags.embassy)
+        return String(tags.embassy).toLowerCase().trim() === "yes"
+          ? "embassy"
+          : tags.embassy;
     }
     return (
       tags[major] ||
@@ -307,7 +322,9 @@ function isFeatureAllowedByTypeFilter(feature) {
 function isBenchFeature(feature) {
   const props = feature?.properties || {};
   const tags = props.tags || props;
-  const amenity = String(tags?.amenity ?? "").toLowerCase().trim();
+  const amenity = String(tags?.amenity ?? "")
+    .toLowerCase()
+    .trim();
   return amenity === "bench";
 }
 
@@ -372,7 +389,9 @@ function displayNameFromTags(tags = {}) {
     humanize(tags.craft) ||
     humanize(tags.man_made) ||
     humanize(tags.military) ||
-    (String(tags.building ?? "").toLowerCase().trim() === "yes"
+    (String(tags.building ?? "")
+      .toLowerCase()
+      .trim() === "yes"
       ? "Building"
       : humanize(tags.building)) ||
     "Point of interest"
@@ -393,10 +412,10 @@ async function showQuickRoutePopup(latlng) {
     const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng.lat}&lon=${latlng.lng}&zoom=18&addressdetails=1`;
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Abilico/1.0',
+        "User-Agent": "Abilico/1.0",
       },
     });
-    
+
     if (response.ok) {
       const data = await response.json();
       const address = data.address || {};
@@ -488,7 +507,7 @@ async function showQuickRoutePopup(latlng) {
   const closeBtn = document.getElementById("qp-close");
   closeBtn?.addEventListener("click", (ev) => {
     L.DomEvent.stop(ev);
-      map.closePopup(clickPopup);
+    map.closePopup(clickPopup);
     clickPopup = null;
   });
 }
@@ -515,7 +534,9 @@ async function ensureDirectionsUiVisible(titleText = "Directions") {
   let el = getDirectionsUiEl();
   if (!el) {
     // Wait a couple frames for React to mount the Drawer content if needed.
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await new Promise((r) =>
+      requestAnimationFrame(() => requestAnimationFrame(r))
+    );
     el = getDirectionsUiEl();
   }
 
@@ -528,7 +549,13 @@ async function ensureDirectionsUiVisible(titleText = "Directions") {
   return el;
 }
 
-function openPlaceDetailsPopup(titleText, category = null, distance = null, features = [], shortName = null) {
+function openPlaceDetailsPopup(
+  titleText,
+  category = null,
+  distance = null,
+  features = [],
+  shortName = null
+) {
   if (
     typeof window !== "undefined" &&
     typeof window.openPlacePopup === "function"
@@ -853,7 +880,9 @@ function hookLayerInteractions(layer, props) {
     if (!isLoggedIn) {
       // Double-check with Supabase in case currentUser is stale
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
         isLoggedIn = !!user;
         // Update currentUser if we found a user
         if (user && !currentUser) {
@@ -863,7 +892,7 @@ function hookLayerInteractions(layer, props) {
         console.warn("Failed to check user status:", err);
       }
     }
-    
+
     if (!isLoggedIn) {
       // For non-logged-in users, show a read-only popup with obstacle info
       const title = tooltipTextFromProps(props);
@@ -960,12 +989,12 @@ function toggleObstaclesByZoom() {
           layer.setOpacity(1);
         }
         if (layer._icon) {
-          layer._icon.style.display = '';
-          layer._icon.style.visibility = 'visible';
+          layer._icon.style.display = "";
+          layer._icon.style.visibility = "visible";
         }
         if (layer._path) {
-          layer._path.style.display = '';
-          layer._path.style.visibility = 'visible';
+          layer._path.style.display = "";
+          layer._path.style.visibility = "visible";
         }
       });
     } else {
@@ -987,6 +1016,124 @@ function serializeBounds(bounds, zoom) {
   const decimals = zoom >= 17 ? 4 : zoom >= 15 ? 3 : 2;
   const round = (v) => Number(v.toFixed(decimals));
   return [round(s), round(w), round(n), round(e)];
+}
+
+// =============================================================================
+// SMART PLACES FETCHING WITH INDEXEDDB CACHING
+// Uses ID-first strategy: fetch IDs, check cache, only fetch missing places
+// =============================================================================
+
+// In-memory cache populated from IndexedDB on first load
+let indexedDBCacheLoaded = false;
+let indexedDBPlacesMap = new Map(); // id -> feature
+
+async function ensureIndexedDBCacheLoaded() {
+  if (indexedDBCacheLoaded) return;
+  try {
+    const cached = await loadPlacesFromCache();
+    cached.forEach((item) => {
+      if (item.id && item.feature) {
+        indexedDBPlacesMap.set(item.id, item.feature);
+      }
+    });
+    console.log(
+      `📂 [IndexedDB] Loaded ${indexedDBPlacesMap.size} places from persistent cache`
+    );
+    indexedDBCacheLoaded = true;
+  } catch (e) {
+    console.warn("Failed to load IndexedDB cache:", e);
+    indexedDBCacheLoaded = true; // Don't retry on error
+  }
+}
+
+/**
+ * Smart fetch that uses ID-first strategy with IndexedDB caching.
+ * 1. Fetch only IDs from Overpass (lightweight)
+ * 2. Check which IDs are already in IndexedDB cache
+ * 3. Fetch full data only for missing IDs
+ * 4. Save new places to IndexedDB
+ */
+async function fetchPlacesWithCache(bounds, zoom, options) {
+  await ensureIndexedDBCacheLoaded();
+
+  // Step 1: Fetch IDs for current viewport
+  const ids = await fetchPlaceIds(bounds, zoom, options);
+
+  if (!ids || ids.length === 0) {
+    console.log("🆔 [fetchPlacesWithCache] No IDs returned");
+    return { type: "FeatureCollection", features: [] };
+  }
+
+  console.log(`🆔 [fetchPlacesWithCache] Got ${ids.length} IDs from Overpass`);
+
+  // Step 2: Separate cached vs missing IDs
+  const cachedFeatures = [];
+  const missingIds = [];
+
+  for (const idObj of ids) {
+    const key = `${idObj.type}/${idObj.id}`;
+    const cached = indexedDBPlacesMap.get(key);
+    if (cached) {
+      cachedFeatures.push(cached);
+    } else {
+      missingIds.push(idObj);
+    }
+  }
+
+  console.log(
+    `💾 [fetchPlacesWithCache] ${cachedFeatures.length} from cache, ${missingIds.length} need fetching`
+  );
+
+  // Step 3: Fetch only missing places
+  let newFeatures = [];
+  if (missingIds.length > 0) {
+    const fetched = await fetchPlacesByIds(missingIds);
+    newFeatures = fetched?.features || [];
+
+    // Step 4: Save new places to IndexedDB
+    if (newFeatures.length > 0) {
+      const toSave = newFeatures
+        .map((f) => {
+          // osmtogeojson sets feature.id as "node/123", "way/456", etc.
+          let key = null;
+          if (typeof f.id === "string" && f.id.includes("/")) {
+            key = f.id; // Already in correct format
+          } else {
+            // Fallback: try to extract from properties
+            const p = f.properties || {};
+            const osmType = p.type || p.osm_type;
+            const osmId = p.id || p.osm_id;
+            if (osmType && osmId) {
+              key = `${osmType}/${osmId}`;
+            }
+          }
+
+          if (key) {
+            indexedDBPlacesMap.set(key, f); // Also update in-memory cache
+            return { id: key, feature: f };
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      if (toSave.length > 0) {
+        console.log(
+          `💾 [fetchPlacesWithCache] Saving ${toSave.length} new places to IndexedDB`
+        );
+        savePlacesToCache(toSave).catch((e) =>
+          console.warn("Failed to save places to IndexedDB:", e)
+        );
+      }
+    }
+  }
+
+  // Combine cached + new features
+  const allFeatures = [...cachedFeatures, ...newFeatures];
+  console.log(
+    `✅ [fetchPlacesWithCache] Returning ${allFeatures.length} total features`
+  );
+
+  return { type: "FeatureCollection", features: allFeatures };
 }
 
 function accessibilityKey() {
@@ -1032,7 +1179,7 @@ async function refreshPlaces() {
       accessibilityKey(),
     ];
 
-    // ✅ 1. Try to reuse from cache (no network at all if present)
+    // ✅ 1. Try to reuse from react-query in-memory cache (survives within session)
     let geojson = queryClient.getQueryData(queryKey);
 
     // IMPORTANT: if we previously cached an empty Overpass response (rate limit/timeout),
@@ -1045,12 +1192,14 @@ async function refreshPlaces() {
       geojson = null;
     }
 
-    // ✅ 2. If not cached yet, fetch & cache via react-query
+    // ✅ 2. If not in react-query cache, use smart ID-first fetch with IndexedDB caching
     if (!geojson) {
       geojson = await queryClient.fetchQuery({
         queryKey,
         staleTime: 30 * 1000,
-        queryFn: () => fetchPlaces(bounds, zoom, { accessibilityFilter }),
+        // Use the new ID-first strategy with IndexedDB caching
+        queryFn: () =>
+          fetchPlacesWithCache(bounds, zoom, { accessibilityFilter }),
       });
     }
 
@@ -1114,14 +1263,16 @@ async function refreshPlaces() {
     allPlacesFeatures = Array.from(placesCacheById.values());
 
     // ✅ 2) Compute which cached features are inside current bounds
-    const featuresInView = allPlacesFeatures.filter((f) => {
-      const g = f.geometry;
-      if (!g) return false;
-      if (g.type !== "Point" || !Array.isArray(g.coordinates)) return false;
+    const featuresInView = allPlacesFeatures
+      .filter((f) => {
+        const g = f.geometry;
+        if (!g) return false;
+        if (g.type !== "Point" || !Array.isArray(g.coordinates)) return false;
 
-      const [lng, lat] = g.coordinates;
-      return bounds.contains(L.latLng(lat, lng));
-    }).filter((f) => !isBenchFeature(f));
+        const [lng, lat] = g.coordinates;
+        return bounds.contains(L.latLng(lat, lng));
+      })
+      .filter((f) => !isBenchFeature(f));
 
     const geojsonForView = {
       type: "FeatureCollection",
@@ -1271,7 +1422,7 @@ if (typeof window !== "undefined") {
 function getTimeAgo(date) {
   const now = new Date();
   const diffInSeconds = Math.floor((now - date) / 1000);
-  
+
   if (diffInSeconds < 60) return "Just now";
   if (diffInSeconds < 3600) {
     const minutes = Math.floor(diffInSeconds / 60);
@@ -1327,12 +1478,12 @@ async function renderReviewsList() {
     emptyContainer.style.padding = "0";
     emptyContainer.style.paddingTop = "8px";
     emptyContainer.style.textAlign = "center";
-    
+
     const emptyMsg = document.createElement("div");
     emptyMsg.style.color = "rgba(0, 0, 0, 0.6)";
     emptyMsg.style.fontSize = "0.875rem";
     emptyMsg.textContent = "Be the first to review this place.";
-    
+
     emptyContainer.appendChild(emptyMsg);
     listEl.appendChild(emptyContainer);
     dispatchReviewsUpdated();
@@ -1360,8 +1511,9 @@ async function renderReviewsList() {
       cardContainer.style.borderRadius = "16px";
       cardContainer.style.padding = "20px";
       cardContainer.style.backgroundColor = "#ffffff";
-      cardContainer.style.boxShadow = "0 2px 8px rgba(var(--bs-primary-rgb), 0.15)";
-      
+      cardContainer.style.boxShadow =
+        "0 2px 8px rgba(var(--bs-primary-rgb), 0.15)";
+
       const form = document.createElement("form");
       form.style.display = "flex";
       form.style.flexDirection = "column";
@@ -1592,7 +1744,7 @@ async function renderReviewsList() {
       badgesWrap.style.marginTop = "12px";
       badgesWrap.setAttribute("aria-label", "Detected accessibility mentions");
       cardContainer.appendChild(badgesWrap);
-      
+
       li.appendChild(cardContainer);
     } else {
       // === Normal (read-only) mode ===
@@ -1606,7 +1758,7 @@ async function renderReviewsList() {
       cardContainer.style.backgroundColor = "#ffffff";
       cardContainer.style.transition = "all 0.2s ease-in-out";
       cardContainer.style.boxShadow = "0 1px 3px rgba(0, 0, 0, 0.05)";
-      
+
       // Add hover effect
       cardContainer.addEventListener("mouseenter", () => {
         cardContainer.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.1)";
@@ -1688,7 +1840,7 @@ async function renderReviewsList() {
       nameContainer.style.flexDirection = "column";
       nameContainer.style.flex = "1";
       nameContainer.style.minWidth = "0";
-      
+
       const nameElement = document.createElement("div");
       nameElement.style.fontWeight = "600";
       nameElement.style.fontSize = "0.9375rem";
@@ -1699,7 +1851,7 @@ async function renderReviewsList() {
       reviewerHeader.appendChild(avatar);
       nameContainer.appendChild(nameElement);
       reviewerHeader.appendChild(nameContainer);
-      
+
       // Add timestamp to header if available
       if (review.created_at) {
         const dt = new Date(review.created_at);
@@ -1713,7 +1865,7 @@ async function renderReviewsList() {
           nameContainer.appendChild(timeElement);
         }
       }
-      
+
       cardContainer.appendChild(reviewerHeader);
 
       // Rating display - show stars based on rating value
@@ -1803,7 +1955,13 @@ async function renderReviewsList() {
 
       // Category ratings details section (if review has category_ratings) - improved styling
       const categoryRatings = review.category_ratings;
-      if (categoryRatings && typeof categoryRatings === 'object' && !Array.isArray(categoryRatings) && categoryRatings !== null && Object.keys(categoryRatings).length > 0) {
+      if (
+        categoryRatings &&
+        typeof categoryRatings === "object" &&
+        !Array.isArray(categoryRatings) &&
+        categoryRatings !== null &&
+        Object.keys(categoryRatings).length > 0
+      ) {
         const detailsContainer = document.createElement("div");
         detailsContainer.style.marginTop = "16px";
         detailsContainer.style.marginBottom = "12px";
@@ -1822,7 +1980,8 @@ async function renderReviewsList() {
         detailsBtn.style.alignItems = "center";
         detailsBtn.style.gap = "6px";
         detailsBtn.style.transition = "color 0.2s";
-        detailsBtn.innerHTML = '<span style="font-size: 0.75rem;">▶</span> Show category details';
+        detailsBtn.innerHTML =
+          '<span style="font-size: 0.75rem;">▶</span> Show category details';
         detailsBtn.setAttribute("aria-expanded", "false");
         detailsBtn.setAttribute("aria-label", "Toggle category rating details");
 
@@ -1849,7 +2008,7 @@ async function renderReviewsList() {
         categoryList.style.borderRadius = "8px";
 
         Object.entries(categoryRatings).forEach(([categoryId, rating]) => {
-          if (typeof rating === 'number' && rating >= 1 && rating <= 5) {
+          if (typeof rating === "number" && rating >= 1 && rating <= 5) {
             const categoryItem = document.createElement("div");
             categoryItem.style.display = "flex";
             categoryItem.style.justifyContent = "space-between";
@@ -1857,14 +2016,16 @@ async function renderReviewsList() {
             categoryItem.style.padding = "8px 12px";
             categoryItem.style.borderRadius = "6px";
             categoryItem.style.transition = "background-color 0.2s";
-            
+
             // Check if this category is in user's preferences
             const isUserPreference = userPrefsSet.has(categoryId);
-            
+
             // Apply highlighting style if it matches user preferences - improved
             if (isUserPreference) {
-              categoryItem.style.backgroundColor = "rgba(var(--bs-primary-rgb), 0.08)";
-              categoryItem.style.borderLeft = "1px solid rgba(var(--bs-primary-rgb), 0.5)";
+              categoryItem.style.backgroundColor =
+                "rgba(var(--bs-primary-rgb), 0.08)";
+              categoryItem.style.borderLeft =
+                "1px solid rgba(var(--bs-primary-rgb), 0.5)";
             } else {
               categoryItem.style.backgroundColor = "transparent";
             }
@@ -1873,8 +2034,11 @@ async function renderReviewsList() {
             const label = document.createElement("span");
             label.style.fontWeight = isUserPreference ? "600" : "500";
             label.style.fontSize = "0.875rem";
-            label.style.color = isUserPreference ? "rgba(var(--bs-primary-rgb), 0.87)" : "rgba(0, 0, 0, 0.87)";
-            label.textContent = ACCESSIBILITY_CATEGORY_LABELS[categoryId] || categoryId;
+            label.style.color = isUserPreference
+              ? "rgba(var(--bs-primary-rgb), 0.87)"
+              : "rgba(0, 0, 0, 0.87)";
+            label.textContent =
+              ACCESSIBILITY_CATEGORY_LABELS[categoryId] || categoryId;
 
             // Rating display (stars) - improved styling
             const ratingDisplay = document.createElement("div");
@@ -1938,18 +2102,21 @@ async function renderReviewsList() {
 
         // Toggle functionality
         detailsBtn.addEventListener("click", () => {
-          const isExpanded = detailsBtn.getAttribute("aria-expanded") === "true";
+          const isExpanded =
+            detailsBtn.getAttribute("aria-expanded") === "true";
 
           if (isExpanded) {
             // Collapse
             detailsContent.style.display = "none";
             detailsBtn.setAttribute("aria-expanded", "false");
-            detailsBtn.innerHTML = '<span style="font-size: 0.75rem;">▶</span> Show category details';
+            detailsBtn.innerHTML =
+              '<span style="font-size: 0.75rem;">▶</span> Show category details';
           } else {
             // Expand
             detailsContent.style.display = "block";
             detailsBtn.setAttribute("aria-expanded", "true");
-            detailsBtn.innerHTML = '<span style="font-size: 0.75rem;">▼</span> Hide category details';
+            detailsBtn.innerHTML =
+              '<span style="font-size: 0.75rem;">▼</span> Hide category details';
           }
         });
       }
@@ -2033,11 +2200,15 @@ async function renderReviewsList() {
 
       // Placeholder for accessibility keyword badges
       const badgesWrapReadOnly = document.createElement("div");
-      badgesWrapReadOnly.className = "mt-1 d-flex flex-wrap gap-1 review-badges";
+      badgesWrapReadOnly.className =
+        "mt-1 d-flex flex-wrap gap-1 review-badges";
       badgesWrapReadOnly.style.marginTop = "12px";
-      badgesWrapReadOnly.setAttribute("aria-label", "Detected accessibility mentions");
+      badgesWrapReadOnly.setAttribute(
+        "aria-label",
+        "Detected accessibility mentions"
+      );
       cardContainer.appendChild(badgesWrapReadOnly);
-      
+
       li.appendChild(cardContainer);
     }
 
@@ -2094,8 +2265,10 @@ function makeCircleFeature(layer) {
 // Helper function to get MUI Material Icon name for place types
 function getMuiIconForPlaceType(key, value) {
   const lk = String(key || "").toLowerCase();
-  const lv = String(value || "").toLowerCase().replace(/[_-]/g, "-");
-  
+  const lv = String(value || "")
+    .toLowerCase()
+    .replace(/[_-]/g, "-");
+
   // Map OSM place type keys and values to MUI Material Icons
   const iconMap = {
     // Tourism
@@ -2199,7 +2372,7 @@ function getMuiIconForPlaceType(key, value) {
       "*": "sports_soccer",
     },
   };
-  
+
   // Check if we have a mapping for this key
   if (iconMap[lk]) {
     // Try exact match first
@@ -2216,7 +2389,7 @@ function getMuiIconForPlaceType(key, value) {
       return iconMap[lk]["*"];
     }
   }
-  
+
   // Default fallback
   return "place";
 }
@@ -2229,17 +2402,20 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   const isStale = () => myDetailsSeq !== detailsReqSeq;
 
   globals.detailsCtx.tags = tags;
-  
+
   // Update vision accessibility control if available
   if (typeof window !== "undefined" && window.visionAccessibilityControl) {
     window.visionAccessibilityControl.update(tags);
   }
-  
+
   const titleText = displayNameFromTags(tags) || "Details";
-  
+
   // Extract short_name (normalize to uppercase, only show if different from name)
-  const shortNameRaw = tags.short_name || tags["short_name"] || tags["short-name"] || null;
-  const shortName = shortNameRaw ? String(shortNameRaw).trim().toUpperCase() : null;
+  const shortNameRaw =
+    tags.short_name || tags["short_name"] || tags["short-name"] || null;
+  const shortName = shortNameRaw
+    ? String(shortNameRaw).trim().toUpperCase()
+    : null;
   const normalizeForContains = (s) =>
     String(s ?? "")
       .toUpperCase()
@@ -2274,9 +2450,18 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   list.innerHTML = "";
 
   const nTags = normalizeTagsCase(tags);
-  
+
   // Extract category for header display
-  const categoryKeys = ["amenity", "tourism", "shop", "leisure", "healthcare", "office", "historic", "sport"];
+  const categoryKeys = [
+    "amenity",
+    "tourism",
+    "shop",
+    "leisure",
+    "healthcare",
+    "office",
+    "historic",
+    "sport",
+  ];
   let categoryValue = null;
 
   // Diplomatic/embassy tagging:
@@ -2285,9 +2470,12 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   const embassyRaw = nTags.embassy ?? null;
   const diplomaticRaw = nTags.diplomatic ?? null;
   const officeRaw = nTags.office ?? null;
-  const embassyLower = embassyRaw != null ? String(embassyRaw).trim().toLowerCase() : "";
-  const diplomaticLower = diplomaticRaw != null ? String(diplomaticRaw).trim().toLowerCase() : "";
-  const officeLower = officeRaw != null ? String(officeRaw).trim().toLowerCase() : "";
+  const embassyLower =
+    embassyRaw != null ? String(embassyRaw).trim().toLowerCase() : "";
+  const diplomaticLower =
+    diplomaticRaw != null ? String(diplomaticRaw).trim().toLowerCase() : "";
+  const officeLower =
+    officeRaw != null ? String(officeRaw).trim().toLowerCase() : "";
 
   const resolveDiplomaticCategory = () => {
     const kind =
@@ -2301,7 +2489,9 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       .replace(/[_-]/g, " ")
       .split(" ")
       .filter(Boolean)
-      .map((w, i) => (i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w.toLowerCase()))
+      .map((w, i) =>
+        i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w.toLowerCase()
+      )
       .join(" ");
   };
 
@@ -2330,56 +2520,97 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   // Reuse the same "University" category rather than creating a new one-off type.
   if (!categoryValue && nTags.building) {
     const buildingVal = String(nTags.building).trim().toLowerCase();
-    if (buildingVal === "university" || buildingVal === "college" || buildingVal === "school") {
+    if (
+      buildingVal === "university" ||
+      buildingVal === "college" ||
+      buildingVal === "school"
+    ) {
       categoryValue = buildingVal
         .replace(/[_-]/g, " ")
         .split(" ")
         .map((word, index) => {
-          if (index === 0) return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+          if (index === 0)
+            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
           return word.toLowerCase();
         })
         .join(" ");
     }
   }
-  
+
   // Extract features for header chips (drive_through, dispensing, etc.)
   const features = [];
-  
+
   // Check if drive_through is available and relevant for this category
-  const driveThroughValue = nTags.drive_through || nTags["drive-through"] || nTags.drive_through || null;
+  const driveThroughValue =
+    nTags.drive_through ||
+    nTags["drive-through"] ||
+    nTags.drive_through ||
+    null;
   const relevantCategoriesForDriveThrough = [
-    "pharmacy", "local_pharmacy", "fast_food", "cafe", "coffee_shop", 
-    "bank", "atm", "restaurant", "fuel"
+    "pharmacy",
+    "local_pharmacy",
+    "fast_food",
+    "cafe",
+    "coffee_shop",
+    "bank",
+    "atm",
+    "restaurant",
+    "fuel",
   ];
   const categoryLower = categoryValue ? categoryValue.toLowerCase() : "";
-  const isRelevantForDriveThrough = relevantCategoriesForDriveThrough.some(cat => 
-    categoryLower.includes(cat.replace(/_/g, " ")) || 
-    categoryLower === cat.replace(/_/g, " ")
+  const isRelevantForDriveThrough = relevantCategoriesForDriveThrough.some(
+    (cat) =>
+      categoryLower.includes(cat.replace(/_/g, " ")) ||
+      categoryLower === cat.replace(/_/g, " ")
   );
-  
-  if (driveThroughValue && String(driveThroughValue).toLowerCase().trim() === "yes" && isRelevantForDriveThrough) {
-    features.push({ type: "drive_through", label: "Drive-through available", icon: "directions_car" });
+
+  if (
+    driveThroughValue &&
+    String(driveThroughValue).toLowerCase().trim() === "yes" &&
+    isRelevantForDriveThrough
+  ) {
+    features.push({
+      type: "drive_through",
+      label: "Drive-through available",
+      icon: "directions_car",
+    });
   }
-  
+
   // Check if dispensing is available (for pharmacies)
   const dispensingValue = nTags.dispensing || nTags.Dispensing || null;
   const isPharmacy = categoryLower.includes("pharmacy");
-  if (dispensingValue && String(dispensingValue).toLowerCase().trim() === "yes" && isPharmacy) {
-    features.push({ type: "dispensing", label: "Dispenses prescription medicines", icon: "medical_services" });
+  if (
+    dispensingValue &&
+    String(dispensingValue).toLowerCase().trim() === "yes" &&
+    isPharmacy
+  ) {
+    features.push({
+      type: "dispensing",
+      label: "Dispenses prescription medicines",
+      icon: "medical_services",
+    });
   }
-  
+
   // Extract payment information and create a single payment chip
   // Check normalized tags (case-insensitive lookup)
-  const paymentCreditCards = nTags["payment:credit_cards"] || nTags["payment_credit_cards"] || null;
-  const paymentDebitCards = nTags["payment:debit_cards"] || nTags["payment_debit_cards"] || null;
+  const paymentCreditCards =
+    nTags["payment:credit_cards"] || nTags["payment_credit_cards"] || null;
+  const paymentDebitCards =
+    nTags["payment:debit_cards"] || nTags["payment_debit_cards"] || null;
   const paymentCash = nTags["payment:cash"] || nTags["payment_cash"] || null;
-  
-  const creditCardsYes = paymentCreditCards && String(paymentCreditCards).toLowerCase().trim() === "yes";
-  const debitCardsYes = paymentDebitCards && String(paymentDebitCards).toLowerCase().trim() === "yes";
-  const cashYes = paymentCash && String(paymentCash).toLowerCase().trim() === "yes";
-  const cashNo = paymentCash && String(paymentCash).toLowerCase().trim() === "no";
+
+  const creditCardsYes =
+    paymentCreditCards &&
+    String(paymentCreditCards).toLowerCase().trim() === "yes";
+  const debitCardsYes =
+    paymentDebitCards &&
+    String(paymentDebitCards).toLowerCase().trim() === "yes";
+  const cashYes =
+    paymentCash && String(paymentCash).toLowerCase().trim() === "yes";
+  const cashNo =
+    paymentCash && String(paymentCash).toLowerCase().trim() === "no";
   const anyCardYes = creditCardsYes || debitCardsYes;
-  
+
   if (anyCardYes || cashYes) {
     let paymentLabel = null;
     if (cashNo && anyCardYes) {
@@ -2389,36 +2620,68 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     } else if (anyCardYes) {
       paymentLabel = "Cards accepted";
     }
-    
+
     if (paymentLabel) {
-      features.push({ type: "payment", label: paymentLabel, icon: "credit_card" });
+      features.push({
+        type: "payment",
+        label: paymentLabel,
+        icon: "credit_card",
+      });
     }
   }
-  
+
   // Extract smoking information
   const smokingValue = nTags.smoking || nTags.Smoking || null;
   const smokingYes = nTags["smoking:yes"] || nTags["smoking_yes"] || null;
   const smokingNo = nTags["smoking:no"] || nTags["smoking_no"] || null;
-  const smokingDedicated = nTags["smoking:dedicated"] || nTags["smoking_dedicated"] || null;
-  
+  const smokingDedicated =
+    nTags["smoking:dedicated"] || nTags["smoking_dedicated"] || null;
+
   // Priority: smoking:dedicated > smoking:yes/smoking:no > smoking=yes/no
-  if (smokingDedicated && String(smokingDedicated).toLowerCase().trim() === "yes") {
-    features.push({ type: "smoking", label: "Smoking room available", icon: "smoking_rooms" });
+  if (
+    smokingDedicated &&
+    String(smokingDedicated).toLowerCase().trim() === "yes"
+  ) {
+    features.push({
+      type: "smoking",
+      label: "Smoking room available",
+      icon: "smoking_rooms",
+    });
   } else if (smokingYes && String(smokingYes).toLowerCase().trim() === "yes") {
-    features.push({ type: "smoking", label: "Smoking allowed", icon: "smoking_rooms" });
+    features.push({
+      type: "smoking",
+      label: "Smoking allowed",
+      icon: "smoking_rooms",
+    });
   } else if (smokingNo && String(smokingNo).toLowerCase().trim() === "yes") {
     features.push({ type: "smoking", label: "No smoking", icon: "smoke_free" });
   } else if (smokingValue) {
     const smokingLower = String(smokingValue).toLowerCase().trim();
-    if (smokingLower === "yes" || smokingLower === "outside" || smokingLower === "isolated") {
-      features.push({ type: "smoking", label: "Smoking allowed", icon: "smoking_rooms" });
+    if (
+      smokingLower === "yes" ||
+      smokingLower === "outside" ||
+      smokingLower === "isolated"
+    ) {
+      features.push({
+        type: "smoking",
+        label: "Smoking allowed",
+        icon: "smoking_rooms",
+      });
     } else if (smokingLower === "no") {
-      features.push({ type: "smoking", label: "No smoking", icon: "smoke_free" });
+      features.push({
+        type: "smoking",
+        label: "No smoking",
+        icon: "smoke_free",
+      });
     } else if (smokingLower === "dedicated" || smokingLower === "separated") {
-      features.push({ type: "smoking", label: "Smoking room available", icon: "smoking_rooms" });
+      features.push({
+        type: "smoking",
+        label: "Smoking room available",
+        icon: "smoking_rooms",
+      });
     }
   }
-  
+
   // Extract fee information and map to friendly text
   const feeValue = nTags.fee || nTags.Fee || null;
   if (feeValue) {
@@ -2429,13 +2692,21 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       features.push({ type: "fee", label: "Paid entry", icon: "attach_money" });
     }
   }
-  
+
   // Extract indoor_seating information - only show when yes
-  const indoorSeatingValue = nTags.indoor_seating || nTags["indoor-seating"] || nTags.indoor_seating || null;
+  const indoorSeatingValue =
+    nTags.indoor_seating ||
+    nTags["indoor-seating"] ||
+    nTags.indoor_seating ||
+    null;
   if (indoorSeatingValue) {
     const indoorSeatingLower = String(indoorSeatingValue).toLowerCase().trim();
     if (indoorSeatingLower === "yes" || indoorSeatingLower === "true") {
-      features.push({ type: "indoor_seating", label: "Indoor seating available", icon: "event_seat" });
+      features.push({
+        type: "indoor_seating",
+        label: "Indoor seating available",
+        icon: "event_seat",
+      });
     }
     // Skip if no or missing - don't show "No indoor seating" to avoid clutter
   }
@@ -2444,15 +2715,34 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   // OSM: shop=hairdresser + barber=yes|only|no (sometimes amenity=hairdresser)
   // Show only when relevant, and avoid rendering awkward "Barber: yes" rows.
   const barberValue = nTags.barber || nTags.Barber || null;
-  const barberLower = barberValue != null ? String(barberValue).toLowerCase().trim() : "";
-  const amenityLowerForBarber = nTags.amenity ? String(nTags.amenity).toLowerCase().trim() : "";
-  const shopLowerForBarber = nTags.shop ? String(nTags.shop).toLowerCase().trim() : "";
-  const isHairdresserForBarber = amenityLowerForBarber === "hairdresser" || shopLowerForBarber === "hairdresser";
+  const barberLower =
+    barberValue != null ? String(barberValue).toLowerCase().trim() : "";
+  const amenityLowerForBarber = nTags.amenity
+    ? String(nTags.amenity).toLowerCase().trim()
+    : "";
+  const shopLowerForBarber = nTags.shop
+    ? String(nTags.shop).toLowerCase().trim()
+    : "";
+  const isHairdresserForBarber =
+    amenityLowerForBarber === "hairdresser" ||
+    shopLowerForBarber === "hairdresser";
   if (isHairdresserForBarber) {
     if (barberLower === "only") {
-      features.push({ type: "barber", label: "Barber services only", icon: "content_cut" });
-    } else if (barberLower === "yes" || barberLower === "true" || barberLower === "1") {
-      features.push({ type: "barber", label: "Barber services", icon: "content_cut" });
+      features.push({
+        type: "barber",
+        label: "Barber services only",
+        icon: "content_cut",
+      });
+    } else if (
+      barberLower === "yes" ||
+      barberLower === "true" ||
+      barberLower === "1"
+    ) {
+      features.push({
+        type: "barber",
+        label: "Barber services",
+        icon: "content_cut",
+      });
     }
   }
 
@@ -2467,7 +2757,8 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     nTags["toilets_unisex"] ||
     nTags["toilets-unisex"] ||
     null;
-  const unisexLower = unisexValue != null ? String(unisexValue).toLowerCase().trim() : "";
+  const unisexLower =
+    unisexValue != null ? String(unisexValue).toLowerCase().trim() : "";
   const maleValue =
     nTags.male ||
     nTags.Male ||
@@ -2482,8 +2773,10 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     nTags["toilets_female"] ||
     nTags["toilets-female"] ||
     null;
-  const maleLower = maleValue != null ? String(maleValue).toLowerCase().trim() : "";
-  const femaleLower = femaleValue != null ? String(femaleValue).toLowerCase().trim() : "";
+  const maleLower =
+    maleValue != null ? String(maleValue).toLowerCase().trim() : "";
+  const femaleLower =
+    femaleValue != null ? String(femaleValue).toLowerCase().trim() : "";
 
   const isTruthy = (v) => v === "yes" || v === "true" || v === "1";
   const isOnly = (v) => v === "only";
@@ -2492,11 +2785,20 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   let audienceLabel = null;
   if (isTruthy(unisexLower)) {
     audienceLabel = "Unisex";
-  } else if ((isTruthy(maleLower) || isOnly(maleLower)) && (isFalsey(femaleLower))) {
+  } else if (
+    (isTruthy(maleLower) || isOnly(maleLower)) &&
+    isFalsey(femaleLower)
+  ) {
     audienceLabel = "Men only";
-  } else if ((isTruthy(femaleLower) || isOnly(femaleLower)) && (isFalsey(maleLower))) {
+  } else if (
+    (isTruthy(femaleLower) || isOnly(femaleLower)) &&
+    isFalsey(maleLower)
+  ) {
     audienceLabel = "Women only";
-  } else if ((isTruthy(maleLower) || isOnly(maleLower)) && (isTruthy(femaleLower) || isOnly(femaleLower))) {
+  } else if (
+    (isTruthy(maleLower) || isOnly(maleLower)) &&
+    (isTruthy(femaleLower) || isOnly(femaleLower))
+  ) {
     audienceLabel = "Men and women";
   } else if (isTruthy(maleLower) || isOnly(maleLower)) {
     audienceLabel = "For men";
@@ -2507,7 +2809,10 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   const audienceInfo = audienceLabel
     ? {
         label: audienceLabel,
-        icon: audienceLabel === "Men and women" || audienceLabel === "Unisex" ? "groups" : "person",
+        icon:
+          audienceLabel === "Men and women" || audienceLabel === "Unisex"
+            ? "groups"
+            : "person",
       }
     : null;
 
@@ -2521,9 +2826,14 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     nTags["diet-vegetarian"] ||
     nTags.vegetarian ||
     null;
-  const vegetarianLower = vegetarianValue != null ? String(vegetarianValue).toLowerCase().trim() : "";
-  const amenityLowerForDiet = nTags.amenity ? String(nTags.amenity).toLowerCase().trim() : "";
-  const shopLowerForDiet = nTags.shop ? String(nTags.shop).toLowerCase().trim() : "";
+  const vegetarianLower =
+    vegetarianValue != null ? String(vegetarianValue).toLowerCase().trim() : "";
+  const amenityLowerForDiet = nTags.amenity
+    ? String(nTags.amenity).toLowerCase().trim()
+    : "";
+  const shopLowerForDiet = nTags.shop
+    ? String(nTags.shop).toLowerCase().trim()
+    : "";
   const relevantAmenitiesForDiet = new Set([
     "restaurant",
     "cafe",
@@ -2553,7 +2863,11 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
         label: "Vegetarian only",
         icon: "spa",
       });
-    } else if (vegetarianLower === "yes" || vegetarianLower === "true" || vegetarianLower === "1") {
+    } else if (
+      vegetarianLower === "yes" ||
+      vegetarianLower === "true" ||
+      vegetarianLower === "1"
+    ) {
       features.push({
         type: "diet_vegetarian",
         label: "Vegetarian options available",
@@ -2571,7 +2885,8 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     nTags["diet-vegan"] ||
     nTags.vegan ||
     null;
-  const veganLower = veganValue != null ? String(veganValue).toLowerCase().trim() : "";
+  const veganLower =
+    veganValue != null ? String(veganValue).toLowerCase().trim() : "";
   const isRelevantForVegan =
     relevantAmenitiesForDiet.has(amenityLowerForDiet) ||
     relevantShopsForDiet.has(shopLowerForDiet);
@@ -2582,7 +2897,11 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
         label: "Vegan only",
         icon: "spa",
       });
-    } else if (veganLower === "yes" || veganLower === "true" || veganLower === "1") {
+    } else if (
+      veganLower === "yes" ||
+      veganLower === "true" ||
+      veganLower === "1"
+    ) {
       features.push({
         type: "diet_vegan",
         label: "Vegan options available",
@@ -2617,18 +2936,20 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       null
   );
   if (cashInBool !== null) {
-    bankingServices.push(`Cash-in deposits: ${cashInBool ? "Available" : "Not available"}`);
+    bankingServices.push(
+      `Cash-in deposits: ${cashInBool ? "Available" : "Not available"}`
+    );
   }
-  
+
   // Consistent padding constant for all detail sections (24px = MUI spacing 3)
   const SECTION_PADDING = "24px";
-  
+
   // Icon styling variables for Category and Address sections
   const ICON_SECONDARY_COLOR = "var(--bs-primary)"; // Brand blue for Category/Address icons
   const ICON_BACKGROUND_COLOR = "rgba(var(--bs-primary-rgb), 0.08)"; // Light blue background for icon containers
   const ICON_SIZE = "48px"; // Icon container size (width and height)
   const ICON_BORDER_RADIUS = "12px"; // Border radius for icon containers
-  
+
   // Shared helper function to create detail section headers with icon (matching Contact Information style)
   function createDetailSectionHeader(iconName, titleText) {
     const header = document.createElement("div");
@@ -2674,12 +2995,12 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   function getSocialMediaIcon(platform) {
     // Map platform to Material Icon name from @mui/icons-material
     const iconMap = {
-      "Facebook": "Facebook", // Material Icons Facebook icon
-      "Instagram": "Instagram", // Material Icons Instagram icon (if available)
-      "Twitter": "Twitter", // Material Icons Twitter icon
-      "LinkedIn": "work",
-      "YouTube": "YouTube", // Material Icons YouTube icon
-      "TikTok": "music_note",
+      Facebook: "Facebook", // Material Icons Facebook icon
+      Instagram: "Instagram", // Material Icons Instagram icon (if available)
+      Twitter: "Twitter", // Material Icons Twitter icon
+      LinkedIn: "work",
+      YouTube: "YouTube", // Material Icons YouTube icon
+      TikTok: "music_note",
     };
     return iconMap[platform] || "share";
   }
@@ -2692,14 +3013,22 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       if (!cleaned) return null;
       const urlObj = new URL(cleaned);
       const hostname = urlObj.hostname.toLowerCase().replace(/^www\./, "");
-      
+
       // Facebook
       if (hostname.includes("facebook.com")) {
-        return { platform: "Facebook", icon: getSocialMediaIcon("Facebook"), url: cleaned };
+        return {
+          platform: "Facebook",
+          icon: getSocialMediaIcon("Facebook"),
+          url: cleaned,
+        };
       }
       // Instagram
       if (hostname.includes("instagram.com")) {
-        return { platform: "Instagram", icon: getSocialMediaIcon("Instagram"), url: cleaned };
+        return {
+          platform: "Instagram",
+          icon: getSocialMediaIcon("Instagram"),
+          url: cleaned,
+        };
       }
       // Twitter/X
       if (hostname.includes("twitter.com") || hostname.includes("x.com")) {
@@ -2717,7 +3046,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       if (hostname.includes("tiktok.com")) {
         return { platform: "TikTok", icon: "music_note", url: cleaned };
       }
-      
+
       return null;
     } catch {
       return null;
@@ -2728,35 +3057,44 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   if ("contact" in nTags) {
     delete nTags.contact;
   }
-  if ("Contact" in nTags) {   // safety in case normalizeTagsCase kept a capital key
+  if ("Contact" in nTags) {
+    // safety in case normalizeTagsCase kept a capital key
     delete nTags.Contact;
   }
-  
+
   // CONTACT INFO - Extract website, phone, and email from tags
-  const allWebsiteLinks = splitMulti(nTags.website || nTags["contact:website"] || "")
+  const allWebsiteLinks = splitMulti(
+    nTags.website || nTags["contact:website"] || ""
+  )
     .map(cleanUrl)
     .filter(Boolean);
-  
+
   // Extract social media links from dedicated tags (facebook, contact:facebook, instagram, etc.)
   const socialMediaTagKeys = [
-    "facebook", "contact:facebook",
-    "instagram", "contact:instagram",
-    "twitter", "contact:twitter",
-    "linkedin", "contact:linkedin",
-    "youtube", "contact:youtube",
-    "tiktok", "contact:tiktok"
+    "facebook",
+    "contact:facebook",
+    "instagram",
+    "contact:instagram",
+    "twitter",
+    "contact:twitter",
+    "linkedin",
+    "contact:linkedin",
+    "youtube",
+    "contact:youtube",
+    "tiktok",
+    "contact:tiktok",
   ];
-  
+
   // Helper to convert username/page to full URL if needed
   const normalizeSocialMediaUrl = (value, platform) => {
     if (!value) return null;
     const trimmed = String(value).trim();
-    
+
     // If it already looks like a URL, return as-is
     if (/^https?:\/\//i.test(trimmed)) {
       return trimmed;
     }
-    
+
     // Convert username/page to full URL
     if (platform === "facebook") {
       // If it's just a username or page name, prepend facebook.com
@@ -2775,18 +3113,22 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
         return `https://www.instagram.com${trimmed}`;
       }
     } else if (platform === "twitter") {
-      if (!trimmed.includes("twitter.com") && !trimmed.includes("x.com") && !trimmed.includes("/")) {
+      if (
+        !trimmed.includes("twitter.com") &&
+        !trimmed.includes("x.com") &&
+        !trimmed.includes("/")
+      ) {
         return `https://www.twitter.com/${trimmed}`;
       }
       if (trimmed.startsWith("/")) {
         return `https://www.twitter.com${trimmed}`;
       }
     }
-    
+
     // If it doesn't match any pattern, try to clean it as-is
     return trimmed;
   };
-  
+
   const socialMediaLinksFromTags = [];
   socialMediaTagKeys.forEach((key) => {
     const value = nTags[key];
@@ -2794,16 +3136,19 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       const links = splitMulti(value);
       links.forEach((link) => {
         // Determine platform from key
-        const platform = key.toLowerCase().replace(/^contact:/, "").replace(/^contact_/, "");
-        
+        const platform = key
+          .toLowerCase()
+          .replace(/^contact:/, "")
+          .replace(/^contact_/, "");
+
         // Normalize URL (handle usernames, partial URLs, etc.)
         let normalizedUrl = normalizeSocialMediaUrl(link, platform);
         if (!normalizedUrl) return;
-        
+
         // Clean the URL
         const cleaned = cleanUrl(normalizedUrl);
         if (!cleaned) return;
-        
+
         // Detect and add social media link
         const social = detectSocialMedia(cleaned);
         if (social) {
@@ -2818,11 +3163,11 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       });
     }
   });
-  
+
   // Separate social media links from regular website links
   const socialMediaLinks = [...socialMediaLinksFromTags]; // Start with dedicated tags
   const regularWebsiteLinks = [];
-  
+
   allWebsiteLinks.forEach((url) => {
     const social = detectSocialMedia(url);
     if (social) {
@@ -2837,29 +3182,39 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       regularWebsiteLinks.push(url);
     }
   });
-  
+
   // Use regular website links for ContactInfo
   const websiteLinks = regularWebsiteLinks;
 
   // Remove raw "contact" tag (e.g. contact=yes) from generic details,
   // we only want the rich Contact section (website/phone/email).
-  if (nTags && typeof nTags === 'object') {
-  for (const key of Object.keys(nTags)) {
-    if (key && key.trim().toLowerCase() === "contact") {
-      delete nTags[key];
+  if (nTags && typeof nTags === "object") {
+    for (const key of Object.keys(nTags)) {
+      if (key && key.trim().toLowerCase() === "contact") {
+        delete nTags[key];
       }
     }
   }
-  
+
   // Extract phone numbers (phone, contact:phone, contact:mobile, phone:mobile, etc.)
   const phoneNumbers = [];
   // Collect all phone-related keys (including phone:mobile, phone:*, etc.)
-  const phoneKeys = ["phone", "contact:phone", "contact:mobile", "mobile", "contact:fax"];
+  const phoneKeys = [
+    "phone",
+    "contact:phone",
+    "contact:mobile",
+    "mobile",
+    "contact:fax",
+  ];
   // Also check for phone:* variants (phone:mobile, phone:landline, etc.)
-  if (nTags && typeof nTags === 'object') {
+  if (nTags && typeof nTags === "object") {
     Object.keys(nTags).forEach((key) => {
       const lk = key.toLowerCase();
-      if (lk.startsWith("phone:") || lk.startsWith("phone_") || lk.startsWith("phone-")) {
+      if (
+        lk.startsWith("phone:") ||
+        lk.startsWith("phone_") ||
+        lk.startsWith("phone-")
+      ) {
         phoneKeys.push(key);
       }
     });
@@ -2886,7 +3241,11 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   });
 
   // Render ContactInfo component if we have any contact info
-  if (websiteLinks.length > 0 || phoneNumbers.length > 0 || emailAddresses.length > 0) {
+  if (
+    websiteLinks.length > 0 ||
+    phoneNumbers.length > 0 ||
+    emailAddresses.length > 0
+  ) {
     const contactContainer = document.createElement("div");
     contactContainer.className = "list-group-item";
     contactContainer.style.padding = "0";
@@ -2918,13 +3277,32 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
         // Fallback to plain text
         const fallbackHtml = [];
         if (websiteLinks.length > 0) {
-          fallbackHtml.push(`<div class="me-2"><h6 class="mb-1 fw-semibold">Website</h6><p class="small mb-1">${websiteLinks.map(u => `<a href="${u}" target="_blank" rel="noopener nofollow">${linkLabel(u)}</a>`).join(" · ")}</p></div>`);
+          fallbackHtml.push(
+            `<div class="me-2"><h6 class="mb-1 fw-semibold">Website</h6><p class="small mb-1">${websiteLinks
+              .map(
+                (u) =>
+                  `<a href="${u}" target="_blank" rel="noopener nofollow">${linkLabel(
+                    u
+                  )}</a>`
+              )
+              .join(" · ")}</p></div>`
+          );
         }
         if (phoneNumbers.length > 0) {
-          fallbackHtml.push(`<div class="me-2"><h6 class="mb-1 fw-semibold">Phone</h6><p class="small mb-1">${phoneNumbers.map(p => `<a href="tel:${p.replace(/[\s\-\(\)]/g, '')}">${p}</a>`).join(" · ")}</p></div>`);
+          fallbackHtml.push(
+            `<div class="me-2"><h6 class="mb-1 fw-semibold">Phone</h6><p class="small mb-1">${phoneNumbers
+              .map(
+                (p) => `<a href="tel:${p.replace(/[\s\-\(\)]/g, "")}">${p}</a>`
+              )
+              .join(" · ")}</p></div>`
+          );
         }
         if (emailAddresses.length > 0) {
-          fallbackHtml.push(`<div class="me-2"><h6 class="mb-1 fw-semibold">Email</h6><p class="small mb-1">${emailAddresses.map(e => `<a href="mailto:${e}">${e}</a>`).join(" · ")}</p></div>`);
+          fallbackHtml.push(
+            `<div class="me-2"><h6 class="mb-1 fw-semibold">Email</h6><p class="small mb-1">${emailAddresses
+              .map((e) => `<a href="mailto:${e}">${e}</a>`)
+              .join(" · ")}</p></div>`
+          );
         }
         contactContainer.innerHTML = fallbackHtml.join("");
       }
@@ -2939,14 +3317,12 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       const hostname = urlObj.hostname.replace(/^www\./i, ""); // Remove www.
       const pathname = urlObj.pathname.replace(/\/$/, ""); // Remove trailing slash
       const displayPath = pathname || "";
-      
+
       // Return clean format: "facebook.com/JunglePizzaVilnius"
       return hostname + displayPath;
     } catch {
       // Fallback: remove https:// and www. manually
-      return url
-        .replace(/^https?:\/\//i, "")
-        .replace(/^www\./i, "");
+      return url.replace(/^https?:\/\//i, "").replace(/^www\./i, "");
     }
   }
 
@@ -2955,16 +3331,16 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     const socialMediaItem = document.createElement("div");
     socialMediaItem.className = "list-group-item";
     socialMediaItem.style.padding = "0";
-    
+
     const container = document.createElement("div");
     container.style.padding = SECTION_PADDING;
     container.style.borderTop = "1px solid";
     container.style.borderColor = "rgba(0, 0, 0, 0.12)";
-    
+
     // Header: "Social Media" with share icon
     const header = createDetailSectionHeader("share", "Social Media");
     container.appendChild(header);
-    
+
     // Create a card for each social media platform
     socialMediaLinks.forEach((social) => {
       const card = document.createElement("div");
@@ -2974,7 +3350,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       card.style.borderRadius = "8px";
       card.style.transition = "all 0.2s ease-in-out";
       card.style.cursor = "pointer";
-      
+
       // Hover effect - use secondary color
       card.addEventListener("mouseenter", () => {
         card.style.borderColor = ICON_SECONDARY_COLOR;
@@ -2986,18 +3362,18 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
         card.style.boxShadow = "none";
         card.style.transform = "translateY(0)";
       });
-      
+
       // Click to open link
       card.addEventListener("click", () => {
         window.open(social.url, "_blank", "noopener,nofollow");
       });
-      
+
       const cardContent = document.createElement("div");
       cardContent.style.display = "flex";
       cardContent.style.alignItems = "center";
       cardContent.style.gap = "16px";
       cardContent.style.padding = "16px";
-      
+
       // Icon container - use same variables as Address/Category
       const iconContainer = document.createElement("div");
       iconContainer.style.display = "flex";
@@ -3009,7 +3385,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       iconContainer.style.backgroundColor = ICON_BACKGROUND_COLOR;
       iconContainer.style.color = ICON_SECONDARY_COLOR;
       iconContainer.style.flexShrink = "0";
-      
+
       const icon = document.createElement("span");
       // Use Material Icons for all social media icons
       // Material Icons font uses lowercase names: "Facebook" component -> "facebook" icon name
@@ -3021,12 +3397,12 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       const iconName = social.icon.toLowerCase();
       icon.textContent = iconName;
       iconContainer.appendChild(icon);
-      
+
       // Content
       const contentWrapper = document.createElement("div");
       contentWrapper.style.flex = "1";
       contentWrapper.style.minWidth = "0";
-      
+
       const label = document.createElement("div");
       label.style.fontSize = "0.75rem";
       label.style.color = "rgba(0, 0, 0, 0.6)";
@@ -3035,10 +3411,10 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       label.style.marginBottom = "4px";
       label.style.fontWeight = "500";
       label.textContent = social.platform;
-      
+
       // Format URL for display (clean, readable text)
       const displayUrl = formatSocialMediaUrlForDisplay(social.url);
-      
+
       const linkText = document.createElement("div");
       linkText.style.display = "flex";
       linkText.style.alignItems = "center";
@@ -3048,12 +3424,12 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       linkText.style.color = "rgba(0, 0, 0, 0.87)";
       linkText.style.wordBreak = "break-word"; // Better than break-all
       linkText.style.lineHeight = "1.4";
-      
+
       // Display text (clean URL)
       const displayText = document.createElement("span");
       displayText.textContent = displayUrl;
       linkText.appendChild(displayText);
-      
+
       // External link indicator
       const externalIcon = document.createElement("span");
       externalIcon.className = "material-icons";
@@ -3062,16 +3438,16 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       externalIcon.style.flexShrink = "0";
       externalIcon.textContent = "open_in_new";
       linkText.appendChild(externalIcon);
-      
+
       contentWrapper.appendChild(label);
       contentWrapper.appendChild(linkText);
-      
+
       cardContent.appendChild(iconContainer);
       cardContent.appendChild(contentWrapper);
       card.appendChild(cardContent);
       container.appendChild(card);
     });
-    
+
     socialMediaItem.appendChild(container);
     list.appendChild(socialMediaItem);
   }
@@ -3079,9 +3455,14 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   // OPENING HOURS - Render with React component
   const openingHours = nTags.opening_hours || nTags["opening_hours"] || null;
   // Extract check_date:opening_hours specifically for opening hours
-  const openingHoursCheckDate = nTags["check_date:opening_hours"] || nTags["check_date_opening_hours"] || null;
-  const formattedOpeningHoursCheckDate = openingHoursCheckDate ? formatDateForDisplay(String(openingHoursCheckDate)) : null;
-  
+  const openingHoursCheckDate =
+    nTags["check_date:opening_hours"] ||
+    nTags["check_date_opening_hours"] ||
+    null;
+  const formattedOpeningHoursCheckDate = openingHoursCheckDate
+    ? formatDateForDisplay(String(openingHoursCheckDate))
+    : null;
+
   if (openingHours) {
     const hoursContainer = document.createElement("div");
     hoursContainer.className = "list-group-item";
@@ -3120,9 +3501,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   // --- ACCESSIBILITY / WHEELCHAIR: Render accessibility information ---
   // Helper function to get wheelchair tier (reuse logic from AccessibilityLegend)
   function getAccessibilityTier(tags = {}) {
-    const raw = (tags.wheelchair ?? "")
-      .toString()
-      .toLowerCase();
+    const raw = (tags.wheelchair ?? "").toString().toLowerCase();
 
     if (raw.includes("designated")) return "designated";
     if (raw === "yes" || raw.includes("true")) return "yes";
@@ -3160,7 +3539,8 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   });
 
   // Main wheelchair tag (wheelchair=yes/no/limited/etc) - always show (will show "Unknown" if missing)
-  const wheelchair = wheelchairTags.wheelchair || wheelchairTags.Wheelchair || null;
+  const wheelchair =
+    wheelchairTags.wheelchair || wheelchairTags.Wheelchair || null;
   const tier = getAccessibilityTier({ wheelchair });
   const label = TIER_LABELS[tier] || "Unknown";
   const color = TIER_COLORS[tier] || TIER_COLORS.unknown;
@@ -3168,31 +3548,31 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   const accItem = document.createElement("div");
   accItem.className = "list-group-item";
   accItem.style.padding = "0";
-  
+
   // Main container with consistent padding
   const container = document.createElement("div");
   container.style.padding = SECTION_PADDING;
   container.style.borderTop = "1px solid";
   container.style.borderColor = "rgba(0, 0, 0, 0.12)"; // divider color
-  
-      // Header section matching ContactInfo/OpeningHours style
+
+  // Header section matching ContactInfo/OpeningHours style
   const header = document.createElement("div");
   header.style.display = "flex";
   header.style.alignItems = "center";
-      header.style.gap = "12px"; // gap: 1.5
-      header.style.marginBottom = "20px"; // mb: 2.5
-      
-      // Title matching typography (no icon)
+  header.style.gap = "12px"; // gap: 1.5
+  header.style.marginBottom = "20px"; // mb: 2.5
+
+  // Title matching typography (no icon)
   const title = document.createElement("h6");
-      title.style.fontSize = "1.125rem"; // 18px
+  title.style.fontSize = "1.125rem"; // 18px
   title.style.fontWeight = "600";
-      title.style.color = "rgba(0, 0, 0, 0.87)"; // text.primary
-      title.style.letterSpacing = "-0.01em";
-      title.style.margin = "0";
-      title.textContent = "Wheelchair Access";
-  
+  title.style.color = "rgba(0, 0, 0, 0.87)"; // text.primary
+  title.style.letterSpacing = "-0.01em";
+  title.style.margin = "0";
+  title.textContent = "Wheelchair Access";
+
   header.appendChild(title);
-  
+
   // Card container for the status chip
   const cardContainer = document.createElement("div");
   cardContainer.style.border = "1px solid";
@@ -3202,7 +3582,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   cardContainer.style.display = "flex";
   cardContainer.style.alignItems = "center";
   cardContainer.style.gap = "16px"; // gap: 2
-  
+
   // Icon container for status (48x48 to match ContactInfo items)
   const statusIconContainer = document.createElement("div");
   statusIconContainer.style.display = "flex";
@@ -3223,7 +3603,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   };
   statusIconContainer.style.backgroundColor = hexToRgba(color, 0.1); // 10% opacity
   statusIconContainer.style.flexShrink = "0";
-  
+
   const statusIcon = document.createElement("div");
   statusIcon.style.width = "24px";
   statusIcon.style.height = "24px";
@@ -3237,14 +3617,14 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   statusIcon.style.webkitMaskSize = "contain";
   statusIcon.style.webkitMaskRepeat = "no-repeat";
   statusIcon.style.webkitMaskPosition = "center";
-  
+
   statusIconContainer.appendChild(statusIcon);
-  
+
   // Content wrapper
   const contentWrapper = document.createElement("div");
   contentWrapper.style.flex = "1";
   contentWrapper.style.minWidth = "0";
-  
+
   // Label - changed from "Wheelchair Access" to "STATUS" to avoid duplication
   const labelElement = document.createElement("div");
   labelElement.style.display = "block";
@@ -3255,7 +3635,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   labelElement.style.letterSpacing = "0.5px";
   labelElement.style.marginBottom = "4px"; // mb: 0.5
   labelElement.textContent = "STATUS";
-  
+
   // Chip/badge with color and label
   const chip = document.createElement("div");
   chip.style.display = "inline-block";
@@ -3268,36 +3648,46 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   chip.style.lineHeight = "1.25";
   chip.style.fontFamily = "inherit";
   chip.textContent = label;
-  
+
   contentWrapper.appendChild(labelElement);
   contentWrapper.appendChild(chip);
-  
+
   cardContainer.appendChild(statusIconContainer);
   cardContainer.appendChild(contentWrapper);
-  
+
   container.appendChild(header);
   container.appendChild(cardContainer);
   accItem.appendChild(container);
   list.appendChild(accItem);
 
   // --- WHEELCHAIR-ACCESSIBLE RESTROOM: Show if toilets:wheelchair exists ---
-  const toiletsWheelchair = nTags["toilets:wheelchair"] || nTags["toilets_wheelchair"] || nTags["toilets-wheelchair"] || 
-                             nTags["wheelchair:toilets"] || nTags["wheelchair_toilets"] || nTags["wheelchair-toilets"] || null;
+  const toiletsWheelchair =
+    nTags["toilets:wheelchair"] ||
+    nTags["toilets_wheelchair"] ||
+    nTags["toilets-wheelchair"] ||
+    nTags["wheelchair:toilets"] ||
+    nTags["wheelchair_toilets"] ||
+    nTags["wheelchair-toilets"] ||
+    null;
   if (toiletsWheelchair) {
-    const toiletsWheelchairLower = String(toiletsWheelchair).toLowerCase().trim();
-    const isYes = toiletsWheelchairLower === "yes" || toiletsWheelchairLower === "true";
-    const isNo = toiletsWheelchairLower === "no" || toiletsWheelchairLower === "false";
-    
+    const toiletsWheelchairLower = String(toiletsWheelchair)
+      .toLowerCase()
+      .trim();
+    const isYes =
+      toiletsWheelchairLower === "yes" || toiletsWheelchairLower === "true";
+    const isNo =
+      toiletsWheelchairLower === "no" || toiletsWheelchairLower === "false";
+
     if (isYes || isNo) {
       const restroomAccItem = document.createElement("div");
       restroomAccItem.className = "list-group-item";
       restroomAccItem.style.padding = "0";
-      
+
       const restroomContainer = document.createElement("div");
       restroomContainer.style.padding = SECTION_PADDING;
       restroomContainer.style.borderTop = "1px solid";
       restroomContainer.style.borderColor = "rgba(0, 0, 0, 0.12)";
-      
+
       // Card container matching wheelchair design
       const restroomCardContainer = document.createElement("div");
       restroomCardContainer.style.border = "1px solid";
@@ -3307,11 +3697,11 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       restroomCardContainer.style.display = "flex";
       restroomCardContainer.style.alignItems = "center";
       restroomCardContainer.style.gap = "16px";
-      
+
       // Determine color and label based on value (same logic as vision accessibility)
       const restroomColor = isYes ? "#6cc24a" : "#dc3545"; // green for yes, red for no
       const restroomLabel = isYes ? "Available" : "Not available";
-      
+
       // Icon container (green for yes, red for no)
       const restroomIconContainer = document.createElement("div");
       restroomIconContainer.style.display = "flex";
@@ -3320,9 +3710,12 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       restroomIconContainer.style.width = "48px";
       restroomIconContainer.style.height = "48px";
       restroomIconContainer.style.borderRadius = "16px";
-      restroomIconContainer.style.backgroundColor = hexToRgba(restroomColor, 0.1); // 10% opacity
+      restroomIconContainer.style.backgroundColor = hexToRgba(
+        restroomColor,
+        0.1
+      ); // 10% opacity
       restroomIconContainer.style.flexShrink = "0";
-      
+
       const restroomIcon = document.createElement("div");
       restroomIcon.style.width = "24px";
       restroomIcon.style.height = "24px";
@@ -3337,12 +3730,12 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       restroomIcon.style.webkitMaskRepeat = "no-repeat";
       restroomIcon.style.webkitMaskPosition = "center";
       restroomIconContainer.appendChild(restroomIcon);
-      
+
       // Content wrapper
       const restroomContentWrapper = document.createElement("div");
       restroomContentWrapper.style.flex = "1";
       restroomContentWrapper.style.minWidth = "0";
-      
+
       const restroomLabelElement = document.createElement("div");
       restroomLabelElement.style.display = "block";
       restroomLabelElement.style.color = "rgba(0, 0, 0, 0.6)";
@@ -3352,7 +3745,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       restroomLabelElement.style.letterSpacing = "0.5px";
       restroomLabelElement.style.marginBottom = "4px";
       restroomLabelElement.textContent = "WHEELCHAIR-ACCESSIBLE RESTROOM";
-      
+
       // Chip/badge with color and label (matching wheelchair style)
       const restroomChip = document.createElement("div");
       restroomChip.style.display = "inline-block";
@@ -3365,13 +3758,13 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       restroomChip.style.lineHeight = "1.25";
       restroomChip.style.fontFamily = "inherit";
       restroomChip.textContent = restroomLabel;
-      
+
       restroomContentWrapper.appendChild(restroomLabelElement);
       restroomContentWrapper.appendChild(restroomChip);
-      
+
       restroomCardContainer.appendChild(restroomIconContainer);
       restroomCardContainer.appendChild(restroomContentWrapper);
-      
+
       restroomContainer.appendChild(restroomCardContainer);
       restroomAccItem.appendChild(restroomContainer);
       list.appendChild(restroomAccItem);
@@ -3384,24 +3777,24 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     const blindLower = String(blindValue).toLowerCase().trim();
     const isYes = blindLower === "yes" || blindLower === "true";
     const isNo = blindLower === "no" || blindLower === "false";
-    
+
     if (isYes || isNo) {
       const visionAccItem = document.createElement("div");
       visionAccItem.className = "list-group-item";
       visionAccItem.style.padding = "0";
-      
+
       const container = document.createElement("div");
       container.style.padding = SECTION_PADDING;
       container.style.borderTop = "1px solid";
       container.style.borderColor = "rgba(0, 0, 0, 0.12)";
-      
+
       // Header section matching Wheelchair Access style
       const header = document.createElement("div");
       header.style.display = "flex";
       header.style.alignItems = "center";
       header.style.gap = "12px";
       header.style.marginBottom = "20px";
-      
+
       const title = document.createElement("h6");
       title.style.fontSize = "1.125rem";
       title.style.fontWeight = "600";
@@ -3409,9 +3802,9 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       title.style.letterSpacing = "-0.01em";
       title.style.margin = "0";
       title.textContent = "Other Accessibility";
-      
+
       header.appendChild(title);
-      
+
       // Card container matching wheelchair design
       const cardContainer = document.createElement("div");
       cardContainer.style.border = "1px solid";
@@ -3421,11 +3814,13 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       cardContainer.style.display = "flex";
       cardContainer.style.alignItems = "center";
       cardContainer.style.gap = "16px";
-      
+
       // Determine color and label based on value
       const visionColor = isYes ? "#6cc24a" : "#dc3545"; // green for yes, red for no
-      const visionLabel = isYes ? "Accessible for low vision" : "No vision accessibility";
-      
+      const visionLabel = isYes
+        ? "Accessible for low vision"
+        : "No vision accessibility";
+
       // Icon container (green for yes, red for no)
       const statusIconContainer = document.createElement("div");
       statusIconContainer.style.display = "flex";
@@ -3436,19 +3831,19 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       statusIconContainer.style.borderRadius = "16px";
       statusIconContainer.style.backgroundColor = hexToRgba(visionColor, 0.1); // 10% opacity
       statusIconContainer.style.flexShrink = "0";
-      
+
       const statusIcon = document.createElement("span");
       statusIcon.className = "material-icons";
       statusIcon.style.fontSize = "24px";
       statusIcon.style.color = visionColor;
       statusIcon.textContent = "blind";
       statusIconContainer.appendChild(statusIcon);
-      
+
       // Content wrapper
       const contentWrapper = document.createElement("div");
       contentWrapper.style.flex = "1";
       contentWrapper.style.minWidth = "0";
-      
+
       const labelElement = document.createElement("div");
       labelElement.style.display = "block";
       labelElement.style.color = "rgba(0, 0, 0, 0.6)";
@@ -3458,7 +3853,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       labelElement.style.letterSpacing = "0.5px";
       labelElement.style.marginBottom = "4px";
       labelElement.textContent = "Low Vision Accessibility";
-      
+
       // Chip/badge with color and label (matching wheelchair style)
       const chip = document.createElement("div");
       chip.style.display = "inline-block";
@@ -3471,13 +3866,13 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       chip.style.lineHeight = "1.25";
       chip.style.fontFamily = "inherit";
       chip.textContent = visionLabel;
-      
+
       contentWrapper.appendChild(labelElement);
       contentWrapper.appendChild(chip);
-      
+
       cardContainer.appendChild(statusIconContainer);
       cardContainer.appendChild(contentWrapper);
-      
+
       container.appendChild(header);
       container.appendChild(cardContainer);
       visionAccItem.appendChild(container);
@@ -3487,21 +3882,22 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   // Render other wheelchair tags if any exist (but skip the main wheelchair tag we already rendered)
   if (Object.keys(wheelchairTags).length > 0) {
-
     // Wheelchair description if available
-    const wheelchairDesc = wheelchairTags["wheelchair:description"] || wheelchairTags["Wheelchair:description"];
+    const wheelchairDesc =
+      wheelchairTags["wheelchair:description"] ||
+      wheelchairTags["Wheelchair:description"];
     if (wheelchairDesc) {
       const descItem = document.createElement("div");
       descItem.className = "list-group-item";
       descItem.style.padding = "0";
-      
+
       const descContainer = document.createElement("div");
       descContainer.style.padding = "16px"; // p: 2
       descContainer.style.border = "1px solid";
       descContainer.style.borderColor = "rgba(0, 0, 0, 0.12)";
       descContainer.style.borderRadius = "16px";
       descContainer.style.marginTop = "12px"; // mt: 1.5
-      
+
       const label = document.createElement("div");
       label.style.display = "block";
       label.style.color = "rgba(0, 0, 0, 0.6)";
@@ -3511,13 +3907,13 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       label.style.letterSpacing = "0.5px";
       label.style.marginBottom = "4px";
       label.textContent = "Details";
-      
+
       const value = document.createElement("div");
       value.style.color = "rgba(0, 0, 0, 0.87)";
       value.style.fontSize = "0.875rem";
       value.style.lineHeight = "1.5";
       value.textContent = String(wheelchairDesc);
-      
+
       descContainer.appendChild(label);
       descContainer.appendChild(value);
       descItem.appendChild(descContainer);
@@ -3527,21 +3923,24 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     // Other wheelchair:* tags (wheelchair:entrance, wheelchair:toilet, etc.)
     Object.entries(wheelchairTags).forEach(([key, value]) => {
       // Skip already rendered tags
-      if (key.toLowerCase() === "wheelchair" || key.toLowerCase() === "wheelchair:description") {
+      if (
+        key.toLowerCase() === "wheelchair" ||
+        key.toLowerCase() === "wheelchair:description"
+      ) {
         return;
       }
 
       const accItem = document.createElement("div");
       accItem.className = "list-group-item";
       accItem.style.padding = "0";
-      
+
       const itemContainer = document.createElement("div");
       itemContainer.style.padding = "16px";
       itemContainer.style.border = "1px solid";
       itemContainer.style.borderColor = "rgba(0, 0, 0, 0.12)";
       itemContainer.style.borderRadius = "16px";
       itemContainer.style.marginTop = "12px";
-      
+
       // Format key nicely (wheelchair:entrance -> "Entrance")
       let displayKey = key
         .replace(/^wheelchair:/i, "")
@@ -3556,7 +3955,8 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
         no: "No",
         unknown: "Unknown",
       };
-      const displayValue = wheelchairLabels[String(value).toLowerCase()] || String(value);
+      const displayValue =
+        wheelchairLabels[String(value).toLowerCase()] || String(value);
 
       const label = document.createElement("div");
       label.style.display = "block";
@@ -3567,13 +3967,13 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       label.style.letterSpacing = "0.5px";
       label.style.marginBottom = "4px";
       label.textContent = displayKey;
-      
+
       const valueElement = document.createElement("div");
       valueElement.style.color = "rgba(0, 0, 0, 0.87)";
       valueElement.style.fontSize = "0.875rem";
       valueElement.style.fontWeight = "500";
       valueElement.textContent = displayValue;
-      
+
       itemContainer.appendChild(label);
       itemContainer.appendChild(valueElement);
       accItem.appendChild(itemContainer);
@@ -3584,34 +3984,34 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   // --- ADDRESS: Render formatted address with area and floor as secondary text (same chip style as Contact Information, icon = location_on) ---
   const formattedAddress = formatAddressFromTags(nTags);
   let formattedArea = formatAreaFromTags(nTags);
-    
-    // Clean up area text: remove "eldership" and simplify
+
+  // Clean up area text: remove "eldership" and simplify
   if (formattedArea) {
     formattedArea = formattedArea.replace(/\s*eldership\s*/gi, " ").trim();
     formattedArea = formattedArea.replace(/\s+/g, " ");
   }
-  
+
   // Get floor/level information
   const levelValue = nTags.level || nTags.Level || null;
   const formattedLevel = formatLevel(levelValue);
-  
+
   // Show Address section if we have address, area, or floor
   if (formattedAddress || formattedArea || formattedLevel) {
     const addressItem = document.createElement("div");
     addressItem.className = "list-group-item";
     addressItem.style.padding = "0";
-    
+
     const container = document.createElement("div");
     container.style.padding = SECTION_PADDING;
     container.style.borderTop = "1px solid";
     container.style.borderColor = "rgba(0, 0, 0, 0.12)";
-    
+
     // Layout: Icon on left, title and value on right (title aligned with icon, value below title)
     const layoutContainer = document.createElement("div");
     layoutContainer.style.display = "flex";
     layoutContainer.style.alignItems = "flex-start";
     layoutContainer.style.gap = "12px";
-    
+
     // Icon container
     const iconContainer = document.createElement("div");
     iconContainer.style.display = "flex";
@@ -3623,14 +4023,14 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     iconContainer.style.backgroundColor = ICON_BACKGROUND_COLOR;
     iconContainer.style.color = ICON_SECONDARY_COLOR;
     iconContainer.style.flexShrink = "0";
-    
+
     const icon = document.createElement("span");
     icon.className = "material-icons";
     icon.style.fontSize = "24px";
     icon.style.color = ICON_SECONDARY_COLOR;
     icon.textContent = "location_on";
     iconContainer.appendChild(icon);
-    
+
     // Content wrapper (title and value)
     const contentWrapper = document.createElement("div");
     contentWrapper.style.flex = "1";
@@ -3638,7 +4038,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     contentWrapper.style.display = "flex";
     contentWrapper.style.flexDirection = "column";
     contentWrapper.style.justifyContent = "center";
-    
+
     // Title - aligned with icon center
     const title = document.createElement("h6");
     title.style.fontSize = "1.125rem";
@@ -3648,7 +4048,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     title.style.margin = "0 0 4px 0"; // Small margin below for value
     title.textContent = "Address";
     contentWrapper.appendChild(title);
-    
+
     // Address value (if exists)
     if (formattedAddress) {
       const addressText = document.createElement("p");
@@ -3659,7 +4059,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       addressText.textContent = formattedAddress;
       contentWrapper.appendChild(addressText);
     }
-    
+
     // Area value (if exists)
     if (formattedArea) {
       const areaText = document.createElement("p");
@@ -3670,18 +4070,19 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       areaText.textContent = formattedArea;
       contentWrapper.appendChild(areaText);
     }
-    
+
     // Floor value (if exists) - shown in lighter text
-  if (formattedLevel) {
+    if (formattedLevel) {
       const floorText = document.createElement("p");
-      floorText.style.margin = (formattedAddress || formattedArea) ? "4px 0 0 0" : "0";
+      floorText.style.margin =
+        formattedAddress || formattedArea ? "4px 0 0 0" : "0";
       floorText.style.fontSize = "0.875rem";
       floorText.style.color = "rgba(0, 0, 0, 0.6)";
       floorText.style.lineHeight = "1.5";
       floorText.textContent = formattedLevel; // e.g. "1st floor"
       contentWrapper.appendChild(floorText);
     }
-    
+
     layoutContainer.appendChild(iconContainer);
     layoutContainer.appendChild(contentWrapper);
     container.appendChild(layoutContainer);
@@ -3736,14 +4137,14 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     const featuresItem = document.createElement("div");
     featuresItem.className = "list-group-item";
     featuresItem.style.padding = "0";
-    
+
     const container = document.createElement("div");
     container.style.padding = SECTION_PADDING;
     container.style.paddingBottom = SECTION_PADDING; // Ensure consistent bottom padding
     container.style.borderTop = "1px solid";
     container.style.borderColor = "rgba(0, 0, 0, 0.12)";
     container.style.minHeight = "auto"; // No default height, let content determine
-    
+
     // Header: "Features" (no icon, matching Opening Hours style)
     const header = document.createElement("h6");
     header.style.fontSize = "1.125rem";
@@ -3753,7 +4154,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     header.style.margin = "0 0 16px 0";
     header.textContent = "Features";
     container.appendChild(header);
-    
+
     // Features chips (same styling as category chip via CSS vars)
     const featuresContainer = document.createElement("div");
     featuresContainer.className = "tag-chip-group";
@@ -3774,7 +4175,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       chip.appendChild(label);
       featuresContainer.appendChild(chip);
     });
-    
+
     container.appendChild(featuresContainer);
     featuresItem.appendChild(container);
     list.appendChild(featuresItem);
@@ -3828,7 +4229,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   // --- CAPACITY: Combine Beds and Rooms into a single Capacity section ---
   const rooms = nTags.rooms || nTags.Rooms || null;
   const beds = nTags.beds || nTags.Beds || null;
-  
+
   let capacityLabel = null;
   if (rooms && String(rooms).trim() && beds && String(beds).trim()) {
     capacityLabel = `${rooms} rooms • ${beds} beds`;
@@ -3837,7 +4238,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   } else if (beds && String(beds).trim()) {
     capacityLabel = `${beds} beds`;
   }
-  
+
   if (capacityLabel) {
     const capacityItem = document.createElement("div");
     capacityItem.className =
@@ -3851,23 +4252,27 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   }
 
   // --- CULTURAL HERITAGE REGISTRY: Handle ref:lt:kpd specially (same chip style as Contact Information) ---
-  const heritageRef = nTags["ref:lt:kpd"] || nTags["Ref:Lt:Kpd"] || nTags["ref_lt_kpd"] || null;
+  const heritageRef =
+    nTags["ref:lt:kpd"] || nTags["Ref:Lt:Kpd"] || nTags["ref_lt_kpd"] || null;
   if (heritageRef && String(heritageRef).trim()) {
     const heritageItem = document.createElement("div");
     heritageItem.className = "list-group-item";
     heritageItem.style.padding = "0";
-    
+
     const container = document.createElement("div");
     container.style.padding = SECTION_PADDING;
     container.style.borderTop = "1px solid";
     container.style.borderColor = "rgba(0, 0, 0, 0.12)";
-    
+
     // Icon & title: same style as Contact Information, icon glyph = museum (heritage-related)
-    const header = createDetailSectionHeader("museum", "Cultural heritage registry");
+    const header = createDetailSectionHeader(
+      "museum",
+      "Cultural heritage registry"
+    );
     container.appendChild(header);
-    
+
     const contentWrapper = document.createElement("div");
-    
+
     const valueText = document.createElement("p");
     valueText.style.margin = "0";
     valueText.style.fontSize = "0.875rem";
@@ -3875,7 +4280,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     valueText.style.lineHeight = "1.5";
     valueText.textContent = `Register ID: ${String(heritageRef).trim()}`;
     contentWrapper.appendChild(valueText);
-    
+
     container.appendChild(contentWrapper);
     heritageItem.appendChild(container);
     list.appendChild(heritageItem);
@@ -3887,28 +4292,28 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     const parsedStars = parseFloat(String(starsValue));
     if (!isNaN(parsedStars) && parsedStars > 0) {
       // Format: whole number if integer, otherwise one decimal
-      const formattedValue = Number.isInteger(parsedStars) 
-        ? parsedStars.toString() 
+      const formattedValue = Number.isInteger(parsedStars)
+        ? parsedStars.toString()
         : parsedStars.toFixed(1);
       const starText = parsedStars === 1 ? "Star" : "Stars";
-      
+
       const starsItem = document.createElement("div");
       starsItem.className = "list-group-item";
       starsItem.style.padding = "0";
-      
+
       // Main container with consistent padding
       const container = document.createElement("div");
       container.style.padding = SECTION_PADDING;
       container.style.borderTop = "1px solid";
       container.style.borderColor = "rgba(0, 0, 0, 0.12)"; // divider color
-      
+
       // Header section matching wheelchair style
       const header = document.createElement("div");
       header.style.display = "flex";
       header.style.alignItems = "center";
       header.style.gap = "12px"; // gap: 1.5
       header.style.marginBottom = "20px"; // mb: 2.5
-      
+
       // Title matching typography (no icon)
       const title = document.createElement("h6");
       title.style.fontSize = "1.125rem"; // 18px
@@ -3917,9 +4322,9 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       title.style.letterSpacing = "-0.01em";
       title.style.margin = "0";
       title.textContent = "Stars";
-      
+
       header.appendChild(title);
-      
+
       // Card container for the stars display
       const cardContainer = document.createElement("div");
       cardContainer.style.border = "1px solid";
@@ -3929,7 +4334,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       cardContainer.style.display = "flex";
       cardContainer.style.alignItems = "center";
       cardContainer.style.gap = "16px"; // gap: 2
-      
+
       // Icon container for star (48x48 to match wheelchair section)
       const starIconContainer = document.createElement("div");
       starIconContainer.style.display = "flex";
@@ -3940,21 +4345,21 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       starIconContainer.style.borderRadius = "16px"; // borderRadius: 2
       starIconContainer.style.backgroundColor = "rgba(255, 193, 7, 0.1)"; // MUI yellow with 10% opacity
       starIconContainer.style.flexShrink = "0";
-      
+
       const starIcon = document.createElement("span");
       starIcon.textContent = "★";
       starIcon.style.color = "#ffc107"; // MUI yellow/amber
       starIcon.style.fontSize = "24px";
       starIcon.style.lineHeight = "1";
       starIcon.setAttribute("aria-hidden", "true");
-      
+
       starIconContainer.appendChild(starIcon);
-      
+
       // Content wrapper
       const contentWrapper = document.createElement("div");
       contentWrapper.style.flex = "1";
       contentWrapper.style.minWidth = "0";
-      
+
       // Label
       const labelElement = document.createElement("div");
       labelElement.style.display = "block";
@@ -3965,20 +4370,20 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       labelElement.style.letterSpacing = "0.5px";
       labelElement.style.marginBottom = "4px"; // mb: 0.5
       labelElement.textContent = "Rating";
-      
+
       // Value text
       const valueText = document.createElement("div");
       valueText.style.fontSize = "0.9375rem";
       valueText.style.fontWeight = "500";
       valueText.style.color = "rgba(0, 0, 0, 0.87)";
       valueText.textContent = `${formattedValue} ${starText}`;
-      
+
       contentWrapper.appendChild(labelElement);
       contentWrapper.appendChild(valueText);
-      
+
       cardContainer.appendChild(starIconContainer);
       cardContainer.appendChild(contentWrapper);
-      
+
       container.appendChild(header);
       container.appendChild(cardContainer);
       starsItem.appendChild(container);
@@ -3988,26 +4393,34 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   // --- Collect Features (outdoor_seating, internet_access, etc.) ---
   const featureChips = [];
-  
+
   // Outdoor seating
-  const outdoorSeating = nTags.outdoor_seating || nTags["outdoor_seating"] || null;
+  const outdoorSeating =
+    nTags.outdoor_seating || nTags["outdoor_seating"] || null;
   if (outdoorSeating) {
     const outdoorValue = String(outdoorSeating).toLowerCase().trim();
     if (outdoorValue === "yes" || outdoorValue === "true") {
       featureChips.push("Outdoor seating");
     }
   }
-  
+
   // Internet access
-  const internetAccess = nTags.internet_access || nTags["internet_access"] || null;
-  const internetFee = nTags["internet_access:fee"] || nTags["internet_access_fee"] || null;
-  
+  const internetAccess =
+    nTags.internet_access || nTags["internet_access"] || null;
+  const internetFee =
+    nTags["internet_access:fee"] || nTags["internet_access_fee"] || null;
+
   if (internetAccess && String(internetAccess).toLowerCase().trim() !== "no") {
     const accessVal = String(internetAccess).toLowerCase().trim();
     const feeVal = internetFee ? String(internetFee).toLowerCase().trim() : "";
-    
-    const isWifi = ["wlan", "wifi", "wlan;customers", "wifi;customers"].includes(accessVal);
-    
+
+    const isWifi = [
+      "wlan",
+      "wifi",
+      "wlan;customers",
+      "wifi;customers",
+    ].includes(accessVal);
+
     if (isWifi) {
       if (feeVal === "no") {
         featureChips.push("Free Wi-Fi");
@@ -4025,13 +4438,17 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
         featureChips.push("Internet access");
       }
     }
-  } else if (internetAccess && String(internetAccess).toLowerCase().trim() === "no") {
+  } else if (
+    internetAccess &&
+    String(internetAccess).toLowerCase().trim() === "no"
+  ) {
     // Option: show negative info as subtle text (not a chip)
     // For now, we'll skip it to keep only positive features
   }
-  
+
   // Second-hand goods - only show when "yes"
-  const secondHand = nTags.second_hand || nTags["second_hand"] || nTags["second-hand"] || null;
+  const secondHand =
+    nTags.second_hand || nTags["second_hand"] || nTags["second-hand"] || null;
   if (secondHand) {
     const secondHandValue = String(secondHand).toLowerCase().trim();
     if (secondHandValue === "yes" || secondHandValue === "true") {
@@ -4039,7 +4456,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     }
     // Skip "no" values - don't show negative features
   }
-  
+
   // Restrooms - show in Facilities when toilets=yes
   const toilets = nTags.toilets || nTags.Toilets || null;
   if (toilets) {
@@ -4060,13 +4477,21 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     null;
   if (airCon != null && String(airCon).trim() !== "") {
     const airConValue = String(airCon).toLowerCase().trim();
-    if (airConValue === "yes" || airConValue === "true" || airConValue === "1") {
+    if (
+      airConValue === "yes" ||
+      airConValue === "true" ||
+      airConValue === "1"
+    ) {
       featureChips.push("Air conditioning");
-    } else if (airConValue === "no" || airConValue === "false" || airConValue === "0") {
+    } else if (
+      airConValue === "no" ||
+      airConValue === "false" ||
+      airConValue === "0"
+    ) {
       featureChips.push("No air conditioning");
     }
   }
-  
+
   // Render Features section if we have any chips
   if (featureChips.length > 0) {
     const featuresItem = document.createElement("div");
@@ -4074,45 +4499,45 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     featuresItem.style.padding = "0";
     featuresItem.style.marginBottom = "12px";
     featuresItem.style.border = "none"; // Remove Bootstrap list-group-item border
-      
-      const container = document.createElement("div");
+
+    const container = document.createElement("div");
     container.style.border = "1px solid rgba(0, 0, 0, 0.12)";
     container.style.borderRadius = "16px";
     container.style.padding = SECTION_PADDING;
-      container.style.display = "flex";
-      container.style.flexDirection = "column";
+    container.style.display = "flex";
+    container.style.flexDirection = "column";
     container.style.gap = "12px";
-      
-      // Header with title
-      const header = document.createElement("div");
-      header.style.display = "flex";
-      header.style.alignItems = "center";
+
+    // Header with title
+    const header = document.createElement("div");
+    header.style.display = "flex";
+    header.style.alignItems = "center";
     header.style.gap = "12px";
     header.style.marginBottom = "4px";
-      
-      const title = document.createElement("h6");
+
+    const title = document.createElement("h6");
     title.style.fontSize = "1.125rem";
-      title.style.fontWeight = "600";
+    title.style.fontWeight = "600";
     title.style.color = "rgba(0, 0, 0, 0.87)";
     title.style.letterSpacing = "-0.01em";
-      title.style.margin = "0";
-      title.textContent = "Facilities";
-      
-      header.appendChild(title);
-      
+    title.style.margin = "0";
+    title.textContent = "Facilities";
+
+    header.appendChild(title);
+
     // Chips container (same styling as category chip via CSS vars)
     const chipsContainer = document.createElement("div");
     chipsContainer.className = "tag-chip-group";
-    
+
     featureChips.forEach((chipLabel) => {
       const chip = document.createElement("span");
       chip.className = "tag-chip";
       chip.textContent = chipLabel;
-      
+
       chipsContainer.appendChild(chip);
     });
-      
-      container.appendChild(header);
+
+    container.appendChild(header);
     container.appendChild(chipsContainer);
     featuresItem.appendChild(container);
     list.appendChild(featuresItem);
@@ -4124,13 +4549,25 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     try {
       const date = new Date(dateStr);
       if (isNaN(date.getTime())) return null;
-      
-      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", 
-                      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+      const months = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+      ];
       const day = date.getDate();
       const month = months[date.getMonth()];
       const year = date.getFullYear();
-      
+
       return `${day} ${month} ${year}`;
     } catch {
       return null;
@@ -4139,13 +4576,24 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   // --- LAST CHECKED DATE: Extract and format check_date before generic tags loop ---
   // Exclude check_date:opening_hours as it's handled separately in OpeningHours component
-  const checkDateKeys = ["check_date", "check date", "last_checked", "last checked", "last_updated", "last updated"];
+  const checkDateKeys = [
+    "check_date",
+    "check date",
+    "last_checked",
+    "last checked",
+    "last_updated",
+    "last updated",
+  ];
   let checkDateValue = null;
   let checkDateKey = null;
-  
+
   for (const key of checkDateKeys) {
     // Skip check_date:opening_hours - it's displayed in OpeningHours component
-    if (key === "check_date:opening_hours" || key === "check_date_opening_hours") continue;
+    if (
+      key === "check_date:opening_hours" ||
+      key === "check_date_opening_hours"
+    )
+      continue;
     if (nTags[key]) {
       checkDateValue = formatDateForDisplay(String(nTags[key]));
       checkDateKey = key;
@@ -4154,42 +4602,62 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   }
 
   // --- COMMUNICATION TOWER: Simplify technical fields into user-friendly display ---
-  const manMade = nTags.man_made || nTags["man_made"] || nTags["man-made"] || null;
-  const towerType = nTags["tower:type"] || nTags["tower_type"] || nTags["tower-type"] || null;
-  const towerConstruction = nTags["tower:construction"] || nTags["tower_construction"] || nTags["tower-construction"] || null;
-  const isCommunicationTower = (manMade && String(manMade).toLowerCase().trim() === "mast") ||
-                                (towerType && String(towerType).toLowerCase().trim() === "communication");
-  
+  const manMade =
+    nTags.man_made || nTags["man_made"] || nTags["man-made"] || null;
+  const towerType =
+    nTags["tower:type"] || nTags["tower_type"] || nTags["tower-type"] || null;
+  const towerConstruction =
+    nTags["tower:construction"] ||
+    nTags["tower_construction"] ||
+    nTags["tower-construction"] ||
+    null;
+  const isCommunicationTower =
+    (manMade && String(manMade).toLowerCase().trim() === "mast") ||
+    (towerType && String(towerType).toLowerCase().trim() === "communication");
+
   if (isCommunicationTower) {
     // Collect communication network types
     const communicationNetworks = [];
-    const commTags = ["communication:gsm", "communication:lte", "communication:mobile_phone", "communication:umts",
-                      "communication_gsm", "communication_lte", "communication_mobile_phone", "communication_umts"];
-    
-    commTags.forEach(tag => {
+    const commTags = [
+      "communication:gsm",
+      "communication:lte",
+      "communication:mobile_phone",
+      "communication:umts",
+      "communication_gsm",
+      "communication_lte",
+      "communication_mobile_phone",
+      "communication_umts",
+    ];
+
+    commTags.forEach((tag) => {
       const val = nTags[tag];
       if (val && String(val).toLowerCase().trim() === "yes") {
-        const networkType = tag.includes("gsm") ? "2G" :
-                           tag.includes("umts") ? "3G" :
-                           tag.includes("lte") ? "4G" :
-                           tag.includes("mobile_phone") || tag.includes("mobile-phone") ? "Mobile" : null;
+        const networkType = tag.includes("gsm")
+          ? "2G"
+          : tag.includes("umts")
+          ? "3G"
+          : tag.includes("lte")
+          ? "4G"
+          : tag.includes("mobile_phone") || tag.includes("mobile-phone")
+          ? "Mobile"
+          : null;
         if (networkType && !communicationNetworks.includes(networkType)) {
           communicationNetworks.push(networkType);
         }
       }
     });
-    
+
     const towerItem = document.createElement("div");
     towerItem.className = "list-group-item";
     towerItem.style.padding = "0";
-    
+
     const container = document.createElement("div");
     container.style.padding = SECTION_PADDING;
     container.style.paddingBottom = SECTION_PADDING;
     container.style.borderTop = "1px solid";
     container.style.borderColor = "rgba(0, 0, 0, 0.12)";
     container.style.minHeight = "auto";
-    
+
     const header = document.createElement("h6");
     header.style.fontSize = "1.125rem";
     header.style.fontWeight = "600";
@@ -4198,22 +4666,24 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     header.style.margin = "0 0 4px 0";
     header.textContent = "Type";
     container.appendChild(header);
-    
+
     const typeP = document.createElement("p");
     typeP.className = "small mb-1";
     typeP.style.margin = "0";
     typeP.textContent = "Mobile communication tower";
     container.appendChild(typeP);
-    
+
     // Add network support info if available
     if (communicationNetworks.length > 0) {
       const supportsP = document.createElement("p");
       supportsP.className = "small mb-1";
       supportsP.style.margin = "4px 0 0 0";
-      supportsP.textContent = `Supports: ${communicationNetworks.join(" / ")} mobile networks`;
+      supportsP.textContent = `Supports: ${communicationNetworks.join(
+        " / "
+      )} mobile networks`;
       container.appendChild(supportsP);
     }
-    
+
     towerItem.appendChild(container);
     list.appendChild(towerItem);
   }
@@ -4221,26 +4691,30 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   // --- BRAND: Combine brand variants into a single localized display ---
   // Get UI language (default to browser language, fallback to 'en')
   const getUILanguage = () => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       const htmlLang = document.documentElement.lang;
-      if (htmlLang) return htmlLang.toLowerCase().split('-')[0]; // e.g., "en-US" -> "en"
+      if (htmlLang) return htmlLang.toLowerCase().split("-")[0]; // e.g., "en-US" -> "en"
       const navLang = navigator.language || navigator.userLanguage;
-      if (navLang) return navLang.toLowerCase().split('-')[0];
+      if (navLang) return navLang.toLowerCase().split("-")[0];
     }
-    return 'en'; // Default fallback
+    return "en"; // Default fallback
   };
-  
+
   const uiLang = getUILanguage();
-  
+
   // Collect all brand tags (safety check for nTags)
   const brandTags = {};
   let brandWikidata = null;
-  if (nTags && typeof nTags === 'object') {
-    Object.keys(nTags).forEach(key => {
+  if (nTags && typeof nTags === "object") {
+    Object.keys(nTags).forEach((key) => {
       const lk = key.toLowerCase();
 
       // Track technical Wikidata brand id separately (never display raw Q-IDs)
-      if (lk === "brand:wikidata" || lk === "brand_wikidata" || lk === "brand-wikidata") {
+      if (
+        lk === "brand:wikidata" ||
+        lk === "brand_wikidata" ||
+        lk === "brand-wikidata"
+      ) {
         const v = nTags[key];
         if (v != null && String(v).trim()) brandWikidata = String(v).trim();
         return;
@@ -4261,22 +4735,22 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       }
     });
   }
-  
+
   // Normalize brand value by removing language prefixes (e.g., "en:TUI Group" -> "TUI Group")
   const normalizeBrand = (raw) => {
-    if (!raw) return '';
+    if (!raw) return "";
     const trimmed = String(raw).trim();
     // Strip language prefix like "en:", "uk:", etc.
-    return trimmed.replace(/^[a-z]{2}:/i, '');
+    return trimmed.replace(/^[a-z]{2}:/i, "");
   };
 
   // Raw Wikidata Q-IDs are technical metadata and must never be shown to users.
   // Note: this is intentionally strict so brands like "7-Eleven" are NOT hidden.
   const isWikidataQid = (v) => /^Q\d+$/i.test(String(v ?? "").trim());
-  
+
   // Determine which brand value to show (prioritize UI language, then default, then any available)
   let brandValue = null;
-  if (brandTags && typeof brandTags === 'object' && !Array.isArray(brandTags)) {
+  if (brandTags && typeof brandTags === "object" && !Array.isArray(brandTags)) {
     if (brandTags[uiLang]) {
       brandValue = brandTags[uiLang];
     } else if (brandTags.default || brandTags[""]) {
@@ -4289,7 +4763,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       }
     }
   }
-  
+
   // Normalize the brand value to remove language prefixes
   if (brandValue) {
     brandValue = normalizeBrand(brandValue);
@@ -4297,7 +4771,8 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   // If we only have `brand:wikidata=Q...`, optionally map it to a readable brand name.
   // If it's unknown, we hide the Brand row rather than showing the Q-ID.
-  let uiBrandValue = (brandValue && String(brandValue).trim()) ? String(brandValue).trim() : null;
+  let uiBrandValue =
+    brandValue && String(brandValue).trim() ? String(brandValue).trim() : null;
 
   // Hard suppression for specific known-bad `brand:wikidata` ids: hide Brand row completely.
   if (brandWikidata && SUPPRESSED_BRAND_WIKIDATA?.has?.(brandWikidata)) {
@@ -4311,33 +4786,36 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   // Defensive: if data import incorrectly stored a Q-ID in `brand`, never show it.
   // If we can map it, show the mapped name; otherwise hide the Brand row.
   if (uiBrandValue && isWikidataQid(uiBrandValue)) {
-    uiBrandValue = BRAND_WIKIDATA_MAP[uiBrandValue] ? String(BRAND_WIKIDATA_MAP[uiBrandValue]).trim() : null;
+    uiBrandValue = BRAND_WIKIDATA_MAP[uiBrandValue]
+      ? String(BRAND_WIKIDATA_MAP[uiBrandValue]).trim()
+      : null;
   }
-  
+
   // Show brand if we have a value and it doesn't match the place name
   // Brand is used internally for search/filter, but don't show if title already matches it
   if (uiBrandValue && String(uiBrandValue).trim()) {
     const brandValueTrimmed = String(uiBrandValue).trim();
     const placeName = titleText || "";
     const placeNameTrimmed = placeName.trim();
-    
+
     // Compare brand with place name (case-insensitive)
     // If they match, don't show brand (it's redundant)
-    const brandMatchesName = placeNameTrimmed && 
+    const brandMatchesName =
+      placeNameTrimmed &&
       brandValueTrimmed.toLowerCase() === placeNameTrimmed.toLowerCase();
-    
+
     if (!brandMatchesName) {
       const brandItem = document.createElement("div");
       brandItem.className = "list-group-item";
       brandItem.style.padding = "0";
-      
+
       const container = document.createElement("div");
       container.style.padding = SECTION_PADDING;
       container.style.paddingBottom = SECTION_PADDING;
       container.style.borderTop = "1px solid";
       container.style.borderColor = "rgba(0, 0, 0, 0.12)";
       container.style.minHeight = "auto";
-      
+
       const header = document.createElement("h6");
       header.style.fontSize = "1.125rem";
       header.style.fontWeight = "600";
@@ -4346,480 +4824,590 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       header.style.margin = "0 0 4px 0";
       header.textContent = "Brand";
       container.appendChild(header);
-      
+
       const brandP = document.createElement("p");
       brandP.className = "small mb-1";
       brandP.style.margin = "0";
       brandP.textContent = brandValueTrimmed;
       container.appendChild(brandP);
-      
+
       brandItem.appendChild(container);
       list.appendChild(brandItem);
     }
   }
 
   // --- Render basic tags (address, amenity, etc.) ---
-Object.entries(nTags).forEach(([key, value]) => {
-  const lk = key.trim().toLowerCase();
-  
-  // Skip check_date - will be rendered at the bottom
-  // Also skip check_date:opening_hours - it's displayed in OpeningHours component
-  // Handle various formats: check_date:opening_hours, check_date_opening_hours, check-date:opening-hours
-  // Check both lowercase key (lk) and original key for maximum coverage
-  if (checkDateKeys.includes(lk) || 
-      lk === "check_date:opening_hours" || 
+  Object.entries(nTags).forEach(([key, value]) => {
+    const lk = key.trim().toLowerCase();
+
+    // Skip check_date - will be rendered at the bottom
+    // Also skip check_date:opening_hours - it's displayed in OpeningHours component
+    // Handle various formats: check_date:opening_hours, check_date_opening_hours, check-date:opening-hours
+    // Check both lowercase key (lk) and original key for maximum coverage
+    if (
+      checkDateKeys.includes(lk) ||
+      lk === "check_date:opening_hours" ||
       lk === "check_date_opening_hours" ||
       lk === "check-date:opening-hours" ||
       /^check[_-]?date[:_-]opening[_-]hours$/i.test(key) ||
-      /^check[_-]?date[:_-]opening[_-]hours$/i.test(lk)) return;
-  
-  const isOpeningHours = /^opening_hours/i.test(key);
-  if (isOpeningHours) return; // Skip opening_hours - already rendered above
+      /^check[_-]?date[:_-]opening[_-]hours$/i.test(lk)
+    )
+      return;
 
-  // Skip wheelchair/accessibility tags - already rendered in Accessibility section
-  const isWheelchair = /^wheelchair/i.test(key);
-  if (isWheelchair) return;
+    const isOpeningHours = /^opening_hours/i.test(key);
+    if (isOpeningHours) return; // Skip opening_hours - already rendered above
 
-  // Skip toilets:wheelchair - already rendered in Accessibility section
-  if (lk === "toilets:wheelchair" || lk === "toilets_wheelchair" || lk === "toilets-wheelchair" ||
-      lk === "wheelchair:toilets" || lk === "wheelchair_toilets" || lk === "wheelchair-toilets" ||
-      /^toilets[:_-]wheelchair$/i.test(key) || /^wheelchair[:_-]toilets$/i.test(key)) return;
-  const lv = String(value).trim().toLowerCase();
+    // Skip wheelchair/accessibility tags - already rendered in Accessibility section
+    const isWheelchair = /^wheelchair/i.test(key);
+    if (isWheelchair) return;
 
-  // 🔒 1) Never show the bare "contact" tag at all
-  if (lk === "contact") return;
+    // Skip toilets:wheelchair - already rendered in Accessibility section
+    if (
+      lk === "toilets:wheelchair" ||
+      lk === "toilets_wheelchair" ||
+      lk === "toilets-wheelchair" ||
+      lk === "wheelchair:toilets" ||
+      lk === "wheelchair_toilets" ||
+      lk === "wheelchair-toilets" ||
+      /^toilets[:_-]wheelchair$/i.test(key) ||
+      /^wheelchair[:_-]toilets$/i.test(key)
+    )
+      return;
+    const lv = String(value).trim().toLowerCase();
 
-  // 🔒 2) Skip all contact-related fields (we handle them in the Contact block)
-  const isWebsiteVariant =
-    /^(website|url)(?::\d+)?$/i.test(key) || /^contact:website$/i.test(key);
-  if (isWebsiteVariant) return;
+    // 🔒 1) Never show the bare "contact" tag at all
+    if (lk === "contact") return;
 
-  const isPhoneVariant =
-    /^(phone|contact:phone|contact:mobile|mobile|contact:fax)$/i.test(key) ||
-    /^phone:(mobile|landline|fax|.*)$/i.test(key) ||
-    /^phone_(mobile|landline|fax|.*)$/i.test(key) ||
-    /^phone-(mobile|landline|fax|.*)$/i.test(key);
-  if (isPhoneVariant) return;
+    // 🔒 2) Skip all contact-related fields (we handle them in the Contact block)
+    const isWebsiteVariant =
+      /^(website|url)(?::\d+)?$/i.test(key) || /^contact:website$/i.test(key);
+    if (isWebsiteVariant) return;
 
-  const isEmailVariant = /^(email|contact:email)$/i.test(key);
-  if (isEmailVariant) return;
+    const isPhoneVariant =
+      /^(phone|contact:phone|contact:mobile|mobile|contact:fax)$/i.test(key) ||
+      /^phone:(mobile|landline|fax|.*)$/i.test(key) ||
+      /^phone_(mobile|landline|fax|.*)$/i.test(key) ||
+      /^phone-(mobile|landline|fax|.*)$/i.test(key);
+    if (isPhoneVariant) return;
 
-  if (/^contact:/i.test(key)) return; // any other contact:* tags
+    const isEmailVariant = /^(email|contact:email)$/i.test(key);
+    if (isEmailVariant) return;
 
-  // Skip "type" entirely
-  if (lk === "type") return;
+    if (/^contact:/i.test(key)) return; // any other contact:* tags
 
-  // Skip roof levels (technical building metadata like roof:levels=2)
-  // Prevents showing "Roof Levels" in the place details overview.
-  if (/^roof[:_-]?levels([:_-]|$)/i.test(lk) || /^roof[:_-]?levels([:_-]|$)/i.test(key)) return;
+    // Skip "type" entirely
+    if (lk === "type") return;
 
-  // Skip "osm_key" and "osm_type" - only useful for mappers
-  if (lk === "osm_key" || lk === "osm_type" || key === "Osm Key") return;
+    // Skip roof levels (technical building metadata like roof:levels=2)
+    // Prevents showing "Roof Levels" in the place details overview.
+    if (
+      /^roof[:_-]?levels([:_-]|$)/i.test(lk) ||
+      /^roof[:_-]?levels([:_-]|$)/i.test(key)
+    )
+      return;
 
-  // Skip outdoor_seating and internet_access - already rendered as Features chips
-  if (lk === "outdoor_seating" || lk === "outdoor seating") return;
-  if (lk === "internet_access" || lk === "internet_access:fee" || lk === "internet_access_fee") return;
+    // Skip "osm_key" and "osm_type" - only useful for mappers
+    if (lk === "osm_key" || lk === "osm_type" || key === "Osm Key") return;
 
-  // Skip air conditioning tag - rendered in Facilities card (including explicit "no")
-  if (lk === "air_conditioning" || lk === "air-conditioning" || key === "air_conditioning" || key === "air-conditioning") {
-    return;
-  }
-  
-  // Skip indoor_seating - will be handled in Features section as "Indoor seating available" (only when yes)
-  if (lk === "indoor_seating" || lk === "indoor-seating" || key === "indoor_seating" || key === "indoor-seating") {
-    return;
-  }
-  
-  // Skip beds and rooms - already rendered as Capacity section
-  if (lk === "beds" || lk === "rooms") return;
-  
-  // Skip stars - already rendered as dedicated Stars section
-  if (lk === "stars") return;
-  
-  // Skip ref:lt:kpd - already rendered as Cultural heritage registry
-  if (lk === "ref:lt:kpd" || lk === "ref_lt_kpd") return;
-  
-  // Skip all other ref:* tags - too technical for regular users
-  if (lk.startsWith("ref:") || key.startsWith("ref:")) return;
-  
-  // Skip bare "ref" tag (mapping metadata like "Ref: 18")
-  if (lk === "ref") return;
-  
-  // Skip network:wikidata (mapping metadata like "Network Wikidata: Q3008464")
-  if (lk === "network:wikidata" || key === "network:wikidata") return;
-  
-  // Skip Facebook/Instagram/social media tags - already handled in Social Media section
-  if (lk === "facebook" || lk === "instagram" || lk === "twitter" || 
-      lk === "linkedin" || lk === "youtube" || lk === "tiktok" ||
-      /^contact:(facebook|instagram|twitter|linkedin|youtube|tiktok)$/i.test(key)) {
-    return;
-  }
+    // Skip outdoor_seating and internet_access - already rendered as Features chips
+    if (lk === "outdoor_seating" || lk === "outdoor seating") return;
+    if (
+      lk === "internet_access" ||
+      lk === "internet_access:fee" ||
+      lk === "internet_access_fee"
+    )
+      return;
 
-  // Skip address parts – we already show a formatted address above
-  const isAddressField =
-    /^addr:(street|housenumber|city|postcode|country_code|town|suburb|country)$/i.test(
-      key
-    ) ||
-    /^(postcode|housenumber|street|countrycode|city)$/i.test(lk) ||
-    (lk === "city" && (nTags["addr:city"] || nTags["addr_city"]));
-  if (isAddressField) return;
-
-  // Skip area fields – already rendered as "Area"
-  const isAreaField = /^(state|county|district|locality)$/i.test(lk);
-  if (isAreaField) return;
-
-  // Skip name (already rendered elsewhere)
-  if (lk === "name") return;
-
-  // Skip embassy/diplomatic tags from generic rendering — they are treated as category (header chip).
-  // Prevents rows like "Embassy: Yes" or "Diplomatic: Embassy".
-  if (lk === "embassy" || lk === "diplomatic") return;
-
-  // Skip barber=yes/no/only from generic rendering — it is rendered as a friendly "Barber services" chip instead.
-  if (lk === "barber") return;
-
-  // Skip audience tags (male/female/unisex) from generic rendering — rendered as a friendly chip instead.
-  if (lk === "male" || lk === "female" || lk === "unisex") return;
-  
-  // Skip level (already rendered in Address section)
-  if (lk === "level") return;
-
-  // Skip toilets - will be handled in Features section (only show when "yes")
-  if (lk === "toilets" || key === "toilets") {
-    const toiletsValue = String(value).toLowerCase().trim();
-    // Skip "no" values - don't show negative features
-    if (toiletsValue === "no" || toiletsValue === "false") {
+    // Skip air conditioning tag - rendered in Facilities card (including explicit "no")
+    if (
+      lk === "air_conditioning" ||
+      lk === "air-conditioning" ||
+      key === "air_conditioning" ||
+      key === "air-conditioning"
+    ) {
       return;
     }
-    // If "yes", it will be handled in Features section, so skip here too
-    return;
-  }
 
-  // Skip dispensing - will be handled in Features section
-  if (lk === "dispensing") return;
-  
-  // Skip drive_through - will be handled in Features section (only show if yes and relevant)
-  if (lk === "drive_through" || lk === "drive-through") return;
-
-  // Skip ATM tag - will be handled in Banking services section (only show when value is known)
-  if (lk === "atm") return;
-
-  // Skip cash_in tag - will be handled in Banking services section
-  if (lk === "cash_in" || lk === "cash-in" || lk === "cash in") return;
-  
-  // Skip fee tag - will be handled in Features section as "Free entry" or "Paid entry"
-  if (lk === "fee" || key === "fee") {
-    return;
-  }
-  
-  // Skip payment tags - will be handled in Features section as a single chip
-  if (lk === "payment:credit_cards" || lk === "payment:debit_cards" || lk === "payment:cash" ||
-      key === "payment:credit_cards" || key === "payment:debit_cards" || key === "payment:cash") {
-    return;
-  }
-  
-  // Skip smoking tags - will be handled in Features section
-  if (lk === "smoking" || lk === "smoking:yes" || lk === "smoking:no" || lk === "smoking:dedicated" ||
-      key === "smoking" || key === "smoking:yes" || key === "smoking:no" || key === "smoking:dedicated") {
-    return;
-  }
-
-  // Skip diet:vegetarian / vegetarian tags - shown as a Feature chip when relevant
-  if (
-    /^diet[:_-]vegetarian$/i.test(lk) ||
-    /^diet[:_-]vegetarian$/i.test(key) ||
-    lk === "vegetarian" ||
-    key === "vegetarian"
-  ) {
-    return;
-  }
-
-  // Skip diet:vegan / vegan tags - shown as a Feature chip when relevant
-  if (
-    /^diet[:_-]vegan$/i.test(lk) ||
-    /^diet[:_-]vegan$/i.test(key) ||
-    lk === "vegan" ||
-    key === "vegan"
-  ) {
-    return;
-  }
-  
-  // Skip second_hand - will be handled in Features section (only show when "yes")
-  // Hide when "no" as it's not useful for accessibility
-  if (lk === "second_hand" || lk === "second-hand" || key === "second_hand" || key === "second-hand") {
-    const secondHandValue = String(value).toLowerCase().trim();
-    // Skip "no" values - don't show negative features
-    if (secondHandValue === "no" || secondHandValue === "false") {
+    // Skip indoor_seating - will be handled in Features section as "Indoor seating available" (only when yes)
+    if (
+      lk === "indoor_seating" ||
+      lk === "indoor-seating" ||
+      key === "indoor_seating" ||
+      key === "indoor-seating"
+    ) {
       return;
     }
-    // If "yes", it will be handled in Features section, so skip here too
-    return;
-  }
-  
-  // Skip store tag - not useful for users
-  if (lk === "store" || key === "store") {
-    return;
-  }
-  
-  // Skip brand tags - will be handled in Brand section (single localized display)
-  if (lk === "brand" || lk.startsWith("brand:") || key === "brand" || key.startsWith("brand:")) {
-    return;
-  }
 
-  // Skip localized branch variants (e.g. branch:lt, branch:pl) — keep only the base "branch" field.
-  // This prevents rows like "Branch Lt" / "Branch Pl" from showing in Overview.
-  if (
-    /^branch[:_][a-z]{2,}(-[a-z0-9]+)?$/i.test(lk) ||
-    /^branch[:_][a-z]{2,}(-[a-z0-9]+)?$/i.test(key)
-  ) {
-    return;
-  }
-  
-  // Skip official name tags - technical/legal OSM data, not needed in main UI
-  if (lk === "official_name" || lk.startsWith("official_name:") || 
-      key === "official_name" || key.startsWith("official_name:") ||
-      lk === "official-name" || lk.startsWith("official-name:") ||
-      key === "official-name" || key.startsWith("official-name:")) {
-    return;
-  }
-  
-  // Skip technical OSM fields - not useful for users
-  // osm_value: OSM tagging info (e.g., landuse=residential, highway=residential) - internal only
-  if (lk === "osm_value" || key === "osm_value") {
-    return;
-  }
+    // Skip beds and rooms - already rendered as Capacity section
+    if (lk === "beds" || lk === "rooms") return;
 
-  // Skip target/target:* tags - typically internal/technical (e.g. target=lt) and not useful in the UI.
-  if (
-    lk === "target" ||
-    lk.startsWith("target:") ||
-    lk.startsWith("target_") ||
-    key === "target"
-  ) {
-    return;
-  }
-  
-  // extent: bounding box coordinates - purely technical, only used for map zooming
-  if (lk === "extent" || key === "extent" || lk === "boundingbox" || key === "boundingbox") {
-    return;
-  }
-  
-  // Skip technical communication tower fields - handled in special Communication Tower section
-  if (lk === "man_made" || lk === "man-made" || key === "man_made" || key === "man-made") {
-    // Only skip if it's a communication tower (mast), otherwise show it
-    const manMadeVal = String(value).toLowerCase().trim();
-    if (manMadeVal === "mast") return;
-  }
-  if (lk === "tower:type" || lk === "tower_type" || lk === "tower-type" ||
-      key === "tower:type" || key === "tower_type" || key === "tower-type") {
-    return;
-  }
-  if (lk === "tower:construction" || lk === "tower_construction" || lk === "tower-construction" ||
-      key === "tower:construction" || key === "tower_construction" || key === "tower-construction") {
-    return;
-  }
-  
-  // Skip individual communication tags (gsm, lte, umts, mobile_phone) - they're combined in Communication Tower section
-  if (/^communication:(gsm|lte|umts|mobile_phone|mobile-phone)$/i.test(key) ||
-      /^communication_(gsm|lte|umts|mobile_phone|mobile_phone)$/i.test(key)) {
-    const commVal = String(value).toLowerCase().trim();
-    if (commVal === "yes") return; // Only skip "yes" values, show others if any
-  }
-  
-  // Height: only show if it's a number and seems useful (not for communication towers)
-  if (lk === "height" || key === "height") {
-    // Skip height for communication towers (too technical)
-    const manMadeVal = nTags.man_made || nTags["man_made"] || nTags["man-made"] || null;
-    const towerTypeVal = nTags["tower:type"] || nTags["tower_type"] || nTags["tower-type"] || null;
-    const isCommTower = (manMadeVal && String(manMadeVal).toLowerCase().trim() === "mast") ||
-                        (towerTypeVal && String(towerTypeVal).toLowerCase().trim() === "communication");
-    if (isCommTower) return;
-    
-    // For other places, format height nicely if it's a number
-    const heightNum = parseFloat(value);
-    if (!isNaN(heightNum) && heightNum > 0) {
-      // Format as "Height: ~18 m" and continue to render it
-      // We'll handle the formatting in the display section below
-    } else {
-      return; // Skip non-numeric height values
+    // Skip stars - already rendered as dedicated Stars section
+    if (lk === "stars") return;
+
+    // Skip ref:lt:kpd - already rendered as Cultural heritage registry
+    if (lk === "ref:lt:kpd" || lk === "ref_lt_kpd") return;
+
+    // Skip all other ref:* tags - too technical for regular users
+    if (lk.startsWith("ref:") || key.startsWith("ref:")) return;
+
+    // Skip bare "ref" tag (mapping metadata like "Ref: 18")
+    if (lk === "ref") return;
+
+    // Skip network:wikidata (mapping metadata like "Network Wikidata: Q3008464")
+    if (lk === "network:wikidata" || key === "network:wikidata") return;
+
+    // Skip Facebook/Instagram/social media tags - already handled in Social Media section
+    if (
+      lk === "facebook" ||
+      lk === "instagram" ||
+      lk === "twitter" ||
+      lk === "linkedin" ||
+      lk === "youtube" ||
+      lk === "tiktok" ||
+      /^contact:(facebook|instagram|twitter|linkedin|youtube|tiktok)$/i.test(
+        key
+      )
+    ) {
+      return;
     }
-  }
 
-  // Skip amenity=yes (useless)
-  if (lk === "amenity" && lv === "yes") return;
-  
-  // Skip access=yes (default for most places, not useful to show)
-  // Only show access info when it's restricted (private, customers, etc.)
-  if (lk === "access" && (lv === "yes" || lv === "true")) return;
+    // Skip address parts – we already show a formatted address above
+    const isAddressField =
+      /^addr:(street|housenumber|city|postcode|country_code|town|suburb|country)$/i.test(
+        key
+      ) ||
+      /^(postcode|housenumber|street|countrycode|city)$/i.test(lk) ||
+      (lk === "city" && (nTags["addr:city"] || nTags["addr_city"]));
+    if (isAddressField) return;
 
-  // Skip duplicated values equal to the amenity value
-  const amenityValue = nTags.amenity
-    ? String(nTags.amenity).toLowerCase()
-    : null;
-  if (lk !== "amenity" && amenityValue && lv === amenityValue) return;
+    // Skip area fields – already rendered as "Area"
+    const isAreaField = /^(state|county|district|locality)$/i.test(lk);
+    if (isAreaField) return;
 
-  const containsAltName = /alt\s*name/i.test(key);
-  const containsLocalizedVariants =
-    /^(name|alt_name|short_name|display_name):/i.test(key);
-  const isCountryKey = /^country$/i.test(key);
-  const isWikiDataKey = /^wikidata(?::[a-z-]+)?$/i.test(key);
+    // Skip name (already rendered elsewhere)
+    if (lk === "name") return;
 
-  // Skip technical OSM fields (brand:wikidata, brand:wikipedia, operator:wikidata, operator:wikipedia)
-  const isTechnicalField = 
-    /^(brand|operator):(wikidata|wikipedia)$/i.test(key) ||
-    /^(brand|operator)_(wikidata|wikipedia)$/i.test(key);
-  if (isTechnicalField) return;
+    // Skip embassy/diplomatic tags from generic rendering — they are treated as category (header chip).
+    // Prevents rows like "Embassy: Yes" or "Diplomatic: Embassy".
+    if (lk === "embassy" || lk === "diplomatic") return;
 
-  const isExcluded =
-    EXCLUDED_PROPS.has(key) ||
-    containsAltName ||
-    containsLocalizedVariants ||
-    isCountryKey ||
-    isWikiDataKey;
+    // Skip barber=yes/no/only from generic rendering — it is rendered as a friendly "Barber services" chip instead.
+    if (lk === "barber") return;
 
-  if (isExcluded) return;
+    // Skip audience tags (male/female/unisex) from generic rendering — rendered as a friendly chip instead.
+    if (lk === "male" || lk === "female" || lk === "unisex") return;
 
-  const item = document.createElement("div");
-  item.className =
-    "list-group-item d-flex justify-content-between align-items-start";
+    // Skip level (already rendered in Address section)
+    if (lk === "level") return;
 
-  // Skip raw image URLs – we use Photos block instead
-  if (lk === "image") return;
+    // Skip toilets - will be handled in Features section (only show when "yes")
+    if (lk === "toilets" || key === "toilets") {
+      const toiletsValue = String(value).toLowerCase().trim();
+      // Skip "no" values - don't show negative features
+      if (toiletsValue === "no" || toiletsValue === "false") {
+        return;
+      }
+      // If "yes", it will be handled in Features section, so skip here too
+      return;
+    }
 
-  // Skip mapillary - will be shown in Photos section
-  if (lk === "mapillary") return;
+    // Skip dispensing - will be handled in Features section
+    if (lk === "dispensing") return;
 
-  // Skip subject:wikidata - technical ID, not useful for users
-  if (lk === "subject:wikidata") return;
+    // Skip drive_through - will be handled in Features section (only show if yes and relevant)
+    if (lk === "drive_through" || lk === "drive-through") return;
 
-  // Handle subject:wikipedia - show as "About the subject"
-  if (lk === "subject:wikipedia") {
-    const spec = value;
-    const m = String(spec).match(/^([a-z-]+)\s*:\s*(.+)$/i);
-    if (m) {
-      const lang = m[1];
-      const title = m[2].replace(/\s/g, "_");
-      const href = `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(title)}`;
-      const displayTitle = m[2].replace(/_/g, " ");
-      
-      // Use consistent structure with other sections
+    // Skip ATM tag - will be handled in Banking services section (only show when value is known)
+    if (lk === "atm") return;
+
+    // Skip cash_in tag - will be handled in Banking services section
+    if (lk === "cash_in" || lk === "cash-in" || lk === "cash in") return;
+
+    // Skip fee tag - will be handled in Features section as "Free entry" or "Paid entry"
+    if (lk === "fee" || key === "fee") {
+      return;
+    }
+
+    // Skip payment tags - will be handled in Features section as a single chip
+    if (
+      lk === "payment:credit_cards" ||
+      lk === "payment:debit_cards" ||
+      lk === "payment:cash" ||
+      key === "payment:credit_cards" ||
+      key === "payment:debit_cards" ||
+      key === "payment:cash"
+    ) {
+      return;
+    }
+
+    // Skip smoking tags - will be handled in Features section
+    if (
+      lk === "smoking" ||
+      lk === "smoking:yes" ||
+      lk === "smoking:no" ||
+      lk === "smoking:dedicated" ||
+      key === "smoking" ||
+      key === "smoking:yes" ||
+      key === "smoking:no" ||
+      key === "smoking:dedicated"
+    ) {
+      return;
+    }
+
+    // Skip diet:vegetarian / vegetarian tags - shown as a Feature chip when relevant
+    if (
+      /^diet[:_-]vegetarian$/i.test(lk) ||
+      /^diet[:_-]vegetarian$/i.test(key) ||
+      lk === "vegetarian" ||
+      key === "vegetarian"
+    ) {
+      return;
+    }
+
+    // Skip diet:vegan / vegan tags - shown as a Feature chip when relevant
+    if (
+      /^diet[:_-]vegan$/i.test(lk) ||
+      /^diet[:_-]vegan$/i.test(key) ||
+      lk === "vegan" ||
+      key === "vegan"
+    ) {
+      return;
+    }
+
+    // Skip second_hand - will be handled in Features section (only show when "yes")
+    // Hide when "no" as it's not useful for accessibility
+    if (
+      lk === "second_hand" ||
+      lk === "second-hand" ||
+      key === "second_hand" ||
+      key === "second-hand"
+    ) {
+      const secondHandValue = String(value).toLowerCase().trim();
+      // Skip "no" values - don't show negative features
+      if (secondHandValue === "no" || secondHandValue === "false") {
+        return;
+      }
+      // If "yes", it will be handled in Features section, so skip here too
+      return;
+    }
+
+    // Skip store tag - not useful for users
+    if (lk === "store" || key === "store") {
+      return;
+    }
+
+    // Skip brand tags - will be handled in Brand section (single localized display)
+    if (
+      lk === "brand" ||
+      lk.startsWith("brand:") ||
+      key === "brand" ||
+      key.startsWith("brand:")
+    ) {
+      return;
+    }
+
+    // Skip localized branch variants (e.g. branch:lt, branch:pl) — keep only the base "branch" field.
+    // This prevents rows like "Branch Lt" / "Branch Pl" from showing in Overview.
+    if (
+      /^branch[:_][a-z]{2,}(-[a-z0-9]+)?$/i.test(lk) ||
+      /^branch[:_][a-z]{2,}(-[a-z0-9]+)?$/i.test(key)
+    ) {
+      return;
+    }
+
+    // Skip official name tags - technical/legal OSM data, not needed in main UI
+    if (
+      lk === "official_name" ||
+      lk.startsWith("official_name:") ||
+      key === "official_name" ||
+      key.startsWith("official_name:") ||
+      lk === "official-name" ||
+      lk.startsWith("official-name:") ||
+      key === "official-name" ||
+      key.startsWith("official-name:")
+    ) {
+      return;
+    }
+
+    // Skip technical OSM fields - not useful for users
+    // osm_value: OSM tagging info (e.g., landuse=residential, highway=residential) - internal only
+    if (lk === "osm_value" || key === "osm_value") {
+      return;
+    }
+
+    // Skip target/target:* tags - typically internal/technical (e.g. target=lt) and not useful in the UI.
+    if (
+      lk === "target" ||
+      lk.startsWith("target:") ||
+      lk.startsWith("target_") ||
+      key === "target"
+    ) {
+      return;
+    }
+
+    // extent: bounding box coordinates - purely technical, only used for map zooming
+    if (
+      lk === "extent" ||
+      key === "extent" ||
+      lk === "boundingbox" ||
+      key === "boundingbox"
+    ) {
+      return;
+    }
+
+    // Skip technical communication tower fields - handled in special Communication Tower section
+    if (
+      lk === "man_made" ||
+      lk === "man-made" ||
+      key === "man_made" ||
+      key === "man-made"
+    ) {
+      // Only skip if it's a communication tower (mast), otherwise show it
+      const manMadeVal = String(value).toLowerCase().trim();
+      if (manMadeVal === "mast") return;
+    }
+    if (
+      lk === "tower:type" ||
+      lk === "tower_type" ||
+      lk === "tower-type" ||
+      key === "tower:type" ||
+      key === "tower_type" ||
+      key === "tower-type"
+    ) {
+      return;
+    }
+    if (
+      lk === "tower:construction" ||
+      lk === "tower_construction" ||
+      lk === "tower-construction" ||
+      key === "tower:construction" ||
+      key === "tower_construction" ||
+      key === "tower-construction"
+    ) {
+      return;
+    }
+
+    // Skip individual communication tags (gsm, lte, umts, mobile_phone) - they're combined in Communication Tower section
+    if (
+      /^communication:(gsm|lte|umts|mobile_phone|mobile-phone)$/i.test(key) ||
+      /^communication_(gsm|lte|umts|mobile_phone|mobile_phone)$/i.test(key)
+    ) {
+      const commVal = String(value).toLowerCase().trim();
+      if (commVal === "yes") return; // Only skip "yes" values, show others if any
+    }
+
+    // Height: only show if it's a number and seems useful (not for communication towers)
+    if (lk === "height" || key === "height") {
+      // Skip height for communication towers (too technical)
+      const manMadeVal =
+        nTags.man_made || nTags["man_made"] || nTags["man-made"] || null;
+      const towerTypeVal =
+        nTags["tower:type"] ||
+        nTags["tower_type"] ||
+        nTags["tower-type"] ||
+        null;
+      const isCommTower =
+        (manMadeVal && String(manMadeVal).toLowerCase().trim() === "mast") ||
+        (towerTypeVal &&
+          String(towerTypeVal).toLowerCase().trim() === "communication");
+      if (isCommTower) return;
+
+      // For other places, format height nicely if it's a number
+      const heightNum = parseFloat(value);
+      if (!isNaN(heightNum) && heightNum > 0) {
+        // Format as "Height: ~18 m" and continue to render it
+        // We'll handle the formatting in the display section below
+      } else {
+        return; // Skip non-numeric height values
+      }
+    }
+
+    // Skip amenity=yes (useless)
+    if (lk === "amenity" && lv === "yes") return;
+
+    // Skip access=yes (default for most places, not useful to show)
+    // Only show access info when it's restricted (private, customers, etc.)
+    if (lk === "access" && (lv === "yes" || lv === "true")) return;
+
+    // Skip duplicated values equal to the amenity value
+    const amenityValue = nTags.amenity
+      ? String(nTags.amenity).toLowerCase()
+      : null;
+    if (lk !== "amenity" && amenityValue && lv === amenityValue) return;
+
+    const containsAltName = /alt\s*name/i.test(key);
+    const containsLocalizedVariants =
+      /^(name|alt_name|short_name|display_name):/i.test(key);
+    const isCountryKey = /^country$/i.test(key);
+    const isWikiDataKey = /^wikidata(?::[a-z-]+)?$/i.test(key);
+
+    // Skip technical OSM fields (brand:wikidata, brand:wikipedia, operator:wikidata, operator:wikipedia)
+    const isTechnicalField =
+      /^(brand|operator):(wikidata|wikipedia)$/i.test(key) ||
+      /^(brand|operator)_(wikidata|wikipedia)$/i.test(key);
+    if (isTechnicalField) return;
+
+    const isExcluded =
+      EXCLUDED_PROPS.has(key) ||
+      containsAltName ||
+      containsLocalizedVariants ||
+      isCountryKey ||
+      isWikiDataKey;
+
+    if (isExcluded) return;
+
+    const item = document.createElement("div");
+    item.className =
+      "list-group-item d-flex justify-content-between align-items-start";
+
+    // Skip raw image URLs – we use Photos block instead
+    if (lk === "image") return;
+
+    // Skip mapillary - will be shown in Photos section
+    if (lk === "mapillary") return;
+
+    // Skip subject:wikidata - technical ID, not useful for users
+    if (lk === "subject:wikidata") return;
+
+    // Handle subject:wikipedia - show as "About the subject"
+    if (lk === "subject:wikipedia") {
+      const spec = value;
+      const m = String(spec).match(/^([a-z-]+)\s*:\s*(.+)$/i);
+      if (m) {
+        const lang = m[1];
+        const title = m[2].replace(/\s/g, "_");
+        const href = `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(
+          title
+        )}`;
+        const displayTitle = m[2].replace(/_/g, " ");
+
+        // Use consistent structure with other sections
+        item.className = "list-group-item";
+        item.style.padding = "0";
+
+        const container = document.createElement("div");
+        container.style.padding = SECTION_PADDING;
+        container.style.paddingBottom = SECTION_PADDING;
+        container.style.borderTop = "1px solid";
+        container.style.borderColor = "rgba(0, 0, 0, 0.12)";
+        container.style.minHeight = "60px"; // Minimum height for consistent spacing
+
+        container.innerHTML = `
+        <h6 style="font-size: 1.125rem; font-weight: 600; color: rgba(0, 0, 0, 0.87); letter-spacing: -0.01em; margin: 0 0 4px 0;">About the subject</h6>
+        <p class="small mb-1" style="margin: 0;"><a href="${href}" target="_blank" rel="noopener">${displayTitle} (Wikipedia)</a></p>
+      `;
+
+        item.appendChild(container);
+        list.appendChild(item);
+        return;
+      }
+    }
+
+    // Combine historic=memorial + memorial=* into one readable line
+    if (lk === "historic" && lv === "memorial") {
+      const memorialType = nTags.memorial || nTags.Memorial || null;
+      const memorialLabel = (() => {
+        if (!memorialType) return "Memorial";
+        const formattedType = String(memorialType)
+          .replace(/[_:]/g, " ")
+          .split(" ")
+          .map((word, index) => {
+            if (index === 0) {
+              return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+            }
+            return word.toLowerCase();
+          })
+          .join(" ");
+        return `Memorial – ${formattedType}`;
+      })();
+
+      // Use consistent structure with other sections (padding + min height)
       item.className = "list-group-item";
       item.style.padding = "0";
-      
+
       const container = document.createElement("div");
       container.style.padding = SECTION_PADDING;
       container.style.paddingBottom = SECTION_PADDING;
       container.style.borderTop = "1px solid";
       container.style.borderColor = "rgba(0, 0, 0, 0.12)";
       container.style.minHeight = "60px"; // Minimum height for consistent spacing
-      
+
       container.innerHTML = `
-        <h6 style="font-size: 1.125rem; font-weight: 600; color: rgba(0, 0, 0, 0.87); letter-spacing: -0.01em; margin: 0 0 4px 0;">About the subject</h6>
-        <p class="small mb-1" style="margin: 0;"><a href="${href}" target="_blank" rel="noopener">${displayTitle} (Wikipedia)</a></p>
-      `;
-      
-      item.appendChild(container);
-      list.appendChild(item);
-      return;
-    }
-  }
-
-  // Combine historic=memorial + memorial=* into one readable line
-  if (lk === "historic" && lv === "memorial") {
-    const memorialType = nTags.memorial || nTags.Memorial || null;
-    const memorialLabel = (() => {
-      if (!memorialType) return "Memorial";
-      const formattedType = String(memorialType)
-        .replace(/[_:]/g, " ")
-        .split(" ")
-        .map((word, index) => {
-          if (index === 0) {
-            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-          }
-          return word.toLowerCase();
-        })
-        .join(" ");
-      return `Memorial – ${formattedType}`;
-    })();
-
-    // Use consistent structure with other sections (padding + min height)
-    item.className = "list-group-item";
-    item.style.padding = "0";
-
-    const container = document.createElement("div");
-    container.style.padding = SECTION_PADDING;
-    container.style.paddingBottom = SECTION_PADDING;
-    container.style.borderTop = "1px solid";
-    container.style.borderColor = "rgba(0, 0, 0, 0.12)";
-    container.style.minHeight = "60px"; // Minimum height for consistent spacing
-
-    container.innerHTML = `
       <h6 style="font-size: 1.125rem; font-weight: 600; color: rgba(0, 0, 0, 0.87); letter-spacing: -0.01em; margin: 0 0 4px 0;">Type</h6>
       <p style="font-size: 0.875rem; color: rgba(0, 0, 0, 0.87); margin: 0;">${memorialLabel}</p>
     `;
 
-    item.appendChild(container);
-    list.appendChild(item);
-    return;
-  }
-
-  // Skip memorial=* if historic=memorial exists (already combined above)
-  if (lk === "memorial" && nTags.historic && String(nTags.historic).toLowerCase().trim() === "memorial") {
-    return;
-  }
-
-  if (lk === "wikipedia" || /^wikipedia:[a-z-]+$/i.test(lk)) {
-    const spec = lk === "wikipedia" ? value : `${lk.split(":")[1]}:${value}`;
-    const m = String(spec).match(/^([a-z-]+)\s*:\s*(.+)$/i);
-    if (m) {
-      const lang = m[1];
-      const title = m[2].replace(/\s/g, "_");
-      const href = `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(
-        title
-      )}`;
-      
-      // Use consistent structure with other sections
-      item.className = "list-group-item";
-      item.style.padding = "0";
-      
-      const container = document.createElement("div");
-      container.style.padding = SECTION_PADDING;
-      container.style.paddingBottom = SECTION_PADDING;
-      container.style.borderTop = "1px solid";
-      container.style.borderColor = "rgba(0, 0, 0, 0.12)";
-      container.style.minHeight = "60px"; // Minimum height for consistent spacing
-      
-      container.innerHTML = `
-        <h6 style="font-size: 1.125rem; font-weight: 600; color: rgba(0, 0, 0, 0.87); letter-spacing: -0.01em; margin: 0 0 4px 0;">Wikipedia</h6>
-        <p class="small mb-1" style="margin: 0;"><a href="${href}" target="_blank" rel="noopener">Wikipedia (${lang})</a></p>
-      `;
-      
       item.appendChild(container);
       list.appendChild(item);
       return;
     }
-  }
 
-  // Handle source:ref - show as a clean "Network" section with a single, descriptive link
-  // (avoid "Network Network" where only the second word is clickable)
-  if (lk === "source:ref" || lk === "source_ref" || key === "source:ref" || key === "source_ref") {
-    const urlValue = String(value).trim();
-    if (urlValue) {
-      // Clean the URL using cleanUrl function
-      const cleanedUrl = cleanUrl(urlValue);
-      if (cleanedUrl) {
+    // Skip memorial=* if historic=memorial exists (already combined above)
+    if (
+      lk === "memorial" &&
+      nTags.historic &&
+      String(nTags.historic).toLowerCase().trim() === "memorial"
+    ) {
+      return;
+    }
+
+    if (lk === "wikipedia" || /^wikipedia:[a-z-]+$/i.test(lk)) {
+      const spec = lk === "wikipedia" ? value : `${lk.split(":")[1]}:${value}`;
+      const m = String(spec).match(/^([a-z-]+)\s*:\s*(.+)$/i);
+      if (m) {
+        const lang = m[1];
+        const title = m[2].replace(/\s/g, "_");
+        const href = `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(
+          title
+        )}`;
+
         // Use consistent structure with other sections
         item.className = "list-group-item";
         item.style.padding = "0";
-        
+
         const container = document.createElement("div");
         container.style.padding = SECTION_PADDING;
-        container.style.paddingBottom = SECTION_PADDING; // Ensure consistent bottom padding
+        container.style.paddingBottom = SECTION_PADDING;
         container.style.borderTop = "1px solid";
         container.style.borderColor = "rgba(0, 0, 0, 0.12)";
-        container.style.minHeight = "auto"; // No default height, let content determine
-        
+        container.style.minHeight = "60px"; // Minimum height for consistent spacing
+
         container.innerHTML = `
+        <h6 style="font-size: 1.125rem; font-weight: 600; color: rgba(0, 0, 0, 0.87); letter-spacing: -0.01em; margin: 0 0 4px 0;">Wikipedia</h6>
+        <p class="small mb-1" style="margin: 0;"><a href="${href}" target="_blank" rel="noopener">Wikipedia (${lang})</a></p>
+      `;
+
+        item.appendChild(container);
+        list.appendChild(item);
+        return;
+      }
+    }
+
+    // Handle source:ref - show as a clean "Network" section with a single, descriptive link
+    // (avoid "Network Network" where only the second word is clickable)
+    if (
+      lk === "source:ref" ||
+      lk === "source_ref" ||
+      key === "source:ref" ||
+      key === "source_ref"
+    ) {
+      const urlValue = String(value).trim();
+      if (urlValue) {
+        // Clean the URL using cleanUrl function
+        const cleanedUrl = cleanUrl(urlValue);
+        if (cleanedUrl) {
+          // Use consistent structure with other sections
+          item.className = "list-group-item";
+          item.style.padding = "0";
+
+          const container = document.createElement("div");
+          container.style.padding = SECTION_PADDING;
+          container.style.paddingBottom = SECTION_PADDING; // Ensure consistent bottom padding
+          container.style.borderTop = "1px solid";
+          container.style.borderColor = "rgba(0, 0, 0, 0.12)";
+          container.style.minHeight = "auto"; // No default height, let content determine
+
+          container.innerHTML = `
           <div>
             <h6 style="font-size: 1.125rem; font-weight: 600; color: rgba(0, 0, 0, 0.87); letter-spacing: -0.01em; margin: 0 0 8px 0;">Network</h6>
             <p style="font-size: 0.875rem; color: rgba(0, 0, 0, 0.87); margin: 0;">
@@ -4832,266 +5420,291 @@ Object.entries(nTags).forEach(([key, value]) => {
               >View network</a>
             </p>
           </div>`;
-        
-        item.appendChild(container);
-      list.appendChild(item);
+
+          item.appendChild(container);
+          list.appendChild(item);
+          return;
+        }
+      }
+      // If URL cleaning failed, skip this tag
       return;
     }
-    }
-    // If URL cleaning failed, skip this tag
-    return;
-  }
 
-  // Default label/value
-  let displayKey;
-  if (key === "display_name") {
-    displayKey = "Address";
-  } else if (lk === "amenity") {
-    displayKey = "Category"; // Rename "Amenity" to "Category"
-  } else if (lk === "height") {
-    displayKey = "Height"; // Simple label for height
-  } else if (lk === "building") {
-    displayKey = "Building";
-  } else {
-    displayKey = key
-      .replace(/^Addr_?/i, "")
-      .replace(/[_:]/g, " ")
-      .replace(/\b\w/g, (c) => c.toUpperCase());
-  }
-
-  // Format value: convert snake_case to Title Case (e.g., "post_box" -> "Post box")
-  // First word capitalized, subsequent words lowercase (as per user example)
-  const formatValueForDisplay = (val) => {
-    return String(val)
-      .replace(/[_:]/g, " ") // Replace underscores and colons with spaces
-      .split(" ")
-      .map((word, index) => {
-        if (!word) return "";
-        const lowerWord = word.toLowerCase();
-        // Capitalize first letter of first word only
-        if (index === 0) {
-          return lowerWord.charAt(0).toUpperCase() + lowerWord.slice(1);
-        }
-        // Keep subsequent words lowercase
-        return lowerWord;
-      })
-      .filter((word) => word)
-      .join(" ");
-  };
-
-  // Helper to detect and clean URLs in values
-  const cleanUrlInValue = (val) => {
-    const trimmed = String(val).trim();
-    // If it looks like a URL (starts with http/https or contains common URL patterns), clean it
-    if (/^(https?|www\.|[\w.-]+\.(com|org|net|io|edu|gov))/i.test(trimmed)) {
-      const cleaned = cleanUrl(trimmed);
-      return cleaned || trimmed; // Return cleaned URL or original if cleaning failed
-    }
-    return trimmed;
-  };
-
-  // Special formatting for building=yes and height field
-  let displayValue;
-  if (lk === "building" || key === "building") {
-    const s = String(value).trim().toLowerCase();
-    displayValue = s === "yes" || s === "true" || s === "1" ? "Unspecified" : formatValueForDisplay(String(value));
-  } else if (lk === "branch" || key === "branch") {
-    // Branch can contain multiple language values in a single string (e.g. "Vilnius / Wilno").
-    // Keep only the first/primary value to effectively show an English version.
-    const raw = String(value ?? "").trim();
-    const primary = raw.split(/[\/|;]/).map((p) => p.trim()).filter(Boolean)[0] || raw;
-    displayValue = formatValueForDisplay(primary);
-  } else if (lk === "height" || key === "height") {
-    const heightNum = parseFloat(value);
-    if (!isNaN(heightNum) && heightNum > 0) {
-      displayValue = `~${heightNum} m`;
+    // Default label/value
+    let displayKey;
+    if (key === "display_name") {
+      displayKey = "Address";
+    } else if (lk === "amenity") {
+      displayKey = "Category"; // Rename "Amenity" to "Category"
+    } else if (lk === "height") {
+      displayKey = "Height"; // Simple label for height
+    } else if (lk === "building") {
+      displayKey = "Building";
     } else {
-      displayValue = formatValueForDisplay(String(value));
+      displayKey = key
+        .replace(/^Addr_?/i, "")
+        .replace(/[_:]/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
     }
-  } else {
-    displayValue = String(value)
-    .split(";")
-    .map((part) => part.trim())
-    .filter((part) => part)
-      .map((part) => {
-        // Clean URLs before formatting
-        const cleaned = cleanUrlInValue(part);
-        return formatValueForDisplay(cleaned);
-      })
-      .join(" • ");
-  }
 
-  // 🧨 Final safety net:
-  // If this generic row would have the label "Contact", skip it completely.
-  // This prevents "Contact / Yes" (or any other value) from showing
-  // while keeping the dedicated Contact section (website/phone/email).
-  if (displayKey.trim() === "Contact") {
-    return;
-  }
+    // Format value: convert snake_case to Title Case (e.g., "post_box" -> "Post box")
+    // First word capitalized, subsequent words lowercase (as per user example)
+    const formatValueForDisplay = (val) => {
+      return String(val)
+        .replace(/[_:]/g, " ") // Replace underscores and colons with spaces
+        .split(" ")
+        .map((word, index) => {
+          if (!word) return "";
+          const lowerWord = word.toLowerCase();
+          // Capitalize first letter of first word only
+          if (index === 0) {
+            return lowerWord.charAt(0).toUpperCase() + lowerWord.slice(1);
+          }
+          // Keep subsequent words lowercase
+          return lowerWord;
+        })
+        .filter((word) => word)
+        .join(" ");
+    };
 
-  // Check if this is a place type that should be styled like Wheelchair Access (amenity, tourism, shop, leisure, healthcare, office, historic, sport)
-  // SKIP place types - they're now shown in the header as a category chip
-  const isPlaceType = ["amenity", "tourism", "shop", "leisure", "healthcare", "office", "historic", "sport"].includes(lk);
-  
-  if (isPlaceType) {
-    // Skip rendering place type as a separate section - it's shown in the header as a category chip
-    return;
-  } else {
-    // Default styling for other items (like Cuisine, Brand, etc.)
-    item.className = "list-group-item";
-    item.style.padding = "0";
-    
-    const container = document.createElement("div");
-    container.style.padding = SECTION_PADDING;
-    container.style.borderTop = "1px solid";
-    container.style.borderColor = "rgba(0, 0, 0, 0.12)";
-    container.style.minHeight = "60px"; // Minimum height for consistent spacing
-    
-    // Helper function to get icon for specific fields
-    function getIconForField(fieldName) {
-      const fieldIcons = {
-        "Cuisine": "restaurant_menu",
-        "Brand": "store",
-        "Operator": "business",
-        "Phone": "phone",
-        "Email": "email",
-        "Website": "language",
-        "Opening Hours": "access_time",
-        "Description": "description",
-        "Name": "label",
-      };
-      return fieldIcons[fieldName] || null;
-    }
-    
-    const fieldIcon = getIconForField(displayKey);
-    
-    // If we have an icon for this field, use the same layout as Address/Category
-    if (fieldIcon) {
-      // Layout: Icon on left, title and value on right (title aligned with icon, value below title)
-      const layoutContainer = document.createElement("div");
-      layoutContainer.style.display = "flex";
-      layoutContainer.style.alignItems = "flex-start";
-      layoutContainer.style.gap = "12px";
-      
-      // Icon container
-      const iconContainer = document.createElement("div");
-      iconContainer.style.display = "flex";
-      iconContainer.style.alignItems = "center";
-      iconContainer.style.justifyContent = "center";
-      iconContainer.style.width = ICON_SIZE;
-      iconContainer.style.height = ICON_SIZE;
-      iconContainer.style.borderRadius = ICON_BORDER_RADIUS;
-      iconContainer.style.backgroundColor = ICON_BACKGROUND_COLOR;
-      iconContainer.style.color = ICON_SECONDARY_COLOR;
-      iconContainer.style.flexShrink = "0";
-      
-      const icon = document.createElement("span");
-      icon.className = "material-icons";
-      icon.style.fontSize = "24px";
-      icon.style.color = ICON_SECONDARY_COLOR;
-      icon.textContent = fieldIcon;
-      iconContainer.appendChild(icon);
-      
-      // Content wrapper (title and value)
-      const contentWrapper = document.createElement("div");
-      contentWrapper.style.flex = "1";
-      contentWrapper.style.minWidth = "0";
-      contentWrapper.style.display = "flex";
-      contentWrapper.style.flexDirection = "column";
-      contentWrapper.style.justifyContent = "center";
-      
-      // Title - aligned with icon center
-      const title = document.createElement("h6");
-      title.style.fontSize = "1.125rem";
-      title.style.fontWeight = "600";
-      title.style.color = "rgba(0, 0, 0, 0.87)";
-      title.style.letterSpacing = "-0.01em";
-      title.style.margin = "0 0 4px 0"; // Small margin below for value
-      title.textContent = displayKey;
-      contentWrapper.appendChild(title);
-      
-      // Value text
-      const valueText = document.createElement("p");
-      valueText.style.margin = "0";
-      valueText.style.fontSize = "0.875rem";
-      valueText.style.color = "rgba(0, 0, 0, 0.87)";
-      valueText.style.lineHeight = "1.5";
-      valueText.textContent = displayValue;
-      contentWrapper.appendChild(valueText);
-      
-      layoutContainer.appendChild(iconContainer);
-      layoutContainer.appendChild(contentWrapper);
-      container.appendChild(layoutContainer);
+    // Helper to detect and clean URLs in values
+    const cleanUrlInValue = (val) => {
+      const trimmed = String(val).trim();
+      // If it looks like a URL (starts with http/https or contains common URL patterns), clean it
+      if (/^(https?|www\.|[\w.-]+\.(com|org|net|io|edu|gov))/i.test(trimmed)) {
+        const cleaned = cleanUrl(trimmed);
+        return cleaned || trimmed; // Return cleaned URL or original if cleaning failed
+      }
+      return trimmed;
+    };
+
+    // Special formatting for building=yes and height field
+    let displayValue;
+    if (lk === "building" || key === "building") {
+      const s = String(value).trim().toLowerCase();
+      displayValue =
+        s === "yes" || s === "true" || s === "1"
+          ? "Unspecified"
+          : formatValueForDisplay(String(value));
+    } else if (lk === "branch" || key === "branch") {
+      // Branch can contain multiple language values in a single string (e.g. "Vilnius / Wilno").
+      // Keep only the first/primary value to effectively show an English version.
+      const raw = String(value ?? "").trim();
+      const primary =
+        raw
+          .split(/[\/|;]/)
+          .map((p) => p.trim())
+          .filter(Boolean)[0] || raw;
+      displayValue = formatValueForDisplay(primary);
+    } else if (lk === "height" || key === "height") {
+      const heightNum = parseFloat(value);
+      if (!isNaN(heightNum) && heightNum > 0) {
+        displayValue = `~${heightNum} m`;
+      } else {
+        displayValue = formatValueForDisplay(String(value));
+      }
     } else {
-      // No icon - use simple layout without icon
-      container.style.display = "flex";
-      container.style.flexDirection = "column";
-      container.style.justifyContent = "center";
-      
-      const contentWrapper = document.createElement("div");
-      
-      // Title
-      const title = document.createElement("h6");
-      title.style.fontSize = "1.125rem";
-      title.style.fontWeight = "600";
-      title.style.color = "rgba(0, 0, 0, 0.87)";
-      title.style.letterSpacing = "-0.01em";
-      title.style.margin = "0 0 8px 0"; // Increased margin-bottom for better spacing
-      title.textContent = displayKey;
-      contentWrapper.appendChild(title);
-      
-      // Value
-      const valueText = document.createElement("p");
-      valueText.style.margin = "0";
-      valueText.style.fontSize = "0.875rem";
-      valueText.style.color = "rgba(0, 0, 0, 0.87)";
-      valueText.style.lineHeight = "1.5";
-      valueText.textContent = displayValue;
-      contentWrapper.appendChild(valueText);
-      
-      container.appendChild(contentWrapper);
+      displayValue = String(value)
+        .split(";")
+        .map((part) => part.trim())
+        .filter((part) => part)
+        .map((part) => {
+          // Clean URLs before formatting
+          const cleaned = cleanUrlInValue(part);
+          return formatValueForDisplay(cleaned);
+        })
+        .join(" • ");
     }
-    
-    item.appendChild(container);
-  }
-  
-  list.appendChild(item);
-});
+
+    // 🧨 Final safety net:
+    // If this generic row would have the label "Contact", skip it completely.
+    // This prevents "Contact / Yes" (or any other value) from showing
+    // while keeping the dedicated Contact section (website/phone/email).
+    if (displayKey.trim() === "Contact") {
+      return;
+    }
+
+    // Check if this is a place type that should be styled like Wheelchair Access (amenity, tourism, shop, leisure, healthcare, office, historic, sport)
+    // SKIP place types - they're now shown in the header as a category chip
+    const isPlaceType = [
+      "amenity",
+      "tourism",
+      "shop",
+      "leisure",
+      "healthcare",
+      "office",
+      "historic",
+      "sport",
+    ].includes(lk);
+
+    if (isPlaceType) {
+      // Skip rendering place type as a separate section - it's shown in the header as a category chip
+      return;
+    } else {
+      // Default styling for other items (like Cuisine, Brand, etc.)
+      item.className = "list-group-item";
+      item.style.padding = "0";
+
+      const container = document.createElement("div");
+      container.style.padding = SECTION_PADDING;
+      container.style.borderTop = "1px solid";
+      container.style.borderColor = "rgba(0, 0, 0, 0.12)";
+      container.style.minHeight = "60px"; // Minimum height for consistent spacing
+
+      // Helper function to get icon for specific fields
+      function getIconForField(fieldName) {
+        const fieldIcons = {
+          Cuisine: "restaurant_menu",
+          Brand: "store",
+          Operator: "business",
+          Phone: "phone",
+          Email: "email",
+          Website: "language",
+          "Opening Hours": "access_time",
+          Description: "description",
+          Name: "label",
+        };
+        return fieldIcons[fieldName] || null;
+      }
+
+      const fieldIcon = getIconForField(displayKey);
+
+      // If we have an icon for this field, use the same layout as Address/Category
+      if (fieldIcon) {
+        // Layout: Icon on left, title and value on right (title aligned with icon, value below title)
+        const layoutContainer = document.createElement("div");
+        layoutContainer.style.display = "flex";
+        layoutContainer.style.alignItems = "flex-start";
+        layoutContainer.style.gap = "12px";
+
+        // Icon container
+        const iconContainer = document.createElement("div");
+        iconContainer.style.display = "flex";
+        iconContainer.style.alignItems = "center";
+        iconContainer.style.justifyContent = "center";
+        iconContainer.style.width = ICON_SIZE;
+        iconContainer.style.height = ICON_SIZE;
+        iconContainer.style.borderRadius = ICON_BORDER_RADIUS;
+        iconContainer.style.backgroundColor = ICON_BACKGROUND_COLOR;
+        iconContainer.style.color = ICON_SECONDARY_COLOR;
+        iconContainer.style.flexShrink = "0";
+
+        const icon = document.createElement("span");
+        icon.className = "material-icons";
+        icon.style.fontSize = "24px";
+        icon.style.color = ICON_SECONDARY_COLOR;
+        icon.textContent = fieldIcon;
+        iconContainer.appendChild(icon);
+
+        // Content wrapper (title and value)
+        const contentWrapper = document.createElement("div");
+        contentWrapper.style.flex = "1";
+        contentWrapper.style.minWidth = "0";
+        contentWrapper.style.display = "flex";
+        contentWrapper.style.flexDirection = "column";
+        contentWrapper.style.justifyContent = "center";
+
+        // Title - aligned with icon center
+        const title = document.createElement("h6");
+        title.style.fontSize = "1.125rem";
+        title.style.fontWeight = "600";
+        title.style.color = "rgba(0, 0, 0, 0.87)";
+        title.style.letterSpacing = "-0.01em";
+        title.style.margin = "0 0 4px 0"; // Small margin below for value
+        title.textContent = displayKey;
+        contentWrapper.appendChild(title);
+
+        // Value text
+        const valueText = document.createElement("p");
+        valueText.style.margin = "0";
+        valueText.style.fontSize = "0.875rem";
+        valueText.style.color = "rgba(0, 0, 0, 0.87)";
+        valueText.style.lineHeight = "1.5";
+        valueText.textContent = displayValue;
+        contentWrapper.appendChild(valueText);
+
+        layoutContainer.appendChild(iconContainer);
+        layoutContainer.appendChild(contentWrapper);
+        container.appendChild(layoutContainer);
+      } else {
+        // No icon - use simple layout without icon
+        container.style.display = "flex";
+        container.style.flexDirection = "column";
+        container.style.justifyContent = "center";
+
+        const contentWrapper = document.createElement("div");
+
+        // Title
+        const title = document.createElement("h6");
+        title.style.fontSize = "1.125rem";
+        title.style.fontWeight = "600";
+        title.style.color = "rgba(0, 0, 0, 0.87)";
+        title.style.letterSpacing = "-0.01em";
+        title.style.margin = "0 0 8px 0"; // Increased margin-bottom for better spacing
+        title.textContent = displayKey;
+        contentWrapper.appendChild(title);
+
+        // Value
+        const valueText = document.createElement("p");
+        valueText.style.margin = "0";
+        valueText.style.fontSize = "0.875rem";
+        valueText.style.color = "rgba(0, 0, 0, 0.87)";
+        valueText.style.lineHeight = "1.5";
+        valueText.textContent = displayValue;
+        contentWrapper.appendChild(valueText);
+
+        container.appendChild(contentWrapper);
+      }
+
+      item.appendChild(container);
+    }
+
+    list.appendChild(item);
+  });
 
   // --- DISPENSING: Show prescription medicine availability for pharmacies/clinics ---
   // Note: Dispensing is now shown in Features section if it's "yes" for pharmacies
   // This section is kept for backwards compatibility but should not render if already in features
-  const dispensingValueForSection = nTags.dispensing || nTags.Dispensing || null;
+  const dispensingValueForSection =
+    nTags.dispensing || nTags.Dispensing || null;
   const amenityValue = (nTags.amenity || nTags.Amenity || "").toLowerCase();
-  const healthcareValue = (nTags.healthcare || nTags.Healthcare || "").toLowerCase();
-  
+  const healthcareValue = (
+    nTags.healthcare ||
+    nTags.Healthcare ||
+    ""
+  ).toLowerCase();
+
   // Only show dispensing for pharmacies and healthcare facilities
   // But skip if it's already in the features array (which means it's "yes" for pharmacy)
-  const isRelevantForDispensing = 
-    amenityValue === "pharmacy" || 
+  const isRelevantForDispensing =
+    amenityValue === "pharmacy" ||
     healthcareValue === "pharmacy" ||
     healthcareValue === "clinic" ||
     amenityValue === "clinic";
-  
+
   // Check if dispensing is already in features (means it's "yes" for pharmacy, so show in Features section instead)
-  const isDispensingInFeatures = features.some(f => f.type === "dispensing");
-  
-  if (dispensingValueForSection && isRelevantForDispensing && !isDispensingInFeatures) {
+  const isDispensingInFeatures = features.some((f) => f.type === "dispensing");
+
+  if (
+    dispensingValueForSection &&
+    isRelevantForDispensing &&
+    !isDispensingInFeatures
+  ) {
     const dispensingItem = document.createElement("div");
     dispensingItem.className = "list-group-item";
     dispensingItem.style.padding = "0";
-    
+
     const container = document.createElement("div");
     container.style.padding = SECTION_PADDING;
     container.style.borderTop = "1px solid";
     container.style.borderColor = "rgba(0, 0, 0, 0.12)";
-    
+
     // Layout: Icon on left, title and badge on right
     const layoutContainer = document.createElement("div");
     layoutContainer.style.display = "flex";
     layoutContainer.style.alignItems = "flex-start";
     layoutContainer.style.gap = "12px";
-    
+
     // Icon container with medical icon
     const iconContainer = document.createElement("div");
     iconContainer.style.display = "flex";
@@ -5103,7 +5716,7 @@ Object.entries(nTags).forEach(([key, value]) => {
     iconContainer.style.backgroundColor = ICON_BACKGROUND_COLOR;
     iconContainer.style.color = ICON_SECONDARY_COLOR;
     iconContainer.style.flexShrink = "0";
-    
+
     const icon = document.createElement("span");
     icon.className = "material-icons";
     icon.style.fontSize = "24px";
@@ -5111,7 +5724,7 @@ Object.entries(nTags).forEach(([key, value]) => {
     // Use MedicalServices icon for dispensing
     icon.textContent = "medical_services";
     iconContainer.appendChild(icon);
-    
+
     // Content wrapper
     const contentWrapper = document.createElement("div");
     contentWrapper.style.flex = "1";
@@ -5119,7 +5732,7 @@ Object.entries(nTags).forEach(([key, value]) => {
     contentWrapper.style.display = "flex";
     contentWrapper.style.flexDirection = "column";
     contentWrapper.style.justifyContent = "center";
-    
+
     // Title
     const title = document.createElement("h6");
     title.style.fontSize = "1.125rem";
@@ -5129,9 +5742,11 @@ Object.entries(nTags).forEach(([key, value]) => {
     title.style.margin = "0 0 8px 0";
     title.textContent = "Prescription Medicines";
     contentWrapper.appendChild(title);
-    
+
     // Badge with status - using same styling as category chip in header (reusing existing variables)
-    const dispensingLower = String(dispensingValueForSection).toLowerCase().trim();
+    const dispensingLower = String(dispensingValueForSection)
+      .toLowerCase()
+      .trim();
     const isDispensing = dispensingLower === "yes";
     const badge = document.createElement("div");
     badge.style.display = "inline-block";
@@ -5143,7 +5758,7 @@ Object.entries(nTags).forEach(([key, value]) => {
     badge.style.lineHeight = "24px"; // Center text vertically
     badge.style.fontFamily = "inherit";
     badge.style.whiteSpace = "nowrap"; // Prevent text wrapping - keeps it narrow
-    
+
     if (isDispensing) {
       // Green for available - using similar opacity approach as category chip
       badge.style.backgroundColor = "rgba(76, 175, 80, 0.12)"; // Green with opacity (similar to ICON_BACKGROUND_COLOR approach)
@@ -5155,9 +5770,9 @@ Object.entries(nTags).forEach(([key, value]) => {
       badge.style.color = "rgba(0, 0, 0, 0.6)"; // Secondary text color
       badge.textContent = "Not available";
     }
-    
+
     contentWrapper.appendChild(badge);
-    
+
     layoutContainer.appendChild(iconContainer);
     layoutContainer.appendChild(contentWrapper);
     container.appendChild(layoutContainer);
@@ -5168,9 +5783,13 @@ Object.entries(nTags).forEach(([key, value]) => {
   // Store checkDateValue in globals for footer display (removed from details list)
   // Only store if it's different from opening hours check date to avoid duplication
   // Reuse the formattedOpeningHoursCheckDate that was extracted earlier (around line 2564)
-  
+
   // Only store generic check_date if it's different from opening hours check date
-  if (checkDateValue && formattedOpeningHoursCheckDate && checkDateValue === formattedOpeningHoursCheckDate) {
+  if (
+    checkDateValue &&
+    formattedOpeningHoursCheckDate &&
+    checkDateValue === formattedOpeningHoursCheckDate
+  ) {
     // Same date as opening hours - don't show duplicate at bottom
     globals.detailsCtx.checkDate = null;
   } else {
@@ -5194,7 +5813,13 @@ Object.entries(nTags).forEach(([key, value]) => {
 
   // Open the floating place-details popup (overview / reviews / photos).
   // Pass category, features, and short_name extracted earlier
-  openPlaceDetailsPopup(titleText, categoryValue, null, features, shouldShowShortName ? shortName : null);
+  openPlaceDetailsPopup(
+    titleText,
+    categoryValue,
+    null,
+    features,
+    shouldShowShortName ? shortName : null
+  );
 
   // Build a stable cache key for this place (used for request dedupe/caching only).
   const placeCacheKey = (() => {
@@ -5398,11 +6023,14 @@ async function initDrawingObstacles() {
       });
     } else if (feature.properties.shape === "rectangle") {
       const bounds = L.geoJSON(feature).getBounds();
-      layer = L.rectangle(bounds, { 
+      layer = L.rectangle(bounds, {
         color: "red",
         pane: "obstaclesPane",
       });
-    } else if (feature.geometry.type === "Point" && feature.properties.shape === "marker") {
+    } else if (
+      feature.geometry.type === "Point" &&
+      feature.properties.shape === "marker"
+    ) {
       // Handle caution markers (Point obstacles) - circular badge style like POI
       const [lng, lat] = feature.geometry.coordinates;
       const cautionIcon = L.divIcon({
@@ -5424,7 +6052,7 @@ async function initDrawingObstacles() {
       });
     } else {
       // For polygons, polylines, etc.
-      const geoJsonLayer = L.geoJSON(feature, { 
+      const geoJsonLayer = L.geoJSON(feature, {
         style: { color: "red" },
         pointToLayer: (feature, latlng) => {
           const cautionIcon = L.divIcon({
@@ -5448,31 +6076,34 @@ async function initDrawingObstacles() {
       });
       layer = geoJsonLayer.getLayers()[0];
       // Set pane for vector layers
-      if (layer && (layer instanceof L.Polygon || layer instanceof L.Polyline)) {
+      if (
+        layer &&
+        (layer instanceof L.Polygon || layer instanceof L.Polyline)
+      ) {
         layer.options.pane = "obstaclesPane";
       }
     }
 
     if (layer) {
-    layer.options.obstacleId = feature.id;
+      layer.options.obstacleId = feature.id;
       // Add to obstacles layer (not drawnItems, and NOT to cluster group)
       if (obstaclesLayer) {
         obstaclesLayer.addLayer(layer);
-      // Initial visibility will be set when obstaclesLayer is added to map
+        // Initial visibility will be set when obstaclesLayer is added to map
       } else {
-    drawnItems.addLayer(layer);
+        drawnItems.addLayer(layer);
       }
-    hookLayerInteractions(layer, feature.properties);
-    // Attach tooltip with vote counts support after layer is added
-    layer.once("add", () => {
-      attachObstacleTooltip(layer, feature);
-    });
+      hookLayerInteractions(layer, feature.properties);
+      // Attach tooltip with vote counts support after layer is added
+      layer.once("add", () => {
+        attachObstacleTooltip(layer, feature);
+      });
     }
   });
 
   // Only add drawnItems if obstaclesLayer wasn't created yet (fallback)
   if (!obstaclesLayer) {
-  map.addLayer(drawnItems);
+    map.addLayer(drawnItems);
   } else if (map) {
     // Add obstacles layer to map only if zoom >= 17
     const showObstacles = map.getZoom() >= 17;
@@ -5644,8 +6275,8 @@ function fitRouteToView() {
     typeof routeLayer?.getBounds === "function"
       ? routeLayer.getBounds()
       : typeof routeLayer?.getLayers === "function"
-        ? L.featureGroup(routeLayer.getLayers()).getBounds?.()
-        : null;
+      ? L.featureGroup(routeLayer.getLayers()).getBounds?.()
+      : null;
   if (bounds && bounds.isValid()) {
     map.fitBounds(bounds, { padding: [40, 40], animate: true, duration: 0.6 });
   }
@@ -5668,7 +6299,8 @@ function clearRouteAll() {
   toLatLng = null;
 
   if (elements.departureSearchInput) elements.departureSearchInput.value = "";
-  if (elements.destinationSearchInput) elements.destinationSearchInput.value = "";
+  if (elements.destinationSearchInput)
+    elements.destinationSearchInput.value = "";
 
   // Start is needed again
   setStartHintUi(true);
@@ -5688,8 +6320,10 @@ function swapRouteEndpoints() {
   // Swap input text
   const fromText = elements.departureSearchInput?.value ?? "";
   const toText = elements.destinationSearchInput?.value ?? "";
-  if (elements.departureSearchInput) elements.departureSearchInput.value = toText;
-  if (elements.destinationSearchInput) elements.destinationSearchInput.value = fromText;
+  if (elements.departureSearchInput)
+    elements.departureSearchInput.value = toText;
+  if (elements.destinationSearchInput)
+    elements.destinationSearchInput.value = fromText;
 
   // Move markers if they exist
   if (fromMarker) fromMarker.setLatLng(fromLatLng);
@@ -5743,28 +6377,28 @@ async function updateRoute({ fit = true } = {}) {
     // Create route with white outline (halo) for better visibility
     // First, create the white outline layer (thicker, underneath)
     const routeOutline = L.geoJSON(geojson, {
-      style: { 
-        color: "#ffffff", 
+      style: {
+        color: "#ffffff",
         weight: 8, // Thicker for the outline
         opacity: 0.8,
         lineCap: "round",
-        lineJoin: "round"
+        lineJoin: "round",
       },
       interactive: false,
     });
-    
+
     // Then, create the blue route layer (thinner, on top)
     const routeLine = L.geoJSON(geojson, {
-      style: { 
+      style: {
         color: "var(--bs-primary)", // Blue primary color
         weight: 6, // Slightly thicker than before
         opacity: 1.0,
         lineCap: "round",
-        lineJoin: "round"
+        lineJoin: "round",
       },
       interactive: false,
     });
-    
+
     // Keep a single handle for cleanup. Use FeatureGroup so `fitRouteToView()`
     // can reliably call `getBounds()` (LayerGroup doesn't implement it).
     routeLayer = L.featureGroup([routeOutline, routeLine]).addTo(map);
@@ -5775,10 +6409,14 @@ async function updateRoute({ fit = true } = {}) {
       typeof routeLine?.getBounds === "function"
         ? routeLine.getBounds()
         : typeof routeOutline?.getBounds === "function"
-          ? routeOutline.getBounds()
-          : null;
+        ? routeOutline.getBounds()
+        : null;
     if (fit && bounds && bounds.isValid()) {
-      map.fitBounds(bounds, { padding: [40, 40], animate: true, duration: 0.6 });
+      map.fitBounds(bounds, {
+        padding: [40, 40],
+        animate: true,
+        duration: 0.6,
+      });
     }
   } catch (err) {
     console.error("❌ Route render failed:", err);
@@ -5832,9 +6470,9 @@ function reverseAddressAt(latlng) {
         clearTimeout(timeout);
         console.log("📍 reverseAddressAt → got items:", items);
 
-      const best = items?.[0]?.name;
+        const best = items?.[0]?.name;
         finish(best || fallback());
-    });
+      });
     } catch (err) {
       clearTimeout(timeout);
       console.error("❌ reverseAddressAt failed:", err);
@@ -5945,9 +6583,12 @@ function setStartHintUi(needsStart) {
 
 async function openDirectionsToPlace(latlng, { fit = false } = {}) {
   if (!isValidLatLng(latlng)) {
-    console.warn("⚠️ openDirectionsToPlace aborted: invalid destination latlng", {
-      latlng,
-    });
+    console.warn(
+      "⚠️ openDirectionsToPlace aborted: invalid destination latlng",
+      {
+        latlng,
+      }
+    );
     toastError("Could not determine this place’s location for directions.");
     return;
   }
@@ -6027,7 +6668,9 @@ async function setTo(latlng, text, opts = {}) {
   }
 
   toLatLng = latlng;
-  const directionsActive = directionsUi ? !directionsUi.classList.contains("d-none") : false;
+  const directionsActive = directionsUi
+    ? !directionsUi.classList.contains("d-none")
+    : false;
   if (directionsActive) {
     if (toMarker) map.removeLayer(toMarker);
     toMarker = L.marker(latlng, {
@@ -6097,19 +6740,25 @@ async function selectDestinationSuggestion(res) {
           dashArray: "6,4",
         },
       });
-      map.fitBounds(selectedPlaceLayer.getBounds(), { animate: true, duration: 0.6 });
+      map.fitBounds(selectedPlaceLayer.getBounds(), {
+        animate: true,
+        duration: 0.6,
+      });
     } else {
       // Get the computed primary color value (CSS variables don't work in inline HTML)
-      const primaryColor = getComputedStyle(document.documentElement)
-        .getPropertyValue('--bs-primary')
-        .trim() || '#0c77d2';
-      
+      const primaryColor =
+        getComputedStyle(document.documentElement)
+          .getPropertyValue("--bs-primary")
+          .trim() || "#0c77d2";
+
       // Parse RGB values for opacity
-      const rgbMatch = primaryColor.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+      const rgbMatch = primaryColor.match(
+        /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i
+      );
       const r = rgbMatch ? parseInt(rgbMatch[1], 16) : 12;
       const g = rgbMatch ? parseInt(rgbMatch[2], 16) : 119;
       const b = rgbMatch ? parseInt(rgbMatch[3], 16) : 210;
-      
+
       // Center first (so the rectangle + marker appear in the right context immediately)
       map.flyTo(L.latLng(res.center), 18, { animate: true, duration: 0.6 });
 
@@ -6190,7 +6839,7 @@ async function selectDestinationSuggestion(res) {
         iconAnchor: [46, 52], // Center horizontally, anchor at bottom of triangle pointer
         popupAnchor: [0, -52],
       });
-      
+
       const selectionMarker = L.marker(L.latLng(res.center), {
         icon: selectedPlaceIcon,
         keyboard: false,
@@ -6255,11 +6904,11 @@ export function updateUser(user) {
   userPrefsLoaded = false;
   // If user logged in, initialize draw controls if not already done
   if (user && !drawControl && map) {
-      // Use obstaclesLayer for editing if available, otherwise fallback to drawnItems
-      const editFeatureGroup = obstaclesLayer || drawnItems;
+    // Use obstaclesLayer for editing if available, otherwise fallback to drawnItems
+    const editFeatureGroup = obstaclesLayer || drawnItems;
     drawControl = new L.Control.Draw({
       position: "topright",
-        edit: { featureGroup: editFeatureGroup },
+      edit: { featureGroup: editFeatureGroup },
       draw: {
         polyline: { shapeOptions: { color: "red" } },
         marker: false,
@@ -6323,8 +6972,8 @@ function setupObstacleEventHandlers() {
     let layerToAdd, featureToStore;
     const cautionHandler = getCautionDrawHandler();
     // Check if this is a caution marker by checking the layer's options
-    const isCautionMarker = 
-      (e.layerType === 'marker' || e.layer instanceof L.Marker) && 
+    const isCautionMarker =
+      (e.layerType === "marker" || e.layer instanceof L.Marker) &&
       e.layer.options.isCautionMarker === true;
 
     if (e.layer instanceof L.Circle) {
@@ -6360,8 +7009,12 @@ function setupObstacleEventHandlers() {
     } else {
       featureToStore = e.layer.toGeoJSON();
       // For polygons, polylines, rectangles - add pane option
-      if (e.layer instanceof L.Polygon || e.layer instanceof L.Polyline || e.layer instanceof L.Rectangle) {
-      layerToAdd = e.layer;
+      if (
+        e.layer instanceof L.Polygon ||
+        e.layer instanceof L.Polyline ||
+        e.layer instanceof L.Rectangle
+      ) {
+        layerToAdd = e.layer;
         layerToAdd.options.pane = "obstaclesPane";
         // Update the pane if layer already has a renderer
         if (layerToAdd._renderer) {
@@ -6378,7 +7031,7 @@ function setupObstacleEventHandlers() {
       // Visibility controlled by zoom - if zoom < 17, obstaclesLayer won't be on map
       // If zoom >= 17, layer will be visible since obstaclesLayer is on map
     } else {
-    drawnItems.addLayer(layerToAdd);
+      drawnItems.addLayer(layerToAdd);
     }
 
     const result = await showObstacleModal();
@@ -6387,7 +7040,7 @@ function setupObstacleEventHandlers() {
       if (obstaclesLayer) {
         obstaclesLayer.removeLayer(layerToAdd);
       } else {
-      drawnItems.removeLayer(layerToAdd);
+        drawnItems.removeLayer(layerToAdd);
       }
       return;
     }
@@ -6423,7 +7076,7 @@ function setupObstacleEventHandlers() {
       if (obstaclesLayer) {
         obstaclesLayer.removeLayer(layerToAdd);
       } else {
-      drawnItems.removeLayer(layerToAdd);
+        drawnItems.removeLayer(layerToAdd);
       }
       toastError("Could not save obstacle.");
     } finally {
@@ -6434,13 +7087,20 @@ function setupObstacleEventHandlers() {
     if (isCautionMarker && cautionHandler) {
       cautionHandler.disable();
       // Also disable any active mode in the draw control
-      if (drawControl && drawControl._toolbars && drawControl._toolbars.draw && drawControl._toolbars.draw._activeMode) {
+      if (
+        drawControl &&
+        drawControl._toolbars &&
+        drawControl._toolbars.draw &&
+        drawControl._toolbars.draw._activeMode
+      ) {
         drawControl._toolbars.draw._activeMode.handler.disable();
       }
       // Remove enabled state from caution button
-      const cautionButton = map.getContainer().querySelector('.leaflet-draw-toolbar-button-caution');
+      const cautionButton = map
+        .getContainer()
+        .querySelector(".leaflet-draw-toolbar-button-caution");
       if (cautionButton) {
-        cautionButton.classList.remove('leaflet-draw-toolbar-button-enabled');
+        cautionButton.classList.remove("leaflet-draw-toolbar-button-enabled");
       }
     }
   });
@@ -6533,17 +7193,19 @@ export async function initMap(user = null) {
   // we define a helper that guarantees consistent error messages.
   const safeFetch = async (url) => {
     try {
-    const res = await fetch(url);
+      const res = await fetch(url);
 
-    // If Photon responds with non-2xx (e.g., 403 or 500), throw a descriptive error.
-    if (!res.ok) throw new Error(`Photon HTTP ${res.status}`);
+      // If Photon responds with non-2xx (e.g., 403 or 500), throw a descriptive error.
+      if (!res.ok) throw new Error(`Photon HTTP ${res.status}`);
 
-    // Parse JSON — Photon always returns valid GeoJSON FeatureCollection.
-    return res.json();
+      // Parse JSON — Photon always returns valid GeoJSON FeatureCollection.
+      return res.json();
     } catch (error) {
       // Handle network errors (Failed to fetch, CORS, etc.)
       if (error instanceof TypeError && error.message === "Failed to fetch") {
-        throw new Error("Network error: Unable to reach geocoding service. Please check your internet connection.");
+        throw new Error(
+          "Network error: Unable to reach geocoding service. Please check your internet connection."
+        );
       }
       // Re-throw other errors as-is
       throw error;
@@ -6656,7 +7318,8 @@ export async function initMap(user = null) {
   currentBasemapLayer.addTo(map);
 
   // Fade the map in only after the first basemap tiles load (prevents “snap/jump” perception).
-  const mapEl = typeof document !== "undefined" ? document.getElementById("map") : null;
+  const mapEl =
+    typeof document !== "undefined" ? document.getElementById("map") : null;
   if (mapEl) {
     mapEl.classList.remove("is-ready");
     const markReady = () => mapEl.classList.add("is-ready");
@@ -6680,7 +7343,12 @@ export async function initMap(user = null) {
       const lat = Number(parsed?.lat);
       const lng = Number(parsed?.lng);
       const zoom = Number(parsed?.zoom);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(zoom)) return null;
+      if (
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng) ||
+        !Number.isFinite(zoom)
+      )
+        return null;
       if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
       return { lat, lng, zoom };
     } catch {
@@ -6688,16 +7356,31 @@ export async function initMap(user = null) {
     }
   };
 
-  const initialView = loadLastView() || { lat: defaultLatLng[0], lng: defaultLatLng[1], zoom: DEFAULT_ZOOM };
-  map.setView([initialView.lat, initialView.lng], initialView.zoom, { animate: false });
+  const initialView = loadLastView() || {
+    lat: defaultLatLng[0],
+    lng: defaultLatLng[1],
+    zoom: DEFAULT_ZOOM,
+  };
+  map.setView([initialView.lat, initialView.lng], initialView.zoom, {
+    animate: false,
+  });
 
   // Persist view to localStorage so future loads start where the user last left the map.
   const saveLastView = debounce(() => {
     try {
       const c = map.getCenter();
       const z = map.getZoom();
-      if (!c || !Number.isFinite(c.lat) || !Number.isFinite(c.lng) || !Number.isFinite(z)) return;
-      ls.set(LS_KEYS.MAP_VIEW, JSON.stringify({ lat: c.lat, lng: c.lng, zoom: z }));
+      if (
+        !c ||
+        !Number.isFinite(c.lat) ||
+        !Number.isFinite(c.lng) ||
+        !Number.isFinite(z)
+      )
+        return;
+      ls.set(
+        LS_KEYS.MAP_VIEW,
+        JSON.stringify({ lat: c.lat, lng: c.lng, zoom: z })
+      );
     } catch {
       /* ignore */
     }
@@ -6731,9 +7414,14 @@ export async function initMap(user = null) {
             const targetZoom = map.getZoom() || DEFAULT_ZOOM;
             // If the map hasn't finished initial render yet, use a non-animated setView().
             if (!map._loaded) {
-              map.setView([latitude, longitude], targetZoom, { animate: false });
+              map.setView([latitude, longitude], targetZoom, {
+                animate: false,
+              });
             } else {
-              map.flyTo([latitude, longitude], targetZoom, { animate: true, duration: 0.6 });
+              map.flyTo([latitude, longitude], targetZoom, {
+                animate: true,
+                duration: 0.6,
+              });
             }
           }
         }
@@ -6870,7 +7558,8 @@ export async function initMap(user = null) {
       if (globals._isSelectingPlaceLocation) return;
 
       const directionsActive =
-        elements.directionsUi && !elements.directionsUi.classList.contains("d-none");
+        elements.directionsUi &&
+        !elements.directionsUi.classList.contains("d-none");
 
       if (directionsActive) {
         const active = document.activeElement;
@@ -6979,12 +7668,12 @@ export async function initMap(user = null) {
 
     if (!directionsBtn && !legacyStart && !legacyGo) return;
 
-      if (
-        typeof window !== "undefined" &&
-        typeof window.closePlacePopup === "function"
-      ) {
-        window.closePlacePopup();
-      }
+    if (
+      typeof window !== "undefined" &&
+      typeof window.closePlacePopup === "function"
+    ) {
+      window.closePlacePopup();
+    }
 
     if (directionsBtn) {
       await openDirectionsToPlace(globals.detailsCtx.latlng, { fit: false });
@@ -7030,7 +7719,7 @@ export async function initMap(user = null) {
     if (t.closest("#btn-clear-route")) {
       clearRouteAll();
     }
-    });
+  });
 
   // ✅ Set up review form handler using event delegation (for old HTML form, kept for backward compatibility)
   // This works even if the form is created dynamically after login
@@ -7055,21 +7744,22 @@ export async function initMap(user = null) {
     const submitBtn = e.target.querySelector("#submit-review-btn");
     try {
       console.log("🧭 Review submit ctx:", globals.detailsCtx);
-      
+
       // Helper to validate UUID
       const isValidUUID = (id) => {
-        if (!id || typeof id !== 'string') return false;
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        return uuidRegex.test(id) && !id.includes('/');
+        if (!id || typeof id !== "string") return false;
+        const uuidRegex =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        return uuidRegex.test(id) && !id.includes("/");
       };
-      
+
       let placeId =
         globals.detailsCtx.placeId ??
         (await ensurePlaceExists(
           globals.detailsCtx.tags,
           globals.detailsCtx.latlng
         ));
-      
+
       // If placeId is not a valid UUID, try to get it from ensurePlaceExists
       if (!isValidUUID(placeId)) {
         placeId = await ensurePlaceExists(
@@ -7077,13 +7767,13 @@ export async function initMap(user = null) {
           globals.detailsCtx.latlng
         );
       }
-      
+
       // Only proceed if we have a valid UUID
       if (!isValidUUID(placeId)) {
         toastError("Could not identify place. Please try again.");
         return;
       }
-      
+
       const newReview = { text, place_id: placeId };
 
       await withButtonLoading(

@@ -26,12 +26,25 @@ export const ZoomMuiControl = L.Control.extend({
         const root = createRoot(mountNode);
         self._reactRoot = root;
 
-        root.render(
-          React.createElement(ZoomControlReact, {
-            onZoomIn: () => map.zoomIn(),
-            onZoomOut: () => map.zoomOut(),
-          })
-        );
+        // Function to render with current zoom state
+        const renderControl = () => {
+          root.render(
+            React.createElement(ZoomControlReact, {
+              onZoomIn: () => map.zoomIn(),
+              onZoomOut: () => map.zoomOut(),
+              currentZoom: map.getZoom(),
+              minZoom: map.getMinZoom(),
+              maxZoom: map.getMaxZoom(),
+            })
+          );
+        };
+
+        // Initial render
+        renderControl();
+
+        // Update on zoom changes
+        self._zoomHandler = renderControl;
+        map.on("zoomend", self._zoomHandler);
       })
       .catch((err) => {
         console.error("Failed to mount ZoomMuiControl React component", err);
@@ -40,7 +53,11 @@ export const ZoomMuiControl = L.Control.extend({
     return container;
   },
 
-  onRemove() {
+  onRemove(map) {
+    if (this._zoomHandler) {
+      map.off("zoomend", this._zoomHandler);
+      this._zoomHandler = null;
+    }
     if (this._reactRoot) {
       this._reactRoot.unmount();
       this._reactRoot = null;

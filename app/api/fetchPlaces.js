@@ -9,11 +9,11 @@ const OVERPASS_ENDPOINTS = [
 ];
 
 // Helpful for Overpass operators + can reduce aggressive throttling in some deployments.
-// (User requirement: keep all categories; this only affects request metadata.)
 const HEADERS = {
   "Content-Type": "text/plain;charset=UTF-8",
   Accept: "application/json",
-  "User-Agent": "Abilico/1.0",
+  "User-Agent":
+    "Abilico/1.0 (https://github.com/YevheniiaBenediuk2000/Abilico)",
 };
 
 function isRateLimitError(err) {
@@ -45,40 +45,42 @@ export async function fetchPlaceGeometry(osmType, osmId) {
   let lastError = null;
 
   try {
-  for (const endpoint of OVERPASS_ENDPOINTS) {
-    // console.log(`🌍 Trying Overpass endpoint: ${endpoint}`);
-    try {
-      return await pRetry(async () => {
-        try {
-          const response = await fetch(endpoint, {
-            method: "POST",
-            headers: HEADERS,
-            body: query,
-            signal,
-          });
-          if (!response.ok)
-            throw new Error(`Overpass error ${response.status} @ ${endpoint}`);
-          const data = await response.json();
-          // Convert Overpass JSON to GeoJSON (FeatureCollection)
-          return osmtogeojson(data);
-        } catch (error) {
-          if (error?.name === "AbortError") {
-            return { type: "FeatureCollection", features: [] };
+    for (const endpoint of OVERPASS_ENDPOINTS) {
+      // console.log(`🌍 Trying Overpass endpoint: ${endpoint}`);
+      try {
+        return await pRetry(async () => {
+          try {
+            const response = await fetch(endpoint, {
+              method: "POST",
+              headers: HEADERS,
+              body: query,
+              signal,
+            });
+            if (!response.ok)
+              throw new Error(
+                `Overpass error ${response.status} @ ${endpoint}`
+              );
+            const data = await response.json();
+            // Convert Overpass JSON to GeoJSON (FeatureCollection)
+            return osmtogeojson(data);
+          } catch (error) {
+            if (error?.name === "AbortError") {
+              return { type: "FeatureCollection", features: [] };
+            }
+            throw error;
           }
-          throw error;
+        }, pRetryConfig);
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          console.log("⚠️ fetchPlaces aborted safely");
+          // return empty FeatureCollection instead of undefined
+          return { type: "FeatureCollection", features: [] };
         }
-      }, pRetryConfig);
-    } catch (error) {
-      if (error?.name === "AbortError") {
-        console.log("⚠️ fetchPlaces aborted safely");
-        // return empty FeatureCollection instead of undefined
-        return { type: "FeatureCollection", features: [] };
-      }
 
-      lastError = error;
-      console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
+        lastError = error;
+        console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
+      }
     }
-  }
   } finally {
     // Clean up controller for this key if we're still the latest call.
     const current = placeGeometryAbortControllers.get(placeKey);
@@ -115,36 +117,36 @@ export async function fetchPlace(osmType, osmId) {
   let lastError = null;
 
   try {
-  for (const endpoint of OVERPASS_ENDPOINTS) {
-    try {
-      return await pRetry(async () => {
-        try {
-          const response = await fetch(endpoint, {
-            method: "POST",
+    for (const endpoint of OVERPASS_ENDPOINTS) {
+      try {
+        return await pRetry(async () => {
+          try {
+            const response = await fetch(endpoint, {
+              method: "POST",
               headers: HEADERS,
-            body: query,
-            signal,
-          });
+              body: query,
+              signal,
+            });
 
-          if (!response.ok) throw new Error("Overpass " + response.status);
-          const data = await response.json();
+            if (!response.ok) throw new Error("Overpass " + response.status);
+            const data = await response.json();
 
-          return data.elements[0].tags;
-        } catch (error) {
-          if (error?.name === "AbortError") {
-            return {};
+            return data.elements[0].tags;
+          } catch (error) {
+            if (error?.name === "AbortError") {
+              return {};
+            }
+            throw error;
           }
-          throw error;
+        }, pRetryConfig);
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          return {};
         }
-      }, pRetryConfig);
-    } catch (error) {
-      if (error?.name === "AbortError") {
-        return {};
-      }
 
-      lastError = error;
-      console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
-    }
+        lastError = error;
+        console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
+      }
     }
   } finally {
     const current = placeAbortControllers.get(placeKey);
@@ -197,60 +199,65 @@ function buildAccessibilityClauses(allowed) {
   return Array.from(clauses);
 }
 
-const AMENITY_FOCUS_LOW = [
-  // bigger / civic / fewer items
-  "bank",
-  "atm",
-  "pharmacy",
+// === ZOOM-BASED FOCUS ARRAYS ===
+// These arrays define which place types to show at different zoom levels for performance
+
+const AMENITY_FOCUS_LOWEST = [
   "hospital",
-  "clinic",
-  "library",
   "university",
-  "college",
-  "school",
   "theatre",
   "cinema",
-  "place_of_worship",
+  "marketplace",
   "police",
+  "social_facility",
+  "library",
+  "college",
+  "school",
+  "community_centre",
+];
+
+const AMENITY_FOCUS_LOW = [
+  ...AMENITY_FOCUS_LOWEST,
+  "fast_food",
+  "cafe",
+  "restaurant",
+  "fire_station",
+  "doctors",
+  "toilets",
+  "parking",
+  "clinic",
+  "pharmacy",
+  "arts_centre",
+  "courthouse",
+  "place_of_worship",
   "post_office",
   "townhall",
 ];
 
+const TOURISM_FOCUS_LOWEST = ["museum", "attraction"];
+
 const TOURISM_FOCUS_LOW = [
-  "attraction",
-  "museum",
-  "gallery",
+  ...TOURISM_FOCUS_LOWEST,
+  "hotel",
+  "hostel",
   "zoo",
   "theme_park",
-  "aquarium",
-  "viewpoint",
-  "hotel",
+  "gallery",
 ];
 
-const LEISURE_FOCUS_LOW = [
-  "stadium",
-  "sports_centre",
-  "swimming_pool",
-  "fitness_centre",
-];
+const LEISURE_FOCUS_LOW = ["sports_centre", "swimming_pool", "fitness_centre"];
 
-const SHOP_FOCUS_LOW = [
-  "mall",
-  "department_store",
-  "supermarket",
-  "convenience",
-  "bakery",
-];
+const SHOP_FOCUS_LOWEST = ["mall", "department_store", "supermarket"];
 
-// Build the base selectors.
-// IMPORTANT: user requirement is to not hide/remove place types depending on zoom.
-// So we always include the full set of categories; performance comes from caching + rendering optimizations.
+const SHOP_FOCUS_LOW = [...SHOP_FOCUS_LOWEST, "bakery", "convenience"];
+
+// Build the base selectors depending on zoom level for performance optimization
 function selectorsForZoom(
-  _zoom,
+  zoom,
   { AMENITY_EXCLUDED, LEISURE_EXCLUDED, MAN_MADE_EXCLUDED, MILITARY_EXCLUDED }
 ) {
-  return [
-    // Use `node` to include only nodes (not ways or relations).
+  // Full fat at close zoom (zoom >= 18)
+  const FULL = [
     `node["amenity"]["amenity"!~"${AMENITY_EXCLUDED}"]`,
     `node["shop"]`,
     `node["tourism"]`,
@@ -264,6 +271,61 @@ function selectorsForZoom(
     `node["military"]["military"!~"${MILITARY_EXCLUDED}"]`,
     `node["sport"]`,
   ];
+
+  // Medium zoom (zoom 17): most categories, but no super-noisy tails
+  const MID = [
+    `node["amenity"]["amenity"!~"${AMENITY_EXCLUDED}"]`,
+    `node["shop"]["shop"~"^(${SHOP_FOCUS_LOW.join("|")})$"]`,
+    `node["tourism"]`,
+    `node["leisure"]["leisure"!~"${LEISURE_EXCLUDED}"]`,
+    `node["healthcare"]`,
+    `node["historic"]`,
+    // (omit building/craft/man_made/military at this level)
+  ];
+
+  // Far zoom (zoom 16): only "important" types to keep counts small
+  const LOW = [
+    `node["amenity"]["amenity"~"^(${AMENITY_FOCUS_LOW.join("|")})$"]`,
+    `node["shop"]["shop"~"^(${SHOP_FOCUS_LOW.join("|")})$"]`,
+    `node["tourism"]["tourism"~"^(${TOURISM_FOCUS_LOW.join("|")})$"]`,
+    `node["leisure"]["leisure"~"^(${LEISURE_FOCUS_LOW.join("|")})$"]`,
+    `node["healthcare"]["healthcare"~"^(hospital|clinic)$"]`,
+    `node["historic"]`,
+  ];
+
+  // Lower zoom (zoom 15): even fewer types
+  const LOW_15 = [
+    `node["amenity"]["amenity"~"^(${AMENITY_FOCUS_LOW.join("|")})$"]`,
+    `node["tourism"]["tourism"~"^(${TOURISM_FOCUS_LOW.join("|")})$"]`,
+    `node["shop"]["shop"~"^(${SHOP_FOCUS_LOW.join("|")})$"]`,
+  ];
+
+  // Lowest zoom (zoom < 15): only major landmarks
+  const LOWEST = [
+    `node["amenity"]["amenity"~"^(${AMENITY_FOCUS_LOWEST.join("|")})$"]`,
+    `node["tourism"]["tourism"~"^(${TOURISM_FOCUS_LOWEST.join("|")})$"]`,
+    `node["shop"]["shop"~"^(${SHOP_FOCUS_LOWEST.join("|")})$"]`,
+  ];
+
+  // Heuristic bands — tweak to taste
+  if (zoom >= 18) {
+    console.log("📍 [selectorsForZoom] zoom >= 18 → FULL selectors");
+    return FULL;
+  }
+  if (zoom >= 17) {
+    console.log("📍 [selectorsForZoom] zoom 17 → MID selectors");
+    return MID;
+  }
+  if (zoom >= 16) {
+    console.log("📍 [selectorsForZoom] zoom 16 → LOW selectors");
+    return LOW;
+  }
+  if (zoom >= 15) {
+    console.log("📍 [selectorsForZoom] zoom 15 → LOW_15 selectors");
+    return LOW_15;
+  }
+  console.log("📍 [selectorsForZoom] zoom < 15 → LOWEST selectors");
+  return LOWEST;
 }
 
 // Do not cap results; capping can drop entire categories/types depending on ordering.
@@ -335,12 +397,19 @@ export async function fetchPlaces(bounds, zoom, options) {
     : `out center tags qt;`;
 
   const query = `
-    [out:json][timeout:60];
+    [out:json][timeout:180];
     (
       ${queryParts.join(";\n      ")};
     );
     ${outLine}
   `;
+
+  console.log(
+    "🚀 [fetchPlaces] zoom:",
+    zoom,
+    "query selectors count:",
+    queryParts.length
+  );
 
   let lastError = null;
 
@@ -411,4 +480,202 @@ export async function fetchPlaces(bounds, zoom, options) {
   }
 
   console.error("Places fetch failed on all Overpass endpoints:", lastError);
+}
+
+// =============================================================================
+// ID-FIRST FETCHING STRATEGY
+// Fetches only IDs first (lightweight), then fetches full data for missing places
+// =============================================================================
+
+let placeIdsAbortController = null;
+
+/**
+ * Fetch only place IDs (lightweight query) for the current viewport.
+ * Use this to determine which places need to be fetched in detail.
+ */
+export async function fetchPlaceIds(bounds, zoom, options) {
+  const { accessibilityFilter } = options;
+
+  const showNoPlaces = zoom < SHOW_PLACES_ZOOM;
+  if (showNoPlaces) {
+    return [];
+  }
+
+  if (placeIdsAbortController) {
+    placeIdsAbortController.abort();
+  }
+  placeIdsAbortController = new AbortController();
+  const { signal } = placeIdsAbortController;
+
+  const s = bounds.getSouth();
+  const w = bounds.getWest();
+  const n = bounds.getNorth();
+  const e = bounds.getEast();
+  const boundingBox = `${s},${w},${n},${e}`;
+
+  const AMENITY_EXCLUDED =
+    "bench|waste_basket|bicycle_parking|vending_machine|fountain|ice_cream|grit_bin|drinking_water|give_box|parcel_locker|water_point|recycling|waste_basket|waste_disposal";
+  const LEISURE_EXCLUDED = "park|picnic_table";
+  const MAN_MADE_EXCLUDED =
+    "surveillance|pump|pipeline|pier|groyne|flagpole|embankment|dyke|clearcut|cutline";
+  const MILITARY_EXCLUDED = "trench";
+
+  if (accessibilityFilter.size === 0) {
+    return [];
+  }
+
+  const baseSelectors = selectorsForZoom(zoom, {
+    AMENITY_EXCLUDED,
+    LEISURE_EXCLUDED,
+    MAN_MADE_EXCLUDED,
+    MILITARY_EXCLUDED,
+  });
+
+  const accClauses = buildAccessibilityClauses(accessibilityFilter);
+
+  const queryParts = [];
+  for (const base of baseSelectors) {
+    if (accClauses.length === 1 && accClauses[0] === "") {
+      queryParts.push(`${base}(${boundingBox})`);
+    } else {
+      for (const clause of accClauses) {
+        queryParts.push(`${base}${clause}(${boundingBox})`);
+      }
+    }
+  }
+
+  const query = `
+    [out:json][timeout:25];
+    (
+      ${queryParts.join(";\n      ")};
+    );
+    out ids;
+  `;
+
+  console.log("🆔 [fetchPlaceIds] Fetching IDs for zoom:", zoom);
+
+  let lastError = null;
+
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      return await pRetry(async () => {
+        try {
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: HEADERS,
+            body: query,
+            signal,
+          });
+
+          if (!response.ok) {
+            throw new Error(`Overpass error ${response.status} @ ${endpoint}`);
+          }
+
+          const data = await response.json();
+          const ids = data.elements || [];
+          console.log(`🆔 [fetchPlaceIds] Got ${ids.length} IDs`);
+          return ids;
+        } catch (error) {
+          if (error?.name === "AbortError") {
+            return [];
+          }
+          throw error;
+        }
+      }, pRetryConfig);
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        return [];
+      }
+      lastError = error;
+      if (
+        !error?.message?.includes("504") &&
+        !error?.message?.includes("timeout")
+      ) {
+        console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
+      }
+    }
+  }
+
+  if (lastError?.name === "AbortError") {
+    return [];
+  }
+
+  console.error("Place IDs fetch failed on all Overpass endpoints:", lastError);
+  return [];
+}
+
+/**
+ * Fetch full place data by their IDs.
+ * Used after fetchPlaceIds to get details only for places not in cache.
+ */
+export async function fetchPlacesByIds(ids) {
+  if (!ids || ids.length === 0) {
+    return { type: "FeatureCollection", features: [] };
+  }
+
+  // Group by type
+  const nodes = ids.filter((i) => i.type === "node").map((i) => i.id);
+  const ways = ids.filter((i) => i.type === "way").map((i) => i.id);
+  const relations = ids.filter((i) => i.type === "relation").map((i) => i.id);
+
+  const queryParts = [];
+  if (nodes.length) queryParts.push(`node(id:${nodes.join(",")})`);
+  if (ways.length) queryParts.push(`way(id:${ways.join(",")})`);
+  if (relations.length) queryParts.push(`relation(id:${relations.join(",")})`);
+
+  if (queryParts.length === 0) {
+    return { type: "FeatureCollection", features: [] };
+  }
+
+  const query = `
+    [out:json][timeout:60];
+    (
+      ${queryParts.join(";\n      ")};
+    );
+    out center tags;
+  `;
+
+  console.log(`📦 [fetchPlacesByIds] Fetching ${ids.length} places by ID`);
+
+  let lastError = null;
+
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      return await pRetry(async () => {
+        try {
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: HEADERS,
+            body: query,
+          });
+
+          if (!response.ok) {
+            throw new Error(`Overpass error ${response.status} @ ${endpoint}`);
+          }
+
+          const data = await response.json();
+          console.log(
+            `📦 [fetchPlacesByIds] Got ${data.elements?.length || 0} elements`
+          );
+          return osmtogeojson(data);
+        } catch (error) {
+          throw error;
+        }
+      }, pRetryConfig);
+    } catch (error) {
+      lastError = error;
+      if (
+        !error?.message?.includes("504") &&
+        !error?.message?.includes("timeout")
+      ) {
+        console.warn(`[Overpass] ${endpoint} failed, trying next…`, error);
+      }
+    }
+  }
+
+  console.error(
+    "Places by ID fetch failed on all Overpass endpoints:",
+    lastError
+  );
+  return { type: "FeatureCollection", features: [] };
 }
