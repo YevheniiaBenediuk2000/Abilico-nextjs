@@ -33,9 +33,10 @@ function buildAvoidPolygons(obstacleFeatures = []) {
         // Circular obstacles use their specified radius
         circleRadius = radius;
       } else {
-        // All other Point obstacles (markers, caution signs, etc.) - use 1 meter radius
-        // This ensures proper avoidance by ORS and matches the buffer size used for LineString obstacles
-        circleRadius = 1.0;
+        // All other Point obstacles (markers, caution signs, etc.)
+        // TESTING: Using 10 meter radius to make it clearly visible if route avoids it
+        // TODO: Reduce back to 1.0 meter for production
+        circleRadius = 10.0;
       }
 
       // Convert circle to polygon using turfcircle
