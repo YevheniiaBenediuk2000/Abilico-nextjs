@@ -32,6 +32,11 @@ export const EXCLUDED_PROPS = new Set([
 
   // UI: Hide "Target" rows (e.g., target=lt) from Place Details → Overview
   "target",
+
+  // UI: Hide "Short Name" from Place Details → Overview (it's shown as a chip in the header instead)
+  "short_name",
+  "short-name",
+  "shortName",
 ]);
 
 export const pRetryConfig = { retries: 3, factor: 2, minTimeout: 400 };
