@@ -14,31 +14,41 @@ let routeAbortController = null;
  */
 function buildAvoidPolygons(obstacleFeatures = []) {
   const polygons = [];
+  console.log(`🔍 buildAvoidPolygons: Processing ${obstacleFeatures.length} obstacles`);
 
   for (const f of obstacleFeatures) {
     if (!f?.geometry) continue;
 
     let geom = f.geometry;
 
-    // Handle circular obstacles (Point with radius) - convert to Polygon
+    // Handle Point obstacles - convert to Polygon
+    // All Point obstacles should be avoided (caution markers, circles, etc.)
     if (geom.type === "Point") {
       const radius = f.properties?.radius;
       const shape = f.properties?.shape;
       
-      // Skip Point obstacles that are caution markers (no radius) - they should not affect route calculation
-      if (!radius || shape !== "circle") continue;
+      let circleRadius;
+      
+      if (shape === "circle" && radius) {
+        // Circular obstacles use their specified radius
+        circleRadius = radius;
+      } else {
+        // All other Point obstacles (markers, caution signs, etc.) - use 1 meter radius
+        // This ensures proper avoidance by ORS and matches the buffer size used for LineString obstacles
+        circleRadius = 1.0;
+      }
 
       // Convert circle to polygon using turfcircle
       try {
         const [lng, lat] = geom.coordinates;
-        const circle = turfcircle([lng, lat], radius, { units: "meters", steps: 64 });
+        const circle = turfcircle([lng, lat], circleRadius, { units: "meters", steps: 64 });
         if (circle?.geometry?.coordinates) {
           geom = circle.geometry;
         } else {
           continue;
         }
       } catch (err) {
-        console.warn("Failed to convert circle obstacle to polygon:", err);
+        console.warn("Failed to convert Point obstacle to polygon:", err, f.properties);
         continue;
       }
     }
@@ -92,9 +102,12 @@ function buildAvoidPolygons(obstacleFeatures = []) {
   }
 
   // Return valid MultiPolygon GeoJSON or null
-  return polygons.length
+  const result = polygons.length
     ? { type: "MultiPolygon", coordinates: polygons }
     : null;
+  
+  console.log(`✅ buildAvoidPolygons: Created MultiPolygon with ${polygons.length} polygon(s)`);
+  return result;
 }
 
 export async function fetchRoute(coordinates, obstacleFeatures) {
