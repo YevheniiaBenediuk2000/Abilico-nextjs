@@ -44,9 +44,12 @@ export const placeClusterConfig = {
   maxClusterRadius: (zoom) => {
     // Slightly more clustering for a “Google-like” feel.
     // Higher value => more clustering (fewer individual markers).
-    if (zoom >= 18) return 22;
-    if (zoom >= 16) return 50;
-    return 60;
+    // if (zoom >= 18) return 22;
+    // if (zoom >= 16) return 50;
+    // return 60;
+
+    if (zoom >= 18) return 15;
+    return 0;
   },
   // disableClusteringAtZoom: 14,
   spiderfyOnMaxZoom: true,
