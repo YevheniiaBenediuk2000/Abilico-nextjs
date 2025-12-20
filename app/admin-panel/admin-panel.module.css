@@ -19,6 +19,8 @@
   margin: 0;
   font-size: 28px;
   font-weight: 600;
+  display: flex;
+  align-items: center;
 }
 
 .userInfo {
@@ -80,6 +82,8 @@
   margin: 0;
   font-size: 22px;
   font-weight: 500;
+  display: flex;
+  align-items: center;
 }
 
 .refreshBtn {
@@ -91,6 +95,9 @@
   cursor: pointer;
   font-size: 14px;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .refreshBtn:hover {
@@ -152,6 +159,10 @@
   font-size: 14px;
   transition: all 0.2s;
   min-width: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
 }
 
 .actionBtn:disabled {
@@ -162,6 +173,7 @@
 .approveBtn {
   background: rgba(75, 181, 67, 0.2);
   border: 1px solid rgba(75, 181, 67, 0.4);
+  color: #4bb543;
 }
 
 .approveBtn:hover:not(:disabled) {
@@ -171,6 +183,7 @@
 .rejectBtn {
   background: rgba(255, 159, 67, 0.2);
   border: 1px solid rgba(255, 159, 67, 0.4);
+  color: #ff9f43;
 }
 
 .rejectBtn:hover:not(:disabled) {
@@ -180,6 +193,7 @@
 .deleteBtn {
   background: rgba(255, 107, 107, 0.2);
   border: 1px solid rgba(255, 107, 107, 0.4);
+  color: #ff6b6b;
 }
 
 .deleteBtn:hover:not(:disabled) {

@@ -3,6 +3,13 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/app/api/supabaseClient";
 import styles from "./admin-panel.module.css";
+import SettingsIcon from "@mui/icons-material/Settings";
+import WarningIcon from "@mui/icons-material/Warning";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import CheckIcon from "@mui/icons-material/Check";
+import CloseIcon from "@mui/icons-material/Close";
+import DeleteIcon from "@mui/icons-material/Delete";
+import PlaceIcon from "@mui/icons-material/Place";
 
 // Allowed admin emails
 const ALLOWED_ADMINS = [
@@ -243,7 +250,10 @@ export default function AdminPanel() {
   return (
     <div className={styles.container}>
       <header className={styles.header}>
-        <h1>🔧 Admin Panel</h1>
+        <h1>
+          <SettingsIcon sx={{ verticalAlign: "middle", mr: 1 }} />
+          Admin Panel
+        </h1>
         <div className={styles.userInfo}>
           Logged in as: <strong>{user.email}</strong>
           <button
@@ -263,9 +273,13 @@ export default function AdminPanel() {
       {/* Obstacles Table */}
       <section className={styles.section}>
         <div className={styles.sectionHeader}>
-          <h2>🚧 Obstacles</h2>
+          <h2>
+            <WarningIcon sx={{ verticalAlign: "middle", mr: 1 }} />
+            Obstacles
+          </h2>
           <button onClick={fetchData} className={styles.refreshBtn}>
-            🔄 Refresh
+            <RefreshIcon sx={{ verticalAlign: "middle", mr: 0.5 }} />
+            Refresh
           </button>
         </div>
 
@@ -321,9 +335,11 @@ export default function AdminPanel() {
                         className={`${styles.actionBtn} ${styles.approveBtn}`}
                         title="Approve"
                       >
-                        {actionLoading === `obstacle-${obstacle.id}-active`
-                          ? "..."
-                          : "✅"}
+                        {actionLoading === `obstacle-${obstacle.id}-active` ? (
+                          "..."
+                        ) : (
+                          <CheckIcon />
+                        )}
                       </button>
                       <button
                         onClick={() =>
@@ -335,9 +351,11 @@ export default function AdminPanel() {
                         className={`${styles.actionBtn} ${styles.rejectBtn}`}
                         title="Reject"
                       >
-                        {actionLoading === `obstacle-${obstacle.id}-rejected`
-                          ? "..."
-                          : "❌"}
+                        {actionLoading === `obstacle-${obstacle.id}-rejected` ? (
+                          "..."
+                        ) : (
+                          <CloseIcon />
+                        )}
                       </button>
                       <button
                         onClick={() => {
@@ -355,9 +373,11 @@ export default function AdminPanel() {
                         className={`${styles.actionBtn} ${styles.deleteBtn}`}
                         title="Delete"
                       >
-                        {actionLoading === `obstacle-${obstacle.id}-delete`
-                          ? "..."
-                          : "🗑️"}
+                        {actionLoading === `obstacle-${obstacle.id}-delete` ? (
+                          "..."
+                        ) : (
+                          <DeleteIcon />
+                        )}
                       </button>
                     </td>
                   </tr>
@@ -371,7 +391,10 @@ export default function AdminPanel() {
       {/* Places Table */}
       <section className={styles.section}>
         <div className={styles.sectionHeader}>
-          <h2>📍 User-Submitted Places</h2>
+          <h2>
+            <PlaceIcon sx={{ verticalAlign: "middle", mr: 1 }} />
+            User-Submitted Places
+          </h2>
         </div>
 
         {placesLoading ? (
@@ -432,9 +455,11 @@ export default function AdminPanel() {
                         className={`${styles.actionBtn} ${styles.approveBtn}`}
                         title="Approve"
                       >
-                        {actionLoading === `place-${place.id}-approved`
-                          ? "..."
-                          : "✅"}
+                        {actionLoading === `place-${place.id}-approved` ? (
+                          "..."
+                        ) : (
+                          <CheckIcon />
+                        )}
                       </button>
                       <button
                         onClick={() => handlePlaceAction(place.id, "rejected")}
@@ -444,9 +469,11 @@ export default function AdminPanel() {
                         className={`${styles.actionBtn} ${styles.rejectBtn}`}
                         title="Reject"
                       >
-                        {actionLoading === `place-${place.id}-rejected`
-                          ? "..."
-                          : "❌"}
+                        {actionLoading === `place-${place.id}-rejected` ? (
+                          "..."
+                        ) : (
+                          <CloseIcon />
+                        )}
                       </button>
                       <button
                         onClick={() => {
@@ -462,9 +489,11 @@ export default function AdminPanel() {
                         className={`${styles.actionBtn} ${styles.deleteBtn}`}
                         title="Delete"
                       >
-                        {actionLoading === `place-${place.id}-delete`
-                          ? "..."
-                          : "🗑️"}
+                        {actionLoading === `place-${place.id}-delete` ? (
+                          "..."
+                        ) : (
+                          <DeleteIcon />
+                        )}
                       </button>
                     </td>
                   </tr>
