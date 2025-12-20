@@ -52,3 +52,4 @@ wheelchair_xgboost_3class.pkl
 ukraine_wheelchair_nodes.geojson
 .ipynb_checkpoints/
 *.pkl
+*.csv
