@@ -10,6 +10,7 @@ import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
 import DeleteIcon from "@mui/icons-material/Delete";
 import PlaceIcon from "@mui/icons-material/Place";
+import ReportIcon from "@mui/icons-material/Report";
 
 // Allowed admin emails
 const ALLOWED_ADMINS = [
@@ -23,11 +24,13 @@ export default function AdminPanel() {
   const [loading, setLoading] = useState(true);
   const [obstacles, setObstacles] = useState([]);
   const [places, setPlaces] = useState([]);
+  const [reports, setReports] = useState([]);
   const [obstaclesLoading, setObstaclesLoading] = useState(false);
   const [placesLoading, setPlacesLoading] = useState(false);
+  const [reportsLoading, setReportsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null); // Track which action is loading
   const [error, setError] = useState(null);
-  const [activePanel, setActivePanel] = useState("obstacles"); // "obstacles" or "places"
+  const [activePanel, setActivePanel] = useState("obstacles"); // "obstacles", "places", or "reports"
   const router = useRouter();
 
   // Check user access
@@ -113,10 +116,31 @@ export default function AdminPanel() {
     setPlacesLoading(false);
   }, [accessToken]);
 
+  // Fetch reports
+  const fetchReports = useCallback(async () => {
+    if (!accessToken) return;
+    setReportsLoading(true);
+    try {
+      const res = await fetch("/api/admin/reports", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const json = await res.json();
+      console.log("[Admin Panel] Reports response:", json);
+      if (json.data) {
+        setReports(json.data);
+      } else {
+        console.error("[Admin Panel] Reports error:", json.error);
+      }
+    } catch (e) {
+      console.error("[Admin Panel] Fetch reports error:", e);
+    }
+    setReportsLoading(false);
+  }, [accessToken]);
+
   // Fetch all data
   const fetchData = useCallback(async () => {
-    await Promise.all([fetchObstacles(), fetchPlaces()]);
-  }, [fetchObstacles, fetchPlaces]);
+    await Promise.all([fetchObstacles(), fetchPlaces(), fetchReports()]);
+  }, [fetchObstacles, fetchPlaces, fetchReports]);
 
   // Fetch data on mount
   useEffect(() => {
@@ -218,6 +242,37 @@ export default function AdminPanel() {
     setActionLoading(null);
   };
 
+  const handleReportAction = async (id, action) => {
+    const actionKey = `report-${id}-${action}`;
+    setActionLoading(actionKey);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/admin/reports", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ id, action }),
+      });
+      const json = await res.json();
+      console.log("[Admin Panel] Report action response:", json);
+      if (json.data) {
+        setReports((prev) =>
+          prev.map((r) => (r.id === id ? { ...r, status: json.data.status } : r))
+        );
+      } else {
+        setError(json.error || `Failed to ${action} report`);
+      }
+    } catch (e) {
+      console.error("[Admin Panel] Report action error:", e);
+      setError(e.message);
+    }
+
+    setActionLoading(null);
+  };
+
   // Format date helper
   const formatDate = (dateStr) => {
     if (!dateStr) return "-";
@@ -233,6 +288,7 @@ export default function AdminPanel() {
     if (status === "active" || status === "approved")
       return styles.statusActive;
     if (status === "rejected") return styles.statusRejected;
+    if (status === "pending_review") return styles.statusPending;
     return styles.statusPending;
   };
 
@@ -294,6 +350,15 @@ export default function AdminPanel() {
         >
           <PlaceIcon sx={{ mr: 1 }} />
           User-Submitted Places
+        </button>
+        <button
+          onClick={() => setActivePanel("reports")}
+          className={`${styles.toggleBtn} ${
+            activePanel === "reports" ? styles.toggleBtnActive : ""
+          }`}
+        >
+          <ReportIcon sx={{ mr: 1 }} />
+          Place Reports
         </button>
       </div>
 
@@ -544,6 +609,118 @@ export default function AdminPanel() {
           </div>
         )}
       </section>
+      )}
+
+      {/* Place Reports Table */}
+      {activePanel === "reports" && (
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2>
+              <ReportIcon sx={{ verticalAlign: "middle", mr: 1 }} />
+              Place Reports
+            </h2>
+            <button
+              onClick={fetchReports}
+              className={styles.refreshBtn}
+            >
+              <RefreshIcon sx={{ verticalAlign: "middle", mr: 0.5 }} />
+              Refresh
+            </button>
+          </div>
+
+          {reportsLoading ? (
+            <div className={styles.loadingMessage}>Loading reports...</div>
+          ) : reports.length === 0 ? (
+            <div className={styles.emptyMessage}>
+              No place reports found
+            </div>
+          ) : (
+            <div className={styles.tableWrapper}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Place ID</th>
+                    <th>Reason</th>
+                    <th>Reality Status</th>
+                    <th>Issues</th>
+                    <th>Comment</th>
+                    <th>Created At</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reports.map((report) => (
+                    <tr key={report.id}>
+                      <td className={styles.idCell} title={report.id}>
+                        {report.id.slice(0, 8)}...
+                      </td>
+                      <td className={styles.idCell} title={report.place_id}>
+                        {report.place_id ? report.place_id.slice(0, 8) + "..." : "-"}
+                      </td>
+                      <td>{report.reason || "-"}</td>
+                      <td>{report.accessibility_reality || "-"}</td>
+                      <td>
+                        {report.accessibility_issues && Array.isArray(report.accessibility_issues)
+                          ? report.accessibility_issues.join(", ")
+                          : report.accessibility_issues || "-"}
+                      </td>
+                      <td style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {report.comment || "-"}
+                      </td>
+                      <td>{formatDate(report.created_at)}</td>
+                      <td>
+                        <span className={getStatusClass(report.status)}>
+                          {report.status || "pending_review"}
+                        </span>
+                      </td>
+                      <td className={styles.actionsCell}>
+                        {report.status === "pending_review" && (
+                          <>
+                            <button
+                              onClick={() => handleReportAction(report.id, "approve")}
+                              disabled={
+                                actionLoading === `report-${report.id}-approve`
+                              }
+                              className={`${styles.actionBtn} ${styles.approveBtn}`}
+                              title="Approve"
+                            >
+                              {actionLoading === `report-${report.id}-approve` ? (
+                                "..."
+                              ) : (
+                                <CheckIcon />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleReportAction(report.id, "reject")}
+                              disabled={
+                                actionLoading === `report-${report.id}-reject`
+                              }
+                              className={`${styles.actionBtn} ${styles.rejectBtn}`}
+                              title="Reject"
+                            >
+                              {actionLoading === `report-${report.id}-reject` ? (
+                                "..."
+                              ) : (
+                                <CloseIcon />
+                              )}
+                            </button>
+                          </>
+                        )}
+                        {report.status !== "pending_review" && (
+                          <span style={{ color: "rgba(0, 0, 0, 0.5)", fontSize: "12px" }}>
+                            {report.status === "approved" ? "Approved" : "Rejected"}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       )}
     </div>
   );

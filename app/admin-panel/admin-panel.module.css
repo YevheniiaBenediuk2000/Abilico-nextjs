@@ -6,6 +6,12 @@
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
+@media (max-width: 768px) {
+  .container {
+    padding: 12px;
+  }
+}
+
 .header {
   display: flex;
   justify-content: space-between;
@@ -23,12 +29,33 @@
   align-items: center;
 }
 
+@media (max-width: 768px) {
+  .header h1 {
+    font-size: 22px;
+  }
+}
+
 .userInfo {
   display: flex;
   align-items: center;
   gap: 15px;
   font-size: 14px;
   color: rgba(0, 0, 0, 0.6);
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .userInfo {
+    font-size: 12px;
+    gap: 10px;
+    justify-content: center;
+  }
+  
+  .userInfo strong {
+    display: block;
+    width: 100%;
+    margin-top: 4px;
+  }
 }
 
 .logoutBtn {
@@ -79,6 +106,15 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
+@media (max-width: 768px) {
+  .panelToggle {
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+    padding: 8px;
+  }
+}
+
 .toggleBtn {
   flex: 1;
   padding: 12px 20px;
@@ -93,6 +129,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .toggleBtn {
+    padding: 10px 16px;
+    font-size: 14px;
+    width: 100%;
+  }
+  
+  .toggleBtn svg {
+    font-size: 18px !important;
+  }
 }
 
 .toggleBtn:hover {
@@ -118,6 +166,14 @@
   border: 1px solid rgba(0, 0, 0, 0.12);
 }
 
+@media (max-width: 768px) {
+  .section {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: 8px;
+  }
+}
+
 .sectionHeader {
   display: flex;
   justify-content: space-between;
@@ -134,6 +190,17 @@
   color: rgba(0, 0, 0, 0.87);
 }
 
+@media (max-width: 768px) {
+  .sectionHeader h2 {
+    font-size: 18px;
+  }
+  
+  .sectionHeader h2 svg {
+    font-size: 20px !important;
+    margin-right: 6px !important;
+  }
+}
+
 .refreshBtn {
   padding: 8px 16px;
   background: #0c77d2;
@@ -148,6 +215,15 @@
   gap: 4px;
 }
 
+@media (max-width: 768px) {
+  .refreshBtn {
+    padding: 8px 12px;
+    font-size: 12px;
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 .refreshBtn:hover {
   background: #0a6bb8;
 }
@@ -157,12 +233,30 @@
   background: #fff;
   border-radius: 8px;
   border: 1px solid rgba(0, 0, 0, 0.12);
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+}
+
+@media (max-width: 768px) {
+  .tableWrapper {
+    margin: 0 -16px; /* Extend to section edges */
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
 }
 
 .table {
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
+  min-width: 600px; /* Ensure table doesn't get too compressed */
+}
+
+@media (max-width: 768px) {
+  .table {
+    font-size: 12px;
+    min-width: 800px; /* Allow horizontal scroll on mobile */
+  }
 }
 
 .table th,
@@ -170,6 +264,10 @@
   padding: 14px 16px;
   text-align: left;
   border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
 }
 
 .table th {
@@ -211,6 +309,18 @@
   align-items: center;
   justify-content: center;
   color: inherit;
+}
+
+@media (max-width: 768px) {
+  .actionBtn {
+    padding: 8px 12px;
+    min-width: 44px; /* Larger touch target */
+    font-size: 16px;
+  }
+  
+  .actionBtn svg {
+    font-size: 20px !important;
+  }
 }
 
 .actionBtn:disabled {
@@ -291,22 +401,61 @@
     flex-direction: column;
     gap: 15px;
     text-align: center;
+    padding: 15px 0;
+    margin-bottom: 20px;
   }
 
   .sectionHeader {
     flex-direction: column;
-    gap: 10px;
-    align-items: flex-start;
+    gap: 12px;
+    align-items: stretch;
+    margin-bottom: 16px;
   }
 
   .table th,
   .table td {
-    padding: 10px 12px;
-    font-size: 13px;
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+  
+  .table th {
+    font-size: 11px;
+    position: sticky;
+    left: 0;
+    background: #f5f5f5;
+    z-index: 1;
   }
 
   .actionsCell {
-    flex-direction: column;
-    gap: 4px;
+    flex-direction: row;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  
+  .idCell {
+    font-size: 10px;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .loadingMessage,
+  .errorMessage,
+  .emptyMessage {
+    padding: 30px 20px;
+    font-size: 14px;
+  }
+  
+  .errorBanner {
+    padding: 10px 16px;
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+  
+  .logoutBtn {
+    padding: 10px 20px;
+    font-size: 14px;
+    width: 100%;
+    max-width: 200px;
   }
 }
