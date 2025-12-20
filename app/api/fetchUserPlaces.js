@@ -13,12 +13,14 @@ export async function fetchUserPlaces(bounds) {
     const n = bounds.getNorth();
     const e = bounds.getEast();
 
-    // Query places within bounds where source = 'user'
+    // Query places within bounds where source = 'user' and status != 'closed'
+    // Closed places are excluded from user-facing queries (preserved for admin/history)
     const { data, error } = await supabase
       .from("places")
       .select("*")
       .eq("source", "user")
       .is("osm_id", null) // Ensure only user-added places
+      .neq("status", "closed") // Exclude closed places from user-facing results
       .gte("lat", s)
       .lte("lat", n)
       .gte("lon", w)

@@ -881,22 +881,16 @@
 #obstacle-management-overlay {
   pointer-events: auto;
   right: 12px;
+  left: auto;
   /* Keep above the MUI right drawer (zIndex.drawer ~ 1200) */
   z-index: 1402;
   top: 12px;
 }
 
-/* If the Directions drawer is open, move the obstacle overlay left so it stays visible */
-@media (min-width: 600px) {
-  #obstacle-management-overlay.obstacle-overlay--with-drawer {
-    right: calc(12px + min(80vw, 420px) + 16px);
-  }
-}
-
-@media (min-width: 900px) {
-  #obstacle-management-overlay.obstacle-overlay--with-drawer {
-    right: calc(12px + min(80vw, 520px) + 16px);
-  }
+/* If the Directions drawer is open, move the obstacle overlay to the left side so it doesn't overlap */
+#obstacle-management-overlay.obstacle-overlay--with-drawer {
+  right: auto;
+  left: 12px;
 }
 
 /* === Leaflet.draw toolbar – MUI-like card === */

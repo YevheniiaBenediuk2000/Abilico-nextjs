@@ -143,22 +143,42 @@ export async function PUT(request) {
       };
 
       if (action === "approve") {
-        // Approve: Apply report data to place
-        if (report.accessibility_reality) {
+        // Approve: Apply ONLY the fields that the user actually submitted in the report
+        // Do not overwrite existing place data with null/empty values
+        // This ensures partial updates work correctly (e.g., only accessibility_status submitted)
+        
+        // Only update accessibility_status if user submitted it (not null/empty)
+        if (report.accessibility_reality && report.accessibility_reality.trim() !== "") {
           placeUpdate.accessibility_status = report.accessibility_reality;
         }
 
-        if (report.accessibility_issues && Array.isArray(report.accessibility_issues)) {
+        // Only update accessibility_keywords if user submitted it (not null/empty array)
+        if (report.accessibility_issues && 
+            Array.isArray(report.accessibility_issues) && 
+            report.accessibility_issues.length > 0) {
           placeUpdate.accessibility_keywords = report.accessibility_issues;
         }
 
-        if (report.comment) {
+        // Only update accessibility_comment if user submitted it (not null/empty)
+        if (report.comment && report.comment.trim() !== "") {
           placeUpdate.accessibility_comment = report.comment;
         }
 
         // Handle permanently_closed reports
+        // When a place is confirmed as permanently closed:
+        // 1. Mark status as 'closed' (soft delete - preserves data integrity)
+        // 2. Add context message indicating admin verification
+        // 3. Place will be excluded from user-facing queries (see fetchUserPlaces.js)
+        // 4. Place remains in database for historical data and referential integrity
         if (report.reason === "permanently_closed") {
           placeUpdate.status = "closed";
+          // Add clear context message about closure
+          const closureMessage = "Marked as permanently closed (verified by admin)";
+          if (report.comment && report.comment.trim() !== "") {
+            placeUpdate.accessibility_comment = `${closureMessage}. ${report.comment}`;
+          } else {
+            placeUpdate.accessibility_comment = closureMessage;
+          }
         }
       } else if (action === "reject" && isReversal) {
         // Reject (reversal): Revert place state if it was previously approved
