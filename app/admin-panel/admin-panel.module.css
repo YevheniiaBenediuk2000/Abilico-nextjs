@@ -295,6 +295,7 @@
   display: flex;
   gap: 8px;
   white-space: nowrap;
+  flex-wrap: nowrap;
 }
 
 .actionBtn {
@@ -313,13 +314,14 @@
 
 @media (max-width: 768px) {
   .actionBtn {
-    padding: 8px 12px;
-    min-width: 44px; /* Larger touch target */
-    font-size: 16px;
+    padding: 6px 8px;
+    min-width: 36px;
+    font-size: 14px;
+    flex-shrink: 0;
   }
   
   .actionBtn svg {
-    font-size: 20px !important;
+    font-size: 18px !important;
   }
 }
 
@@ -428,8 +430,9 @@
 
   .actionsCell {
     flex-direction: row;
-    gap: 6px;
-    flex-wrap: wrap;
+    gap: 4px;
+    flex-wrap: nowrap;
+    min-width: fit-content;
   }
   
   .idCell {
