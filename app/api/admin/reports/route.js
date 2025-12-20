@@ -103,7 +103,7 @@ export async function PUT(request) {
     }
 
     // Step 2: Check if report is already handled
-    if (report.status !== "pending_review") {
+    if (report.status !== "pending") {
       return NextResponse.json(
         { error: `Report already ${report.status}` },
         { status: 400 }

@@ -288,7 +288,7 @@ export default function AdminPanel() {
     if (status === "active" || status === "approved")
       return styles.statusActive;
     if (status === "rejected") return styles.statusRejected;
-    if (status === "pending_review") return styles.statusPending;
+    if (status === "pending") return styles.statusPending;
     return styles.statusPending;
   };
 
@@ -415,66 +415,68 @@ export default function AdminPanel() {
                     </td>
                     <td>{formatDate(obstacle.date_added)}</td>
                     <td>{obstacle.confirmation_count || 0}</td>
-                    <td>
+                    <td className={styles.statusCell}>
                       <span className={getStatusClass(obstacle.status)}>
                         {obstacle.status || "pending"}
                       </span>
                     </td>
                     <td className={styles.actionsCell}>
-                      <button
-                        onClick={() =>
-                          handleObstacleAction(obstacle.id, "active")
-                        }
-                        disabled={
-                          actionLoading === `obstacle-${obstacle.id}-active`
-                        }
-                        className={`${styles.actionBtn} ${styles.approveBtn}`}
-                        title="Approve"
-                      >
-                        {actionLoading === `obstacle-${obstacle.id}-active` ? (
-                          "..."
-                        ) : (
-                          <CheckIcon />
-                        )}
-                      </button>
-                      <button
-                        onClick={() =>
-                          handleObstacleAction(obstacle.id, "rejected")
-                        }
-                        disabled={
-                          actionLoading === `obstacle-${obstacle.id}-rejected`
-                        }
-                        className={`${styles.actionBtn} ${styles.rejectBtn}`}
-                        title="Reject"
-                      >
-                        {actionLoading === `obstacle-${obstacle.id}-rejected` ? (
-                          "..."
-                        ) : (
-                          <CloseIcon />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (
-                            confirm(
-                              "Are you sure you want to DELETE this obstacle?"
-                            )
-                          ) {
-                            handleObstacleAction(obstacle.id, "delete");
+                      <div className={styles.actionsInner}>
+                        <button
+                          onClick={() =>
+                            handleObstacleAction(obstacle.id, "active")
                           }
-                        }}
-                        disabled={
-                          actionLoading === `obstacle-${obstacle.id}-delete`
-                        }
-                        className={`${styles.actionBtn} ${styles.deleteBtn}`}
-                        title="Delete"
-                      >
-                        {actionLoading === `obstacle-${obstacle.id}-delete` ? (
-                          "..."
-                        ) : (
-                          <DeleteIcon />
-                        )}
-                      </button>
+                          disabled={
+                            actionLoading === `obstacle-${obstacle.id}-active`
+                          }
+                          className={`${styles.actionBtn} ${styles.approveBtn}`}
+                          title="Approve"
+                        >
+                          {actionLoading === `obstacle-${obstacle.id}-active` ? (
+                            "..."
+                          ) : (
+                            <CheckIcon />
+                          )}
+                        </button>
+                        <button
+                          onClick={() =>
+                            handleObstacleAction(obstacle.id, "rejected")
+                          }
+                          disabled={
+                            actionLoading === `obstacle-${obstacle.id}-rejected`
+                          }
+                          className={`${styles.actionBtn} ${styles.rejectBtn}`}
+                          title="Reject"
+                        >
+                          {actionLoading === `obstacle-${obstacle.id}-rejected` ? (
+                            "..."
+                          ) : (
+                            <CloseIcon />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (
+                              confirm(
+                                "Are you sure you want to DELETE this obstacle?"
+                              )
+                            ) {
+                              handleObstacleAction(obstacle.id, "delete");
+                            }
+                          }}
+                          disabled={
+                            actionLoading === `obstacle-${obstacle.id}-delete`
+                          }
+                          className={`${styles.actionBtn} ${styles.deleteBtn}`}
+                          title="Delete"
+                        >
+                          {actionLoading === `obstacle-${obstacle.id}-delete` ? (
+                            "..."
+                          ) : (
+                            <DeleteIcon />
+                          )}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -547,60 +549,62 @@ export default function AdminPanel() {
                         place.submitted_by_email ||
                         "-"}
                     </td>
-                    <td>
+                    <td className={styles.statusCell}>
                       <span className={getStatusClass(place.status)}>
                         {place.status || "pending"}
                       </span>
                     </td>
                     <td className={styles.actionsCell}>
-                      <button
-                        onClick={() => handlePlaceAction(place.id, "approved")}
-                        disabled={
-                          actionLoading === `place-${place.id}-approved`
-                        }
-                        className={`${styles.actionBtn} ${styles.approveBtn}`}
-                        title="Approve"
-                      >
-                        {actionLoading === `place-${place.id}-approved` ? (
-                          "..."
-                        ) : (
-                          <CheckIcon />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handlePlaceAction(place.id, "rejected")}
-                        disabled={
-                          actionLoading === `place-${place.id}-rejected`
-                        }
-                        className={`${styles.actionBtn} ${styles.rejectBtn}`}
-                        title="Reject"
-                      >
-                        {actionLoading === `place-${place.id}-rejected` ? (
-                          "..."
-                        ) : (
-                          <CloseIcon />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (
-                            confirm(
-                              "Are you sure you want to DELETE this place?"
-                            )
-                          ) {
-                            handlePlaceAction(place.id, "delete");
+                      <div className={styles.actionsInner}>
+                        <button
+                          onClick={() => handlePlaceAction(place.id, "approved")}
+                          disabled={
+                            actionLoading === `place-${place.id}-approved`
                           }
-                        }}
-                        disabled={actionLoading === `place-${place.id}-delete`}
-                        className={`${styles.actionBtn} ${styles.deleteBtn}`}
-                        title="Delete"
-                      >
-                        {actionLoading === `place-${place.id}-delete` ? (
-                          "..."
-                        ) : (
-                          <DeleteIcon />
-                        )}
-                      </button>
+                          className={`${styles.actionBtn} ${styles.approveBtn}`}
+                          title="Approve"
+                        >
+                          {actionLoading === `place-${place.id}-approved` ? (
+                            "..."
+                          ) : (
+                            <CheckIcon />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handlePlaceAction(place.id, "rejected")}
+                          disabled={
+                            actionLoading === `place-${place.id}-rejected`
+                          }
+                          className={`${styles.actionBtn} ${styles.rejectBtn}`}
+                          title="Reject"
+                        >
+                          {actionLoading === `place-${place.id}-rejected` ? (
+                            "..."
+                          ) : (
+                            <CloseIcon />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (
+                              confirm(
+                                "Are you sure you want to DELETE this place?"
+                              )
+                            ) {
+                              handlePlaceAction(place.id, "delete");
+                            }
+                          }}
+                          disabled={actionLoading === `place-${place.id}-delete`}
+                          className={`${styles.actionBtn} ${styles.deleteBtn}`}
+                          title="Delete"
+                        >
+                          {actionLoading === `place-${place.id}-delete` ? (
+                            "..."
+                          ) : (
+                            <DeleteIcon />
+                          )}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -670,49 +674,50 @@ export default function AdminPanel() {
                         {report.comment || "-"}
                       </td>
                       <td>{formatDate(report.created_at)}</td>
-                      <td>
+                      <td className={styles.statusCell}>
                         <span className={getStatusClass(report.status)}>
-                          {report.status || "pending_review"}
+                          {report.status || "pending"}
                         </span>
                       </td>
                       <td className={styles.actionsCell}>
-                        {report.status === "pending_review" && (
-                          <>
-                            <button
-                              onClick={() => handleReportAction(report.id, "approve")}
-                              disabled={
-                                actionLoading === `report-${report.id}-approve`
-                              }
-                              className={`${styles.actionBtn} ${styles.approveBtn}`}
-                              title="Approve"
-                            >
-                              {actionLoading === `report-${report.id}-approve` ? (
-                                "..."
-                              ) : (
-                                <CheckIcon />
-                              )}
-                            </button>
-                            <button
-                              onClick={() => handleReportAction(report.id, "reject")}
-                              disabled={
-                                actionLoading === `report-${report.id}-reject`
-                              }
-                              className={`${styles.actionBtn} ${styles.rejectBtn}`}
-                              title="Reject"
-                            >
-                              {actionLoading === `report-${report.id}-reject` ? (
-                                "..."
-                              ) : (
-                                <CloseIcon />
-                              )}
-                            </button>
-                          </>
-                        )}
-                        {report.status !== "pending_review" && (
-                          <span style={{ color: "rgba(0, 0, 0, 0.5)", fontSize: "12px" }}>
-                            {report.status === "approved" ? "Approved" : "Rejected"}
-                          </span>
-                        )}
+                        <div className={styles.actionsInner}>
+                          {report.status === "pending" ? (
+                            <>
+                              <button
+                                onClick={() => handleReportAction(report.id, "approve")}
+                                disabled={
+                                  actionLoading === `report-${report.id}-approve`
+                                }
+                                className={`${styles.actionBtn} ${styles.approveBtn}`}
+                                title="Approve"
+                              >
+                                {actionLoading === `report-${report.id}-approve` ? (
+                                  "..."
+                                ) : (
+                                  <CheckIcon />
+                                )}
+                              </button>
+                              <button
+                                onClick={() => handleReportAction(report.id, "reject")}
+                                disabled={
+                                  actionLoading === `report-${report.id}-reject`
+                                }
+                                className={`${styles.actionBtn} ${styles.rejectBtn}`}
+                                title="Reject"
+                              >
+                                {actionLoading === `report-${report.id}-reject` ? (
+                                  "..."
+                                ) : (
+                                  <CloseIcon />
+                                )}
+                              </button>
+                            </>
+                          ) : (
+                            <span className={styles.actionStatusText}>
+                              {report.status === "approved" ? "Approved" : "Rejected"}
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}

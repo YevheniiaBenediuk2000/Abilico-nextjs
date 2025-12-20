@@ -848,7 +848,10 @@ export default function MapContainer({
       }
 
       // Success
-      toastSuccess("Report submitted successfully. Thank you!");
+      toastSuccess("Report submitted successfully. Thank you!", {
+        autohide: true,
+        delay: 5000, // Auto-dismiss after 5 seconds
+      });
 
       // Reset form and close modal
       setInaccuracyModalOpen(false);

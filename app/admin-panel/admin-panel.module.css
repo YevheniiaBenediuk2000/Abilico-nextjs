@@ -264,6 +264,8 @@
   padding: 14px 16px;
   text-align: left;
   border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+  vertical-align: middle;
+  line-height: 1.5;
 }
 
 .table tbody tr:last-child td {
@@ -292,10 +294,38 @@
 }
 
 .actionsCell {
-  display: flex;
-  gap: 8px;
   white-space: nowrap;
+  vertical-align: middle !important; /* Override table baseline alignment */
+}
+
+.actionsInner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   flex-wrap: nowrap;
+}
+
+.statusCell {
+  vertical-align: middle;
+}
+
+.statusCell span {
+  display: inline-block;
+  vertical-align: middle;
+  line-height: 1;
+}
+
+.actionStatusText {
+  display: inline-block;
+  color: rgba(0, 0, 0, 0.87);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  vertical-align: middle;
+  line-height: 1;
+  box-sizing: border-box;
+  margin: 0; /* Remove any default margins */
+  border: none; /* Ensure no borders */
 }
 
 .actionBtn {
