@@ -975,8 +975,8 @@ function toggleObstaclesByZoom() {
     map.removeControl(drawControl);
   }
 
-  // Show/hide obstacles based on zoom level (only show at zoom >= 17)
-  const showObstacles = map.getZoom() >= 17;
+  // Show/hide obstacles based on zoom level (same threshold as draw controls)
+  const showObstacles = map.getZoom() >= DEFAULT_ZOOM;
   if (obstaclesLayer) {
     if (showObstacles) {
       // Show obstacles layer
@@ -6086,18 +6086,19 @@ async function initDrawingObstacles() {
 
     if (layer) {
       layer.options.obstacleId = feature.id;
+      hookLayerInteractions(layer, feature.properties);
+      // Attach tooltip with vote counts support after layer is added
+      layer.once("add", () => {
+        attachObstacleTooltip(layer, feature);
+      });
       // Add to obstacles layer (not drawnItems, and NOT to cluster group)
+      // Note: Must add layer AFTER registering the "add" event listener
       if (obstaclesLayer) {
         obstaclesLayer.addLayer(layer);
         // Initial visibility will be set when obstaclesLayer is added to map
       } else {
         drawnItems.addLayer(layer);
       }
-      hookLayerInteractions(layer, feature.properties);
-      // Attach tooltip with vote counts support after layer is added
-      layer.once("add", () => {
-        attachObstacleTooltip(layer, feature);
-      });
     }
   });
 
@@ -6105,8 +6106,8 @@ async function initDrawingObstacles() {
   if (!obstaclesLayer) {
     map.addLayer(drawnItems);
   } else if (map) {
-    // Add obstacles layer to map only if zoom >= 17
-    const showObstacles = map.getZoom() >= 17;
+    // Add obstacles layer to map only if zoom >= DEFAULT_ZOOM (same threshold as draw controls)
+    const showObstacles = map.getZoom() >= DEFAULT_ZOOM;
     if (showObstacles && !map.hasLayer(obstaclesLayer)) {
       obstaclesLayer.addTo(map);
     }
@@ -7028,8 +7029,7 @@ function setupObstacleEventHandlers() {
     // Add to obstacles layer (not drawnItems, and NOT to cluster group)
     if (obstaclesLayer) {
       obstaclesLayer.addLayer(layerToAdd);
-      // Visibility controlled by zoom - if zoom < 17, obstaclesLayer won't be on map
-      // If zoom >= 17, layer will be visible since obstaclesLayer is on map
+      // Visibility controlled by zoom - matches DEFAULT_ZOOM threshold for draw controls
     } else {
       drawnItems.addLayer(layerToAdd);
     }
