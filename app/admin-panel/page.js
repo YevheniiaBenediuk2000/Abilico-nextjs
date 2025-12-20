@@ -342,10 +342,10 @@ export default function AdminPanel() {
                     <td>{obstacle.properties?.shape || "-"}</td>
                     <td>{obstacle.properties?.title || "-"}</td>
                     <td>
-                      {obstacle.geometry?.coordinates
-                        ? `${obstacle.geometry.coordinates[1]?.toFixed(
-                            4
-                          )}, ${obstacle.geometry.coordinates[0]?.toFixed(4)}`
+                      {obstacle.geometry?.coordinates &&
+                      typeof obstacle.geometry.coordinates[0] === 'number' &&
+                      typeof obstacle.geometry.coordinates[1] === 'number'
+                        ? `${Number(obstacle.geometry.coordinates[1]).toFixed(4)}, ${Number(obstacle.geometry.coordinates[0]).toFixed(4)}`
                         : "-"}
                     </td>
                     <td>{formatDate(obstacle.date_added)}</td>
@@ -471,8 +471,9 @@ export default function AdminPanel() {
                     <td>{place.city || "-"}</td>
                     <td>{place.country || "-"}</td>
                     <td>
-                      {place.lat && place.lon
-                        ? `${place.lat.toFixed(4)}, ${place.lon.toFixed(4)}`
+                      {place.lat != null && place.lon != null &&
+                      typeof place.lat === 'number' && typeof place.lon === 'number'
+                        ? `${Number(place.lat).toFixed(4)}, ${Number(place.lon).toFixed(4)}`
                         : "-"}
                     </td>
                     <td>{formatDate(place.created_at)}</td>
