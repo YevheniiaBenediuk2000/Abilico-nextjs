@@ -27,6 +27,7 @@ export default function AdminPanel() {
   const [placesLoading, setPlacesLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null); // Track which action is loading
   const [error, setError] = useState(null);
+  const [activePanel, setActivePanel] = useState("obstacles"); // "obstacles" or "places"
   const router = useRouter();
 
   // Check user access
@@ -70,13 +71,9 @@ export default function AdminPanel() {
     checkAccess();
   }, [router]);
 
-  // Fetch data function
-  const fetchData = useCallback(async () => {
+  // Fetch obstacles
+  const fetchObstacles = useCallback(async () => {
     if (!accessToken) return;
-
-    console.log("[Admin Panel] Fetching data...");
-
-    // Fetch obstacles
     setObstaclesLoading(true);
     try {
       const res = await fetch("/api/admin/obstacles", {
@@ -93,8 +90,11 @@ export default function AdminPanel() {
       console.error("[Admin Panel] Fetch obstacles error:", e);
     }
     setObstaclesLoading(false);
+  }, [accessToken]);
 
-    // Fetch places
+  // Fetch places
+  const fetchPlaces = useCallback(async () => {
+    if (!accessToken) return;
     setPlacesLoading(true);
     try {
       const res = await fetch("/api/admin/places", {
@@ -113,12 +113,17 @@ export default function AdminPanel() {
     setPlacesLoading(false);
   }, [accessToken]);
 
+  // Fetch all data
+  const fetchData = useCallback(async () => {
+    await Promise.all([fetchObstacles(), fetchPlaces()]);
+  }, [fetchObstacles, fetchPlaces]);
+
   // Fetch data on mount
   useEffect(() => {
     if (accessToken) {
-      fetchData();
+      fetchData(); // Fetch both panels initially
     }
-  }, [accessToken, fetchData]);
+  }, [accessToken]); // Removed fetchData from deps to avoid re-fetching on activePanel change
 
   // Action handlers
   const handleObstacleAction = async (id, action) => {
@@ -270,14 +275,40 @@ export default function AdminPanel() {
 
       {error && <div className={styles.errorBanner}>{error}</div>}
 
+      {/* Panel Toggle */}
+      <div className={styles.panelToggle}>
+        <button
+          onClick={() => setActivePanel("obstacles")}
+          className={`${styles.toggleBtn} ${
+            activePanel === "obstacles" ? styles.toggleBtnActive : ""
+          }`}
+        >
+          <WarningIcon sx={{ mr: 1 }} />
+          Obstacles
+        </button>
+        <button
+          onClick={() => setActivePanel("places")}
+          className={`${styles.toggleBtn} ${
+            activePanel === "places" ? styles.toggleBtnActive : ""
+          }`}
+        >
+          <PlaceIcon sx={{ mr: 1 }} />
+          User-Submitted Places
+        </button>
+      </div>
+
       {/* Obstacles Table */}
-      <section className={styles.section}>
+      {activePanel === "obstacles" && (
+        <section className={styles.section}>
         <div className={styles.sectionHeader}>
           <h2>
             <WarningIcon sx={{ verticalAlign: "middle", mr: 1 }} />
             Obstacles
           </h2>
-          <button onClick={fetchData} className={styles.refreshBtn}>
+          <button
+            onClick={fetchObstacles}
+            className={styles.refreshBtn}
+          >
             <RefreshIcon sx={{ verticalAlign: "middle", mr: 0.5 }} />
             Refresh
           </button>
@@ -387,14 +418,23 @@ export default function AdminPanel() {
           </div>
         )}
       </section>
+      )}
 
       {/* Places Table */}
-      <section className={styles.section}>
+      {activePanel === "places" && (
+        <section className={styles.section}>
         <div className={styles.sectionHeader}>
           <h2>
             <PlaceIcon sx={{ verticalAlign: "middle", mr: 1 }} />
             User-Submitted Places
           </h2>
+          <button
+            onClick={fetchPlaces}
+            className={styles.refreshBtn}
+          >
+            <RefreshIcon sx={{ verticalAlign: "middle", mr: 0.5 }} />
+            Refresh
+          </button>
         </div>
 
         {placesLoading ? (
@@ -503,6 +543,7 @@ export default function AdminPanel() {
           </div>
         )}
       </section>
+      )}
     </div>
   );
 }
