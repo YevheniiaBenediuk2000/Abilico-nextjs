@@ -6086,18 +6086,19 @@ async function initDrawingObstacles() {
 
     if (layer) {
       layer.options.obstacleId = feature.id;
+      hookLayerInteractions(layer, feature.properties);
+      // Attach tooltip with vote counts support after layer is added
+      layer.once("add", () => {
+        attachObstacleTooltip(layer, feature);
+      });
       // Add to obstacles layer (not drawnItems, and NOT to cluster group)
+      // Note: Must add layer AFTER registering the "add" event listener
       if (obstaclesLayer) {
         obstaclesLayer.addLayer(layer);
         // Initial visibility will be set when obstaclesLayer is added to map
       } else {
         drawnItems.addLayer(layer);
       }
-      hookLayerInteractions(layer, feature.properties);
-      // Attach tooltip with vote counts support after layer is added
-      layer.once("add", () => {
-        attachObstacleTooltip(layer, feature);
-      });
     }
   });
 
