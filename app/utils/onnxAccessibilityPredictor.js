@@ -472,13 +472,21 @@ export async function predictAccessibility(places) {
   const results = await session.run(feeds);
 
   // Extract label and probability outputs
+  // Note: ONNX returns labels as int64 (BigInt in JS), need to convert properly
   const labelData = results.label?.data;
   const probData = results.probabilities?.data;
 
   // Format results
   const predictions = [];
   for (let i = 0; i < batchSize; i++) {
-    let predictedClassIdx = labelData ? Number(labelData[i]) : 0;
+    // Convert BigInt to Number safely (ONNX int64 -> JS BigInt)
+    let predictedClassIdx = 0;
+    if (labelData) {
+      const labelValue = labelData[i];
+      predictedClassIdx =
+        typeof labelValue === "bigint" ? Number(labelValue) : labelValue;
+    }
+
     let maxProb = 0;
     const classProbabilities = {};
 
