@@ -38,8 +38,9 @@ const inferenceQueues = {
 
 /**
  * Open or create the IndexedDB database for model caching
+ * Handles version conflicts by deleting and recreating the database
  */
-function openModelDB() {
+function openModelDB(retryAfterDelete = false) {
   return new Promise((resolve, reject) => {
     if (typeof window === "undefined" || !window.indexedDB) {
       reject(new Error("IndexedDB not supported"));
@@ -48,9 +49,31 @@ function openModelDB() {
 
     const request = window.indexedDB.open(MODEL_DB_NAME, MODEL_DB_VERSION);
 
-    request.onerror = (event) => {
-      console.error("[ONNX] IndexedDB error:", event.target.error);
-      reject(event.target.error);
+    request.onerror = async (event) => {
+      const error = event.target.error;
+      console.error("[ONNX] IndexedDB error:", error);
+
+      // Handle version conflict: delete the database and retry
+      if (!retryAfterDelete && error?.name === "VersionError") {
+        console.warn(
+          "[ONNX] Database version conflict detected. Deleting old database..."
+        );
+        try {
+          await deleteModelDB();
+          const result = await openModelDB(true);
+          resolve(result);
+          return;
+        } catch (deleteError) {
+          console.error(
+            "[ONNX] Failed to delete and recreate database:",
+            deleteError
+          );
+          reject(deleteError);
+          return;
+        }
+      }
+
+      reject(error);
     };
 
     request.onsuccess = (event) => {
@@ -63,6 +86,45 @@ function openModelDB() {
         db.createObjectStore(MODEL_STORE_NAME, { keyPath: "name" });
         console.log("🤖 [ONNX] Created IndexedDB store for models");
       }
+    };
+
+    // Handle blocked event (when other tabs have the database open)
+    request.onblocked = () => {
+      console.warn(
+        "[ONNX] Database upgrade blocked by other tabs. Please close other tabs."
+      );
+    };
+  });
+}
+
+/**
+ * Delete the IndexedDB database
+ */
+function deleteModelDB() {
+  return new Promise((resolve, reject) => {
+    if (typeof window === "undefined" || !window.indexedDB) {
+      reject(new Error("IndexedDB not supported"));
+      return;
+    }
+
+    const request = window.indexedDB.deleteDatabase(MODEL_DB_NAME);
+
+    request.onsuccess = () => {
+      console.log("[ONNX] Successfully deleted old IndexedDB database");
+      resolve();
+    };
+
+    request.onerror = (event) => {
+      console.error("[ONNX] Failed to delete database:", event.target.error);
+      reject(event.target.error);
+    };
+
+    request.onblocked = () => {
+      console.warn(
+        "[ONNX] Database deletion blocked. Close other tabs and retry."
+      );
+      // Still resolve as the delete will eventually happen
+      resolve();
     };
   });
 }
