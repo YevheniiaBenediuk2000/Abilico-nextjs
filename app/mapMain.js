@@ -14,6 +14,7 @@ import {
   DEFAULT_ZOOM,
   EXCLUDED_PROPS,
   placeClusterConfig,
+  PREDICTION_PROBABILITY_THRESHOLD,
   SHOW_PLACES_ZOOM,
 } from "./constants/constants.mjs";
 import { toastError, toastWarn } from "./utils/toast.mjs";
@@ -1554,6 +1555,15 @@ function updateMarkerWithPrediction(placeKey, tags, prediction) {
   // Don't override the currently selected marker (it has blue badge)
   if (selectedMarkerState && selectedMarkerState.key === placeKey) return;
 
+  // Only show prediction styling if confidence meets threshold
+  const meetsThreshold =
+    prediction.probability >= PREDICTION_PROBABILITY_THRESHOLD;
+
+  if (!meetsThreshold) {
+    // Low confidence - keep grey/unknown styling
+    return;
+  }
+
   // Create new icon with prediction styling
   const newIcon = makePoiIcon(tags, {
     isPredicted: true,
@@ -1585,7 +1595,11 @@ function refreshPlaceMarkerPredictions() {
 
     const prediction = placePredictionsCache.get(placeKey);
 
-    if (placePredictionsEnabled && prediction) {
+    // Only show prediction styling if confidence meets threshold
+    const meetsThreshold =
+      prediction && prediction.probability >= PREDICTION_PROBABILITY_THRESHOLD;
+
+    if (placePredictionsEnabled && meetsThreshold) {
       // Show prediction styling
       marker.setIcon(
         makePoiIcon(tags, {
@@ -1594,7 +1608,7 @@ function refreshPlaceMarkerPredictions() {
         })
       );
     } else {
-      // Revert to default unknown styling
+      // Revert to default unknown styling (low confidence or disabled)
       marker.setIcon(makePoiIcon(tags));
     }
   }

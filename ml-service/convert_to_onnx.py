@@ -18,8 +18,8 @@ import os
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 
-# Use the new 3-class model (best balanced for minority class performance)
-MODEL_PATH = os.path.join(PROJECT_ROOT, 'accessibility_model_3class_best_balanced.joblib')
+# Use the new 3-class model (best overall F1 score)
+MODEL_PATH = os.path.join(PROJECT_ROOT, 'accessibility_model_3class_best_overall.joblib')
 # Fallback to old model if new one doesn't exist
 if not os.path.exists(MODEL_PATH):
     MODEL_PATH = os.path.join(PROJECT_ROOT, 'accessibility_model_worldwide.joblib')

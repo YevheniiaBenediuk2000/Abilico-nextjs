@@ -77,6 +77,9 @@ export const PREDICTED_BADGE_COLOR_BY_TIER = {
 
 export const ACCESSIBILITY_KEYWORDS_CLASSIFICATION_THRESHOLD = 0.985;
 
+// ML Prediction threshold - only show colored predictions above this probability
+export const PREDICTION_PROBABILITY_THRESHOLD = 0.64;
+
 // Brand Colors
 export const PRIMARY_BLUE = "#0c77d2"; // Main brand blue color
 
