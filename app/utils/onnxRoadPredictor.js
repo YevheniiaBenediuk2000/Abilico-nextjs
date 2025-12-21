@@ -254,6 +254,16 @@ async function runInferenceInternal(modelName, props) {
     const outputs = await session.run(feeds);
     const outputNames = Object.keys(outputs);
 
+    // Get contributing features (non-zero features)
+    const contributingFeatures = getContributingFeatures(
+      featureVector,
+      modelInfo.feature_columns,
+      props
+    );
+
+    // Get model metrics from schema
+    const modelMetrics = modelInfo.metrics || {};
+
     if (modelInfo.type === "classifier") {
       // For classifiers, output contains class probabilities
       const probOutput =
@@ -280,7 +290,19 @@ async function runInferenceInternal(modelName, props) {
         confidence = 1.0;
       }
 
-      return { prediction, confidence, probabilities, isPredicted: true };
+      // Get top 3 alternatives
+      const topAlternatives = getTopAlternatives(probabilities, prediction, 3);
+
+      return {
+        prediction,
+        confidence,
+        probabilities,
+        topAlternatives,
+        contributingFeatures,
+        modelMetrics,
+        modelType: "classifier",
+        isPredicted: true,
+      };
     } else {
       // For regressors, output is the predicted value
       const output = outputs[outputNames[0]];
@@ -289,6 +311,9 @@ async function runInferenceInternal(modelName, props) {
       return {
         prediction,
         unit: modelInfo.output_unit,
+        contributingFeatures,
+        modelMetrics,
+        modelType: "regressor",
         isPredicted: true,
       };
     }
@@ -296,6 +321,135 @@ async function runInferenceInternal(modelName, props) {
     console.error(`[ONNX] Inference error for ${modelName}:`, error);
     return { prediction: null, error: error.message };
   }
+}
+
+/**
+ * Get top N alternative predictions (for classifiers)
+ * @param {Object} probabilities - Class probabilities
+ * @param {string} prediction - Top prediction
+ * @param {number} n - Number of alternatives
+ * @returns {Array} - Array of {class, probability}
+ */
+function getTopAlternatives(probabilities, prediction, n = 3) {
+  if (!probabilities) return [];
+
+  return Object.entries(probabilities)
+    .filter(([cls]) => cls !== prediction)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, n)
+    .filter(([, prob]) => prob >= 0.05) // Only show if >= 5% probability
+    .map(([cls, prob]) => ({ class: cls, probability: prob }));
+}
+
+/**
+ * Get features that contributed to the prediction
+ * @param {Float32Array} featureVector - Feature values
+ * @param {Array} featureColumns - Feature column names
+ * @param {Object} props - Original OSM properties
+ * @returns {Array} - Array of {feature, value, description}
+ */
+function getContributingFeatures(featureVector, featureColumns, props) {
+  const contributing = [];
+
+  for (let i = 0; i < featureColumns.length; i++) {
+    const col = featureColumns[i];
+    const val = featureVector[i];
+
+    // Skip zero/missing values
+    if (val === 0 || val === -1) continue;
+
+    let description = "";
+    let displayValue = val;
+
+    if (col.startsWith("hw_")) {
+      const hwType = col.replace("hw_", "");
+      description = `Highway type: ${formatHighwayType(hwType)}`;
+      displayValue = "✓";
+    } else if (col.startsWith("surf_")) {
+      const surfType = col.replace("surf_", "");
+      description = `Surface: ${surfType}`;
+      displayValue = "✓";
+    } else if (col.startsWith("smooth_")) {
+      const smoothType = col.replace("smooth_", "");
+      description = `Smoothness: ${smoothType}`;
+      displayValue = "✓";
+    } else if (col === "lit_binary") {
+      description =
+        props.lit === "yes" ? "Street lighting present" : "No street lighting";
+      displayValue = props.lit === "yes" ? "✓" : "✗";
+    } else if (col === "tactile_paving_binary") {
+      description =
+        props.tactile_paving === "yes"
+          ? "Has tactile paving"
+          : "No tactile paving";
+      displayValue = props.tactile_paving === "yes" ? "✓" : "✗";
+    } else if (col === "oneway_binary") {
+      description =
+        props.oneway === "yes" ? "One-way street" : "Two-way street";
+    } else if (col.startsWith("has_")) {
+      const key = col.replace("has_", "");
+      description = `Has ${key.replace(/_/g, " ")} tag`;
+      displayValue = "✓";
+    } else if (col === "width_m" && val > 0) {
+      description = `Width: ${val.toFixed(1)}m`;
+      displayValue = `${val.toFixed(1)}m`;
+    } else if (col === "incline_pct" && val !== 0) {
+      description = `Incline: ${val.toFixed(1)}%`;
+      displayValue = `${val.toFixed(1)}%`;
+    } else {
+      continue; // Skip unknown features
+    }
+
+    contributing.push({
+      feature: col,
+      value: displayValue,
+      description,
+    });
+  }
+
+  // Sort by importance (highway type first, then others)
+  return contributing
+    .sort((a, b) => {
+      const priority = {
+        hw_: 1,
+        surf_: 2,
+        smooth_: 3,
+        width_m: 4,
+        incline_pct: 5,
+      };
+      const getPriority = (f) => {
+        for (const [prefix, p] of Object.entries(priority)) {
+          if (f.feature.startsWith(prefix) || f.feature === prefix) return p;
+        }
+        return 10;
+      };
+      return getPriority(a) - getPriority(b);
+    })
+    .slice(0, 5); // Top 5 contributors
+}
+
+/**
+ * Format highway type for display
+ */
+function formatHighwayType(type) {
+  const labels = {
+    footway: "Footway",
+    path: "Path",
+    pedestrian: "Pedestrian Area",
+    cycleway: "Cycleway",
+    steps: "Steps",
+    corridor: "Corridor",
+    crossing: "Crossing",
+    living_street: "Living Street",
+    residential: "Residential Road",
+    service: "Service Road",
+    track: "Track",
+    primary: "Primary Road",
+    secondary: "Secondary Road",
+    tertiary: "Tertiary Road",
+    unclassified: "Road",
+  };
+  return labels[type] || type;
 }
 
 /**
@@ -350,6 +504,9 @@ export async function predictRoadFeatures(props) {
       result.surface = surfacePred.prediction;
       result._surfacePredicted = true;
       result._surfaceConfidence = surfacePred.confidence;
+      result._surfaceAlternatives = surfacePred.topAlternatives;
+      result._surfaceContributors = surfacePred.contributingFeatures;
+      result._surfaceMetrics = surfacePred.modelMetrics;
       predictions.surface = surfacePred;
     }
   }
@@ -361,6 +518,9 @@ export async function predictRoadFeatures(props) {
       result.smoothness = smoothnessPred.prediction;
       result._smoothnessPredicted = true;
       result._smoothnessConfidence = smoothnessPred.confidence;
+      result._smoothnessAlternatives = smoothnessPred.topAlternatives;
+      result._smoothnessContributors = smoothnessPred.contributingFeatures;
+      result._smoothnessMetrics = smoothnessPred.modelMetrics;
       predictions.smoothness = smoothnessPred;
     }
   }
@@ -372,6 +532,8 @@ export async function predictRoadFeatures(props) {
       result.width = `${widthPred.prediction.toFixed(1)} m`;
       result._widthPredicted = true;
       result._widthValue = widthPred.prediction;
+      result._widthContributors = widthPred.contributingFeatures;
+      result._widthMetrics = widthPred.modelMetrics;
       predictions.width = widthPred;
     }
   }
@@ -383,6 +545,8 @@ export async function predictRoadFeatures(props) {
       result.incline = `${inclinePred.prediction.toFixed(1)}%`;
       result._inclinePredicted = true;
       result._inclineValue = inclinePred.prediction;
+      result._inclineContributors = inclinePred.contributingFeatures;
+      result._inclineMetrics = inclinePred.modelMetrics;
       predictions.incline = inclinePred;
     }
   }

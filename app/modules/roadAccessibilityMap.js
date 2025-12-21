@@ -590,11 +590,48 @@ function createRoadPopup(properties) {
     );
   }
 
-  // Helper to add prediction indicator
+  // Helper to format confidence as colored badge
+  const getConfidenceBadge = (confidence) => {
+    if (confidence === undefined || confidence === null) return "";
+    const pct = Math.round(confidence * 100);
+    let color, label;
+    if (confidence >= 0.7) {
+      color = "#27ae60";
+      label = "High";
+    } else if (confidence >= 0.4) {
+      color = "#f39c12";
+      label = "Medium";
+    } else {
+      color = "#e74c3c";
+      label = "Low";
+    }
+    return `<span class="confidence-badge" style="background:${color};color:white;padding:1px 4px;border-radius:3px;font-size:10px;margin-left:4px" title="Model confidence: ${pct}%">${pct}%</span>`;
+  };
+
+  // Helper to format alternatives
+  const formatAlternatives = (alternatives) => {
+    if (!alternatives || alternatives.length === 0) return "";
+    const altText = alternatives
+      .map((a) => `${a.class} (${Math.round(a.probability * 100)}%)`)
+      .join(", ");
+    return `<div class="prediction-alternatives" style="font-size:11px;color:#7f8c8d;margin-left:12px;margin-top:2px">Also possible: ${altText}</div>`;
+  };
+
+  // Helper to format contributing features
+  const formatContributors = (contributors, label) => {
+    if (!contributors || contributors.length === 0) return "";
+    const contribList = contributors
+      .slice(0, 3)
+      .map((c) => c.description)
+      .join(", ");
+    return `<div class="prediction-contributors" style="font-size:10px;color:#95a5a6;margin-left:12px;margin-top:2px" title="Features used for prediction">Based on: ${contribList}</div>`;
+  };
+
+  // Helper to add prediction indicator with confidence
   const predBadge = (isPredicted, confidence) => {
     if (!isPredicted) return "";
-    const confPct = confidence ? ` (${Math.round(confidence * 100)}%)` : "";
-    return `<span class="ml-prediction-badge" title="ML Predicted${confPct}">🤖</span>`;
+    const confBadge = getConfidenceBadge(confidence);
+    return `<span class="ml-prediction-badge" title="ML Predicted">🤖</span>${confBadge}`;
   };
 
   if (properties.surface) {
@@ -606,22 +643,16 @@ function createRoadPopup(properties) {
     items.push(
       `<div class="road-popup-row"><strong>Surface:</strong> <span style="color:${surfaceColor}">${properties.surface}</span>${badge}</div>`
     );
-  }
-
-  if (properties.incline) {
-    const inclineColor = properties._inclineColor || "#95a5a6";
-    const badge = predBadge(properties._inclinePredicted);
-    items.push(
-      `<div class="road-popup-row"><strong>Incline:</strong> <span style="color:${inclineColor}">${properties.incline}</span>${badge}</div>`
-    );
-  }
-
-  if (properties.width) {
-    const widthColor = properties._widthColor || "#95a5a6";
-    const badge = predBadge(properties._widthPredicted);
-    items.push(
-      `<div class="road-popup-row"><strong>Width:</strong> <span style="color:${widthColor}">${properties.width}</span>${badge}</div>`
-    );
+    // Show alternatives for predicted surface
+    if (properties._surfacePredicted && properties._surfaceAlternatives) {
+      items.push(formatAlternatives(properties._surfaceAlternatives));
+    }
+    // Show contributing features
+    if (properties._surfacePredicted && properties._surfaceContributors) {
+      items.push(
+        formatContributors(properties._surfaceContributors, "surface")
+      );
+    }
   }
 
   if (properties.smoothness) {
@@ -633,6 +664,66 @@ function createRoadPopup(properties) {
     items.push(
       `<div class="road-popup-row"><strong>Smoothness:</strong> <span style="color:${smoothColor}">${properties.smoothness}</span>${badge}</div>`
     );
+    // Show alternatives for predicted smoothness
+    if (properties._smoothnessPredicted && properties._smoothnessAlternatives) {
+      items.push(formatAlternatives(properties._smoothnessAlternatives));
+    }
+    // Show contributing features
+    if (properties._smoothnessPredicted && properties._smoothnessContributors) {
+      items.push(
+        formatContributors(properties._smoothnessContributors, "smoothness")
+      );
+    }
+  }
+
+  if (properties.width) {
+    const widthColor = properties._widthColor || "#95a5a6";
+    const isPredicted = properties._widthPredicted;
+    const badge = isPredicted
+      ? `<span class="ml-prediction-badge" title="ML Predicted">🤖</span>`
+      : "";
+    // For regressors, show uncertainty info
+    let uncertaintyInfo = "";
+    if (isPredicted && properties._widthMetrics) {
+      const rmse = properties._widthMetrics.rmse;
+      if (rmse) {
+        uncertaintyInfo = `<span style="font-size:10px;color:#7f8c8d;margin-left:4px" title="Expected error: ±${rmse.toFixed(
+          1
+        )}m">(±${rmse.toFixed(1)}m)</span>`;
+      }
+    }
+    items.push(
+      `<div class="road-popup-row"><strong>Width:</strong> <span style="color:${widthColor}">${properties.width}</span>${badge}${uncertaintyInfo}</div>`
+    );
+    if (properties._widthPredicted && properties._widthContributors) {
+      items.push(formatContributors(properties._widthContributors, "width"));
+    }
+  }
+
+  if (properties.incline) {
+    const inclineColor = properties._inclineColor || "#95a5a6";
+    const isPredicted = properties._inclinePredicted;
+    const badge = isPredicted
+      ? `<span class="ml-prediction-badge" title="ML Predicted">🤖</span>`
+      : "";
+    // For regressors, show uncertainty info
+    let uncertaintyInfo = "";
+    if (isPredicted && properties._inclineMetrics) {
+      const rmse = properties._inclineMetrics.rmse;
+      if (rmse) {
+        uncertaintyInfo = `<span style="font-size:10px;color:#7f8c8d;margin-left:4px" title="Expected error: ±${rmse.toFixed(
+          1
+        )}%">(±${rmse.toFixed(1)}%)</span>`;
+      }
+    }
+    items.push(
+      `<div class="road-popup-row"><strong>Incline:</strong> <span style="color:${inclineColor}">${properties.incline}</span>${badge}${uncertaintyInfo}</div>`
+    );
+    if (properties._inclinePredicted && properties._inclineContributors) {
+      items.push(
+        formatContributors(properties._inclineContributors, "incline")
+      );
+    }
   }
 
   if (properties.lit) {
@@ -661,10 +752,20 @@ function createRoadPopup(properties) {
     const score = properties._accessibilityScore;
     const color = properties._overallColor || "#95a5a6";
     const hasPredictions = properties._hasPredictions;
-    const predictedLabel = hasPredictions ? " (includes predictions)" : "";
+    const predictedLabel = hasPredictions
+      ? `<span style="font-size:10px;color:#7f8c8d;display:block;margin-top:2px">Includes ML predictions (dashed line)</span>`
+      : "";
     items.push(
       `<div class="road-popup-row road-popup-score"><strong>Accessibility Score:</strong> <span style="color:${color};font-weight:bold">${score}/100</span>${predictedLabel}</div>`
     );
+  }
+
+  // Add prediction info section if any predictions were made
+  if (properties._hasPredictions) {
+    items.push(`<div class="prediction-info-section" style="margin-top:8px;padding-top:8px;border-top:1px solid #eee;font-size:10px;color:#7f8c8d">
+      <div>🤖 = ML predicted value</div>
+      <div style="margin-top:2px">Confidence badge shows model certainty</div>
+    </div>`);
   }
 
   items.push("</div>");
