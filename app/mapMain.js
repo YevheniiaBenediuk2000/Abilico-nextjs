@@ -1324,9 +1324,30 @@ async function refreshPlaces() {
       pointToLayer: (feature, latlng) => {
         const tags = feature.properties.tags || feature.properties;
         const placeKey = placeKeyFromFeature(feature);
+
+        // Check if we have a cached prediction for this place
+        const wheelchair =
+          tags.wheelchair ||
+          tags["toilets:wheelchair"] ||
+          tags["wheelchair:toilets"];
+        const cachedPrediction =
+          !wheelchair && placeKey ? placePredictionsCache.get(placeKey) : null;
+        const meetsThreshold =
+          cachedPrediction &&
+          cachedPrediction.probability >= PREDICTION_PROBABILITY_THRESHOLD;
+
+        // Use predicted icon if we have a high-confidence cached prediction
+        const icon =
+          placePredictionsEnabled && meetsThreshold
+            ? makePoiIcon(tags, {
+                isPredicted: true,
+                predictedTier: cachedPrediction.label,
+              })
+            : makePoiIcon(tags);
+
         const marker = L.marker(latlng, {
           pane: "places-pane",
-          icon: makePoiIcon(tags),
+          icon,
         })
           .on("click", () => {
             hideAllBootstrapTooltips();
