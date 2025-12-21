@@ -86,6 +86,9 @@ import {
   forceRefreshRoads,
   setRoadLoadingCallback,
   isRoadAccessibilityLoading,
+  setPredictionsEnabled,
+  isPredictionsEnabled,
+  isOnnxModelsReady,
 } from "./modules/roadAccessibilityMap.js";
 
 // DEBUG: confirm import really works
@@ -7573,6 +7576,9 @@ export async function initMap(user = null) {
       window.forceRefreshRoads = () => forceRefreshRoads(map);
       window.setRoadLoadingCallback = setRoadLoadingCallback;
       window.isRoadAccessibilityLoading = isRoadAccessibilityLoading;
+      window.setPredictionsEnabled = setPredictionsEnabled;
+      window.isPredictionsEnabled = isPredictionsEnabled;
+      window.isOnnxModelsReady = isOnnxModelsReady;
     }
 
     map.on("baselayerchange", (e) => ls.set(BASEMAP_LS_KEY, e.name));

@@ -187,6 +187,8 @@ export default function MapContainer({
   const [roadVizMode, setRoadVizMode] = useState(VIZ_MODES.OVERALL);
   const [roadAccessibilityLoading, setRoadAccessibilityLoading] =
     useState(false);
+  const [predictionsEnabled, setPredictionsEnabled] = useState(true);
+  const [onnxReady, setOnnxReady] = useState(false);
 
   // Set up road accessibility loading callback
   // Use polling to handle race condition with mapMain.js initialization
@@ -226,6 +228,24 @@ export default function MapContainer({
       }
     };
   }, []);
+
+  // Check ONNX models ready state when road layer is enabled
+  useEffect(() => {
+    if (roadAccessibilityEnabled && predictionsEnabled) {
+      const checkOnnxReady = () => {
+        if (typeof window !== "undefined" && window.isOnnxModelsReady) {
+          const ready = window.isOnnxModelsReady();
+          setOnnxReady(ready);
+        }
+      };
+
+      // Check immediately and then every second
+      checkOnnxReady();
+      const intervalId = setInterval(checkOnnxReady, 1000);
+
+      return () => clearInterval(intervalId);
+    }
+  }, [roadAccessibilityEnabled, predictionsEnabled]);
 
   // Expose a global function so mapMain.js can open the details drawer
   useEffect(() => {
@@ -2939,6 +2959,14 @@ export default function MapContainer({
           }
         }}
         loading={roadAccessibilityLoading}
+        predictionsEnabled={predictionsEnabled}
+        onPredictionsToggle={(enabled) => {
+          setPredictionsEnabled(enabled);
+          if (typeof window !== "undefined" && window.setPredictionsEnabled) {
+            window.setPredictionsEnabled(enabled);
+          }
+        }}
+        onnxReady={onnxReady}
       />
     </div>
   );

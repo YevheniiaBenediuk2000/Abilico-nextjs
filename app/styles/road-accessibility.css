@@ -43,6 +43,34 @@
   border-top: 1px solid #eee;
 }
 
+/* ML Prediction badge */
+.ml-prediction-badge {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 10px;
+  cursor: help;
+  vertical-align: middle;
+}
+
+/* Prediction legend indicator */
+.road-legend-prediction-note {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed #ddd;
+  font-size: 11px;
+  color: #666;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.road-legend-prediction-line {
+  width: 24px;
+  height: 0;
+  border-top: 2px dashed #666;
+  flex-shrink: 0;
+}
+
 /* Road accessibility legend styles */
 .road-legend-container {
   background: white;

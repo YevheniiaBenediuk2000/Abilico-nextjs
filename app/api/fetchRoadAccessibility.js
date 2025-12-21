@@ -352,7 +352,7 @@ function enrichAccessibilityFeatures(geojson) {
 /**
  * Calculate surface accessibility score (0-100)
  */
-function calculateSurfaceScore(surface) {
+export function calculateSurfaceScore(surface) {
   if (!surface) return null;
 
   const scores = {
@@ -386,7 +386,7 @@ function calculateSurfaceScore(surface) {
 /**
  * Calculate incline accessibility score (0-100)
  */
-function calculateInclineScore(incline) {
+export function calculateInclineScore(incline) {
   if (!incline) return null;
 
   // Parse incline value
@@ -445,7 +445,7 @@ function parseIncline(incline) {
 /**
  * Calculate width accessibility score (0-100)
  */
-function calculateWidthScore(width) {
+export function calculateWidthScore(width) {
   if (!width) return null;
 
   const meters = parseWidth(width);
@@ -484,7 +484,7 @@ function parseWidth(width) {
 /**
  * Calculate smoothness accessibility score (0-100)
  */
-function calculateSmoothnessScore(smoothness) {
+export function calculateSmoothnessScore(smoothness) {
   if (!smoothness) return null;
 
   const scores = {
@@ -504,7 +504,7 @@ function calculateSmoothnessScore(smoothness) {
 /**
  * Calculate overall accessibility score
  */
-function calculateOverallScore(factors) {
+export function calculateOverallScore(factors) {
   const {
     surfaceScore,
     inclineScore,
@@ -553,7 +553,7 @@ function calculateOverallScore(factors) {
 /**
  * Get color for surface type
  */
-function getSurfaceColor(surface) {
+export function getSurfaceColor(surface) {
   if (!surface) return SURFACE_COLORS.unknown;
   return SURFACE_COLORS[surface.toLowerCase()] || SURFACE_COLORS.unknown;
 }
@@ -561,7 +561,7 @@ function getSurfaceColor(surface) {
 /**
  * Get color for incline
  */
-function getInclineColor(incline) {
+export function getInclineColor(incline) {
   if (!incline) return null;
 
   const percent = parseIncline(incline);
@@ -578,7 +578,7 @@ function getInclineColor(incline) {
 /**
  * Get color for width
  */
-function getWidthColor(width) {
+export function getWidthColor(width) {
   if (!width) return null;
 
   const meters = parseWidth(width);
@@ -593,7 +593,7 @@ function getWidthColor(width) {
 /**
  * Get color for smoothness
  */
-function getSmoothnessColor(smoothness) {
+export function getSmoothnessColor(smoothness) {
   if (!smoothness) return null;
   return SMOOTHNESS_COLORS[smoothness.toLowerCase()] || null;
 }
@@ -601,7 +601,7 @@ function getSmoothnessColor(smoothness) {
 /**
  * Get color based on overall accessibility score
  */
-function getOverallColor(score) {
+export function getOverallColor(score) {
   if (score === null) return "#95a5a6"; // Gray for unknown
 
   if (score >= 80) return "#2ecc71"; // Green - excellent

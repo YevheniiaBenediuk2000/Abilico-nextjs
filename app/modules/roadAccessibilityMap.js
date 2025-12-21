@@ -2,22 +2,40 @@
  * Road Accessibility Map Module
  * Handles rendering of road/path accessibility features on the Leaflet map
  * Uses IndexedDB caching for efficient data loading
+ * Now supports ONNX ML predictions for missing accessibility data
  */
 
 import debounce from "lodash.debounce";
 import {
   fetchRoadIds,
   fetchRoadsByIds,
+  getSurfaceColor,
+  getInclineColor,
+  getWidthColor,
+  getSmoothnessColor,
+  getOverallColor,
+  calculateSurfaceScore,
+  calculateInclineScore,
+  calculateWidthScore,
+  calculateSmoothnessScore,
+  calculateOverallScore,
 } from "../api/fetchRoadAccessibility.js";
 import {
   loadWaypointsFromCache,
   saveWaypointsToCache,
 } from "../utils/waypointsPersistence.js";
+import {
+  initOnnxModels,
+  predictRoadFeatures,
+  isOnnxReady,
+  getAvailableModels,
+} from "../utils/onnxRoadPredictor.js";
 
 // Layer group for road accessibility features
 let roadAccessibilityLayer = null;
 let roadAccessibilityEnabled = false;
 let currentVizMode = "overall"; // overall, surface, incline, width, smoothness
+let predictionsEnabled = true; // Toggle for ML predictions
 let currentBounds = null;
 let isLoadingRoadData = false;
 let loadingStateCallback = null;
@@ -263,6 +281,7 @@ async function fetchWaypointsWithCache(bounds) {
 /**
  * Refresh road accessibility data for current map bounds
  * Uses IndexedDB caching for faster subsequent loads
+ * Applies ONNX ML predictions for missing accessibility data
  * @param {L.Map} map - Leaflet map instance
  */
 async function refreshRoadAccessibilityData(map) {
@@ -291,6 +310,13 @@ async function refreshRoadAccessibilityData(map) {
   setLoadingState(true);
 
   try {
+    // Initialize ONNX models if predictions are enabled
+    if (predictionsEnabled && !isOnnxReady()) {
+      console.log("🤖 Initializing ONNX models for predictions...");
+      await initOnnxModels();
+      console.log("🤖 Available models:", getAvailableModels());
+    }
+
     // Use the caching-enabled fetch
     const geojson = await fetchWaypointsWithCache({
       south: bounds.getSouth(),
@@ -306,12 +332,101 @@ async function refreshRoadAccessibilityData(map) {
     }
 
     console.log(`🛣️ Received ${geojson.features.length} road features`);
-    renderRoadFeatures(geojson.features);
+
+    // Apply ML predictions to features with missing data
+    let enrichedFeatures = geojson.features;
+    if (predictionsEnabled && isOnnxReady()) {
+      enrichedFeatures = await applyMlPredictions(geojson.features);
+    }
+
+    renderRoadFeatures(enrichedFeatures);
   } catch (error) {
     console.error("🛣️ Error fetching road accessibility:", error);
   } finally {
     setLoadingState(false);
   }
+}
+
+/**
+ * Apply ML predictions to features with missing accessibility data
+ * @param {Array} features - GeoJSON features
+ * @returns {Promise<Array>} - Enriched features with predictions
+ */
+async function applyMlPredictions(features) {
+  const enrichedFeatures = [];
+  let predictedCount = 0;
+
+  // Process features sequentially to avoid ONNX session conflicts
+  // The inference queue handles per-model concurrency, but we still
+  // serialize feature processing to avoid overwhelming the system
+  for (const feature of features) {
+    const props = feature.properties || {};
+
+    // Check if any accessibility data is missing
+    const needsPrediction =
+      !props.surface || !props.smoothness || !props.width || !props.incline;
+
+    if (!needsPrediction) {
+      enrichedFeatures.push(feature);
+      continue;
+    }
+
+    try {
+      // Run ONNX prediction
+      const predictedProps = await predictRoadFeatures(props);
+
+      // Recalculate colors based on predicted values
+      const enhancedProps = {
+        ...predictedProps,
+        _surfaceColor: getSurfaceColor(predictedProps.surface),
+        _inclineColor: getInclineColor(predictedProps.incline),
+        _widthColor: getWidthColor(predictedProps.width),
+        _smoothnessColor: getSmoothnessColor(predictedProps.smoothness),
+      };
+
+      // Recalculate scores with predicted data
+      const surfaceScore = calculateSurfaceScore(enhancedProps.surface);
+      const inclineScore = calculateInclineScore(enhancedProps.incline);
+      const widthScore = calculateWidthScore(enhancedProps.width);
+      const smoothnessScore = calculateSmoothnessScore(
+        enhancedProps.smoothness
+      );
+
+      const overallScore = calculateOverallScore({
+        surfaceScore,
+        inclineScore,
+        widthScore,
+        smoothnessScore,
+        hasLighting: enhancedProps.lit === "yes",
+        hasTactilePaving: enhancedProps.tactile_paving === "yes",
+        hasKerb: enhancedProps.kerb && enhancedProps.kerb !== "no",
+        hasRamp: enhancedProps.ramp && enhancedProps.ramp !== "no",
+        isSteps: enhancedProps.highway === "steps",
+      });
+
+      enhancedProps._accessibilityScore = overallScore;
+      enhancedProps._overallColor = getOverallColor(overallScore);
+      enhancedProps._surfaceScore = surfaceScore;
+      enhancedProps._inclineScore = inclineScore;
+      enhancedProps._widthScore = widthScore;
+      enhancedProps._smoothnessScore = smoothnessScore;
+
+      if (predictedProps._hasPredictions) {
+        predictedCount++;
+      }
+
+      enrichedFeatures.push({
+        ...feature,
+        properties: enhancedProps,
+      });
+    } catch (error) {
+      console.warn("ML prediction failed for feature:", error);
+      enrichedFeatures.push(feature);
+    }
+  }
+
+  console.log(`🤖 Applied ML predictions to ${predictedCount} features`);
+  return enrichedFeatures;
 }
 
 /**
@@ -331,6 +446,17 @@ function renderRoadFeatures(features) {
     const weight = getWeightForHighway(properties.highway);
     const opacity = 0.8;
 
+    // Check if this feature has ML predictions
+    const hasPredictions =
+      properties._hasPredictions ||
+      properties._surfacePredicted ||
+      properties._smoothnessPredicted ||
+      properties._widthPredicted ||
+      properties._inclinePredicted;
+
+    // Use dashed lines for predicted data
+    const dashArray = hasPredictions ? "5, 5" : null;
+
     let layer;
 
     if (geometry.type === "LineString") {
@@ -342,6 +468,7 @@ function renderRoadFeatures(features) {
           opacity,
           lineCap: "round",
           lineJoin: "round",
+          dashArray,
         }
       );
     } else if (geometry.type === "MultiLineString") {
@@ -355,6 +482,7 @@ function renderRoadFeatures(features) {
           opacity,
           lineCap: "round",
           lineJoin: "round",
+          dashArray,
         }
       );
     } else if (geometry.type === "Polygon") {
@@ -368,6 +496,7 @@ function renderRoadFeatures(features) {
           opacity,
           fillColor: color,
           fillOpacity: 0.3,
+          dashArray,
         }
       );
     }
@@ -386,7 +515,7 @@ function renderRoadFeatures(features) {
       });
 
       layer.on("mouseout", function () {
-        this.setStyle({ weight, opacity });
+        this.setStyle({ weight, opacity, dashArray });
       });
 
       // Store feature reference
@@ -461,31 +590,48 @@ function createRoadPopup(properties) {
     );
   }
 
+  // Helper to add prediction indicator
+  const predBadge = (isPredicted, confidence) => {
+    if (!isPredicted) return "";
+    const confPct = confidence ? ` (${Math.round(confidence * 100)}%)` : "";
+    return `<span class="ml-prediction-badge" title="ML Predicted${confPct}">🤖</span>`;
+  };
+
   if (properties.surface) {
     const surfaceColor = properties._surfaceColor || "#95a5a6";
+    const badge = predBadge(
+      properties._surfacePredicted,
+      properties._surfaceConfidence
+    );
     items.push(
-      `<div class="road-popup-row"><strong>Surface:</strong> <span style="color:${surfaceColor}">${properties.surface}</span></div>`
+      `<div class="road-popup-row"><strong>Surface:</strong> <span style="color:${surfaceColor}">${properties.surface}</span>${badge}</div>`
     );
   }
 
   if (properties.incline) {
     const inclineColor = properties._inclineColor || "#95a5a6";
+    const badge = predBadge(properties._inclinePredicted);
     items.push(
-      `<div class="road-popup-row"><strong>Incline:</strong> <span style="color:${inclineColor}">${properties.incline}</span></div>`
+      `<div class="road-popup-row"><strong>Incline:</strong> <span style="color:${inclineColor}">${properties.incline}</span>${badge}</div>`
     );
   }
 
   if (properties.width) {
     const widthColor = properties._widthColor || "#95a5a6";
+    const badge = predBadge(properties._widthPredicted);
     items.push(
-      `<div class="road-popup-row"><strong>Width:</strong> <span style="color:${widthColor}">${properties.width}</span></div>`
+      `<div class="road-popup-row"><strong>Width:</strong> <span style="color:${widthColor}">${properties.width}</span>${badge}</div>`
     );
   }
 
   if (properties.smoothness) {
     const smoothColor = properties._smoothnessColor || "#95a5a6";
+    const badge = predBadge(
+      properties._smoothnessPredicted,
+      properties._smoothnessConfidence
+    );
     items.push(
-      `<div class="road-popup-row"><strong>Smoothness:</strong> <span style="color:${smoothColor}">${properties.smoothness}</span></div>`
+      `<div class="road-popup-row"><strong>Smoothness:</strong> <span style="color:${smoothColor}">${properties.smoothness}</span>${badge}</div>`
     );
   }
 
@@ -514,8 +660,10 @@ function createRoadPopup(properties) {
   if (properties._accessibilityScore != null) {
     const score = properties._accessibilityScore;
     const color = properties._overallColor || "#95a5a6";
+    const hasPredictions = properties._hasPredictions;
+    const predictedLabel = hasPredictions ? " (includes predictions)" : "";
     items.push(
-      `<div class="road-popup-row road-popup-score"><strong>Accessibility Score:</strong> <span style="color:${color};font-weight:bold">${score}/100</span></div>`
+      `<div class="road-popup-row road-popup-score"><strong>Accessibility Score:</strong> <span style="color:${color};font-weight:bold">${score}/100</span>${predictedLabel}</div>`
     );
   }
 
@@ -628,6 +776,29 @@ export function clearInMemoryWaypointsCache() {
   console.log("🗑️ Cleared in-memory waypoints cache");
 }
 
+/**
+ * Enable/disable ML predictions for missing accessibility data
+ * @param {boolean} enabled - Whether to enable predictions
+ */
+export function setPredictionsEnabled(enabled) {
+  predictionsEnabled = enabled;
+  console.log(`🤖 ML predictions ${enabled ? "enabled" : "disabled"}`);
+}
+
+/**
+ * Check if ML predictions are enabled
+ */
+export function isPredictionsEnabled() {
+  return predictionsEnabled;
+}
+
+/**
+ * Check if ONNX models are loaded and ready
+ */
+export function isOnnxModelsReady() {
+  return isOnnxReady();
+}
+
 // Export for use in MapContainer
 const roadAccessibilityModule = {
   initRoadAccessibilityLayer,
@@ -638,5 +809,8 @@ const roadAccessibilityModule = {
   forceRefreshRoads,
   getWaypointsCacheStats,
   clearInMemoryWaypointsCache,
+  setPredictionsEnabled,
+  isPredictionsEnabled,
+  isOnnxModelsReady,
 };
 export default roadAccessibilityModule;

@@ -106,6 +106,9 @@ export default function RoadAccessibilityLegend({
   vizMode = VIZ_MODES.OVERALL,
   onVizModeChange,
   loading = false,
+  predictionsEnabled = true,
+  onPredictionsToggle,
+  onnxReady = false,
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -232,6 +235,78 @@ export default function RoadAccessibilityLegend({
                 </Typography>
               </Box>
             ))}
+          </Box>
+
+          {/* ML Predictions Toggle */}
+          <Box
+            sx={{
+              mt: 1.5,
+              pt: 1,
+              borderTop: 1,
+              borderColor: "divider",
+            }}
+          >
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                <Typography variant="caption" color="text.secondary">
+                  🤖 ML Predictions
+                </Typography>
+                {onnxReady && (
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      bgcolor: "success.light",
+                      color: "success.contrastText",
+                      px: 0.5,
+                      borderRadius: 0.5,
+                      fontSize: "9px",
+                    }}
+                  >
+                    Ready
+                  </Typography>
+                )}
+              </Box>
+              <Switch
+                size="small"
+                checked={predictionsEnabled}
+                onChange={(e) => onPredictionsToggle?.(e.target.checked)}
+                disabled={!enabled}
+              />
+            </Box>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ fontSize: "10px", display: "block", mt: 0.5 }}
+            >
+              Predicts missing surface, smoothness, width & incline data
+            </Typography>
+            {predictionsEnabled && (
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                  mt: 0.5,
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 24,
+                    height: 0,
+                    borderTop: "2px dashed #666",
+                  }}
+                />
+                <Typography variant="caption" color="text.secondary">
+                  Dashed = Predicted
+                </Typography>
+              </Box>
+            )}
           </Box>
         </Box>
       </Collapse>
