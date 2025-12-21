@@ -16,9 +16,11 @@ import { fetchUserPlaces } from "./api/fetchUserPlaces.js";
 import { fetchRoute } from "./api/fetchRoute.js";
 import { obstacleStorage } from "./api/obstacleStorage.js";
 import {
+  BADGE_COLOR_BY_TIER,
   DEFAULT_ZOOM,
   EXCLUDED_PROPS,
   placeClusterConfig,
+  PREDICTED_BADGE_COLOR_BY_TIER,
   PREDICTION_PROBABILITY_THRESHOLD,
   SHOW_PLACES_ZOOM,
 } from "./constants/constants.mjs";
@@ -3794,11 +3796,11 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   // Colors from constants (same as map badges)
   const TIER_COLORS = {
-    designated: "#16a34a", // green
-    yes: "#6cc24a", // lighter green
-    limited: "#ffc107", // amber/orange
-    unknown: "#6c757d", // grey
-    no: "#dc3545", // red
+    designated: BADGE_COLOR_BY_TIER.designated,
+    yes: BADGE_COLOR_BY_TIER.yes,
+    limited: "#ffc107", // amber/orange (CSS var not usable here)
+    unknown: "#6c757d", // grey (CSS var not usable here)
+    no: "#dc3545", // red (CSS var not usable here)
   };
 
   const wheelchairTags = {};
@@ -4083,18 +4085,18 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       const isAccessible = predictionLabel === "accessible";
       const isLimited = predictionLabel === "limited";
 
-      // Set colors based on prediction class
+      // Set colors based on prediction class using predefined constants
       let iconColor, bgColor, labelText;
       if (isAccessible) {
-        iconColor = "#16a34a"; // green
+        iconColor = PREDICTED_BADGE_COLOR_BY_TIER.accessible;
         bgColor = "rgba(22, 163, 74, 0.1)";
         labelText = "Likely Accessible";
       } else if (isLimited) {
-        iconColor = "#ca8a04"; // yellow/amber
+        iconColor = PREDICTED_BADGE_COLOR_BY_TIER.limited;
         bgColor = "rgba(202, 138, 4, 0.1)";
         labelText = "Likely Limited Access";
       } else {
-        iconColor = "#dc2626"; // red
+        iconColor = PREDICTED_BADGE_COLOR_BY_TIER.not_accessible;
         bgColor = "rgba(220, 38, 38, 0.1)";
         labelText = "Likely Not Accessible";
       }
