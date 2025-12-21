@@ -175,9 +175,12 @@ export async function initAccessibilityModel() {
       }
       config = await schemaResponse.json();
 
-      // Configure ONNX Runtime for browser
+      // Configure ONNX Runtime for browser - use specific version matching package.json
       ort.env.wasm.wasmPaths =
-        "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";
+        "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/";
+      
+      // Use SIMD if available for better performance
+      ort.env.wasm.numThreads = 1;
       ort.env.logLevel = "error";
 
       const schemaVersion = config.version || "1.0";

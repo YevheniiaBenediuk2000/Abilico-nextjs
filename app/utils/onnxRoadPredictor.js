@@ -198,11 +198,12 @@ export async function initOnnxModels() {
       }
       schema = await schemaResponse.json();
 
-      // Configure ONNX Runtime for browser
+      // Configure ONNX Runtime for browser - use specific version matching package.json
       ort.env.wasm.wasmPaths =
-        "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";
+        "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/";
 
-      // Suppress warnings about unknown CPU vendor (common on Apple Silicon)
+      // Use single thread and suppress warnings
+      ort.env.wasm.numThreads = 1;
       ort.env.logLevel = "error";
 
       // Get schema version for cache invalidation
