@@ -376,7 +376,7 @@ export default function ObstaclePopupDialog({ open, onClose, obstacle, onObstacl
                       <Typography variant="body2" color="text.secondary" gutterBottom>
                         Confirmed
                       </Typography>
-                      <Typography variant="h6" color="success.main" sx={{ fontWeight: 600 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 600, color: PRIMARY_BLUE }}>
                         {voteStats.confirm}
                       </Typography>
                     </Box>
@@ -384,7 +384,7 @@ export default function ObstaclePopupDialog({ open, onClose, obstacle, onObstacl
                       <Typography variant="body2" color="text.secondary" gutterBottom>
                         Reported
                       </Typography>
-                      <Typography variant="h6" color="warning.main" sx={{ fontWeight: 600 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 600, color: "#FFC107" }}>
                         {voteStats.issue}
                       </Typography>
                     </Box>

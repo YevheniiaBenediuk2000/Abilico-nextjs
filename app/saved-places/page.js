@@ -118,7 +118,17 @@ export default function SavedPlacesPage() {
           // Add database fields that might override OSM
           if (place.city) tags["addr:city"] = place.city;
           if (place.country) tags["addr:country"] = place.country;
-          if (place.accessibility_status) tags.wheelchair = place.accessibility_status;
+          
+          // Extract wheelchair status from accessibility_keywords (from approved reports) or accessibility_status
+          // Database values take precedence over OSM tags
+          if (place.accessibility_keywords && typeof place.accessibility_keywords === 'object') {
+            if (place.accessibility_keywords.wheelchair) {
+              tags.wheelchair = place.accessibility_keywords.wheelchair;
+            }
+          } else if (place.accessibility_status) {
+            tags.wheelchair = place.accessibility_status;
+          }
+          
           if (place.photos && Array.isArray(place.photos)) tags.photos = place.photos;
         } else {
           // User-added place - use same format as fetchUserPlaces.js

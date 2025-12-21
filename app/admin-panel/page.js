@@ -722,12 +722,13 @@ export default function AdminPanel() {
                     <th>ID</th>
                     <th>Place ID</th>
                     <th>Place</th>
+                    <th>Place Status</th>
                     <th>Reason</th>
                     <th>Reality Status</th>
                     <th>Issues</th>
                     <th>Comment</th>
                     <th>Created At</th>
-                    <th>Status</th>
+                    <th>Report Status</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -742,11 +743,25 @@ export default function AdminPanel() {
                       ? `${place.city}, ${place.country}`
                       : place?.city || place?.country || "";
                     const hasCoordinates = place?.lat && place?.lon;
+                    const placeStatus = place?.status || "active";
                     const photonUrl = hasCoordinates
                       ? `https://photon.komoot.io/?lat=${place.lat}&lon=${place.lon}&zoom=18`
                       : placeName !== "Unknown Place"
                       ? `https://photon.komoot.io/?q=${encodeURIComponent(placeName)}`
                       : null;
+
+                    // Helper function to get action description for each report type
+                    const getActionDescription = (reason) => {
+                      const actions = {
+                        accessibility_info_wrong: "Update accessibility info",
+                        permanently_closed: "Mark place as closed",
+                        wrong_type: "Update category (manual)",
+                        duplicate: "Archive duplicate",
+                        location_wrong: "Update coordinates (manual)",
+                        other: "Admin decision required",
+                      };
+                      return actions[reason] || "Review required";
+                    };
 
                     return (
                       <tr key={report.id}>
@@ -802,7 +817,21 @@ export default function AdminPanel() {
                             )}
                           </div>
                         </td>
-                        <td>{report.reason || "-"}</td>
+                        <td className={styles.statusCell}>
+                          <span className={getStatusClass(placeStatus)}>
+                            {placeStatus}
+                          </span>
+                        </td>
+                        <td>
+                          <div>
+                            <strong>{report.reason || "-"}</strong>
+                            {report.reason && (
+                              <div style={{ fontSize: "10px", opacity: 0.7, marginTop: "2px" }}>
+                                {getActionDescription(report.reason)}
+                              </div>
+                            )}
+                          </div>
+                        </td>
                         <td>{report.accessibility_reality || "-"}</td>
                         <td>
                           {report.accessibility_issues && Array.isArray(report.accessibility_issues)

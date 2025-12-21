@@ -36,6 +36,10 @@ import {
   BADGE_COLOR_BY_TIER,
   SHOW_PLACES_ZOOM,
 } from "../constants/constants.mjs";
+import {
+  TAG_CHIP_ICON_STYLE,
+  TAG_CHIP_WITH_ICON_SX,
+} from "../constants/tagChips";
 import { resolvePlacePhotos } from "../modules/fetchPhotos.mjs";
 import { supabase } from "../api/supabaseClient";
 import { ensurePlaceExists, reviewStorage } from "../api/reviewStorage";
@@ -2413,14 +2417,16 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
                                       <Box mt={0.5}>
                                         <Chip
                                           size="small"
+                                          icon={
+                                            <span
+                                              className="material-icons"
+                                              style={TAG_CHIP_ICON_STYLE}
+                                            >
+                                              spa
+                                            </span>
+                                          }
                                           label={item.veganLabel}
-                                          variant="outlined"
-                                          sx={{
-                                            fontSize: "0.7rem",
-                                            height: 22,
-                                            borderColor: "rgba(76, 175, 80, 0.5)",
-                                            color: "rgba(0, 0, 0, 0.6)",
-                                          }}
+                                          sx={TAG_CHIP_WITH_ICON_SX}
                                         />
                                       </Box>
                                     )}
@@ -2428,14 +2434,16 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
                                       <Box mt={0.5}>
                                         <Chip
                                           size="small"
+                                          icon={
+                                            <span
+                                              className="material-icons"
+                                              style={TAG_CHIP_ICON_STYLE}
+                                            >
+                                              spa
+                                            </span>
+                                          }
                                           label={item.vegetarianLabel}
-                                          variant="outlined"
-                                          sx={{
-                                            fontSize: "0.7rem",
-                                            height: 22,
-                                            borderColor: "rgba(76, 175, 80, 0.5)",
-                                            color: "rgba(0, 0, 0, 0.6)",
-                                          }}
+                                          sx={TAG_CHIP_WITH_ICON_SX}
                                         />
                                       </Box>
                                     )}

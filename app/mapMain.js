@@ -2870,7 +2870,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     ) {
       features.push({
         type: "diet_vegetarian",
-        label: "Vegetarian options available",
+        label: "Vegetarian options",
         icon: "spa",
       });
     }
@@ -2904,7 +2904,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     ) {
       features.push({
         type: "diet_vegan",
-        label: "Vegan options available",
+        label: "Vegan options",
         icon: "spa",
       });
     }
@@ -3538,12 +3538,29 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     }
   });
 
-  // Main wheelchair tag (wheelchair=yes/no/limited/etc) - always show (will show "Unknown" if missing)
-  const wheelchair =
-    wheelchairTags.wheelchair || wheelchairTags.Wheelchair || null;
-  const tier = getAccessibilityTier({ wheelchair });
-  const label = TIER_LABELS[tier] || "Unknown";
-  const color = TIER_COLORS[tier] || TIER_COLORS.unknown;
+  // Check for user-reported accessibility (from approved reports) - this takes precedence
+  const userReportedAccessibility = nTags.user_reported_accessibility || null;
+  const userReportedWheelchair = userReportedAccessibility && typeof userReportedAccessibility === 'object' 
+    ? userReportedAccessibility.wheelchair 
+    : null;
+  
+  // If admin approved a user report, use that as the primary status (overwrites original)
+  // Otherwise, use the original wheelchair status
+  const primaryWheelchair = userReportedWheelchair || wheelchairTags.wheelchair || wheelchairTags.Wheelchair || null;
+  const primaryTier = getAccessibilityTier({ wheelchair: primaryWheelchair });
+  const primaryLabel = TIER_LABELS[primaryTier] || "Unknown";
+  const primaryColor = TIER_COLORS[primaryTier] || TIER_COLORS.unknown;
+  
+  // Original status (only shown if different from user-reported or if no user report exists)
+  const originalWheelchair = wheelchairTags.wheelchair || wheelchairTags.Wheelchair || null;
+  const originalTier = getAccessibilityTier({ wheelchair: originalWheelchair });
+  const originalLabel = TIER_LABELS[originalTier] || "Unknown";
+  const originalColor = TIER_COLORS[originalTier] || TIER_COLORS.unknown;
+  
+  const userReportedComment = nTags.user_reported_accessibility_comment || null;
+  
+  // Show original status separately only if user-reported status exists and is different
+  const showOriginalSeparately = userReportedWheelchair && originalWheelchair && originalWheelchair !== userReportedWheelchair;
 
   const accItem = document.createElement("div");
   accItem.className = "list-group-item";
@@ -3573,90 +3590,122 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   header.appendChild(title);
 
-  // Card container for the status chip
-  const cardContainer = document.createElement("div");
-  cardContainer.style.border = "1px solid";
-  cardContainer.style.borderColor = "rgba(0, 0, 0, 0.12)"; // divider
-  cardContainer.style.borderRadius = "16px"; // borderRadius: 2
-  cardContainer.style.padding = "16px"; // p: 2
-  cardContainer.style.display = "flex";
-  cardContainer.style.alignItems = "center";
-  cardContainer.style.gap = "16px"; // gap: 2
-
-  // Icon container for status (48x48 to match ContactInfo items)
-  const statusIconContainer = document.createElement("div");
-  statusIconContainer.style.display = "flex";
-  statusIconContainer.style.alignItems = "center";
-  statusIconContainer.style.justifyContent = "center";
-  statusIconContainer.style.width = "48px";
-  statusIconContainer.style.height = "48px";
-  statusIconContainer.style.borderRadius = "16px"; // borderRadius: 2
-  // Convert hex color to rgba with 10% opacity
-  const hexToRgba = (hex, alpha) => {
-    if (!hex || !hex.startsWith("#") || hex.length !== 7) {
-      return `rgba(108, 117, 125, ${alpha})`; // fallback to unknown color
+  // Helper function to create a status card
+  const createStatusCard = (labelText, statusLabel, statusColor, isUserReported = false) => {
+    const cardContainer = document.createElement("div");
+    cardContainer.style.border = "1px solid";
+    cardContainer.style.borderColor = "rgba(0, 0, 0, 0.12)"; // divider
+    cardContainer.style.borderRadius = "16px"; // borderRadius: 2
+    cardContainer.style.padding = "16px"; // p: 2
+    cardContainer.style.display = "flex";
+    cardContainer.style.alignItems = "center";
+    cardContainer.style.gap = "16px"; // gap: 2
+    if (isUserReported) {
+      cardContainer.style.marginTop = "12px"; // Add spacing between original and user-reported
     }
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+
+    // Convert hex color to rgba with 10% opacity
+    const hexToRgba = (hex, alpha) => {
+      if (!hex || !hex.startsWith("#") || hex.length !== 7) {
+        return `rgba(108, 117, 125, ${alpha})`; // fallback to unknown color
+      }
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    };
+
+    // Icon container for status (48x48 to match ContactInfo items)
+    const statusIconContainer = document.createElement("div");
+    statusIconContainer.style.display = "flex";
+    statusIconContainer.style.alignItems = "center";
+    statusIconContainer.style.justifyContent = "center";
+    statusIconContainer.style.width = "48px";
+    statusIconContainer.style.height = "48px";
+    statusIconContainer.style.borderRadius = "16px"; // borderRadius: 2
+    statusIconContainer.style.backgroundColor = hexToRgba(statusColor, 0.1); // 10% opacity
+    statusIconContainer.style.flexShrink = "0";
+
+    const statusIcon = document.createElement("div");
+    statusIcon.style.width = "24px";
+    statusIcon.style.height = "24px";
+    statusIcon.style.display = "inline-block";
+    statusIcon.style.backgroundColor = statusColor;
+    statusIcon.style.maskImage = "url('/icons/maki/wheelchair.svg')";
+    statusIcon.style.maskSize = "contain";
+    statusIcon.style.maskRepeat = "no-repeat";
+    statusIcon.style.maskPosition = "center";
+    statusIcon.style.webkitMaskImage = "url('/icons/maki/wheelchair.svg')";
+    statusIcon.style.webkitMaskSize = "contain";
+    statusIcon.style.webkitMaskRepeat = "no-repeat";
+    statusIcon.style.webkitMaskPosition = "center";
+
+    statusIconContainer.appendChild(statusIcon);
+
+    // Content wrapper
+    const contentWrapper = document.createElement("div");
+    contentWrapper.style.flex = "1";
+    contentWrapper.style.minWidth = "0";
+
+    // Label
+    const labelElement = document.createElement("div");
+    labelElement.style.display = "block";
+    labelElement.style.color = "rgba(0, 0, 0, 0.6)"; // text.secondary
+    labelElement.style.fontSize = "0.75rem";
+    labelElement.style.fontWeight = "500";
+    labelElement.style.textTransform = "uppercase";
+    labelElement.style.letterSpacing = "0.5px";
+    labelElement.style.marginBottom = "4px"; // mb: 0.5
+    labelElement.textContent = labelText;
+
+    // Chip/badge with color and label
+    const chip = document.createElement("div");
+    chip.style.display = "inline-block";
+    chip.style.padding = "0.375rem 0.75rem";
+    chip.style.borderRadius = "1rem";
+    chip.style.backgroundColor = statusColor;
+    chip.style.color = "white";
+    chip.style.fontSize = "0.9375rem";
+    chip.style.fontWeight = "500";
+    chip.style.lineHeight = "1.25";
+    chip.style.fontFamily = "inherit";
+    chip.textContent = statusLabel;
+
+    contentWrapper.appendChild(labelElement);
+    contentWrapper.appendChild(chip);
+
+    cardContainer.appendChild(statusIconContainer);
+    cardContainer.appendChild(contentWrapper);
+
+    return cardContainer;
   };
-  statusIconContainer.style.backgroundColor = hexToRgba(color, 0.1); // 10% opacity
-  statusIconContainer.style.flexShrink = "0";
 
-  const statusIcon = document.createElement("div");
-  statusIcon.style.width = "24px";
-  statusIcon.style.height = "24px";
-  statusIcon.style.display = "inline-block";
-  statusIcon.style.backgroundColor = color;
-  statusIcon.style.maskImage = "url('/icons/maki/wheelchair.svg')";
-  statusIcon.style.maskSize = "contain";
-  statusIcon.style.maskRepeat = "no-repeat";
-  statusIcon.style.maskPosition = "center";
-  statusIcon.style.webkitMaskImage = "url('/icons/maki/wheelchair.svg')";
-  statusIcon.style.webkitMaskSize = "contain";
-  statusIcon.style.webkitMaskRepeat = "no-repeat";
-  statusIcon.style.webkitMaskPosition = "center";
-
-  statusIconContainer.appendChild(statusIcon);
-
-  // Content wrapper
-  const contentWrapper = document.createElement("div");
-  contentWrapper.style.flex = "1";
-  contentWrapper.style.minWidth = "0";
-
-  // Label - changed from "Wheelchair Access" to "STATUS" to avoid duplication
-  const labelElement = document.createElement("div");
-  labelElement.style.display = "block";
-  labelElement.style.color = "rgba(0, 0, 0, 0.6)"; // text.secondary
-  labelElement.style.fontSize = "0.75rem";
-  labelElement.style.fontWeight = "500";
-  labelElement.style.textTransform = "uppercase";
-  labelElement.style.letterSpacing = "0.5px";
-  labelElement.style.marginBottom = "4px"; // mb: 0.5
-  labelElement.textContent = "STATUS";
-
-  // Chip/badge with color and label
-  const chip = document.createElement("div");
-  chip.style.display = "inline-block";
-  chip.style.padding = "0.375rem 0.75rem";
-  chip.style.borderRadius = "1rem";
-  chip.style.backgroundColor = color;
-  chip.style.color = "white";
-  chip.style.fontSize = "0.9375rem";
-  chip.style.fontWeight = "500";
-  chip.style.lineHeight = "1.25";
-  chip.style.fontFamily = "inherit";
-  chip.textContent = label;
-
-  contentWrapper.appendChild(labelElement);
-  contentWrapper.appendChild(chip);
-
-  cardContainer.appendChild(statusIconContainer);
-  cardContainer.appendChild(contentWrapper);
-
+  // Primary status card (user-reported if admin approved, otherwise original)
+  const statusLabel = userReportedWheelchair ? "STATUS (User Reported)" : "STATUS";
+  const primaryStatusCard = createStatusCard(statusLabel, primaryLabel, primaryColor, false);
   container.appendChild(header);
-  container.appendChild(cardContainer);
+  container.appendChild(primaryStatusCard);
+
+  // Show original status separately if user-reported exists and is different
+  if (showOriginalSeparately) {
+    const originalStatusCard = createStatusCard("ORIGINAL STATUS", originalLabel, originalColor, true);
+    container.appendChild(originalStatusCard);
+  }
+
+  // Add user comment if available (only if user-reported status exists)
+  if (userReportedWheelchair && userReportedComment) {
+    const commentElement = document.createElement("div");
+    commentElement.style.marginTop = "8px";
+    commentElement.style.padding = "8px 12px";
+    commentElement.style.backgroundColor = "rgba(0, 0, 0, 0.02)";
+    commentElement.style.borderRadius = "8px";
+    commentElement.style.fontSize = "0.875rem";
+    commentElement.style.color = "rgba(0, 0, 0, 0.7)";
+    commentElement.style.fontStyle = "italic";
+    commentElement.textContent = `"${userReportedComment}"`;
+    container.appendChild(commentElement);
+  }
+
   accItem.appendChild(container);
   list.appendChild(accItem);
 
@@ -7797,6 +7846,106 @@ export async function initMap(user = null) {
       toastError("Could not save your review. Please try again.");
     }
   });
+
+  // ✅ Function to ensure reviews are loaded for the current place
+  // This is called when the reviews tab is clicked to ensure reviews are fetched
+  window.ensureReviewsLoaded = async function() {
+    try {
+      // Check if we already have reviews loaded for the current place
+      const currentPlaceId = globals.detailsCtx?.placeId;
+      if (!currentPlaceId) {
+        // Try to get placeId from tags and latlng if available
+        const tags = globals.detailsCtx?.tags;
+        const latlng = globals.detailsCtx?.latlng;
+        if (tags && latlng) {
+          const uuid = await ensurePlaceExists(tags, latlng);
+          if (uuid) {
+            globals.detailsCtx.placeId = uuid;
+          }
+        }
+      }
+
+      const placeId = globals.detailsCtx?.placeId;
+      if (!placeId) {
+        console.warn("⚠️ ensureReviewsLoaded: No placeId available");
+        return;
+      }
+
+      // Check if placeId is a valid UUID
+      const isValidUUID = (id) => {
+        if (!id || typeof id !== "string") return false;
+        const uuidRegex =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        return uuidRegex.test(id) && !id.includes("/");
+      };
+
+      if (!isValidUUID(placeId)) {
+        console.warn("⚠️ ensureReviewsLoaded: placeId is not a valid UUID:", placeId);
+        return;
+      }
+
+      // Check if reviews are already loaded in globals for this place
+      if (Array.isArray(globals.reviews) && globals.reviews.length > 0) {
+        // Check if the first review belongs to the current place
+        const firstReview = globals.reviews[0];
+        if (firstReview && firstReview.place_id === placeId) {
+          // Reviews are already loaded for this place, just render them
+          renderReviewsList();
+          return;
+        }
+      }
+
+      // Check if reviews are cached in queryClient
+      const reviewsQueryKey = ["place-reviews", placeId];
+      const cached = queryClient.getQueryData(reviewsQueryKey);
+      
+      // If we have cached reviews, use them and render
+      if (Array.isArray(cached) && cached.length > 0) {
+        globals.reviews = cached;
+        renderReviewsList();
+        return;
+      }
+
+      // Fetch reviews (this will use cache if available, or fetch if stale)
+      const keyReviews = showLoading(Symbol("reviews-load"));
+      try {
+        const data =
+          queryClient.getQueryData(reviewsQueryKey) ??
+          (await queryClient.fetchQuery({
+            queryKey: reviewsQueryKey,
+            staleTime: 30 * 1000,
+            queryFn: async () => {
+              let retries = 3;
+              while (retries-- > 0) {
+                const d = await reviewStorage("GET", {
+                  place_id: placeId,
+                });
+                if (d?.length || retries === 0) return d || [];
+                await new Promise((r) => setTimeout(r, 500)); // Brief delay before retry
+              }
+              return [];
+            },
+          }));
+
+        globals.reviews = Array.isArray(data) ? data : [];
+        renderReviewsList();
+
+        // Compute place scores if we have reviews
+        if (globals.reviews.length > 0) {
+          try {
+            const prefs = await getUserAccessibilityPreferences();
+            computePlaceScores(globals.reviews, prefs);
+          } catch (err) {
+            console.error("❌ computePlaceScores failed:", err);
+          }
+        }
+      } finally {
+        hideLoading(keyReviews);
+      }
+    } catch (error) {
+      console.error("❌ ensureReviewsLoaded failed:", error);
+    }
+  };
 
   // ✅ Listen for review submissions from React ReviewForm component
   window.addEventListener("review-submitted", async (e) => {

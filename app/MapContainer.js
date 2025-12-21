@@ -281,6 +281,16 @@ export default function MapContainer({
     };
   }, []);
 
+  // Load reviews when the reviews tab is clicked
+  useEffect(() => {
+    if (detailsTab === "reviews" && typeof window !== "undefined" && typeof window.ensureReviewsLoaded === "function") {
+      // Call ensureReviewsLoaded to fetch reviews if they haven't been loaded yet
+      window.ensureReviewsLoaded().catch((error) => {
+        console.error("❌ Failed to load reviews when tab clicked:", error);
+      });
+    }
+  }, [detailsTab]);
+
   const handleDetailsDrawerClose = () => {
     setDetailsDrawerOpen(false);
     if (
@@ -477,7 +487,7 @@ export default function MapContainer({
                 // Wait for map to finish loading tiles
                 await waitForMapLoad();
 
-                // Fetch place details from database
+                // Fetch place details from database (including user-reported accessibility if columns exist)
                 const { data: placeData, error } = await supabase
                   .from("places")
                   .select("*")
@@ -552,6 +562,26 @@ export default function MapContainer({
                 // For user-added places, add amenity from place_type
                 if (placeData.source === "user" && placeData.place_type) {
                   tags.amenity = placeData.place_type;
+                }
+
+                // Extract wheelchair status from accessibility_keywords or accessibility_status
+                // This is the original/OSM status (not user-reported)
+                if (placeData.accessibility_keywords && typeof placeData.accessibility_keywords === 'object') {
+                  if (placeData.accessibility_keywords.wheelchair) {
+                    tags.wheelchair = placeData.accessibility_keywords.wheelchair;
+                  }
+                } else if (placeData.accessibility_status) {
+                  // Fallback to accessibility_status if accessibility_keywords doesn't exist
+                  tags.wheelchair = placeData.accessibility_status;
+                }
+
+                // Add user-reported accessibility (from approved reports) as separate field
+                // This allows displaying both original and user-reported status
+                if (placeData.user_reported_accessibility) {
+                  tags.user_reported_accessibility = placeData.user_reported_accessibility;
+                }
+                if (placeData.user_reported_accessibility_comment) {
+                  tags.user_reported_accessibility_comment = placeData.user_reported_accessibility_comment;
                 }
 
                 const feature = {
@@ -1560,6 +1590,13 @@ export default function MapContainer({
                                 if (user) setReviewWriteOpen(true);
                                 else router.push("/auth");
                               }}
+                              sx={{
+                                borderRadius: "25px",
+                                textTransform: "none",
+                                fontWeight: 500,
+                                px: 2,
+                                py: 0.75,
+                              }}
                             >
                               Write a review
                             </Button>
@@ -1886,12 +1923,14 @@ export default function MapContainer({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
+                pt: 3,
                 pb: 2,
+                minHeight: 72,
               }}
             >
               <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                 <ReportProblemIcon sx={{ color: PRIMARY_BLUE, fontSize: "1.5rem" }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, lineHeight: 1.5 }}>
                   Choose what's wrong
                 </Typography>
               </Box>
@@ -2120,7 +2159,7 @@ export default function MapContainer({
                 </RadioGroup>
               </Paper>
             </DialogContent>
-            <DialogActions sx={{ px: 3, pb: 2.5, pt: 2 }}>
+            <DialogActions sx={{ px: 3, pb: 3.5, pt: 2 }}>
               <Button
                 onClick={() => {
                   setInaccuracyModalOpen(false);
