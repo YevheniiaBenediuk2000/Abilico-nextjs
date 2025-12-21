@@ -12,7 +12,7 @@ const MODEL_BASE_PATH = "/models/road_accessibility";
 
 // IndexedDB configuration for model caching
 const MODEL_DB_NAME = "AbilicoOnnxModels";
-const MODEL_DB_VERSION = 1;
+const MODEL_DB_VERSION = 2;
 const MODEL_STORE_NAME = "models";
 
 // Cached sessions and schema
