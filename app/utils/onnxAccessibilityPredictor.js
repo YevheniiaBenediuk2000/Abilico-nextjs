@@ -412,26 +412,35 @@ function formatFeatureName(colName) {
  * Returns the active features that likely contributed to the prediction
  */
 function getContributingFeatures(place, topN = 3) {
-  const struct = buildFeatureStructure();
-  const features = encodeFeatures(place);
-  const importances = config.feature_importances || {};
-
-  // Collect active features (value > 0) with their importances
-  const activeFeatures = [];
-  struct.featureColumns.forEach((col, idx) => {
-    if (features[idx] > 0) {
-      const importance = importances[col] || 0;
-      activeFeatures.push({
-        feature: col,
-        displayName: formatFeatureName(col),
-        importance,
-      });
+  try {
+    if (!place || typeof place !== "object") {
+      return [];
     }
-  });
 
-  // Sort by importance and return top N
-  activeFeatures.sort((a, b) => b.importance - a.importance);
-  return activeFeatures.slice(0, topN);
+    const struct = buildFeatureStructure();
+    const features = encodeFeatures(place);
+    const importances = config.feature_importances || {};
+
+    // Collect active features (value > 0) with their importances
+    const activeFeatures = [];
+    struct.featureColumns.forEach((col, idx) => {
+      if (features && features[idx] > 0) {
+        const importance = importances[col] || 0;
+        activeFeatures.push({
+          feature: col,
+          displayName: formatFeatureName(col),
+          importance,
+        });
+      }
+    });
+
+    // Sort by importance and return top N
+    activeFeatures.sort((a, b) => b.importance - a.importance);
+    return activeFeatures.slice(0, topN);
+  } catch (err) {
+    console.warn("[ONNX-Acc] Error getting contributing features:", err);
+    return [];
+  }
 }
 
 /**
@@ -509,12 +518,15 @@ export async function predictAccessibility(places) {
 
     const labelName = labels[predictedClassIdx] || "unknown";
 
+    // Safely get the place for contributing features
+    const place = places[i] || {};
+
     predictions.push({
       label: labelName,
       probability: Math.round(maxProb * 1000) / 1000,
       confidence: getConfidence(maxProb),
       probabilities: classProbabilities,
-      basedOn: getContributingFeatures(places[i], 3),
+      basedOn: getContributingFeatures(place, 3),
     });
   }
 
