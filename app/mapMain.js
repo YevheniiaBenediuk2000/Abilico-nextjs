@@ -4482,11 +4482,11 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
       // Format value
       const wheelchairLabels = {
-        yes: "Yes",
-        designated: "Designated",
-        limited: "Limited",
-        no: "No",
-        unknown: "Unknown",
+        yes: "Wheelchair accessible",
+        designated: "Designated accessible",
+        limited: "Partially accessible",
+        no: "Not accessible",
+        unknown: "Not specified",
       };
       const displayValue =
         wheelchairLabels[String(value).toLowerCase()] || String(value);
