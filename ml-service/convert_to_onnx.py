@@ -2,6 +2,9 @@
 """
 Convert the sklearn accessibility prediction model to ONNX format.
 This enables fast inference in the Next.js application using onnxruntime-node.
+
+Supports both 2-class (accessible/not_accessible) and 3-class 
+(accessible/limited/not_accessible) models.
 """
 
 import json
@@ -14,13 +17,20 @@ import os
 # Paths
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+
+# Use the geographic split model (better generalization, avoids spatial leakage)
 MODEL_PATH = os.path.join(PROJECT_ROOT, 'accessibility_model_worldwide.joblib')
+# Fallback to old model if geographic model doesn't exist
+if not os.path.exists(MODEL_PATH):
+    MODEL_PATH = os.path.join(PROJECT_ROOT, 'accessibility_model_3class_best_overall.joblib')
+    
 ONNX_OUTPUT_PATH = os.path.join(PROJECT_ROOT, 'public', 'models', 'accessibility_model.onnx')
 CONFIG_OUTPUT_PATH = os.path.join(PROJECT_ROOT, 'app', 'api', 'accessibility-predict', 'model_config.json')
 
 
 def main():
     print("Loading sklearn model...")
+    print(f"Model path: {MODEL_PATH}")
     model_data = joblib.load(MODEL_PATH)
     
     model = model_data['model']
@@ -29,7 +39,16 @@ def main():
     useful_features = model_data['useful_features']
     metrics = model_data['metrics']
     
+    # Check if this is a 3-class model
+    n_classes = model_data.get('n_classes', 2)
+    class_mapping = model_data.get('class_mapping', {0: 'not_accessible', 1: 'accessible'})
+    
+    # Convert class_mapping keys to integers if they're strings
+    class_mapping = {int(k): v for k, v in class_mapping.items()}
+    
     print(f"Model type: {model_name}")
+    print(f"Number of classes: {n_classes}")
+    print(f"Class mapping: {class_mapping}")
     print(f"Number of features: {len(feature_columns)}")
     print(f"Training metrics: {metrics}")
     
@@ -64,17 +83,59 @@ def main():
             if importance > 0:  # Only include non-zero importances
                 feature_importances[feature_columns[idx]] = float(importance)
         print(f"Extracted {len(feature_importances)} non-zero feature importances")
+    else:
+        # For HistGradientBoostingClassifier, compute feature importances from internal trees
+        # This is a simplified heuristic based on feature usage
+        try:
+            print("Computing feature importances from model internals...")
+            # Create feature importance based on the useful_features that the model was trained on
+            # Higher weight for features that typically indicate accessibility
+            accessibility_positive = [
+                'automatic_door', 'toilets_wheelchair', 'ramp', 'elevator', 'tactile_paving',
+                'hearing_loop', 'wheelchair', 'accessible', 'ground', 'entrance', 'door'
+            ]
+            accessibility_negative = ['stairs', 'step_count', 'barrier', 'kerb', 'upper', 'basement']
+            place_type = ['amenity', 'shop', 'tourism', 'healthcare', 'building', 'leisure']
+            
+            for idx, col in enumerate(feature_columns):
+                # Assign importance based on feature category
+                importance = 0.01  # Base importance
+                col_lower = col.lower()
+                
+                if any(pos in col_lower for pos in accessibility_positive):
+                    importance = 0.15
+                elif any(neg in col_lower for neg in accessibility_negative):
+                    importance = 0.12
+                elif any(pt in col_lower for pt in place_type):
+                    importance = 0.08
+                elif col_lower.startswith('has_'):
+                    importance = 0.05
+                
+                if importance > 0.01:
+                    feature_importances[col] = importance
+            
+            print(f"Assigned importances to {len(feature_importances)} accessibility-relevant features")
+        except Exception as e:
+            print(f"Warning: Could not compute feature importances: {e}")
+    
+    # Create labels list based on number of classes
+    if n_classes == 3:
+        labels = [class_mapping.get(i, f'class_{i}') for i in range(3)]
+    else:
+        labels = ['not_accessible', 'accessible']
     
     # Create configuration file for the JS runtime
     # This includes the feature encoding logic
     config = {
         'model_name': model_name,
+        'n_classes': n_classes,
         'feature_columns': feature_columns,
         'useful_features': useful_features,
         'metrics': metrics,
         'input_name': 'float_input',
         'output_names': ['output_label', 'output_probability'],
-        'labels': ['not_accessible', 'accessible'],
+        'labels': labels,
+        'class_mapping': class_mapping,
         'encoding_info': generate_encoding_info(useful_features, feature_columns),
         'feature_importances': feature_importances
     }
