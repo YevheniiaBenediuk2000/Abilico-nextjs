@@ -29,17 +29,31 @@ const PREDICTION_CACHE_PREFIX = "place_";
 let session = null;
 let config = null;
 
+// Cached IndexedDB connection
+let cachedDb = null;
+let dbOpenPromise = null;
+
 // Loading state
 let isInitialized = false;
 let initPromise = null;
 let initError = null;
 
 /**
- * Open or create the IndexedDB database for model caching
+ * Open or get cached IndexedDB database connection
  * Handles version conflicts by deleting and recreating the database
  */
 function openModelDB(retryAfterDelete = false) {
-  return new Promise((resolve, reject) => {
+  // Return cached connection if available
+  if (cachedDb) {
+    return Promise.resolve(cachedDb);
+  }
+
+  // Return pending promise if already opening
+  if (dbOpenPromise) {
+    return dbOpenPromise;
+  }
+
+  dbOpenPromise = new Promise((resolve, reject) => {
     if (typeof window === "undefined" || !window.indexedDB) {
       reject(new Error("IndexedDB not supported"));
       return;
@@ -50,6 +64,7 @@ function openModelDB(retryAfterDelete = false) {
     request.onerror = async (event) => {
       const error = event.target.error;
       console.error("[ONNX-Acc] IndexedDB error:", error);
+      dbOpenPromise = null; // Clear promise on error
 
       // Handle version conflict: delete the database and retry
       if (!retryAfterDelete && error?.name === "VersionError") {
@@ -57,6 +72,7 @@ function openModelDB(retryAfterDelete = false) {
           "[ONNX-Acc] Database version conflict detected. Deleting old database..."
         );
         try {
+          cachedDb = null;
           await deleteModelDB();
           const result = await openModelDB(true);
           resolve(result);
@@ -75,7 +91,15 @@ function openModelDB(retryAfterDelete = false) {
     };
 
     request.onsuccess = (event) => {
-      resolve(event.target.result);
+      cachedDb = event.target.result;
+
+      // Handle connection close
+      cachedDb.onclose = () => {
+        cachedDb = null;
+        dbOpenPromise = null;
+      };
+
+      resolve(cachedDb);
     };
 
     request.onupgradeneeded = (event) => {
@@ -100,6 +124,8 @@ function openModelDB(retryAfterDelete = false) {
       );
     };
   });
+
+  return dbOpenPromise;
 }
 
 /**
@@ -143,6 +169,11 @@ function deleteModelDB() {
  * @returns {string} - Cache key
  */
 function getPlaceCacheKey(place) {
+  // Use explicitly passed place ID (from mapMain.js)
+  if (place._placeId) {
+    return `${PREDICTION_CACHE_PREFIX}${place._placeId}`;
+  }
+
   // Use OSM ID if available (most reliable)
   if (place.id || place.osm_id || place["@id"]) {
     return `${PREDICTION_CACHE_PREFIX}${
@@ -229,6 +260,7 @@ async function getCachedPredictionsBatch(cacheKeys) {
   if (keysToFetch.length > 0) {
     try {
       const db = await openModelDB();
+      let foundInIdb = 0;
       await new Promise((resolve) => {
         const transaction = db.transaction(
           [PREDICTIONS_STORE_NAME],
@@ -243,9 +275,12 @@ async function getCachedPredictionsBatch(cacheKeys) {
             if (request.result) {
               results.set(key, request.result.data);
               addToMemoryCache(key, request.result.data);
+              foundInIdb++;
             }
             completed++;
-            if (completed === keysToFetch.length) resolve();
+            if (completed === keysToFetch.length) {
+              resolve();
+            }
           };
           request.onerror = () => {
             completed++;
@@ -256,7 +291,7 @@ async function getCachedPredictionsBatch(cacheKeys) {
         if (keysToFetch.length === 0) resolve();
       });
     } catch {
-      // Ignore errors, just return what we have
+      // Ignore IndexedDB errors
     }
   }
 
@@ -272,6 +307,9 @@ async function cachePredictionsBatch(items) {
   for (const { key, prediction } of items) {
     addToMemoryCache(key, prediction);
   }
+  console.log(
+    `💾 [ONNX-Acc] Added ${items.length} to memory cache. Memory cache size: ${predictionCache.size}`
+  );
 
   // Save to IndexedDB
   try {
@@ -287,8 +325,17 @@ async function cachePredictionsBatch(items) {
         cachedAt: now,
       });
     }
-  } catch {
-    // Silently ignore cache errors
+
+    transaction.oncomplete = () => {
+      console.log(
+        `💾 [ONNX-Acc] Successfully saved ${items.length} predictions to IndexedDB`
+      );
+    };
+    transaction.onerror = (e) => {
+      console.error(`💾 [ONNX-Acc] IndexedDB transaction error:`, e);
+    };
+  } catch (err) {
+    console.error(`💾 [ONNX-Acc] Failed to save to IndexedDB:`, err);
   }
 }
 
@@ -330,7 +377,6 @@ export async function clearPlacePredictionCache() {
         cursor.continue();
       }
     };
-    console.log("🗑️ [ONNX-Acc] Place prediction cache cleared");
   } catch {
     // Ignore errors
   }
@@ -350,12 +396,8 @@ async function getModelFromCache(modelName, schemaVersion) {
       request.onsuccess = () => {
         if (request.result) {
           if (schemaVersion && request.result.version !== schemaVersion) {
-            console.log(
-              `⚠️ [ONNX-Acc] Cache version mismatch for ${modelName}. Re-downloading...`
-            );
             resolve(null);
           } else {
-            console.log(`💾 [ONNX-Acc] Found ${modelName} in IndexedDB cache`);
             resolve(request.result.data);
           }
         } else {
@@ -388,7 +430,6 @@ async function saveModelToCache(modelName, data, version) {
       });
 
       transaction.oncomplete = () => {
-        console.log(`💾 [ONNX-Acc] Saved ${modelName} to IndexedDB cache`);
         resolve();
       };
       transaction.onerror = () => reject(transaction.error);
@@ -727,17 +768,10 @@ function getContributingFeatures(place, topN = 3) {
  * @returns {Promise<Object>} - Prediction results
  */
 export async function predictAccessibility(places) {
-  if (!isInitialized || !session) {
-    const ready = await initAccessibilityModel();
-    if (!ready) {
-      throw new Error("Failed to initialize accessibility model");
-    }
-  }
-
   // Generate cache keys for all places
   const cacheKeys = places.map((place) => getPlaceCacheKey(place));
 
-  // Check cache for existing predictions
+  // Check cache FIRST before loading model
   const cachedPredictions = await getCachedPredictionsBatch(cacheKeys);
 
   // Separate cached and uncached places
@@ -755,14 +789,30 @@ export async function predictAccessibility(places) {
     }
   }
 
-  // If all predictions were cached, return early
+  // Log cache hit rate
+  const cachedCount = places.length - uncachedPlaces.length;
+  if (cachedCount > 0) {
+    console.log(
+      `💾 [ONNX-Acc] Cache hit: ${cachedCount}/${places.length} predictions from cache`
+    );
+  }
+
+  // If all predictions were cached, return early WITHOUT loading model
   if (uncachedPlaces.length === 0) {
     return {
       predictions: finalPredictions,
-      model: config.model_name,
-      n_classes: config.n_classes || 3,
+      model: config?.model_name || "cached",
+      n_classes: config?.n_classes || 3,
       _allFromCache: true,
     };
+  }
+
+  // Only load model if we have uncached predictions to run
+  if (!isInitialized || !session) {
+    const ready = await initAccessibilityModel();
+    if (!ready) {
+      throw new Error("Failed to initialize accessibility model");
+    }
   }
 
   const struct = buildFeatureStructure();
@@ -894,7 +944,6 @@ export async function clearModelCache() {
       const request = store.delete(ACCESSIBILITY_MODEL_KEY);
 
       request.onsuccess = () => {
-        console.log("🗑️ [ONNX-Acc] Cleared accessibility model from cache");
         resolve();
       };
       request.onerror = () => reject(request.error);

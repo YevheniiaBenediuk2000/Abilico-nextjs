@@ -29,6 +29,10 @@ let sessions = {
   incline: null,
 };
 
+// Cached IndexedDB connection
+let cachedDb = null;
+let dbOpenPromise = null;
+
 // Loading state
 let isInitialized = false;
 let initPromise = null;
@@ -42,11 +46,21 @@ const inferenceQueues = {
 };
 
 /**
- * Open or create the IndexedDB database for model caching
+ * Open or get cached IndexedDB database connection
  * Handles version conflicts by deleting and recreating the database
  */
 function openModelDB(retryAfterDelete = false) {
-  return new Promise((resolve, reject) => {
+  // Return cached connection if available
+  if (cachedDb) {
+    return Promise.resolve(cachedDb);
+  }
+
+  // Return pending promise if already opening
+  if (dbOpenPromise) {
+    return dbOpenPromise;
+  }
+
+  dbOpenPromise = new Promise((resolve, reject) => {
     if (typeof window === "undefined" || !window.indexedDB) {
       reject(new Error("IndexedDB not supported"));
       return;
@@ -57,6 +71,7 @@ function openModelDB(retryAfterDelete = false) {
     request.onerror = async (event) => {
       const error = event.target.error;
       console.error("[ONNX] IndexedDB error:", error);
+      dbOpenPromise = null;
 
       // Handle version conflict: delete the database and retry
       if (!retryAfterDelete && error?.name === "VersionError") {
@@ -64,6 +79,7 @@ function openModelDB(retryAfterDelete = false) {
           "[ONNX] Database version conflict detected. Deleting old database..."
         );
         try {
+          cachedDb = null;
           await deleteModelDB();
           const result = await openModelDB(true);
           resolve(result);
@@ -82,7 +98,15 @@ function openModelDB(retryAfterDelete = false) {
     };
 
     request.onsuccess = (event) => {
-      resolve(event.target.result);
+      cachedDb = event.target.result;
+
+      // Handle connection close
+      cachedDb.onclose = () => {
+        cachedDb = null;
+        dbOpenPromise = null;
+      };
+
+      resolve(cachedDb);
     };
 
     request.onupgradeneeded = (event) => {
@@ -107,6 +131,8 @@ function openModelDB(retryAfterDelete = false) {
       );
     };
   });
+
+  return dbOpenPromise;
 }
 
 /**
@@ -261,7 +287,6 @@ export async function clearPredictionCache() {
     const transaction = db.transaction([PREDICTIONS_STORE_NAME], "readwrite");
     const store = transaction.objectStore(PREDICTIONS_STORE_NAME);
     store.clear();
-    console.log("🗑️ [ONNX] Prediction cache cleared");
   } catch (e) {
     console.warn("[ONNX] Failed to clear prediction cache:", e);
   }
@@ -285,12 +310,8 @@ async function getModelFromCache(modelName, schemaVersion) {
         if (request.result) {
           // Validate schema version - invalidate cache if version mismatch
           if (schemaVersion && request.result.version !== schemaVersion) {
-            console.log(
-              `⚠️ [ONNX] Cache version mismatch for ${modelName}: cached=${request.result.version}, current=${schemaVersion}. Re-downloading...`
-            );
             resolve(null);
           } else {
-            console.log(`💾 [ONNX] Found ${modelName} in IndexedDB cache`);
             resolve(request.result.data);
           }
         } else {
@@ -326,7 +347,6 @@ async function saveModelToCache(modelName, data, version) {
       });
 
       transaction.oncomplete = () => {
-        console.log(`💾 [ONNX] Saved ${modelName} to IndexedDB cache`);
         resolve();
       };
       transaction.onerror = () => reject(transaction.error);
@@ -475,7 +495,6 @@ export async function clearModelCache() {
       const request = store.clear();
 
       request.onsuccess = () => {
-        console.log("🗑️ [ONNX] Cleared model cache from IndexedDB");
         resolve();
       };
       request.onerror = () => reject(request.error);
@@ -915,15 +934,16 @@ async function runInference(modelName, props) {
  * @returns {Promise<Object>} - Enhanced properties with predictions
  */
 export async function predictRoadFeatures(props) {
-  if (!isInitialized) {
-    await initOnnxModels();
-  }
-
-  // Check cache first
+  // Check cache FIRST before loading models
   const cacheKey = getPredictionCacheKey(props);
   const cachedResult = await getCachedPrediction(cacheKey);
   if (cachedResult) {
     return { ...props, ...cachedResult, _fromCache: true };
+  }
+
+  // Only load models if we need to run inference
+  if (!isInitialized) {
+    await initOnnxModels();
   }
 
   const result = { ...props };
