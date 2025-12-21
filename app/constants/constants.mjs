@@ -68,7 +68,17 @@ export const BADGE_COLOR_BY_TIER = {
   no: "var(--bs-danger)", // red
 };
 
+// Colors for ML-predicted accessibility (same hues but used with dashed border)
+export const PREDICTED_BADGE_COLOR_BY_TIER = {
+  accessible: "#16a34a", // green - maps to designated/yes
+  limited: "#ca8a04", // amber/yellow
+  not_accessible: "#dc2626", // red
+};
+
 export const ACCESSIBILITY_KEYWORDS_CLASSIFICATION_THRESHOLD = 0.985;
+
+// ML Prediction threshold - only show colored predictions above this probability
+export const PREDICTION_PROBABILITY_THRESHOLD = 0.43;
 
 // Brand Colors
 export const PRIMARY_BLUE = "#0c77d2"; // Main brand blue color

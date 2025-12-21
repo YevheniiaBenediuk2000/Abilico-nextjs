@@ -14,6 +14,7 @@ import {
   DEFAULT_ZOOM,
   EXCLUDED_PROPS,
   placeClusterConfig,
+  PREDICTION_PROBABILITY_THRESHOLD,
   SHOW_PLACES_ZOOM,
 } from "./constants/constants.mjs";
 import { toastError, toastWarn } from "./utils/toast.mjs";
@@ -132,6 +133,25 @@ let selectedMarkerState = null; // { key, marker, originalIcon }
 let placesPane;
 
 const placeClusterLayer = L.markerClusterGroup(placeClusterConfig);
+
+// Cache for ML accessibility predictions (persists across refreshes)
+const placePredictionsCache = new Map(); // placeKey -> { label, probability, confidence }
+let placePredictionsEnabled = true; // Toggle for showing predictions on map
+
+// Expose toggle function and prediction cache for React components
+if (typeof window !== "undefined") {
+  window.setPlacePredictionsEnabled = (enabled) => {
+    placePredictionsEnabled = enabled;
+    // Optionally refresh the markers when toggled
+    if (map) {
+      refreshPlaceMarkerPredictions();
+    }
+  };
+  window.isPlacePredictionsEnabled = () => placePredictionsEnabled;
+  // Expose prediction cache for PlacesListOverlay to show predictions in cards
+  window.getPlacePrediction = (placeKey) => placePredictionsCache.get(placeKey);
+  window.getPlacePredictionsCache = () => placePredictionsCache;
+}
 
 // Track when Leaflet.Draw is in editing/deleting mode
 const drawState = { editing: false, deleting: false };
@@ -1305,9 +1325,30 @@ async function refreshPlaces() {
       pointToLayer: (feature, latlng) => {
         const tags = feature.properties.tags || feature.properties;
         const placeKey = placeKeyFromFeature(feature);
+
+        // Check if we have a cached prediction for this place
+        const wheelchair =
+          tags.wheelchair ||
+          tags["toilets:wheelchair"] ||
+          tags["wheelchair:toilets"];
+        const cachedPrediction =
+          !wheelchair && placeKey ? placePredictionsCache.get(placeKey) : null;
+        const meetsThreshold =
+          cachedPrediction &&
+          cachedPrediction.probability >= PREDICTION_PROBABILITY_THRESHOLD;
+
+        // Use predicted icon if we have a high-confidence cached prediction
+        const icon =
+          placePredictionsEnabled && meetsThreshold
+            ? makePoiIcon(tags, {
+                isPredicted: true,
+                predictedTier: cachedPrediction.label,
+              })
+            : makePoiIcon(tags);
+
         const marker = L.marker(latlng, {
           pane: "places-pane",
-          icon: makePoiIcon(tags),
+          icon,
         })
           .on("click", () => {
             hideAllBootstrapTooltips();
@@ -1358,6 +1399,11 @@ async function refreshPlaces() {
     } catch (err) {
       console.error("❌ Failed to update places list overlay:", err);
     }
+
+    // ✨ Fetch ML predictions for places with unknown accessibility (async, non-blocking)
+    fetchAndApplyPlacePredictions(featuresInView).catch((err) => {
+      console.warn("ML prediction background fetch failed:", err);
+    });
   } finally {
     hideLoading(key);
   }
@@ -1400,6 +1446,197 @@ function setSelectedPlaceMarker(placeKey, tags = {}) {
     })
   );
 }
+
+// ============================================================================
+// ML ACCESSIBILITY PREDICTIONS FOR MAP MARKERS
+// ============================================================================
+
+/**
+ * Extract relevant OSM features for ML prediction from tags
+ */
+function extractFeaturesForPrediction(tags) {
+  const relevantTags = [
+    "amenity",
+    "shop",
+    "tourism",
+    "building",
+    "entrance",
+    "door",
+    "automatic_door",
+    "access",
+    "level",
+    "healthcare",
+    "office",
+    "bench",
+    "changing_table",
+    "indoor",
+    "leisure",
+  ];
+
+  const features = {};
+  for (const tag of relevantTags) {
+    const value = tags[tag];
+    if (value !== null && value !== undefined && value !== "") {
+      features[tag] = value;
+    }
+  }
+  return features;
+}
+
+/**
+ * Batch-fetch ML predictions for places with unknown accessibility
+ * and update their marker icons on the map.
+ */
+async function fetchAndApplyPlacePredictions(featuresInView) {
+  if (!placePredictionsEnabled) return;
+
+  // Find places with unknown accessibility that need prediction
+  const placesToPredict = [];
+  const placeKeyToTags = new Map();
+
+  for (const feature of featuresInView) {
+    const tags = feature.properties?.tags || feature.properties || {};
+    const placeKey = placeKeyFromFeature(feature);
+    if (!placeKey) continue;
+
+    // Check if already in cache
+    if (placePredictionsCache.has(placeKey)) continue;
+
+    // Check if accessibility is unknown
+    const wheelchair =
+      tags.wheelchair ||
+      tags["toilets:wheelchair"] ||
+      tags["wheelchair:toilets"];
+    if (wheelchair) continue; // Already has accessibility info
+
+    // Extract features for prediction
+    const features = extractFeaturesForPrediction(tags);
+    if (Object.keys(features).length === 0) continue; // Not enough data
+
+    placesToPredict.push({ placeKey, features, tags });
+    placeKeyToTags.set(placeKey, tags);
+  }
+
+  if (placesToPredict.length === 0) return;
+
+  console.log(
+    `✨ [ML Prediction] Fetching predictions for ${placesToPredict.length} places...`
+  );
+
+  try {
+    // Batch predict (limit batch size to avoid huge requests)
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < placesToPredict.length; i += BATCH_SIZE) {
+      const batch = placesToPredict.slice(i, i + BATCH_SIZE);
+      const places = batch.map((p) => p.features);
+
+      const response = await fetch("/api/accessibility-predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ places }),
+      });
+
+      if (!response.ok) {
+        console.warn("ML prediction batch failed:", response.status);
+        continue;
+      }
+
+      const result = await response.json();
+      const predictions = result.predictions || [];
+
+      // Store predictions in cache and update markers
+      for (let j = 0; j < batch.length && j < predictions.length; j++) {
+        const { placeKey, tags } = batch[j];
+        const prediction = predictions[j];
+
+        // Cache the prediction
+        placePredictionsCache.set(placeKey, prediction);
+
+        // Update marker icon if it's still on the map
+        updateMarkerWithPrediction(placeKey, tags, prediction);
+      }
+    }
+
+    console.log(
+      `✨ [ML Prediction] Updated ${placesToPredict.length} markers with predictions`
+    );
+  } catch (err) {
+    console.error("Failed to fetch place predictions:", err);
+  }
+}
+
+/**
+ * Update a single marker's icon to show the ML prediction
+ */
+function updateMarkerWithPrediction(placeKey, tags, prediction) {
+  if (!placePredictionsEnabled) return;
+
+  const marker = placeMarkersByKey.get(placeKey);
+  if (!marker || typeof marker.setIcon !== "function") return;
+
+  // Don't override the currently selected marker (it has blue badge)
+  if (selectedMarkerState && selectedMarkerState.key === placeKey) return;
+
+  // Only show prediction styling if confidence meets threshold
+  const meetsThreshold =
+    prediction.probability >= PREDICTION_PROBABILITY_THRESHOLD;
+
+  if (!meetsThreshold) {
+    // Low confidence - keep grey/unknown styling
+    return;
+  }
+
+  // Create new icon with prediction styling
+  const newIcon = makePoiIcon(tags, {
+    isPredicted: true,
+    predictedTier: prediction.label, // "accessible", "limited", or "not_accessible"
+  });
+
+  marker.setIcon(newIcon);
+}
+
+/**
+ * Refresh all place marker predictions (called when toggle changes)
+ */
+function refreshPlaceMarkerPredictions() {
+  for (const [placeKey, marker] of placeMarkersByKey) {
+    // Skip currently selected marker
+    if (selectedMarkerState && selectedMarkerState.key === placeKey) continue;
+
+    // Get the cached feature tags
+    const feature = placesCacheById.get(placeKey);
+    if (!feature) continue;
+
+    const tags = feature.properties?.tags || feature.properties || {};
+    const wheelchair =
+      tags.wheelchair ||
+      tags["toilets:wheelchair"] ||
+      tags["wheelchair:toilets"];
+
+    if (wheelchair) continue; // Has known accessibility, skip
+
+    const prediction = placePredictionsCache.get(placeKey);
+
+    // Only show prediction styling if confidence meets threshold
+    const meetsThreshold =
+      prediction && prediction.probability >= PREDICTION_PROBABILITY_THRESHOLD;
+
+    if (placePredictionsEnabled && meetsThreshold) {
+      // Show prediction styling
+      marker.setIcon(
+        makePoiIcon(tags, {
+          isPredicted: true,
+          predictedTier: prediction.label,
+        })
+      );
+    } else {
+      // Revert to default unknown styling (low confidence or disabled)
+      marker.setIcon(makePoiIcon(tags));
+    }
+  }
+}
+
+// ============================================================================
 
 function moveDepartureSearchBarUnderTo() {
   const directionsUi = getDirectionsUiEl();
@@ -3791,13 +4028,38 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
         predIcon.style.justifyContent = "center";
         predIcon.style.flexShrink = "0";
 
-        const isAccessible = result.label === "accessible";
-        predIcon.style.backgroundColor = isAccessible
-          ? "rgba(22, 163, 74, 0.1)"
-          : "rgba(220, 38, 38, 0.1)";
-        predIcon.innerHTML = isAccessible
-          ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>`
-          : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>`;
+        // Handle 3-class predictions: accessible, limited, not_accessible
+        const predictionLabel = result.label;
+        const isAccessible = predictionLabel === "accessible";
+        const isLimited = predictionLabel === "limited";
+        const isNotAccessible = predictionLabel === "not_accessible";
+
+        // Set colors based on prediction class
+        let iconColor, bgColor, labelText;
+        if (isAccessible) {
+          iconColor = "#16a34a"; // green
+          bgColor = "rgba(22, 163, 74, 0.1)";
+          labelText = "Likely Accessible";
+        } else if (isLimited) {
+          iconColor = "#ca8a04"; // yellow/amber
+          bgColor = "rgba(202, 138, 4, 0.1)";
+          labelText = "Likely Limited Access";
+        } else {
+          iconColor = "#dc2626"; // red
+          bgColor = "rgba(220, 38, 38, 0.1)";
+          labelText = "Likely Not Accessible";
+        }
+
+        predIcon.style.backgroundColor = bgColor;
+
+        // Different icons for each state
+        if (isAccessible) {
+          predIcon.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>`;
+        } else if (isLimited) {
+          predIcon.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2"><path d="M12 9v4M12 17h.01M12 3a9 9 0 100 18 9 9 0 000-18z"/></svg>`;
+        } else {
+          predIcon.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>`;
+        }
 
         // Prediction text
         const predTextWrapper = document.createElement("div");
@@ -3806,17 +4068,15 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
         const predLabel = document.createElement("div");
         predLabel.style.fontSize = "0.9375rem";
         predLabel.style.fontWeight = "500";
-        predLabel.style.color = isAccessible ? "#16a34a" : "#dc2626";
-        predLabel.textContent = isAccessible
-          ? "Likely Accessible"
-          : "Likely Not Accessible";
+        predLabel.style.color = iconColor;
+        predLabel.textContent = labelText;
 
         const predConfidence = document.createElement("div");
         predConfidence.style.fontSize = "0.75rem";
         predConfidence.style.color = "rgba(0, 0, 0, 0.5)";
         predConfidence.style.marginTop = "2px";
         const confidencePercent = Math.round(result.probability * 100);
-        predConfidence.textContent = `${confidencePercent}% confidence (${result.confidence})`;
+        predConfidence.textContent = `${confidencePercent}% confidence`;
 
         predTextWrapper.appendChild(predLabel);
         predTextWrapper.appendChild(predConfidence);

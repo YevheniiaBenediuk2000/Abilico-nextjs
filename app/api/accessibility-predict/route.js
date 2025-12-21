@@ -2,7 +2,12 @@
  * Accessibility Prediction API Route
  *
  * Predicts wheelchair accessibility for places based on OSM features
- * using a trained Gradient Boosting model converted to ONNX format.
+ * using a trained ML model converted to ONNX format.
+ *
+ * Supports 3-class classification:
+ * - accessible (wheelchair=yes or designated)
+ * - limited (wheelchair=limited)
+ * - not_accessible (wheelchair=no)
  *
  * POST /api/accessibility-predict
  * Body: { places: [{ amenity: "restaurant", building: "yes", ... }] }
@@ -11,9 +16,10 @@
  *
  * Response: {
  *   predictions: [{
- *     label: "accessible" | "not_accessible",
+ *     label: "accessible" | "limited" | "not_accessible",
  *     probability: 0.85,
- *     confidence: "high" | "medium" | "low"
+ *     confidence: "high" | "medium" | "low",
+ *     probabilities: { accessible: 0.85, limited: 0.10, not_accessible: 0.05 }
  *   }]
  * }
  */
@@ -51,6 +57,8 @@ async function runInference(places, options = {}) {
 
   const numFeatures = config.feature_columns.length;
   const batchSize = places.length;
+  const numClasses = config.n_classes || 2;
+  const labels = config.labels || ["not_accessible", "accessible"];
 
   // Encode features
   const featuresArray = encodeBatch(places);
@@ -66,33 +74,41 @@ async function runInference(places, options = {}) {
   const results = await session.run(feeds);
 
   // Extract predictions - the model outputs label and probabilities tensors
-  const labels = results.output_label?.data || results.label?.data;
-  const probabilities =
+  const labelData = results.output_label?.data || results.label?.data;
+  const probData =
     results.output_probability?.data || results.probabilities?.data;
 
   // Format results
   const predictions = [];
   for (let i = 0; i < batchSize; i++) {
-    const label = labels ? Number(labels[i]) : 1;
+    const predictedClassIdx = labelData ? Number(labelData[i]) : 0;
 
-    // Probabilities are in format [class0_prob_sample0, class1_prob_sample0, class0_prob_sample1, class1_prob_sample1, ...]
-    // With zipmap=False, each sample has 2 probability values (for class 0 and class 1)
-    let accessibleProbability = 0.5;
+    // Build probabilities object for all classes
+    const classProbabilities = {};
+    let maxProb = 0;
 
-    if (probabilities && probabilities.length) {
-      // Each sample has 2 values: [prob_class_0, prob_class_1]
-      const numClasses = 2;
-      accessibleProbability = probabilities[i * numClasses + 1] ?? 0.5;
+    if (probData && probData.length) {
+      // Each sample has numClasses probability values
+      for (let c = 0; c < numClasses; c++) {
+        const prob = probData[i * numClasses + c] ?? 0;
+        classProbabilities[labels[c]] = Math.round(prob * 1000) / 1000;
+        if (prob > maxProb) maxProb = prob;
+      }
+    } else {
+      // Fallback if no probabilities available
+      labels.forEach((label, idx) => {
+        classProbabilities[label] = idx === predictedClassIdx ? 1.0 : 0.0;
+      });
+      maxProb = 1.0;
     }
 
-    const labelName = label === 1 ? "accessible" : "not_accessible";
-    const displayProbability =
-      label === 1 ? accessibleProbability : 1 - accessibleProbability;
+    const labelName = labels[predictedClassIdx] || "unknown";
 
     const prediction = {
       label: labelName,
-      probability: Math.round(displayProbability * 1000) / 1000,
-      confidence: getConfidence(accessibleProbability),
+      probability: Math.round(maxProb * 1000) / 1000,
+      confidence: getConfidence(maxProb),
+      probabilities: classProbabilities,
     };
 
     // Always include the top contributing features (based on feature importance)
@@ -109,6 +125,7 @@ async function runInference(places, options = {}) {
   return {
     predictions,
     model: config.model_name,
+    n_classes: numClasses,
     metrics: config.metrics,
   };
 }
