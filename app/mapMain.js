@@ -4075,7 +4075,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
         predConfidence.style.color = "rgba(0, 0, 0, 0.5)";
         predConfidence.style.marginTop = "2px";
         const confidencePercent = Math.round(result.probability * 100);
-        predConfidence.textContent = `${confidencePercent}% confidence (${result.confidence})`;
+        predConfidence.textContent = `${confidencePercent}% confidence`;
 
         predTextWrapper.appendChild(predLabel);
         predTextWrapper.appendChild(predConfidence);
