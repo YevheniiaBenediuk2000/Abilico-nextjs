@@ -2,6 +2,11 @@ import debounce from "lodash.debounce";
 
 import elements from "./constants/domElements.js";
 import {
+  predictAccessibilityBatch,
+  predictAccessibility,
+  preloadAccessibilityModel,
+} from "./utils/accessibilityPredict.js";
+import {
   fetchPlace,
   fetchPlaceGeometry,
   fetchPlaceIds,
@@ -1520,40 +1525,34 @@ async function fetchAndApplyPlacePredictions(featuresInView) {
   if (placesToPredict.length === 0) return;
 
   console.log(
-    `✨ [ML Prediction] Fetching predictions for ${placesToPredict.length} places...`
+    `✨ [ML Prediction] Running client-side predictions for ${placesToPredict.length} places...`
   );
 
   try {
-    // Batch predict (limit batch size to avoid huge requests)
+    // Batch predict (limit batch size for memory efficiency)
     const BATCH_SIZE = 50;
     for (let i = 0; i < placesToPredict.length; i += BATCH_SIZE) {
       const batch = placesToPredict.slice(i, i + BATCH_SIZE);
       const places = batch.map((p) => p.features);
 
-      const response = await fetch("/api/accessibility-predict", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ places }),
-      });
+      try {
+        const result = await predictAccessibilityBatch(places);
+        const predictions = result.predictions || [];
 
-      if (!response.ok) {
-        console.warn("ML prediction batch failed:", response.status);
+        // Store predictions in cache and update markers
+        for (let j = 0; j < batch.length && j < predictions.length; j++) {
+          const { placeKey, tags } = batch[j];
+          const prediction = predictions[j];
+
+          // Cache the prediction
+          placePredictionsCache.set(placeKey, prediction);
+
+          // Update marker icon if it's still on the map
+          updateMarkerWithPrediction(placeKey, tags, prediction);
+        }
+      } catch (batchErr) {
+        console.warn("ML prediction batch failed:", batchErr.message);
         continue;
-      }
-
-      const result = await response.json();
-      const predictions = result.predictions || [];
-
-      // Store predictions in cache and update markers
-      for (let j = 0; j < batch.length && j < predictions.length; j++) {
-        const { placeKey, tags } = batch[j];
-        const prediction = predictions[j];
-
-        // Cache the prediction
-        placePredictionsCache.set(placeKey, prediction);
-
-        // Update marker icon if it's still on the map
-        updateMarkerWithPrediction(placeKey, tags, prediction);
       }
     }
 
@@ -1561,7 +1560,7 @@ async function fetchAndApplyPlacePredictions(featuresInView) {
       `✨ [ML Prediction] Updated ${placesToPredict.length} markers with predictions`
     );
   } catch (err) {
-    console.error("Failed to fetch place predictions:", err);
+    console.error("Failed to run place predictions:", err);
   }
 }
 
@@ -4002,18 +4001,8 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
           return;
         }
 
-        // Build query string
-        const params = new URLSearchParams();
-        for (const [key, value] of Object.entries(features)) {
-          params.append(key, String(value));
-        }
-
-        const response = await fetch(
-          `/api/accessibility-predict?${params.toString()}`
-        );
-        if (!response.ok) throw new Error("Prediction failed");
-
-        const result = await response.json();
+        // Use client-side ONNX prediction
+        const result = await predictAccessibility(features);
 
         // Update UI with prediction result
         predictionContent.innerHTML = "";
@@ -8056,7 +8045,11 @@ export async function initMap(user = null) {
       window.isPredictionsEnabled = isPredictionsEnabled;
       window.isOnnxModelsReady = isOnnxModelsReady;
       window.preloadOnnxModelsInBackground = preloadOnnxModelsInBackground;
+      window.preloadAccessibilityModel = preloadAccessibilityModel;
     }
+
+    // Preload accessibility model in background
+    preloadAccessibilityModel();
 
     map.on("baselayerchange", (e) => ls.set(BASEMAP_LS_KEY, e.name));
     map.on("zoomend", toggleObstaclesByZoom);
