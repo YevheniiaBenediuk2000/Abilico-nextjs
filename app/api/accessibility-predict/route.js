@@ -25,7 +25,6 @@
  */
 
 import { NextResponse } from "next/server";
-import * as ort from "onnxruntime-node";
 import OnnxModelSingleton from "./onnx-model.js";
 import {
   encodeFeatures,
@@ -37,6 +36,15 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
+
+// Dynamic import for onnxruntime-node (may not be available in all environments)
+let ort = null;
+async function getOrt() {
+  if (!ort) {
+    ort = await import("onnxruntime-node");
+  }
+  return ort;
+}
 
 /**
  * Determine confidence level based on probability distance from 0.5
@@ -52,6 +60,7 @@ function getConfidence(probability) {
  * Run inference on the ONNX model
  */
 async function runInference(places, options = {}) {
+  const ortModule = await getOrt();
   const session = await OnnxModelSingleton.getInstance();
   const config = OnnxModelSingleton.getConfig();
 
@@ -64,7 +73,7 @@ async function runInference(places, options = {}) {
   const featuresArray = encodeBatch(places);
 
   // Create ONNX tensor
-  const inputTensor = new ort.Tensor("float32", featuresArray, [
+  const inputTensor = new ortModule.Tensor("float32", featuresArray, [
     batchSize,
     numFeatures,
   ]);

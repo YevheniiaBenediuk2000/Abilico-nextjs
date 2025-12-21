@@ -5,15 +5,30 @@
  * for real-time wheelchair accessibility predictions.
  */
 
-import * as ort from "onnxruntime-node";
 import path from "path";
 import modelConfig from "./model_config.json" with { type: "json" };
+
+// Dynamic import to handle environments where onnxruntime-node isn't available
+let ort = null;
+let ortLoadError = null;
+
+try {
+  ort = await import("onnxruntime-node");
+} catch (e) {
+  ortLoadError = e;
+  console.warn("⚠️ onnxruntime-node not available:", e.message);
+}
 
 class OnnxModelSingleton {
   static instance = null;
   static config = modelConfig;
+  static loadError = ortLoadError;
 
   static async getInstance() {
+    if (this.loadError) {
+      throw new Error(`ONNX runtime not available: ${this.loadError.message}`);
+    }
+    
     if (this.instance === null) {
       console.log("Loading ONNX accessibility model...");
       
@@ -34,6 +49,10 @@ class OnnxModelSingleton {
 
   static getConfig() {
     return this.config;
+  }
+  
+  static isAvailable() {
+    return ort !== null && !this.loadError;
   }
 }
 
