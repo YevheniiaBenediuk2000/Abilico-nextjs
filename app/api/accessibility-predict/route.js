@@ -145,11 +145,14 @@ async function runInference(places, options = {}) {
 export async function GET(request) {
   try {
     // Check if ONNX runtime is available
-    if (!OnnxModelSingleton.isAvailable()) {
+    const isAvailable = await OnnxModelSingleton.checkAvailability();
+    if (!isAvailable) {
+      const loadError = OnnxModelSingleton.getLoadError();
       return NextResponse.json(
         {
           error: "ML model not available in this environment",
           hint: "ONNX runtime requires native binaries not available on serverless",
+          details: loadError?.message || "Unknown error",
         },
         { status: 503 }
       );
@@ -213,11 +216,14 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     // Check if ONNX runtime is available
-    if (!OnnxModelSingleton.isAvailable()) {
+    const isAvailable = await OnnxModelSingleton.checkAvailability();
+    if (!isAvailable) {
+      const loadError = OnnxModelSingleton.getLoadError();
       return NextResponse.json(
         {
           error: "ML model not available in this environment",
           hint: "ONNX runtime requires native binaries not available on serverless",
+          details: loadError?.message || "Unknown error",
         },
         { status: 503 }
       );

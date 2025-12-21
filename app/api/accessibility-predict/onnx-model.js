@@ -103,11 +103,20 @@ class OnnxModelSingleton {
     return this.config;
   }
   
-  static isAvailable() {
-    // If we haven't tried loading yet, assume it's available
-    // The actual check happens in getInstance()
-    if (!ortLoadAttempted) return true;
+  static async checkAvailability() {
+    // Try loading ONNX if not attempted yet
+    await loadOrt();
     return ort !== null && !ortLoadError;
+  }
+  
+  static isAvailable() {
+    // If we haven't tried loading yet, we don't know
+    if (!ortLoadAttempted) return null;
+    return ort !== null && !ortLoadError;
+  }
+  
+  static getLoadError() {
+    return ortLoadError;
   }
 }
 
