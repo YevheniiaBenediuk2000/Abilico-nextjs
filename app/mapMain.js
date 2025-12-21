@@ -78,6 +78,18 @@ import {
 
 import { recomputePlaceAccessibilityKeywords } from "./modules/accessibilityKeywordsExtraction.js";
 import globals from "./constants/globalVariables.js";
+import {
+  initRoadAccessibilityLayer,
+  setRoadAccessibilityEnabled,
+  setVisualizationMode,
+  isRoadAccessibilityEnabled,
+  forceRefreshRoads,
+  setRoadLoadingCallback,
+  isRoadAccessibilityLoading,
+  setPredictionsEnabled,
+  isPredictionsEnabled,
+  isOnnxModelsReady,
+} from "./modules/roadAccessibilityMap.js";
 
 // DEBUG: confirm import really works
 // console.log("🔍 computePlaceScores import is:", computePlaceScores);
@@ -3540,27 +3552,39 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   // Check for user-reported accessibility (from approved reports) - this takes precedence
   const userReportedAccessibility = nTags.user_reported_accessibility || null;
-  const userReportedWheelchair = userReportedAccessibility && typeof userReportedAccessibility === 'object' 
-    ? userReportedAccessibility.wheelchair 
-    : null;
-  
+  const userReportedWheelchair =
+    userReportedAccessibility && typeof userReportedAccessibility === "object"
+      ? userReportedAccessibility.wheelchair
+      : null;
+
   // If admin approved a user report, use that as the primary status (overwrites original)
   // Otherwise, use the original wheelchair status
-  const primaryWheelchair = userReportedWheelchair || wheelchairTags.wheelchair || wheelchairTags.Wheelchair || null;
+  const primaryWheelchair =
+    userReportedWheelchair ||
+    wheelchairTags.wheelchair ||
+    wheelchairTags.Wheelchair ||
+    null;
   const primaryTier = getAccessibilityTier({ wheelchair: primaryWheelchair });
   const primaryLabel = TIER_LABELS[primaryTier] || "Unknown";
   const primaryColor = TIER_COLORS[primaryTier] || TIER_COLORS.unknown;
-  
+
   // Original status (only shown if different from user-reported or if no user report exists)
-  const originalWheelchair = wheelchairTags.wheelchair || wheelchairTags.Wheelchair || null;
+  const originalWheelchair =
+    wheelchairTags.wheelchair || wheelchairTags.Wheelchair || null;
   const originalTier = getAccessibilityTier({ wheelchair: originalWheelchair });
   const originalLabel = TIER_LABELS[originalTier] || "Unknown";
   const originalColor = TIER_COLORS[originalTier] || TIER_COLORS.unknown;
-  
+
   const userReportedComment = nTags.user_reported_accessibility_comment || null;
-  
+
   // Show original status separately only if user-reported status exists and is different
-  const showOriginalSeparately = userReportedWheelchair && originalWheelchair && originalWheelchair !== userReportedWheelchair;
+  const showOriginalSeparately =
+    userReportedWheelchair &&
+    originalWheelchair &&
+    originalWheelchair !== userReportedWheelchair;
+
+  // Track if we need to show ML prediction (for unknown accessibility)
+  const showMlPrediction = tier === "unknown";
 
   const accItem = document.createElement("div");
   accItem.className = "list-group-item";
@@ -3591,7 +3615,12 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   header.appendChild(title);
 
   // Helper function to create a status card
-  const createStatusCard = (labelText, statusLabel, statusColor, isUserReported = false) => {
+  const createStatusCard = (
+    labelText,
+    statusLabel,
+    statusColor,
+    isUserReported = false
+  ) => {
     const cardContainer = document.createElement("div");
     cardContainer.style.border = "1px solid";
     cardContainer.style.borderColor = "rgba(0, 0, 0, 0.12)"; // divider
@@ -3681,29 +3710,223 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   };
 
   // Primary status card (user-reported if admin approved, otherwise original)
-  const statusLabel = userReportedWheelchair ? "STATUS (User Reported)" : "STATUS";
-  const primaryStatusCard = createStatusCard(statusLabel, primaryLabel, primaryColor, false);
+  const statusLabel = userReportedWheelchair
+    ? "STATUS (User Reported)"
+    : "STATUS";
+  const primaryStatusCard = createStatusCard(
+    statusLabel,
+    primaryLabel,
+    primaryColor,
+    false
+  );
   container.appendChild(header);
-  container.appendChild(primaryStatusCard);
+  container.appendChild(cardContainer);
 
-  // Show original status separately if user-reported exists and is different
-  if (showOriginalSeparately) {
-    const originalStatusCard = createStatusCard("ORIGINAL STATUS", originalLabel, originalColor, true);
-    container.appendChild(originalStatusCard);
-  }
+  // --- ML PREDICTION: Show AI prediction when wheelchair status is unknown ---
+  if (showMlPrediction) {
+    // Create prediction container (initially shows loading state)
+    const predictionContainer = document.createElement("div");
+    predictionContainer.style.marginTop = "16px";
+    predictionContainer.style.padding = "16px";
+    predictionContainer.style.backgroundColor = "rgba(12, 119, 210, 0.05)"; // light blue background
+    predictionContainer.style.borderRadius = "12px";
+    predictionContainer.style.border = "1px dashed rgba(12, 119, 210, 0.3)";
 
-  // Add user comment if available (only if user-reported status exists)
-  if (userReportedWheelchair && userReportedComment) {
-    const commentElement = document.createElement("div");
-    commentElement.style.marginTop = "8px";
-    commentElement.style.padding = "8px 12px";
-    commentElement.style.backgroundColor = "rgba(0, 0, 0, 0.02)";
-    commentElement.style.borderRadius = "8px";
-    commentElement.style.fontSize = "0.875rem";
-    commentElement.style.color = "rgba(0, 0, 0, 0.7)";
-    commentElement.style.fontStyle = "italic";
-    commentElement.textContent = `"${userReportedComment}"`;
-    container.appendChild(commentElement);
+    // Header with AI icon
+    const predictionHeader = document.createElement("div");
+    predictionHeader.style.display = "flex";
+    predictionHeader.style.alignItems = "center";
+    predictionHeader.style.gap = "8px";
+    predictionHeader.style.marginBottom = "12px";
+
+    const aiIcon = document.createElement("span");
+    aiIcon.textContent = "✨";
+    aiIcon.style.fontSize = "14px";
+
+    const predictionTitle = document.createElement("span");
+    predictionTitle.style.fontSize = "0.75rem";
+    predictionTitle.style.fontWeight = "600";
+    predictionTitle.style.color = "#0c77d2";
+    predictionTitle.style.textTransform = "uppercase";
+    predictionTitle.style.letterSpacing = "0.5px";
+    predictionTitle.textContent = "AI Prediction";
+
+    predictionHeader.appendChild(aiIcon);
+    predictionHeader.appendChild(predictionTitle);
+
+    // Content area (will be updated after fetch)
+    const predictionContent = document.createElement("div");
+    predictionContent.style.display = "flex";
+    predictionContent.style.alignItems = "center";
+    predictionContent.style.gap = "12px";
+
+    // Loading state
+    const loadingText = document.createElement("span");
+    loadingText.style.fontSize = "0.875rem";
+    loadingText.style.color = "rgba(0, 0, 0, 0.6)";
+    loadingText.textContent = "Analyzing accessibility...";
+    predictionContent.appendChild(loadingText);
+
+    predictionContainer.appendChild(predictionHeader);
+    predictionContainer.appendChild(predictionContent);
+    container.appendChild(predictionContainer);
+
+    // Fetch ML prediction asynchronously
+    (async () => {
+      try {
+        // Extract relevant OSM features for prediction
+        const features = {};
+        const relevantTags = [
+          "amenity",
+          "shop",
+          "tourism",
+          "building",
+          "entrance",
+          "door",
+          "automatic_door",
+          "access",
+          "level",
+          "healthcare",
+          "office",
+          "bench",
+          "changing_table",
+          "indoor",
+          "leisure",
+        ];
+
+        for (const tag of relevantTags) {
+          const value = nTags[tag] || nTags[`tags.${tag}`];
+          if (value !== null && value !== undefined && value !== "") {
+            features[tag] = value;
+          }
+        }
+
+        // Only predict if we have some features
+        if (Object.keys(features).length === 0) {
+          predictionContent.innerHTML = "";
+          const noDataText = document.createElement("span");
+          noDataText.style.fontSize = "0.875rem";
+          noDataText.style.color = "rgba(0, 0, 0, 0.5)";
+          noDataText.style.fontStyle = "italic";
+          noDataText.textContent = "Not enough data for prediction";
+          predictionContent.appendChild(noDataText);
+          return;
+        }
+
+        // Build query string
+        const params = new URLSearchParams();
+        for (const [key, value] of Object.entries(features)) {
+          params.append(key, String(value));
+        }
+
+        const response = await fetch(
+          `/api/accessibility-predict?${params.toString()}`
+        );
+        if (!response.ok) throw new Error("Prediction failed");
+
+        const result = await response.json();
+
+        // Update UI with prediction result
+        predictionContent.innerHTML = "";
+
+        // Prediction icon
+        const predIcon = document.createElement("div");
+        predIcon.style.width = "36px";
+        predIcon.style.height = "36px";
+        predIcon.style.borderRadius = "50%";
+        predIcon.style.display = "flex";
+        predIcon.style.alignItems = "center";
+        predIcon.style.justifyContent = "center";
+        predIcon.style.flexShrink = "0";
+
+        const isAccessible = result.label === "accessible";
+        predIcon.style.backgroundColor = isAccessible
+          ? "rgba(22, 163, 74, 0.1)"
+          : "rgba(220, 38, 38, 0.1)";
+        predIcon.innerHTML = isAccessible
+          ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>`
+          : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>`;
+
+        // Prediction text
+        const predTextWrapper = document.createElement("div");
+        predTextWrapper.style.flex = "1";
+
+        const predLabel = document.createElement("div");
+        predLabel.style.fontSize = "0.9375rem";
+        predLabel.style.fontWeight = "500";
+        predLabel.style.color = isAccessible ? "#16a34a" : "#dc2626";
+        predLabel.textContent = isAccessible
+          ? "Likely Accessible"
+          : "Likely Not Accessible";
+
+        const predConfidence = document.createElement("div");
+        predConfidence.style.fontSize = "0.75rem";
+        predConfidence.style.color = "rgba(0, 0, 0, 0.5)";
+        predConfidence.style.marginTop = "2px";
+        const confidencePercent = Math.round(result.probability * 100);
+        predConfidence.textContent = `${confidencePercent}% confidence (${result.confidence})`;
+
+        predTextWrapper.appendChild(predLabel);
+        predTextWrapper.appendChild(predConfidence);
+
+        predictionContent.appendChild(predIcon);
+        predictionContent.appendChild(predTextWrapper);
+
+        // Add "Based on" features section if available
+        if (result.basedOn && result.basedOn.length > 0) {
+          const basedOnSection = document.createElement("div");
+          basedOnSection.style.marginTop = "12px";
+          basedOnSection.style.paddingTop = "10px";
+          basedOnSection.style.borderTop = "1px solid rgba(12, 119, 210, 0.15)";
+
+          const basedOnLabel = document.createElement("div");
+          basedOnLabel.style.fontSize = "0.6875rem";
+          basedOnLabel.style.color = "rgba(0, 0, 0, 0.5)";
+          basedOnLabel.style.marginBottom = "6px";
+          basedOnLabel.textContent = "Based on:";
+
+          const featureChips = document.createElement("div");
+          featureChips.style.display = "flex";
+          featureChips.style.flexWrap = "wrap";
+          featureChips.style.gap = "6px";
+
+          result.basedOn.forEach((f) => {
+            const chip = document.createElement("span");
+            chip.style.display = "inline-block";
+            chip.style.padding = "3px 8px";
+            chip.style.fontSize = "0.6875rem";
+            chip.style.backgroundColor = "rgba(12, 119, 210, 0.1)";
+            chip.style.color = "#0c77d2";
+            chip.style.borderRadius = "12px";
+            chip.style.fontWeight = "500";
+            chip.textContent = f.displayName;
+            featureChips.appendChild(chip);
+          });
+
+          basedOnSection.appendChild(basedOnLabel);
+          basedOnSection.appendChild(featureChips);
+          predictionContainer.appendChild(basedOnSection);
+        }
+
+        // Add disclaimer
+        const disclaimer = document.createElement("div");
+        disclaimer.style.marginTop = "10px";
+        disclaimer.style.fontSize = "0.6875rem";
+        disclaimer.style.color = "rgba(0, 0, 0, 0.4)";
+        disclaimer.style.fontStyle = "italic";
+        disclaimer.textContent =
+          "Based on ML analysis of place characteristics. Actual accessibility may vary.";
+        predictionContainer.appendChild(disclaimer);
+      } catch (err) {
+        console.warn("Failed to get accessibility prediction:", err);
+        predictionContent.innerHTML = "";
+        const errorText = document.createElement("span");
+        errorText.style.fontSize = "0.875rem";
+        errorText.style.color = "rgba(0, 0, 0, 0.5)";
+        errorText.textContent = "Could not analyze accessibility";
+        predictionContent.appendChild(errorText);
+      }
+    })();
   }
 
   accItem.appendChild(container);
@@ -7602,6 +7825,22 @@ export async function initMap(user = null) {
 
     map.addControl(new BasemapGallery({ initial: initialName }));
 
+    // Initialize road accessibility layer (disabled by default)
+    initRoadAccessibilityLayer(map);
+    // Expose road accessibility controls globally for React components
+    if (typeof window !== "undefined") {
+      window.setRoadAccessibilityEnabled = (enabled) =>
+        setRoadAccessibilityEnabled(map, enabled);
+      window.setRoadVisualizationMode = setVisualizationMode;
+      window.isRoadAccessibilityEnabled = isRoadAccessibilityEnabled;
+      window.forceRefreshRoads = () => forceRefreshRoads(map);
+      window.setRoadLoadingCallback = setRoadLoadingCallback;
+      window.isRoadAccessibilityLoading = isRoadAccessibilityLoading;
+      window.setPredictionsEnabled = setPredictionsEnabled;
+      window.isPredictionsEnabled = isPredictionsEnabled;
+      window.isOnnxModelsReady = isOnnxModelsReady;
+    }
+
     map.on("baselayerchange", (e) => ls.set(BASEMAP_LS_KEY, e.name));
     map.on("zoomend", toggleObstaclesByZoom);
     map.on("click", async (e) => {
@@ -7849,7 +8088,7 @@ export async function initMap(user = null) {
 
   // ✅ Function to ensure reviews are loaded for the current place
   // This is called when the reviews tab is clicked to ensure reviews are fetched
-  window.ensureReviewsLoaded = async function() {
+  window.ensureReviewsLoaded = async function () {
     try {
       // Check if we already have reviews loaded for the current place
       const currentPlaceId = globals.detailsCtx?.placeId;
@@ -7880,7 +8119,10 @@ export async function initMap(user = null) {
       };
 
       if (!isValidUUID(placeId)) {
-        console.warn("⚠️ ensureReviewsLoaded: placeId is not a valid UUID:", placeId);
+        console.warn(
+          "⚠️ ensureReviewsLoaded: placeId is not a valid UUID:",
+          placeId
+        );
         return;
       }
 
@@ -7898,7 +8140,7 @@ export async function initMap(user = null) {
       // Check if reviews are cached in queryClient
       const reviewsQueryKey = ["place-reviews", placeId];
       const cached = queryClient.getQueryData(reviewsQueryKey);
-      
+
       // If we have cached reviews, use them and render
       if (Array.isArray(cached) && cached.length > 0) {
         globals.reviews = cached;

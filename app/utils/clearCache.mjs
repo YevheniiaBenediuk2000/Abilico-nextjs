@@ -2,9 +2,28 @@ import { clearAppCache, LS_KEYS } from "./localStorage.mjs";
 import { queryClient } from "../queryClient.js";
 
 /**
+ * Clear IndexedDB caches (places and waypoints)
+ */
+export async function clearIndexedDBCache() {
+  if (typeof window === "undefined") return;
+
+  try {
+    // Import dynamically to avoid SSR issues
+    const { clearPlacesCache } = await import("./placesPersistence.js");
+    const { clearWaypointsCache } = await import("./waypointsPersistence.js");
+
+    await Promise.all([clearPlacesCache(), clearWaypointsCache()]);
+    console.log("✅ Cleared IndexedDB caches (places + waypoints)");
+  } catch (e) {
+    console.warn("Failed to clear IndexedDB caches:", e);
+  }
+}
+
+/**
  * Clear all application caches including:
  * - localStorage items
  * - React Query cache
+ * - IndexedDB caches (places, waypoints)
  * - In-memory caches (places, user preferences)
  */
 export async function clearAllCaches() {
@@ -20,7 +39,10 @@ export async function clearAllCaches() {
   queryClient.invalidateQueries();
   console.log("✅ Cleared React Query cache");
 
-  // 3. Clear in-memory caches from mapMain.js if available
+  // 3. Clear IndexedDB caches
+  await clearIndexedDBCache();
+
+  // 4. Clear in-memory caches from mapMain.js if available
   if (typeof window !== "undefined") {
     if (typeof window.clearMapCaches === "function") {
       window.clearMapCaches();
@@ -52,4 +74,5 @@ if (typeof window !== "undefined") {
   window.clearAllCaches = clearAllCaches;
   window.clearLocalStorageCache = clearLocalStorageCache;
   window.clearReactQueryCache = clearReactQueryCache;
+  window.clearIndexedDBCache = clearIndexedDBCache;
 }
