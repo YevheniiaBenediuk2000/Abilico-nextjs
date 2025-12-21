@@ -122,8 +122,6 @@ export async function fetchRoadIds(bounds) {
     out ids;
   `;
 
-  console.log("🆔 [fetchRoadIds] Fetching road IDs...");
-
   let lastError = null;
 
   for (const endpoint of OVERPASS_ENDPOINTS) {
@@ -145,7 +143,6 @@ export async function fetchRoadIds(bounds) {
           type: el.type,
           id: el.id,
         }));
-        console.log(`🆔 [fetchRoadIds] Got ${ids.length} road IDs`);
         return ids;
       }, pRetryConfig);
     } catch (error) {
@@ -194,8 +191,6 @@ export async function fetchRoadsByIds(ids) {
     out body geom;
   `;
 
-  console.log(`📦 [fetchRoadsByIds] Fetching ${ids.length} roads by ID...`);
-
   let lastError = null;
 
   for (const endpoint of OVERPASS_ENDPOINTS) {
@@ -212,9 +207,6 @@ export async function fetchRoadsByIds(ids) {
         }
 
         const data = await response.json();
-        console.log(
-          `📦 [fetchRoadsByIds] Got ${data.elements?.length || 0} elements`
-        );
         const geojson = osmtogeojson(data);
 
         // Enrich with accessibility scores

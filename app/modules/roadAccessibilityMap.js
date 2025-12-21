@@ -40,12 +40,58 @@ let currentBounds = null;
 let isLoadingRoadData = false;
 let loadingStateCallback = null;
 
+// Background ONNX loading state
+let onnxLoadingPromise = null;
+let isApplyingPredictions = false;
+let pendingPredictionFeatures = null; // Features waiting for predictions
+let currentMapRef = null; // Reference to map for background updates
+
 /**
  * Set callback for loading state changes
  * @param {Function} callback - Called with boolean indicating loading state
  */
 export function setRoadLoadingCallback(callback) {
   loadingStateCallback = callback;
+}
+
+/**
+ * Preload ONNX models in the background (call on app startup)
+ * This allows models to be ready when user enables road accessibility
+ */
+export function preloadOnnxModelsInBackground() {
+  if (onnxLoadingPromise || isOnnxReady()) {
+    console.log("🤖 [ONNX] Models already loading or loaded");
+    return onnxLoadingPromise || Promise.resolve();
+  }
+
+  console.log("🤖 [ONNX] Starting background preload of models...");
+  onnxLoadingPromise = initOnnxModels()
+    .then(() => {
+      console.log("🤖 [ONNX] Background preload complete!");
+      console.log("🤖 Available models:", getAvailableModels());
+
+      // If there are pending features waiting for predictions, apply them now
+      if (
+        pendingPredictionFeatures &&
+        roadAccessibilityEnabled &&
+        currentMapRef
+      ) {
+        console.log(
+          "🤖 [ONNX] Applying pending predictions to",
+          pendingPredictionFeatures.length,
+          "features"
+        );
+        applyPredictionsInBackground(pendingPredictionFeatures);
+      }
+      return true;
+    })
+    .catch((err) => {
+      console.warn("🤖 [ONNX] Background preload failed:", err);
+      onnxLoadingPromise = null;
+      return false;
+    });
+
+  return onnxLoadingPromise;
 }
 
 /**
@@ -79,7 +125,9 @@ const MIN_ZOOM_FOR_ROADS = 14;
  * Ensure the IndexedDB waypoints cache is loaded into memory
  */
 async function ensureWaypointsCacheLoaded() {
-  if (indexedDBWaypointsCacheLoaded) return;
+  if (indexedDBWaypointsCacheLoaded) {
+    return;
+  }
   try {
     const cached = await loadWaypointsFromCache();
     cached.forEach((item) => {
@@ -200,13 +248,8 @@ async function fetchWaypointsWithCache(bounds) {
   const ids = await fetchRoadIds(bounds);
 
   if (!ids || ids.length === 0) {
-    console.log("🆔 [fetchWaypointsWithCache] No road IDs returned");
     return { type: "FeatureCollection", features: [] };
   }
-
-  console.log(
-    `🆔 [fetchWaypointsWithCache] Got ${ids.length} road IDs from Overpass`
-  );
 
   // Step 2: Separate cached vs missing IDs
   const cachedFeatures = [];
@@ -262,18 +305,15 @@ async function fetchWaypointsWithCache(bounds) {
         console.log(
           `💾 [fetchWaypointsWithCache] Saving ${toSave.length} new waypoints to IndexedDB`
         );
-        saveWaypointsToCache(toSave).catch((e) =>
-          console.warn("Failed to save waypoints to IndexedDB:", e)
-        );
+        saveWaypointsToCache(toSave).catch((e) => {
+          console.warn("Failed to save waypoints to IndexedDB:", e);
+        });
       }
     }
   }
 
   // Combine cached + new features
   const allFeatures = [...cachedFeatures, ...newFeatures];
-  console.log(
-    `✅ [fetchWaypointsWithCache] Returning ${allFeatures.length} total waypoint features`
-  );
 
   return { type: "FeatureCollection", features: allFeatures };
 }
@@ -287,9 +327,11 @@ async function fetchWaypointsWithCache(bounds) {
 async function refreshRoadAccessibilityData(map) {
   if (!map || !roadAccessibilityEnabled) return;
 
+  // Store map reference for background prediction updates
+  currentMapRef = map;
+
   const zoom = map.getZoom();
   if (zoom < MIN_ZOOM_FOR_ROADS) {
-    console.log(`🛣️ Zoom ${zoom} < ${MIN_ZOOM_FOR_ROADS}, skipping road fetch`);
     return;
   }
 
@@ -306,15 +348,12 @@ async function refreshRoadAccessibilityData(map) {
   }
   currentBounds = boundsKey;
 
-  console.log("🛣️ Fetching road accessibility data with caching...");
   setLoadingState(true);
 
   try {
-    // Initialize ONNX models if predictions are enabled
-    if (predictionsEnabled && !isOnnxReady()) {
-      console.log("🤖 Initializing ONNX models for predictions...");
-      await initOnnxModels();
-      console.log("🤖 Available models:", getAvailableModels());
+    // Start ONNX loading in background if not already loading (don't wait for it)
+    if (predictionsEnabled && !isOnnxReady() && !onnxLoadingPromise) {
+      preloadOnnxModelsInBackground();
     }
 
     // Use the caching-enabled fetch
@@ -326,24 +365,60 @@ async function refreshRoadAccessibilityData(map) {
     });
 
     if (!geojson || !geojson.features) {
-      console.log("🛣️ No road data received");
       setLoadingState(false);
       return;
     }
 
-    console.log(`🛣️ Received ${geojson.features.length} road features`);
+    // RENDER ROADS IMMEDIATELY (without predictions)
+    renderRoadFeatures(geojson.features);
 
-    // Apply ML predictions to features with missing data
-    let enrichedFeatures = geojson.features;
-    if (predictionsEnabled && isOnnxReady()) {
-      enrichedFeatures = await applyMlPredictions(geojson.features);
+    // Mark loading as done - roads are visible now!
+    setLoadingState(false);
+
+    // Apply ML predictions in background (if models are ready or when they become ready)
+    if (predictionsEnabled) {
+      if (isOnnxReady()) {
+        // Models are ready, apply predictions in background
+        applyPredictionsInBackground(geojson.features);
+      } else {
+        // Store features for later when models are loaded
+        pendingPredictionFeatures = geojson.features;
+      }
     }
-
-    renderRoadFeatures(enrichedFeatures);
   } catch (error) {
     console.error("🛣️ Error fetching road accessibility:", error);
-  } finally {
     setLoadingState(false);
+  }
+}
+
+/**
+ * Apply ML predictions in the background and update the map
+ * This runs after roads are already visible
+ * @param {Array} features - GeoJSON features to enrich
+ */
+async function applyPredictionsInBackground(features) {
+  if (isApplyingPredictions) {
+    return;
+  }
+
+  if (!isOnnxReady()) {
+    return;
+  }
+
+  isApplyingPredictions = true;
+  pendingPredictionFeatures = null; // Clear pending
+
+  try {
+    const enrichedFeatures = await applyMlPredictions(features);
+
+    // Re-render with predictions if road layer is still enabled
+    if (roadAccessibilityEnabled && roadAccessibilityLayer) {
+      renderRoadFeatures(enrichedFeatures);
+    }
+  } catch (error) {
+    console.error("🤖 [ONNX] Background prediction failed:", error);
+  } finally {
+    isApplyingPredictions = false;
   }
 }
 
@@ -900,6 +975,15 @@ export function isOnnxModelsReady() {
   return isOnnxReady();
 }
 
+/**
+ * Check if predictions are currently being applied in background
+ */
+export function isPredictionsLoading() {
+  return (
+    isApplyingPredictions || (onnxLoadingPromise !== null && !isOnnxReady())
+  );
+}
+
 // Export for use in MapContainer
 const roadAccessibilityModule = {
   initRoadAccessibilityLayer,
@@ -913,5 +997,7 @@ const roadAccessibilityModule = {
   setPredictionsEnabled,
   isPredictionsEnabled,
   isOnnxModelsReady,
+  preloadOnnxModelsInBackground,
+  isPredictionsLoading,
 };
 export default roadAccessibilityModule;
