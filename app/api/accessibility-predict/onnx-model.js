@@ -8,25 +8,34 @@
 import path from "path";
 import modelConfig from "./model_config.json" with { type: "json" };
 
-// Dynamic import to handle environments where onnxruntime-node isn't available
+// Deferred import to handle environments where onnxruntime-node isn't available
 let ort = null;
 let ortLoadError = null;
+let ortLoadAttempted = false;
 
-try {
-  ort = await import("onnxruntime-node");
-} catch (e) {
-  ortLoadError = e;
-  console.warn("⚠️ onnxruntime-node not available:", e.message);
+async function loadOrt() {
+  if (ortLoadAttempted) return;
+  ortLoadAttempted = true;
+  
+  try {
+    ort = await import("onnxruntime-node");
+    console.log("✅ onnxruntime-node loaded successfully");
+  } catch (e) {
+    ortLoadError = e;
+    console.warn("⚠️ onnxruntime-node not available:", e.message);
+  }
 }
 
 class OnnxModelSingleton {
   static instance = null;
   static config = modelConfig;
-  static loadError = ortLoadError;
 
   static async getInstance() {
-    if (this.loadError) {
-      throw new Error(`ONNX runtime not available: ${this.loadError.message}`);
+    // Ensure ONNX runtime is loaded
+    await loadOrt();
+    
+    if (ortLoadError) {
+      throw new Error(`ONNX runtime not available: ${ortLoadError.message}`);
     }
     
     if (this.instance === null) {
@@ -52,7 +61,10 @@ class OnnxModelSingleton {
   }
   
   static isAvailable() {
-    return ort !== null && !this.loadError;
+    // If we haven't tried loading yet, assume it's available
+    // The actual check happens in getInstance()
+    if (!ortLoadAttempted) return true;
+    return ort !== null && !ortLoadError;
   }
 }
 
