@@ -1,7 +1,6 @@
 {
   "git": {
     "deploymentEnabled": {
-      "main": true,
       "design/sidebar": true,
       "feature/*": false
     }
