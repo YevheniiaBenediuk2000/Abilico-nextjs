@@ -12,8 +12,13 @@ const MODEL_BASE_PATH = "/models/road_accessibility";
 
 // IndexedDB configuration for model caching
 const MODEL_DB_NAME = "AbilicoOnnxModels";
-const MODEL_DB_VERSION = 2;
+const MODEL_DB_VERSION = 3;
 const MODEL_STORE_NAME = "models";
+const PREDICTIONS_STORE_NAME = "predictions";
+
+// In-memory prediction cache for fast lookups (LRU-style with max size)
+const predictionCache = new Map();
+const PREDICTION_CACHE_MAX_SIZE = 5000;
 
 // Cached sessions and schema
 let schema = null;
@@ -86,6 +91,13 @@ function openModelDB(retryAfterDelete = false) {
         db.createObjectStore(MODEL_STORE_NAME, { keyPath: "name" });
         console.log("🤖 [ONNX] Created IndexedDB store for models");
       }
+      if (!db.objectStoreNames.contains(PREDICTIONS_STORE_NAME)) {
+        const predStore = db.createObjectStore(PREDICTIONS_STORE_NAME, {
+          keyPath: "id",
+        });
+        predStore.createIndex("cachedAt", "cachedAt", { unique: false });
+        console.log("🤖 [ONNX] Created IndexedDB store for predictions");
+      }
     };
 
     // Handle blocked event (when other tabs have the database open)
@@ -127,6 +139,132 @@ function deleteModelDB() {
       resolve();
     };
   });
+}
+
+/**
+ * Generate a cache key for road predictions based on OSM ID or properties hash
+ * @param {Object} props - OSM road properties
+ * @returns {string} - Cache key
+ */
+function getPredictionCacheKey(props) {
+  // Use OSM ID if available (most reliable)
+  if (props.id || props.osm_id || props["@id"]) {
+    return `osm_${props.id || props.osm_id || props["@id"]}`;
+  }
+
+  // Fallback: hash key properties that affect prediction
+  const keyProps = [
+    props.highway,
+    props.surface,
+    props.smoothness,
+    props.width,
+    props.incline,
+    props.lit,
+    props.tactile_paving,
+    props.oneway,
+  ].join("|");
+
+  // Simple hash function
+  let hash = 0;
+  for (let i = 0; i < keyProps.length; i++) {
+    const char = keyProps.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return `hash_${hash}`;
+}
+
+/**
+ * Get cached prediction from memory or IndexedDB
+ * @param {string} cacheKey - Cache key for the road
+ * @returns {Promise<Object|null>} - Cached prediction or null
+ */
+async function getCachedPrediction(cacheKey) {
+  // Check in-memory cache first (fast path)
+  if (predictionCache.has(cacheKey)) {
+    return predictionCache.get(cacheKey);
+  }
+
+  // Try IndexedDB
+  try {
+    const db = await openModelDB();
+    return new Promise((resolve) => {
+      const transaction = db.transaction([PREDICTIONS_STORE_NAME], "readonly");
+      const store = transaction.objectStore(PREDICTIONS_STORE_NAME);
+      const request = store.get(cacheKey);
+
+      request.onsuccess = () => {
+        if (request.result) {
+          // Add to memory cache
+          addToMemoryCache(cacheKey, request.result.data);
+          resolve(request.result.data);
+        } else {
+          resolve(null);
+        }
+      };
+      request.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Save prediction to both memory and IndexedDB cache
+ * @param {string} cacheKey - Cache key for the road
+ * @param {Object} prediction - Prediction result to cache
+ */
+async function cachePrediction(cacheKey, prediction) {
+  // Add to memory cache
+  addToMemoryCache(cacheKey, prediction);
+
+  // Save to IndexedDB (async, don't await)
+  try {
+    const db = await openModelDB();
+    const transaction = db.transaction([PREDICTIONS_STORE_NAME], "readwrite");
+    const store = transaction.objectStore(PREDICTIONS_STORE_NAME);
+
+    store.put({
+      id: cacheKey,
+      data: prediction,
+      cachedAt: Date.now(),
+    });
+  } catch (e) {
+    console.warn("[ONNX] Failed to cache prediction to IndexedDB:", e);
+  }
+}
+
+/**
+ * Add prediction to in-memory cache with LRU eviction
+ * @param {string} key - Cache key
+ * @param {Object} value - Prediction data
+ */
+function addToMemoryCache(key, value) {
+  // Evict oldest entries if cache is full
+  if (predictionCache.size >= PREDICTION_CACHE_MAX_SIZE) {
+    const firstKey = predictionCache.keys().next().value;
+    predictionCache.delete(firstKey);
+  }
+  predictionCache.set(key, value);
+}
+
+/**
+ * Clear all cached predictions (useful for debugging or when models update)
+ */
+export async function clearPredictionCache() {
+  // Clear memory cache
+  predictionCache.clear();
+
+  // Clear IndexedDB predictions
+  try {
+    const db = await openModelDB();
+    const transaction = db.transaction([PREDICTIONS_STORE_NAME], "readwrite");
+    const store = transaction.objectStore(PREDICTIONS_STORE_NAME);
+    store.clear();
+    console.log("🗑️ [ONNX] Prediction cache cleared");
+  } catch (e) {
+    console.warn("[ONNX] Failed to clear prediction cache:", e);
+  }
 }
 
 /**
@@ -781,6 +919,13 @@ export async function predictRoadFeatures(props) {
     await initOnnxModels();
   }
 
+  // Check cache first
+  const cacheKey = getPredictionCacheKey(props);
+  const cachedResult = await getCachedPrediction(cacheKey);
+  if (cachedResult) {
+    return { ...props, ...cachedResult, _fromCache: true };
+  }
+
   const result = { ...props };
   const predictions = {};
 
@@ -840,6 +985,47 @@ export async function predictRoadFeatures(props) {
 
   result._predictions = predictions;
   result._hasPredictions = Object.keys(predictions).length > 0;
+
+  // Cache the prediction results (only the prediction-related fields)
+  if (result._hasPredictions) {
+    const predictionData = {
+      _predictions: predictions,
+      _hasPredictions: true,
+    };
+    // Include all prediction-related fields
+    if (result._surfacePredicted) {
+      predictionData.surface = result.surface;
+      predictionData._surfacePredicted = true;
+      predictionData._surfaceConfidence = result._surfaceConfidence;
+      predictionData._surfaceAlternatives = result._surfaceAlternatives;
+      predictionData._surfaceContributors = result._surfaceContributors;
+      predictionData._surfaceMetrics = result._surfaceMetrics;
+    }
+    if (result._smoothnessPredicted) {
+      predictionData.smoothness = result.smoothness;
+      predictionData._smoothnessPredicted = true;
+      predictionData._smoothnessConfidence = result._smoothnessConfidence;
+      predictionData._smoothnessAlternatives = result._smoothnessAlternatives;
+      predictionData._smoothnessContributors = result._smoothnessContributors;
+      predictionData._smoothnessMetrics = result._smoothnessMetrics;
+    }
+    if (result._widthPredicted) {
+      predictionData.width = result.width;
+      predictionData._widthPredicted = true;
+      predictionData._widthValue = result._widthValue;
+      predictionData._widthContributors = result._widthContributors;
+      predictionData._widthMetrics = result._widthMetrics;
+    }
+    if (result._inclinePredicted) {
+      predictionData.incline = result.incline;
+      predictionData._inclinePredicted = true;
+      predictionData._inclineValue = result._inclineValue;
+      predictionData._inclineContributors = result._inclineContributors;
+      predictionData._inclineMetrics = result._inclineMetrics;
+    }
+    // Cache asynchronously (don't block return)
+    cachePrediction(cacheKey, predictionData);
+  }
 
   return result;
 }
