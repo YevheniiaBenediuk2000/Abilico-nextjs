@@ -18,11 +18,11 @@ import os
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 
-# Use the new 3-class model (best overall F1 score)
-MODEL_PATH = os.path.join(PROJECT_ROOT, 'accessibility_model_3class_best_overall.joblib')
-# Fallback to old model if new one doesn't exist
+# Use the geographic split model (better generalization, avoids spatial leakage)
+MODEL_PATH = os.path.join(PROJECT_ROOT, 'accessibility_model_worldwide.joblib')
+# Fallback to old model if geographic model doesn't exist
 if not os.path.exists(MODEL_PATH):
-    MODEL_PATH = os.path.join(PROJECT_ROOT, 'accessibility_model_worldwide.joblib')
+    MODEL_PATH = os.path.join(PROJECT_ROOT, 'accessibility_model_3class_best_overall.joblib')
     
 ONNX_OUTPUT_PATH = os.path.join(PROJECT_ROOT, 'public', 'models', 'accessibility_model.onnx')
 CONFIG_OUTPUT_PATH = os.path.join(PROJECT_ROOT, 'app', 'api', 'accessibility-predict', 'model_config.json')
