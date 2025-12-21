@@ -185,6 +185,47 @@ export default function MapContainer({
   const [roadAccessibilityEnabled, setRoadAccessibilityEnabled] =
     useState(false);
   const [roadVizMode, setRoadVizMode] = useState(VIZ_MODES.OVERALL);
+  const [roadAccessibilityLoading, setRoadAccessibilityLoading] =
+    useState(false);
+
+  // Set up road accessibility loading callback
+  // Use polling to handle race condition with mapMain.js initialization
+  useEffect(() => {
+    let mounted = true;
+    let intervalId = null;
+
+    const trySetCallback = () => {
+      if (typeof window !== "undefined" && window.setRoadLoadingCallback) {
+        window.setRoadLoadingCallback(setRoadAccessibilityLoading);
+        if (intervalId) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
+        return true;
+      }
+      return false;
+    };
+
+    // Try immediately
+    if (!trySetCallback()) {
+      // If not available yet, poll every 100ms
+      intervalId = setInterval(() => {
+        if (!mounted) {
+          clearInterval(intervalId);
+          return;
+        }
+        trySetCallback();
+      }, 100);
+    }
+
+    return () => {
+      mounted = false;
+      if (intervalId) clearInterval(intervalId);
+      if (typeof window !== "undefined" && window.setRoadLoadingCallback) {
+        window.setRoadLoadingCallback(null);
+      }
+    };
+  }, []);
 
   // Expose a global function so mapMain.js can open the details drawer
   useEffect(() => {
@@ -2897,6 +2938,7 @@ export default function MapContainer({
             window.setRoadVisualizationMode(mode);
           }
         }}
+        loading={roadAccessibilityLoading}
       />
     </div>
   );

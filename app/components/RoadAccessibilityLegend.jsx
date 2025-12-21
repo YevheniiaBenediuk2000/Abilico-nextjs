@@ -16,6 +16,7 @@ import InputLabel from "@mui/material/InputLabel";
 import Paper from "@mui/material/Paper";
 import IconButton from "@mui/material/IconButton";
 import Collapse from "@mui/material/Collapse";
+import CircularProgress from "@mui/material/CircularProgress";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import RouteIcon from "@mui/icons-material/Route";
@@ -104,6 +105,7 @@ export default function RoadAccessibilityLegend({
   onToggle,
   vizMode = VIZ_MODES.OVERALL,
   onVizModeChange,
+  loading = false,
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -136,7 +138,11 @@ export default function RoadAccessibilityLegend({
         }}
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <RouteIcon color="primary" />
+          {loading ? (
+            <CircularProgress size={20} color="primary" />
+          ) : (
+            <RouteIcon color="primary" />
+          )}
           <Typography variant="subtitle2" fontWeight={600}>
             Road Accessibility
           </Typography>
@@ -146,6 +152,7 @@ export default function RoadAccessibilityLegend({
             size="small"
             checked={enabled}
             onChange={(e) => onToggle?.(e.target.checked)}
+            disabled={loading}
           />
           <IconButton size="small" onClick={() => setExpanded(!expanded)}>
             {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}

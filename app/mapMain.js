@@ -84,6 +84,8 @@ import {
   setVisualizationMode,
   isRoadAccessibilityEnabled,
   forceRefreshRoads,
+  setRoadLoadingCallback,
+  isRoadAccessibilityLoading,
 } from "./modules/roadAccessibilityMap.js";
 
 // DEBUG: confirm import really works
@@ -7569,6 +7571,8 @@ export async function initMap(user = null) {
       window.setRoadVisualizationMode = setVisualizationMode;
       window.isRoadAccessibilityEnabled = isRoadAccessibilityEnabled;
       window.forceRefreshRoads = () => forceRefreshRoads(map);
+      window.setRoadLoadingCallback = setRoadLoadingCallback;
+      window.isRoadAccessibilityLoading = isRoadAccessibilityLoading;
     }
 
     map.on("baselayerchange", (e) => ls.set(BASEMAP_LS_KEY, e.name));

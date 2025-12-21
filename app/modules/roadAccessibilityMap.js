@@ -19,6 +19,36 @@ let roadAccessibilityLayer = null;
 let roadAccessibilityEnabled = false;
 let currentVizMode = "overall"; // overall, surface, incline, width, smoothness
 let currentBounds = null;
+let isLoadingRoadData = false;
+let loadingStateCallback = null;
+
+/**
+ * Set callback for loading state changes
+ * @param {Function} callback - Called with boolean indicating loading state
+ */
+export function setRoadLoadingCallback(callback) {
+  loadingStateCallback = callback;
+}
+
+/**
+ * Get current loading state
+ */
+export function isRoadAccessibilityLoading() {
+  return isLoadingRoadData;
+}
+
+/**
+ * Internal helper to update loading state and notify callback
+ */
+function setLoadingState(loading) {
+  isLoadingRoadData = loading;
+  console.log(
+    `🛣️ Road accessibility loading state: ${loading}, callback: ${!!loadingStateCallback}`
+  );
+  if (loadingStateCallback) {
+    loadingStateCallback(loading);
+  }
+}
 
 // IndexedDB cache state for waypoints
 let indexedDBWaypointsCacheLoaded = false;
@@ -258,6 +288,7 @@ async function refreshRoadAccessibilityData(map) {
   currentBounds = boundsKey;
 
   console.log("🛣️ Fetching road accessibility data with caching...");
+  setLoadingState(true);
 
   try {
     // Use the caching-enabled fetch
@@ -270,6 +301,7 @@ async function refreshRoadAccessibilityData(map) {
 
     if (!geojson || !geojson.features) {
       console.log("🛣️ No road data received");
+      setLoadingState(false);
       return;
     }
 
@@ -277,6 +309,8 @@ async function refreshRoadAccessibilityData(map) {
     renderRoadFeatures(geojson.features);
   } catch (error) {
     console.error("🛣️ Error fetching road accessibility:", error);
+  } finally {
+    setLoadingState(false);
   }
 }
 
