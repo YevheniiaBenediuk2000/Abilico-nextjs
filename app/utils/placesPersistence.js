@@ -4,8 +4,9 @@
  */
 
 const DB_NAME = "AbilicoDB";
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Updated to v2 to include waypoints store
 const STORE_NAME = "places";
+const WAYPOINTS_STORE_NAME = "waypoints"; // For cross-compatibility
 
 export const openDB = () => {
   return new Promise((resolve, reject) => {
@@ -28,6 +29,10 @@ export const openDB = () => {
       const db = event.target.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: "id" });
+      }
+      // Also create waypoints store if it doesn't exist (v2)
+      if (!db.objectStoreNames.contains(WAYPOINTS_STORE_NAME)) {
+        db.createObjectStore(WAYPOINTS_STORE_NAME, { keyPath: "id" });
       }
     };
   });
