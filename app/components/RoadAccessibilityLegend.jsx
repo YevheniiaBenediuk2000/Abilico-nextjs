@@ -116,8 +116,8 @@ export default function RoadAccessibilityLegend({
       elevation={2}
       sx={{
         position: "absolute",
-        bottom: 120,
-        right: 16,
+        bottom: 170,
+        right: 10,
         zIndex: 1000,
         minWidth: 200,
         maxWidth: 280,
