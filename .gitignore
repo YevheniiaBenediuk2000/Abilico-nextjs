@@ -58,6 +58,8 @@ ukraine_wheelchair_nodes.geojson
 # Large cache files
 road_accessibility_data_cache.json
 road_accessibility_europe_cache.json
+road_accessibility_europe_cache_v2.json
+road_accessibility_fetched_regions.json
 road_accessibility_europe_cache.json.partial
 *.json.partial
 road_accessibility_models.joblib

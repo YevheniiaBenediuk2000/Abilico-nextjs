@@ -2,12 +2,18 @@
  * ONNX-based Road Accessibility Predictor
  * Uses onnxruntime-web to run ML models in the browser for predicting
  * missing road accessibility features (surface, smoothness, width, incline)
+ * Models are cached in IndexedDB for faster subsequent loads
  */
 
 import * as ort from "onnxruntime-web";
 
 // Model base path
 const MODEL_BASE_PATH = "/models/road_accessibility";
+
+// IndexedDB configuration for model caching
+const MODEL_DB_NAME = "AbilicoOnnxModels";
+const MODEL_DB_VERSION = 1;
+const MODEL_STORE_NAME = "models";
 
 // Cached sessions and schema
 let schema = null;
@@ -31,12 +37,155 @@ const inferenceQueues = {
 };
 
 /**
+ * Open or create the IndexedDB database for model caching
+ */
+function openModelDB() {
+  return new Promise((resolve, reject) => {
+    if (typeof window === "undefined" || !window.indexedDB) {
+      reject(new Error("IndexedDB not supported"));
+      return;
+    }
+
+    const request = window.indexedDB.open(MODEL_DB_NAME, MODEL_DB_VERSION);
+
+    request.onerror = (event) => {
+      console.error("[ONNX] IndexedDB error:", event.target.error);
+      reject(event.target.error);
+    };
+
+    request.onsuccess = (event) => {
+      resolve(event.target.result);
+    };
+
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(MODEL_STORE_NAME)) {
+        db.createObjectStore(MODEL_STORE_NAME, { keyPath: "name" });
+        console.log("🤖 [ONNX] Created IndexedDB store for models");
+      }
+    };
+  });
+}
+
+/**
+ * Get a model from IndexedDB cache
+ * @param {string} modelName - Name of the model
+ * @param {string} schemaVersion - Expected schema version for cache validation
+ * @returns {Promise<ArrayBuffer|null>} - Model data or null if not cached or version mismatch
+ */
+async function getModelFromCache(modelName, schemaVersion) {
+  try {
+    const db = await openModelDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([MODEL_STORE_NAME], "readonly");
+      const store = transaction.objectStore(MODEL_STORE_NAME);
+      const request = store.get(modelName);
+
+      request.onsuccess = () => {
+        if (request.result) {
+          // Validate schema version - invalidate cache if version mismatch
+          if (schemaVersion && request.result.version !== schemaVersion) {
+            console.log(
+              `⚠️ [ONNX] Cache version mismatch for ${modelName}: cached=${request.result.version}, current=${schemaVersion}. Re-downloading...`
+            );
+            resolve(null);
+          } else {
+            console.log(`💾 [ONNX] Found ${modelName} in IndexedDB cache`);
+            resolve(request.result.data);
+          }
+        } else {
+          resolve(null);
+        }
+      };
+      request.onerror = () => reject(request.error);
+    });
+  } catch (e) {
+    console.warn(`[ONNX] Failed to read ${modelName} from cache:`, e);
+    return null;
+  }
+}
+
+/**
+ * Save a model to IndexedDB cache
+ * @param {string} modelName - Name of the model
+ * @param {ArrayBuffer} data - Model data
+ * @param {string} version - Schema version for cache invalidation
+ */
+async function saveModelToCache(modelName, data, version) {
+  try {
+    const db = await openModelDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([MODEL_STORE_NAME], "readwrite");
+      const store = transaction.objectStore(MODEL_STORE_NAME);
+
+      store.put({
+        name: modelName,
+        data: data,
+        version: version,
+        cachedAt: Date.now(),
+      });
+
+      transaction.oncomplete = () => {
+        console.log(`💾 [ONNX] Saved ${modelName} to IndexedDB cache`);
+        resolve();
+      };
+      transaction.onerror = () => reject(transaction.error);
+    });
+  } catch (e) {
+    console.warn(`[ONNX] Failed to save ${modelName} to cache:`, e);
+  }
+}
+
+/**
+ * Fetch model data, using IndexedDB cache if available
+ * @param {string} modelName - Name of the model
+ * @param {string} modelPath - URL path to the model file
+ * @param {string} schemaVersion - Schema version for cache validation
+ * @returns {Promise<ArrayBuffer>} - Model data as ArrayBuffer
+ */
+async function fetchModelWithCache(modelName, modelPath, schemaVersion) {
+  // Try to get from cache first (with version validation)
+  const cached = await getModelFromCache(modelName, schemaVersion);
+  if (cached) {
+    return cached;
+  }
+
+  // Fetch from network
+  console.log(`🌐 [ONNX] Downloading ${modelName} from network...`);
+
+  const response = await fetch(modelPath);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ${modelName}: ${response.status}`);
+  }
+
+  const data = await response.arrayBuffer();
+  console.log(
+    `🌐 [ONNX] Downloaded ${modelName} (${(
+      data.byteLength /
+      1024 /
+      1024
+    ).toFixed(1)}MB)`
+  );
+
+  // Save to cache in background (don't await)
+  saveModelToCache(modelName, data, schemaVersion).catch((e) =>
+    console.warn(`[ONNX] Background cache save failed for ${modelName}:`, e)
+  );
+
+  return data;
+}
+
+/**
  * Initialize ONNX models and load schema
  * @returns {Promise<boolean>} - True if initialization successful
  */
 export async function initOnnxModels() {
-  if (isInitialized) return true;
-  if (initPromise) return initPromise;
+  if (isInitialized) {
+    return true;
+  }
+  if (initPromise) {
+    return initPromise;
+  }
 
   initPromise = (async () => {
     try {
@@ -48,7 +197,6 @@ export async function initOnnxModels() {
         throw new Error(`Failed to load schema: ${schemaResponse.status}`);
       }
       schema = await schemaResponse.json();
-      console.log("📄 [ONNX] Schema loaded:", Object.keys(schema.models || {}));
 
       // Configure ONNX Runtime for browser
       ort.env.wasm.wasmPaths =
@@ -57,13 +205,25 @@ export async function initOnnxModels() {
       // Suppress warnings about unknown CPU vendor (common on Apple Silicon)
       ort.env.logLevel = "error";
 
-      // Load available models
+      // Get schema version for cache invalidation
+      const schemaVersion = schema.version || "1.0";
+
+      // Load available models (using IndexedDB cache)
       for (const [modelName, modelInfo] of Object.entries(
         schema.models || {}
       )) {
         try {
           const modelPath = `${MODEL_BASE_PATH}/${modelInfo.file}`;
-          sessions[modelName] = await ort.InferenceSession.create(modelPath, {
+
+          // Fetch model data (from cache or network)
+          const modelData = await fetchModelWithCache(
+            modelName,
+            modelPath,
+            schemaVersion
+          );
+
+          // Create ONNX session from ArrayBuffer
+          sessions[modelName] = await ort.InferenceSession.create(modelData, {
             executionProviders: ["wasm"],
             graphOptimizationLevel: "all",
           });
@@ -99,6 +259,67 @@ export function getAvailableModels() {
   return Object.keys(schema.models || {}).filter(
     (name) => sessions[name] !== null
   );
+}
+
+/**
+ * Clear the ONNX model cache from IndexedDB
+ * Useful for forcing re-download of models
+ */
+export async function clearModelCache() {
+  try {
+    const db = await openModelDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([MODEL_STORE_NAME], "readwrite");
+      const store = transaction.objectStore(MODEL_STORE_NAME);
+      const request = store.clear();
+
+      request.onsuccess = () => {
+        console.log("🗑️ [ONNX] Cleared model cache from IndexedDB");
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
+  } catch (e) {
+    console.warn("[ONNX] Failed to clear model cache:", e);
+  }
+}
+
+/**
+ * Get model cache statistics
+ * @returns {Promise<Object>} - Cache stats { models, totalSizeMB }
+ */
+export async function getModelCacheStats() {
+  try {
+    const db = await openModelDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([MODEL_STORE_NAME], "readonly");
+      const store = transaction.objectStore(MODEL_STORE_NAME);
+      const request = store.getAll();
+
+      request.onsuccess = () => {
+        const models = request.result || [];
+        let totalSize = 0;
+        const stats = models.map((m) => {
+          const sizeMB = m.data ? m.data.byteLength / 1024 / 1024 : 0;
+          totalSize += sizeMB;
+          return {
+            name: m.name,
+            sizeMB: sizeMB.toFixed(1),
+            cachedAt: m.cachedAt ? new Date(m.cachedAt).toISOString() : null,
+          };
+        });
+        resolve({
+          models: stats,
+          totalSizeMB: totalSize.toFixed(1),
+          count: models.length,
+        });
+      };
+      request.onerror = () => reject(request.error);
+    });
+  } catch (e) {
+    console.warn("[ONNX] Failed to get cache stats:", e);
+    return { models: [], totalSizeMB: "0", count: 0 };
+  }
 }
 
 /**
