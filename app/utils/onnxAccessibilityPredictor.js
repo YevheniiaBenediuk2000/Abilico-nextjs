@@ -11,7 +11,17 @@ import * as ort from "onnxruntime-web";
 // Model base path (served from public folder)
 const MODEL_BASE_PATH = "/models";
 const MODEL_FILE = "accessibility_model.onnx";
+const VOCAB_FILE = "vocab.json";
 const SCHEMA_FILE = "schema.json";
+
+// Numeric features used by the model (from schema.json numericStats)
+const NUMERIC_FEATURES = ["width", "step_count", "incline", "level"];
+const NUMERIC_STATS = {
+  width: { mean: 1.6304554847036885, std: 5.311411598026541 },
+  step_count: { mean: 2.51114450288004, std: 7.976619050334383 },
+  incline: { mean: 0.43081212121212137, std: 3.7809555379098367 },
+  level: { mean: 0.2325153289823457, std: 1.322813154280609 },
+};
 
 // IndexedDB configuration for model caching
 const MODEL_DB_NAME = "AbilicoOnnxModels";
@@ -173,12 +183,20 @@ export async function initAccessibilityModel() {
     try {
       console.log("🤖 [ONNX-Acc] Loading accessibility prediction model...");
 
-      // Load schema/config first
-      const schemaResponse = await fetch(`${MODEL_BASE_PATH}/${SCHEMA_FILE}`);
-      if (!schemaResponse.ok) {
-        throw new Error(`Failed to load schema: ${schemaResponse.status}`);
+      // Load vocab.json for feature encoding (this matches how the model was trained)
+      const vocabResponse = await fetch(`${MODEL_BASE_PATH}/${VOCAB_FILE}`);
+      if (!vocabResponse.ok) {
+        throw new Error(`Failed to load vocab: ${vocabResponse.status}`);
       }
-      config = await schemaResponse.json();
+      const vocab = await vocabResponse.json();
+
+      // Store config with vocab
+      config = {
+        vocab,
+        numericFeatures: NUMERIC_FEATURES,
+        numericStats: NUMERIC_STATS,
+        version: "1.0",
+      };
 
       // Configure ONNX Runtime for browser - use specific version matching package.json
       ort.env.wasm.wasmPaths =
@@ -203,10 +221,8 @@ export async function initAccessibilityModel() {
       // Build feature structure and log info
       const struct = buildFeatureStructure();
       console.log("✅ [ONNX-Acc] Accessibility model loaded successfully!");
-      console.log(
-        `   Categorical keys: ${config.categoricalKeys?.length || 0}`
-      );
-      console.log(`   Numeric keys: ${config.numericKeys?.length || 0}`);
+      console.log(`   Vocab keys: ${Object.keys(vocab).length}`);
+      console.log(`   Numeric features: ${NUMERIC_FEATURES.length}`);
       console.log(`   Total features: ${struct.numFeatures}`);
       console.log(`   Input names: ${session.inputNames}`);
       console.log(`   Output names: ${session.outputNames}`);
@@ -255,36 +271,54 @@ function normalizeTagKey(key) {
 let featureStructure = null;
 
 /**
- * Build the feature structure from the schema
- * This computes the feature columns and their indices once
+ * Build the feature structure from vocab.json
+ * Model expects: 794 categorical features (all vocab values + __OTHER__ per non-empty key) + 4 numerics = 798
+ * Note: Numeric keys (width, step_count, incline, level) are BOTH one-hot encoded AND have continuous values
  */
 function buildFeatureStructure() {
   if (featureStructure) return featureStructure;
 
-  const { categoricalKeys, numericKeys, vocab, numericStats } = config;
+  const { vocab, numericFeatures, numericStats } = config;
 
   // Build feature columns in the same order as training
   const featureColumns = [];
   const columnIndex = {};
+  const vocabKeys = Object.keys(vocab);
 
   // First: categorical features (one-hot encoded)
-  for (const key of categoricalKeys) {
+  // All keys in vocab are treated as categorical, including numeric keys
+  for (const key of vocabKeys) {
     const values = vocab[key] || [];
+
+    // Add each value from vocab
     for (const value of values) {
       const colName = `${key}_${value}`;
       columnIndex[colName] = featureColumns.length;
       featureColumns.push({ type: "categorical", key, value, name: colName });
     }
+
+    // Add __OTHER__ for non-empty keys (to handle unknown values)
+    if (values.length > 0) {
+      const otherColName = `${key}___OTHER__`;
+      columnIndex[otherColName] = featureColumns.length;
+      featureColumns.push({
+        type: "categorical",
+        key,
+        value: "__OTHER__",
+        name: otherColName,
+      });
+    }
   }
 
-  // Then: numeric features
-  for (const key of numericKeys) {
+  // Then: 4 numeric features (continuous values for width, step_count, incline, level)
+  for (const key of numericFeatures) {
     const stats = numericStats[key] || { mean: 0, std: 1 };
-    columnIndex[key] = featureColumns.length;
+    const numColName = `${key}_numeric`;
+    columnIndex[numColName] = featureColumns.length;
     featureColumns.push({
       type: "numeric",
       key,
-      name: key,
+      name: numColName,
       mean: stats.mean,
       std: stats.std,
     });
@@ -294,8 +328,8 @@ function buildFeatureStructure() {
     featureColumns,
     columnIndex,
     numFeatures: featureColumns.length,
-    categoricalKeys,
-    numericKeys,
+    vocabKeys,
+    numericFeatures,
     vocab,
   };
 
