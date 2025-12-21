@@ -54,6 +54,9 @@ export async function initOnnxModels() {
       ort.env.wasm.wasmPaths =
         "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";
 
+      // Suppress warnings about unknown CPU vendor (common on Apple Silicon)
+      ort.env.logLevel = "error";
+
       // Load available models
       for (const [modelName, modelInfo] of Object.entries(
         schema.models || {}
