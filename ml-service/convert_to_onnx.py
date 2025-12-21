@@ -2,6 +2,9 @@
 """
 Convert the sklearn accessibility prediction model to ONNX format.
 This enables fast inference in the Next.js application using onnxruntime-node.
+
+Supports both 2-class (accessible/not_accessible) and 3-class 
+(accessible/limited/not_accessible) models.
 """
 
 import json
@@ -14,13 +17,20 @@ import os
 # Paths
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
-MODEL_PATH = os.path.join(PROJECT_ROOT, 'accessibility_model_worldwide.joblib')
+
+# Use the new 3-class model (best balanced for minority class performance)
+MODEL_PATH = os.path.join(PROJECT_ROOT, 'accessibility_model_3class_best_balanced.joblib')
+# Fallback to old model if new one doesn't exist
+if not os.path.exists(MODEL_PATH):
+    MODEL_PATH = os.path.join(PROJECT_ROOT, 'accessibility_model_worldwide.joblib')
+    
 ONNX_OUTPUT_PATH = os.path.join(PROJECT_ROOT, 'public', 'models', 'accessibility_model.onnx')
 CONFIG_OUTPUT_PATH = os.path.join(PROJECT_ROOT, 'app', 'api', 'accessibility-predict', 'model_config.json')
 
 
 def main():
     print("Loading sklearn model...")
+    print(f"Model path: {MODEL_PATH}")
     model_data = joblib.load(MODEL_PATH)
     
     model = model_data['model']
@@ -29,7 +39,16 @@ def main():
     useful_features = model_data['useful_features']
     metrics = model_data['metrics']
     
+    # Check if this is a 3-class model
+    n_classes = model_data.get('n_classes', 2)
+    class_mapping = model_data.get('class_mapping', {0: 'not_accessible', 1: 'accessible'})
+    
+    # Convert class_mapping keys to integers if they're strings
+    class_mapping = {int(k): v for k, v in class_mapping.items()}
+    
     print(f"Model type: {model_name}")
+    print(f"Number of classes: {n_classes}")
+    print(f"Class mapping: {class_mapping}")
     print(f"Number of features: {len(feature_columns)}")
     print(f"Training metrics: {metrics}")
     
@@ -65,16 +84,24 @@ def main():
                 feature_importances[feature_columns[idx]] = float(importance)
         print(f"Extracted {len(feature_importances)} non-zero feature importances")
     
+    # Create labels list based on number of classes
+    if n_classes == 3:
+        labels = [class_mapping.get(i, f'class_{i}') for i in range(3)]
+    else:
+        labels = ['not_accessible', 'accessible']
+    
     # Create configuration file for the JS runtime
     # This includes the feature encoding logic
     config = {
         'model_name': model_name,
+        'n_classes': n_classes,
         'feature_columns': feature_columns,
         'useful_features': useful_features,
         'metrics': metrics,
         'input_name': 'float_input',
         'output_names': ['output_label', 'output_probability'],
-        'labels': ['not_accessible', 'accessible'],
+        'labels': labels,
+        'class_mapping': class_mapping,
         'encoding_info': generate_encoding_info(useful_features, feature_columns),
         'feature_importances': feature_importances
     }

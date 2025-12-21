@@ -3790,13 +3790,38 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
         predIcon.style.justifyContent = "center";
         predIcon.style.flexShrink = "0";
 
-        const isAccessible = result.label === "accessible";
-        predIcon.style.backgroundColor = isAccessible
-          ? "rgba(22, 163, 74, 0.1)"
-          : "rgba(220, 38, 38, 0.1)";
-        predIcon.innerHTML = isAccessible
-          ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>`
-          : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>`;
+        // Handle 3-class predictions: accessible, limited, not_accessible
+        const predictionLabel = result.label;
+        const isAccessible = predictionLabel === "accessible";
+        const isLimited = predictionLabel === "limited";
+        const isNotAccessible = predictionLabel === "not_accessible";
+
+        // Set colors based on prediction class
+        let iconColor, bgColor, labelText;
+        if (isAccessible) {
+          iconColor = "#16a34a"; // green
+          bgColor = "rgba(22, 163, 74, 0.1)";
+          labelText = "Likely Accessible";
+        } else if (isLimited) {
+          iconColor = "#ca8a04"; // yellow/amber
+          bgColor = "rgba(202, 138, 4, 0.1)";
+          labelText = "Likely Limited Access";
+        } else {
+          iconColor = "#dc2626"; // red
+          bgColor = "rgba(220, 38, 38, 0.1)";
+          labelText = "Likely Not Accessible";
+        }
+
+        predIcon.style.backgroundColor = bgColor;
+
+        // Different icons for each state
+        if (isAccessible) {
+          predIcon.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>`;
+        } else if (isLimited) {
+          predIcon.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2"><path d="M12 9v4M12 17h.01M12 3a9 9 0 100 18 9 9 0 000-18z"/></svg>`;
+        } else {
+          predIcon.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>`;
+        }
 
         // Prediction text
         const predTextWrapper = document.createElement("div");
@@ -3805,10 +3830,8 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
         const predLabel = document.createElement("div");
         predLabel.style.fontSize = "0.9375rem";
         predLabel.style.fontWeight = "500";
-        predLabel.style.color = isAccessible ? "#16a34a" : "#dc2626";
-        predLabel.textContent = isAccessible
-          ? "Likely Accessible"
-          : "Likely Not Accessible";
+        predLabel.style.color = iconColor;
+        predLabel.textContent = labelText;
 
         const predConfidence = document.createElement("div");
         predConfidence.style.fontSize = "0.75rem";
