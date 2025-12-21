@@ -76,6 +76,159 @@ export const SMOOTHNESS_COLORS = {
 };
 
 let roadAbortController = null;
+let roadIdsAbortController = null;
+
+/**
+ * Build the Overpass query selectors for road accessibility features
+ * @param {string} bbox - Bounding box string "south,west,north,east"
+ * @returns {string} Query selectors
+ */
+function buildRoadQuerySelectors(bbox) {
+  return `
+      way["highway"~"^(footway|path|pedestrian|cycleway|steps|corridor|crossing|sidewalk|living_street|residential|service|track)$"](${bbox});
+      way["footway"](${bbox});
+      way["sidewalk"~"^(yes|left|right|both|separate)$"](${bbox});
+      way["surface"](${bbox});
+      way["smoothness"](${bbox});
+      way["incline"](${bbox});
+      way["width"](${bbox});
+      way["kerb"](${bbox});
+      way["tactile_paving"](${bbox});
+      way["ramp"](${bbox});
+      way["lit"](${bbox});
+  `;
+}
+
+/**
+ * Fetch only road/path IDs (lightweight query) for caching strategy.
+ * @param {Object} bounds - { south, west, north, east }
+ * @returns {Promise<Array<{type: string, id: number}>>} Array of OSM element IDs
+ */
+export async function fetchRoadIds(bounds) {
+  if (roadIdsAbortController) {
+    roadIdsAbortController.abort();
+  }
+  roadIdsAbortController = new AbortController();
+  const { signal } = roadIdsAbortController;
+
+  const { south, west, north, east } = bounds;
+  const bbox = `${south},${west},${north},${east}`;
+
+  const query = `
+    [out:json][timeout:30];
+    (
+      ${buildRoadQuerySelectors(bbox)}
+    );
+    out ids;
+  `;
+
+  console.log("🆔 [fetchRoadIds] Fetching road IDs...");
+
+  let lastError = null;
+
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      return await pRetry(async () => {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: HEADERS,
+          body: query,
+          signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Overpass error ${response.status} @ ${endpoint}`);
+        }
+
+        const data = await response.json();
+        const ids = (data.elements || []).map((el) => ({
+          type: el.type,
+          id: el.id,
+        }));
+        console.log(`🆔 [fetchRoadIds] Got ${ids.length} road IDs`);
+        return ids;
+      }, pRetryConfig);
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        return [];
+      }
+      lastError = error;
+      console.warn(`[Overpass] ${endpoint} failed for road IDs:`, error);
+    }
+  }
+
+  console.error("Road IDs fetch failed on all endpoints:", lastError);
+  return [];
+}
+
+/**
+ * Fetch full road data by their IDs.
+ * Used after fetchRoadIds to get details only for roads not in cache.
+ * @param {Array<{type: string, id: number}>} ids - Array of OSM element IDs
+ * @returns {Promise<Object>} GeoJSON FeatureCollection with enriched accessibility data
+ */
+export async function fetchRoadsByIds(ids) {
+  if (!ids || ids.length === 0) {
+    return { type: "FeatureCollection", features: [] };
+  }
+
+  // Group by type (should all be ways for roads)
+  const ways = ids.filter((i) => i.type === "way").map((i) => i.id);
+  const nodes = ids.filter((i) => i.type === "node").map((i) => i.id);
+  const relations = ids.filter((i) => i.type === "relation").map((i) => i.id);
+
+  const queryParts = [];
+  if (ways.length) queryParts.push(`way(id:${ways.join(",")})`);
+  if (nodes.length) queryParts.push(`node(id:${nodes.join(",")})`);
+  if (relations.length) queryParts.push(`relation(id:${relations.join(",")})`);
+
+  if (queryParts.length === 0) {
+    return { type: "FeatureCollection", features: [] };
+  }
+
+  const query = `
+    [out:json][timeout:60];
+    (
+      ${queryParts.join(";\n      ")};
+    );
+    out body geom;
+  `;
+
+  console.log(`📦 [fetchRoadsByIds] Fetching ${ids.length} roads by ID...`);
+
+  let lastError = null;
+
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      return await pRetry(async () => {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: HEADERS,
+          body: query,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Overpass error ${response.status} @ ${endpoint}`);
+        }
+
+        const data = await response.json();
+        console.log(
+          `📦 [fetchRoadsByIds] Got ${data.elements?.length || 0} elements`
+        );
+        const geojson = osmtogeojson(data);
+
+        // Enrich with accessibility scores
+        return enrichAccessibilityFeatures(geojson);
+      }, pRetryConfig);
+    } catch (error) {
+      lastError = error;
+      console.warn(`[Overpass] ${endpoint} failed for roads by ID:`, error);
+    }
+  }
+
+  console.error("Roads by ID fetch failed on all endpoints:", lastError);
+  return { type: "FeatureCollection", features: [] };
+}
 
 /**
  * Fetch road/path data with accessibility features from OSM

@@ -1,10 +1,18 @@
 /**
  * Road Accessibility Map Module
  * Handles rendering of road/path accessibility features on the Leaflet map
+ * Uses IndexedDB caching for efficient data loading
  */
 
 import debounce from "lodash.debounce";
-import { fetchRoadAccessibility } from "../api/fetchRoadAccessibility.js";
+import {
+  fetchRoadIds,
+  fetchRoadsByIds,
+} from "../api/fetchRoadAccessibility.js";
+import {
+  loadWaypointsFromCache,
+  saveWaypointsToCache,
+} from "../utils/waypointsPersistence.js";
 
 // Layer group for road accessibility features
 let roadAccessibilityLayer = null;
@@ -12,8 +20,34 @@ let roadAccessibilityEnabled = false;
 let currentVizMode = "overall"; // overall, surface, incline, width, smoothness
 let currentBounds = null;
 
+// IndexedDB cache state for waypoints
+let indexedDBWaypointsCacheLoaded = false;
+let indexedDBWaypointsMap = new Map(); // id -> feature
+
 // Min zoom level to show road accessibility
 const MIN_ZOOM_FOR_ROADS = 14;
+
+/**
+ * Ensure the IndexedDB waypoints cache is loaded into memory
+ */
+async function ensureWaypointsCacheLoaded() {
+  if (indexedDBWaypointsCacheLoaded) return;
+  try {
+    const cached = await loadWaypointsFromCache();
+    cached.forEach((item) => {
+      if (item.id && item.feature) {
+        indexedDBWaypointsMap.set(item.id, item.feature);
+      }
+    });
+    console.log(
+      `📂 [IndexedDB] Loaded ${indexedDBWaypointsMap.size} waypoints from persistent cache`
+    );
+    indexedDBWaypointsCacheLoaded = true;
+  } catch (e) {
+    console.warn("Failed to load IndexedDB waypoints cache:", e);
+    indexedDBWaypointsCacheLoaded = true; // Don't retry on error
+  }
+}
 
 /**
  * Initialize the road accessibility layer
@@ -103,7 +137,102 @@ export function isRoadAccessibilityEnabled() {
 }
 
 /**
+ * Smart fetch that uses ID-first strategy with IndexedDB caching.
+ * 1. Fetch only IDs from Overpass (lightweight)
+ * 2. Check which IDs are already in IndexedDB cache
+ * 3. Fetch full data only for missing IDs
+ * 4. Save new waypoints to IndexedDB
+ * @param {Object} bounds - { south, west, north, east }
+ * @returns {Promise<Object>} GeoJSON FeatureCollection
+ */
+async function fetchWaypointsWithCache(bounds) {
+  await ensureWaypointsCacheLoaded();
+
+  // Step 1: Fetch IDs for current viewport
+  const ids = await fetchRoadIds(bounds);
+
+  if (!ids || ids.length === 0) {
+    console.log("🆔 [fetchWaypointsWithCache] No road IDs returned");
+    return { type: "FeatureCollection", features: [] };
+  }
+
+  console.log(
+    `🆔 [fetchWaypointsWithCache] Got ${ids.length} road IDs from Overpass`
+  );
+
+  // Step 2: Separate cached vs missing IDs
+  const cachedFeatures = [];
+  const missingIds = [];
+
+  for (const idObj of ids) {
+    const key = `${idObj.type}/${idObj.id}`;
+    const cached = indexedDBWaypointsMap.get(key);
+    if (cached) {
+      cachedFeatures.push(cached);
+    } else {
+      missingIds.push(idObj);
+    }
+  }
+
+  console.log(
+    `💾 [fetchWaypointsWithCache] ${cachedFeatures.length} from cache, ${missingIds.length} need fetching`
+  );
+
+  // Step 3: Fetch only missing waypoints
+  let newFeatures = [];
+  if (missingIds.length > 0) {
+    const fetched = await fetchRoadsByIds(missingIds);
+    newFeatures = fetched?.features || [];
+
+    // Step 4: Save new waypoints to IndexedDB
+    if (newFeatures.length > 0) {
+      const toSave = newFeatures
+        .map((f) => {
+          // osmtogeojson sets feature.id as "way/123", etc.
+          let key = null;
+          if (typeof f.id === "string" && f.id.includes("/")) {
+            key = f.id;
+          } else {
+            // Fallback: try to extract from properties
+            const p = f.properties || {};
+            const osmType = p.type || p.osm_type || "way";
+            const osmId = p.id || p.osm_id;
+            if (osmId) {
+              key = `${osmType}/${osmId}`;
+            }
+          }
+
+          if (key) {
+            indexedDBWaypointsMap.set(key, f); // Also update in-memory cache
+            return { id: key, feature: f };
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      if (toSave.length > 0) {
+        console.log(
+          `💾 [fetchWaypointsWithCache] Saving ${toSave.length} new waypoints to IndexedDB`
+        );
+        saveWaypointsToCache(toSave).catch((e) =>
+          console.warn("Failed to save waypoints to IndexedDB:", e)
+        );
+      }
+    }
+  }
+
+  // Combine cached + new features
+  const allFeatures = [...cachedFeatures, ...newFeatures];
+  console.log(
+    `✅ [fetchWaypointsWithCache] Returning ${allFeatures.length} total waypoint features`
+  );
+
+  return { type: "FeatureCollection", features: allFeatures };
+}
+
+/**
  * Refresh road accessibility data for current map bounds
+ * Uses IndexedDB caching for faster subsequent loads
  * @param {L.Map} map - Leaflet map instance
  */
 async function refreshRoadAccessibilityData(map) {
@@ -128,10 +257,11 @@ async function refreshRoadAccessibilityData(map) {
   }
   currentBounds = boundsKey;
 
-  console.log("🛣️ Fetching road accessibility data...");
+  console.log("🛣️ Fetching road accessibility data with caching...");
 
   try {
-    const geojson = await fetchRoadAccessibility({
+    // Use the caching-enabled fetch
+    const geojson = await fetchWaypointsWithCache({
       south: bounds.getSouth(),
       west: bounds.getWest(),
       north: bounds.getNorth(),
@@ -442,6 +572,28 @@ export function forceRefreshRoads(map) {
   refreshRoadAccessibilityData(map);
 }
 
+/**
+ * Get waypoints cache statistics
+ * @returns {Object} Cache stats { memoryCount, message }
+ */
+export function getWaypointsCacheStats() {
+  return {
+    memoryCount: indexedDBWaypointsMap.size,
+    cacheLoaded: indexedDBWaypointsCacheLoaded,
+    message: `${indexedDBWaypointsMap.size} waypoints in memory cache`,
+  };
+}
+
+/**
+ * Clear the in-memory waypoints cache (not IndexedDB)
+ * Useful for forcing a fresh load from IndexedDB
+ */
+export function clearInMemoryWaypointsCache() {
+  indexedDBWaypointsMap.clear();
+  indexedDBWaypointsCacheLoaded = false;
+  console.log("🗑️ Cleared in-memory waypoints cache");
+}
+
 // Export for use in MapContainer
 const roadAccessibilityModule = {
   initRoadAccessibilityLayer,
@@ -450,5 +602,7 @@ const roadAccessibilityModule = {
   getVisualizationMode,
   isRoadAccessibilityEnabled,
   forceRefreshRoads,
+  getWaypointsCacheStats,
+  clearInMemoryWaypointsCache,
 };
 export default roadAccessibilityModule;
