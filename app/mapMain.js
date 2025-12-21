@@ -3545,6 +3545,9 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   const label = TIER_LABELS[tier] || "Unknown";
   const color = TIER_COLORS[tier] || TIER_COLORS.unknown;
 
+  // Track if we need to show ML prediction (for unknown accessibility)
+  const showMlPrediction = tier === "unknown";
+
   const accItem = document.createElement("div");
   accItem.className = "list-group-item";
   accItem.style.padding = "0";
@@ -3657,6 +3660,214 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   container.appendChild(header);
   container.appendChild(cardContainer);
+
+  // --- ML PREDICTION: Show AI prediction when wheelchair status is unknown ---
+  if (showMlPrediction) {
+    // Create prediction container (initially shows loading state)
+    const predictionContainer = document.createElement("div");
+    predictionContainer.style.marginTop = "16px";
+    predictionContainer.style.padding = "16px";
+    predictionContainer.style.backgroundColor = "rgba(12, 119, 210, 0.05)"; // light blue background
+    predictionContainer.style.borderRadius = "12px";
+    predictionContainer.style.border = "1px dashed rgba(12, 119, 210, 0.3)";
+
+    // Header with AI icon
+    const predictionHeader = document.createElement("div");
+    predictionHeader.style.display = "flex";
+    predictionHeader.style.alignItems = "center";
+    predictionHeader.style.gap = "8px";
+    predictionHeader.style.marginBottom = "12px";
+
+    const aiIcon = document.createElement("span");
+    aiIcon.textContent = "✨";
+    aiIcon.style.fontSize = "14px";
+
+    const predictionTitle = document.createElement("span");
+    predictionTitle.style.fontSize = "0.75rem";
+    predictionTitle.style.fontWeight = "600";
+    predictionTitle.style.color = "#0c77d2";
+    predictionTitle.style.textTransform = "uppercase";
+    predictionTitle.style.letterSpacing = "0.5px";
+    predictionTitle.textContent = "AI Prediction";
+
+    predictionHeader.appendChild(aiIcon);
+    predictionHeader.appendChild(predictionTitle);
+
+    // Content area (will be updated after fetch)
+    const predictionContent = document.createElement("div");
+    predictionContent.style.display = "flex";
+    predictionContent.style.alignItems = "center";
+    predictionContent.style.gap = "12px";
+
+    // Loading state
+    const loadingText = document.createElement("span");
+    loadingText.style.fontSize = "0.875rem";
+    loadingText.style.color = "rgba(0, 0, 0, 0.6)";
+    loadingText.textContent = "Analyzing accessibility...";
+    predictionContent.appendChild(loadingText);
+
+    predictionContainer.appendChild(predictionHeader);
+    predictionContainer.appendChild(predictionContent);
+    container.appendChild(predictionContainer);
+
+    // Fetch ML prediction asynchronously
+    (async () => {
+      try {
+        // Extract relevant OSM features for prediction
+        const features = {};
+        const relevantTags = [
+          "amenity",
+          "shop",
+          "tourism",
+          "building",
+          "entrance",
+          "door",
+          "automatic_door",
+          "access",
+          "level",
+          "healthcare",
+          "office",
+          "bench",
+          "changing_table",
+          "indoor",
+          "leisure",
+        ];
+
+        for (const tag of relevantTags) {
+          const value = nTags[tag] || nTags[`tags.${tag}`];
+          if (value !== null && value !== undefined && value !== "") {
+            features[tag] = value;
+          }
+        }
+
+        // Only predict if we have some features
+        if (Object.keys(features).length === 0) {
+          predictionContent.innerHTML = "";
+          const noDataText = document.createElement("span");
+          noDataText.style.fontSize = "0.875rem";
+          noDataText.style.color = "rgba(0, 0, 0, 0.5)";
+          noDataText.style.fontStyle = "italic";
+          noDataText.textContent = "Not enough data for prediction";
+          predictionContent.appendChild(noDataText);
+          return;
+        }
+
+        // Build query string
+        const params = new URLSearchParams();
+        for (const [key, value] of Object.entries(features)) {
+          params.append(key, String(value));
+        }
+
+        const response = await fetch(
+          `/api/accessibility-predict?${params.toString()}`
+        );
+        if (!response.ok) throw new Error("Prediction failed");
+
+        const result = await response.json();
+
+        // Update UI with prediction result
+        predictionContent.innerHTML = "";
+
+        // Prediction icon
+        const predIcon = document.createElement("div");
+        predIcon.style.width = "36px";
+        predIcon.style.height = "36px";
+        predIcon.style.borderRadius = "50%";
+        predIcon.style.display = "flex";
+        predIcon.style.alignItems = "center";
+        predIcon.style.justifyContent = "center";
+        predIcon.style.flexShrink = "0";
+
+        const isAccessible = result.label === "accessible";
+        predIcon.style.backgroundColor = isAccessible
+          ? "rgba(22, 163, 74, 0.1)"
+          : "rgba(220, 38, 38, 0.1)";
+        predIcon.innerHTML = isAccessible
+          ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>`
+          : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>`;
+
+        // Prediction text
+        const predTextWrapper = document.createElement("div");
+        predTextWrapper.style.flex = "1";
+
+        const predLabel = document.createElement("div");
+        predLabel.style.fontSize = "0.9375rem";
+        predLabel.style.fontWeight = "500";
+        predLabel.style.color = isAccessible ? "#16a34a" : "#dc2626";
+        predLabel.textContent = isAccessible
+          ? "Likely Accessible"
+          : "Likely Not Accessible";
+
+        const predConfidence = document.createElement("div");
+        predConfidence.style.fontSize = "0.75rem";
+        predConfidence.style.color = "rgba(0, 0, 0, 0.5)";
+        predConfidence.style.marginTop = "2px";
+        const confidencePercent = Math.round(result.probability * 100);
+        predConfidence.textContent = `${confidencePercent}% confidence (${result.confidence})`;
+
+        predTextWrapper.appendChild(predLabel);
+        predTextWrapper.appendChild(predConfidence);
+
+        predictionContent.appendChild(predIcon);
+        predictionContent.appendChild(predTextWrapper);
+
+        // Add "Based on" features section if available
+        if (result.basedOn && result.basedOn.length > 0) {
+          const basedOnSection = document.createElement("div");
+          basedOnSection.style.marginTop = "12px";
+          basedOnSection.style.paddingTop = "10px";
+          basedOnSection.style.borderTop = "1px solid rgba(12, 119, 210, 0.15)";
+
+          const basedOnLabel = document.createElement("div");
+          basedOnLabel.style.fontSize = "0.6875rem";
+          basedOnLabel.style.color = "rgba(0, 0, 0, 0.5)";
+          basedOnLabel.style.marginBottom = "6px";
+          basedOnLabel.textContent = "Based on:";
+
+          const featureChips = document.createElement("div");
+          featureChips.style.display = "flex";
+          featureChips.style.flexWrap = "wrap";
+          featureChips.style.gap = "6px";
+
+          result.basedOn.forEach((f) => {
+            const chip = document.createElement("span");
+            chip.style.display = "inline-block";
+            chip.style.padding = "3px 8px";
+            chip.style.fontSize = "0.6875rem";
+            chip.style.backgroundColor = "rgba(12, 119, 210, 0.1)";
+            chip.style.color = "#0c77d2";
+            chip.style.borderRadius = "12px";
+            chip.style.fontWeight = "500";
+            chip.textContent = f.displayName;
+            featureChips.appendChild(chip);
+          });
+
+          basedOnSection.appendChild(basedOnLabel);
+          basedOnSection.appendChild(featureChips);
+          predictionContainer.appendChild(basedOnSection);
+        }
+
+        // Add disclaimer
+        const disclaimer = document.createElement("div");
+        disclaimer.style.marginTop = "10px";
+        disclaimer.style.fontSize = "0.6875rem";
+        disclaimer.style.color = "rgba(0, 0, 0, 0.4)";
+        disclaimer.style.fontStyle = "italic";
+        disclaimer.textContent =
+          "Based on ML analysis of place characteristics. Actual accessibility may vary.";
+        predictionContainer.appendChild(disclaimer);
+      } catch (err) {
+        console.warn("Failed to get accessibility prediction:", err);
+        predictionContent.innerHTML = "";
+        const errorText = document.createElement("span");
+        errorText.style.fontSize = "0.875rem";
+        errorText.style.color = "rgba(0, 0, 0, 0.5)";
+        errorText.textContent = "Could not analyze accessibility";
+        predictionContent.appendChild(errorText);
+      }
+    })();
+  }
+
   accItem.appendChild(container);
   list.appendChild(accItem);
 
