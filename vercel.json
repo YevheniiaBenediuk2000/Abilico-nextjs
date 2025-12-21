@@ -5,5 +5,10 @@
       "design/sidebar": true,
       "feature/*": false
     }
+  },
+  "functions": {
+    "app/api/**/*.js": {
+      "includeFiles": "public/models/**"
+    }
   }
 }
