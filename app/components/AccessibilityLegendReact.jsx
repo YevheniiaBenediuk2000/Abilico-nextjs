@@ -14,11 +14,11 @@ const ALL_TIERS = ["designated", "yes", "limited", "unknown", "no"];
 
 // Display labels for accessibility tiers
 const TIER_LABELS = {
-  designated: "Designated",
+  designated: "Designated accessible",
   yes: "Wheelchair accessible",
-  limited: "Limited",
-  unknown: "Unknown",
-  no: "No",
+  limited: "Partially accessible",
+  unknown: "Not specified",
+  no: "Not accessible",
 };
 
 function getInitialSelection() {
@@ -122,7 +122,7 @@ export default function AccessibilityLegendReact({ hideTitle = false }) {
           gap: 1.5,
         }}
       >
-        {/* First row: Designated, Wheelchair accessible, Limited */}
+        {/* First row: Designated accessible, Wheelchair accessible, Partially accessible */}
         <Box
           sx={{
             display: "flex",
@@ -175,7 +175,7 @@ export default function AccessibilityLegendReact({ hideTitle = false }) {
           })}
         </Box>
 
-        {/* Second row: Unknown, No */}
+        {/* Second row: Not specified, Not accessible */}
         <Box
           sx={{
             display: "flex",
