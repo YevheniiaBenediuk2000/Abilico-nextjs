@@ -42,7 +42,7 @@ export function makePoiIcon(tags = {}, opts = {}) {
   const html = `
     <div class="${badgeClass}" style="--badge:${badge}">
       <div class="poi-badge__glyph" style="--glyph:url('${glyphUrl}')"></div>
-      ${isPredicted ? '<span class="poi-badge__ai-indicator">✨</span>' : ""}
+      ${isPredicted ? `<div class="poi-badge__ai-indicator" style="--badge:${badge}">AI</div>` : ""}
     </div>
   `;
 

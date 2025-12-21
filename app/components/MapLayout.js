@@ -169,9 +169,12 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
           position="static"
           color="transparent"
           sx={{
-            bgcolor: "#fff",
+            bgcolor: effectiveIsPlacesListOpen ? "#fafafa" : "#fff",
             color: "text.primary",
-            borderBottom: "1px solid rgba(0,0,0,0.12)",
+            borderBottom: effectiveIsPlacesListOpen 
+              ? "1px solid rgba(0,0,0,0.08)" 
+              : "1px solid rgba(0,0,0,0.12)",
+            transition: "background-color 0.2s ease, border-color 0.2s ease",
           }}
         >
           <Toolbar sx={{ gap: 2 }}>
@@ -299,6 +302,7 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
                   borderRadius: "25px",
                   px: 2,
                   py: 0.75,
+                  minWidth: "auto",
                   textTransform: "none",
                   fontWeight: 500,
                   fontSize: "0.875rem",
@@ -308,9 +312,29 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
                     opacity: 0.9,
                     boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
                   },
+                  "& .MuiButton-startIcon": {
+                    margin: "0 8px 0 0",
+                  },
+                  "@media (max-width: 768px)": {
+                    px: 1.5,
+                    minWidth: "40px",
+                    "& .MuiButton-startIcon": {
+                      margin: 0,
+                    },
+                  },
                 }}
               >
-                Add place
+                <Box
+                  component="span"
+                  sx={{
+                    display: "inline",
+                    "@media (max-width: 768px)": {
+                      display: "none",
+                    },
+                  }}
+                >
+                  Add place
+                </Box>
               </Button>
 
               {!user ? (

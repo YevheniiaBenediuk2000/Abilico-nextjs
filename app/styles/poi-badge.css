@@ -11,23 +11,30 @@
   position: relative;
 }
 
-/* ML-predicted badge variant - dashed border to indicate prediction */
+/* ML-predicted badge variant */
 .poi-badge--predicted {
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25),
     inset 0 0 0 2px rgba(255, 255, 255, 0.65);
-  /* Dashed ring around the badge to indicate prediction */
-  outline: 2px dashed rgba(255, 255, 255, 0.85);
-  outline-offset: 2px;
 }
 
-/* AI indicator sparkle - positioned at top-right of badge */
+/* AI indicator badge - positioned at bottom center, overlapping the badge */
 .poi-badge__ai-indicator {
   position: absolute;
-  top: -6px;
-  right: -6px;
-  font-size: 10px;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--badge, #3b82f6);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  font-size: 8px;
+  font-weight: 600;
   line-height: 1;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
   z-index: 1;
 }
 
