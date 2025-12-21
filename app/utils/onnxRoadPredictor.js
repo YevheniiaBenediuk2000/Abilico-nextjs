@@ -12,8 +12,13 @@ const MODEL_BASE_PATH = "/models/road_accessibility";
 
 // IndexedDB configuration for model caching
 const MODEL_DB_NAME = "AbilicoOnnxModels";
-const MODEL_DB_VERSION = 1;
+const MODEL_DB_VERSION = 3;
 const MODEL_STORE_NAME = "models";
+const PREDICTIONS_STORE_NAME = "predictions";
+
+// In-memory prediction cache for fast lookups (LRU-style with max size)
+const predictionCache = new Map();
+const PREDICTION_CACHE_MAX_SIZE = 5000;
 
 // Cached sessions and schema
 let schema = null;
@@ -23,6 +28,10 @@ let sessions = {
   width: null,
   incline: null,
 };
+
+// Cached IndexedDB connection
+let cachedDb = null;
+let dbOpenPromise = null;
 
 // Loading state
 let isInitialized = false;
@@ -37,10 +46,21 @@ const inferenceQueues = {
 };
 
 /**
- * Open or create the IndexedDB database for model caching
+ * Open or get cached IndexedDB database connection
+ * Handles version conflicts by deleting and recreating the database
  */
-function openModelDB() {
-  return new Promise((resolve, reject) => {
+function openModelDB(retryAfterDelete = false) {
+  // Return cached connection if available
+  if (cachedDb) {
+    return Promise.resolve(cachedDb);
+  }
+
+  // Return pending promise if already opening
+  if (dbOpenPromise) {
+    return dbOpenPromise;
+  }
+
+  dbOpenPromise = new Promise((resolve, reject) => {
     if (typeof window === "undefined" || !window.indexedDB) {
       reject(new Error("IndexedDB not supported"));
       return;
@@ -48,13 +68,45 @@ function openModelDB() {
 
     const request = window.indexedDB.open(MODEL_DB_NAME, MODEL_DB_VERSION);
 
-    request.onerror = (event) => {
-      console.error("[ONNX] IndexedDB error:", event.target.error);
-      reject(event.target.error);
+    request.onerror = async (event) => {
+      const error = event.target.error;
+      console.error("[ONNX] IndexedDB error:", error);
+      dbOpenPromise = null;
+
+      // Handle version conflict: delete the database and retry
+      if (!retryAfterDelete && error?.name === "VersionError") {
+        console.warn(
+          "[ONNX] Database version conflict detected. Deleting old database..."
+        );
+        try {
+          cachedDb = null;
+          await deleteModelDB();
+          const result = await openModelDB(true);
+          resolve(result);
+          return;
+        } catch (deleteError) {
+          console.error(
+            "[ONNX] Failed to delete and recreate database:",
+            deleteError
+          );
+          reject(deleteError);
+          return;
+        }
+      }
+
+      reject(error);
     };
 
     request.onsuccess = (event) => {
-      resolve(event.target.result);
+      cachedDb = event.target.result;
+
+      // Handle connection close
+      cachedDb.onclose = () => {
+        cachedDb = null;
+        dbOpenPromise = null;
+      };
+
+      resolve(cachedDb);
     };
 
     request.onupgradeneeded = (event) => {
@@ -63,8 +115,181 @@ function openModelDB() {
         db.createObjectStore(MODEL_STORE_NAME, { keyPath: "name" });
         console.log("🤖 [ONNX] Created IndexedDB store for models");
       }
+      if (!db.objectStoreNames.contains(PREDICTIONS_STORE_NAME)) {
+        const predStore = db.createObjectStore(PREDICTIONS_STORE_NAME, {
+          keyPath: "id",
+        });
+        predStore.createIndex("cachedAt", "cachedAt", { unique: false });
+        console.log("🤖 [ONNX] Created IndexedDB store for predictions");
+      }
+    };
+
+    // Handle blocked event (when other tabs have the database open)
+    request.onblocked = () => {
+      console.warn(
+        "[ONNX] Database upgrade blocked by other tabs. Please close other tabs."
+      );
     };
   });
+
+  return dbOpenPromise;
+}
+
+/**
+ * Delete the IndexedDB database
+ */
+function deleteModelDB() {
+  return new Promise((resolve, reject) => {
+    if (typeof window === "undefined" || !window.indexedDB) {
+      reject(new Error("IndexedDB not supported"));
+      return;
+    }
+
+    const request = window.indexedDB.deleteDatabase(MODEL_DB_NAME);
+
+    request.onsuccess = () => {
+      console.log("[ONNX] Successfully deleted old IndexedDB database");
+      resolve();
+    };
+
+    request.onerror = (event) => {
+      console.error("[ONNX] Failed to delete database:", event.target.error);
+      reject(event.target.error);
+    };
+
+    request.onblocked = () => {
+      console.warn(
+        "[ONNX] Database deletion blocked. Close other tabs and retry."
+      );
+      // Still resolve as the delete will eventually happen
+      resolve();
+    };
+  });
+}
+
+/**
+ * Generate a cache key for road predictions based on OSM ID or properties hash
+ * @param {Object} props - OSM road properties
+ * @returns {string} - Cache key
+ */
+function getPredictionCacheKey(props) {
+  // Use OSM ID if available (most reliable)
+  if (props.id || props.osm_id || props["@id"]) {
+    return `osm_${props.id || props.osm_id || props["@id"]}`;
+  }
+
+  // Fallback: hash key properties that affect prediction
+  const keyProps = [
+    props.highway,
+    props.surface,
+    props.smoothness,
+    props.width,
+    props.incline,
+    props.lit,
+    props.tactile_paving,
+    props.oneway,
+  ].join("|");
+
+  // Simple hash function
+  let hash = 0;
+  for (let i = 0; i < keyProps.length; i++) {
+    const char = keyProps.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return `hash_${hash}`;
+}
+
+/**
+ * Get cached prediction from memory or IndexedDB
+ * @param {string} cacheKey - Cache key for the road
+ * @returns {Promise<Object|null>} - Cached prediction or null
+ */
+async function getCachedPrediction(cacheKey) {
+  // Check in-memory cache first (fast path)
+  if (predictionCache.has(cacheKey)) {
+    return predictionCache.get(cacheKey);
+  }
+
+  // Try IndexedDB
+  try {
+    const db = await openModelDB();
+    return new Promise((resolve) => {
+      const transaction = db.transaction([PREDICTIONS_STORE_NAME], "readonly");
+      const store = transaction.objectStore(PREDICTIONS_STORE_NAME);
+      const request = store.get(cacheKey);
+
+      request.onsuccess = () => {
+        if (request.result) {
+          // Add to memory cache
+          addToMemoryCache(cacheKey, request.result.data);
+          resolve(request.result.data);
+        } else {
+          resolve(null);
+        }
+      };
+      request.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Save prediction to both memory and IndexedDB cache
+ * @param {string} cacheKey - Cache key for the road
+ * @param {Object} prediction - Prediction result to cache
+ */
+async function cachePrediction(cacheKey, prediction) {
+  // Add to memory cache
+  addToMemoryCache(cacheKey, prediction);
+
+  // Save to IndexedDB (async, don't await)
+  try {
+    const db = await openModelDB();
+    const transaction = db.transaction([PREDICTIONS_STORE_NAME], "readwrite");
+    const store = transaction.objectStore(PREDICTIONS_STORE_NAME);
+
+    store.put({
+      id: cacheKey,
+      data: prediction,
+      cachedAt: Date.now(),
+    });
+  } catch (e) {
+    console.warn("[ONNX] Failed to cache prediction to IndexedDB:", e);
+  }
+}
+
+/**
+ * Add prediction to in-memory cache with LRU eviction
+ * @param {string} key - Cache key
+ * @param {Object} value - Prediction data
+ */
+function addToMemoryCache(key, value) {
+  // Evict oldest entries if cache is full
+  if (predictionCache.size >= PREDICTION_CACHE_MAX_SIZE) {
+    const firstKey = predictionCache.keys().next().value;
+    predictionCache.delete(firstKey);
+  }
+  predictionCache.set(key, value);
+}
+
+/**
+ * Clear all cached predictions (useful for debugging or when models update)
+ */
+export async function clearPredictionCache() {
+  // Clear memory cache
+  predictionCache.clear();
+
+  // Clear IndexedDB predictions
+  try {
+    const db = await openModelDB();
+    const transaction = db.transaction([PREDICTIONS_STORE_NAME], "readwrite");
+    const store = transaction.objectStore(PREDICTIONS_STORE_NAME);
+    store.clear();
+  } catch (e) {
+    console.warn("[ONNX] Failed to clear prediction cache:", e);
+  }
 }
 
 /**
@@ -85,12 +310,8 @@ async function getModelFromCache(modelName, schemaVersion) {
         if (request.result) {
           // Validate schema version - invalidate cache if version mismatch
           if (schemaVersion && request.result.version !== schemaVersion) {
-            console.log(
-              `⚠️ [ONNX] Cache version mismatch for ${modelName}: cached=${request.result.version}, current=${schemaVersion}. Re-downloading...`
-            );
             resolve(null);
           } else {
-            console.log(`💾 [ONNX] Found ${modelName} in IndexedDB cache`);
             resolve(request.result.data);
           }
         } else {
@@ -126,7 +347,6 @@ async function saveModelToCache(modelName, data, version) {
       });
 
       transaction.oncomplete = () => {
-        console.log(`💾 [ONNX] Saved ${modelName} to IndexedDB cache`);
         resolve();
       };
       transaction.onerror = () => reject(transaction.error);
@@ -198,11 +418,12 @@ export async function initOnnxModels() {
       }
       schema = await schemaResponse.json();
 
-      // Configure ONNX Runtime for browser
+      // Configure ONNX Runtime for browser - use specific version matching package.json
       ort.env.wasm.wasmPaths =
-        "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";
+        "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/";
 
-      // Suppress warnings about unknown CPU vendor (common on Apple Silicon)
+      // Use single thread and suppress warnings
+      ort.env.wasm.numThreads = 1;
       ort.env.logLevel = "error";
 
       // Get schema version for cache invalidation
@@ -274,7 +495,6 @@ export async function clearModelCache() {
       const request = store.clear();
 
       request.onsuccess = () => {
-        console.log("🗑️ [ONNX] Cleared model cache from IndexedDB");
         resolve();
       };
       request.onerror = () => reject(request.error);
@@ -714,6 +934,14 @@ async function runInference(modelName, props) {
  * @returns {Promise<Object>} - Enhanced properties with predictions
  */
 export async function predictRoadFeatures(props) {
+  // Check cache FIRST before loading models
+  const cacheKey = getPredictionCacheKey(props);
+  const cachedResult = await getCachedPrediction(cacheKey);
+  if (cachedResult) {
+    return { ...props, ...cachedResult, _fromCache: true };
+  }
+
+  // Only load models if we need to run inference
   if (!isInitialized) {
     await initOnnxModels();
   }
@@ -777,6 +1005,47 @@ export async function predictRoadFeatures(props) {
 
   result._predictions = predictions;
   result._hasPredictions = Object.keys(predictions).length > 0;
+
+  // Cache the prediction results (only the prediction-related fields)
+  if (result._hasPredictions) {
+    const predictionData = {
+      _predictions: predictions,
+      _hasPredictions: true,
+    };
+    // Include all prediction-related fields
+    if (result._surfacePredicted) {
+      predictionData.surface = result.surface;
+      predictionData._surfacePredicted = true;
+      predictionData._surfaceConfidence = result._surfaceConfidence;
+      predictionData._surfaceAlternatives = result._surfaceAlternatives;
+      predictionData._surfaceContributors = result._surfaceContributors;
+      predictionData._surfaceMetrics = result._surfaceMetrics;
+    }
+    if (result._smoothnessPredicted) {
+      predictionData.smoothness = result.smoothness;
+      predictionData._smoothnessPredicted = true;
+      predictionData._smoothnessConfidence = result._smoothnessConfidence;
+      predictionData._smoothnessAlternatives = result._smoothnessAlternatives;
+      predictionData._smoothnessContributors = result._smoothnessContributors;
+      predictionData._smoothnessMetrics = result._smoothnessMetrics;
+    }
+    if (result._widthPredicted) {
+      predictionData.width = result.width;
+      predictionData._widthPredicted = true;
+      predictionData._widthValue = result._widthValue;
+      predictionData._widthContributors = result._widthContributors;
+      predictionData._widthMetrics = result._widthMetrics;
+    }
+    if (result._inclinePredicted) {
+      predictionData.incline = result.incline;
+      predictionData._inclinePredicted = true;
+      predictionData._inclineValue = result._inclineValue;
+      predictionData._inclineContributors = result._inclineContributors;
+      predictionData._inclineMetrics = result._inclineMetrics;
+    }
+    // Cache asynchronously (don't block return)
+    cachePrediction(cacheKey, predictionData);
+  }
 
   return result;
 }

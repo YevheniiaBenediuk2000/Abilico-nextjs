@@ -2,6 +2,11 @@ import debounce from "lodash.debounce";
 
 import elements from "./constants/domElements.js";
 import {
+  predictAccessibilityBatch,
+  predictAccessibility,
+  preloadAccessibilityModel,
+} from "./utils/accessibilityPredict.js";
+import {
   fetchPlace,
   fetchPlaceGeometry,
   fetchPlaceIds,
@@ -11,9 +16,11 @@ import { fetchUserPlaces } from "./api/fetchUserPlaces.js";
 import { fetchRoute } from "./api/fetchRoute.js";
 import { obstacleStorage } from "./api/obstacleStorage.js";
 import {
+  BADGE_COLOR_BY_TIER,
   DEFAULT_ZOOM,
   EXCLUDED_PROPS,
   placeClusterConfig,
+  PREDICTED_BADGE_COLOR_BY_TIER,
   PREDICTION_PROBABILITY_THRESHOLD,
   SHOW_PLACES_ZOOM,
 } from "./constants/constants.mjs";
@@ -1513,6 +1520,9 @@ async function fetchAndApplyPlacePredictions(featuresInView) {
     const features = extractFeaturesForPrediction(tags);
     if (Object.keys(features).length === 0) continue; // Not enough data
 
+    // Add the place ID to features for caching purposes
+    features._placeId = placeKey;
+
     placesToPredict.push({ placeKey, features, tags });
     placeKeyToTags.set(placeKey, tags);
   }
@@ -1520,40 +1530,54 @@ async function fetchAndApplyPlacePredictions(featuresInView) {
   if (placesToPredict.length === 0) return;
 
   console.log(
-    `✨ [ML Prediction] Fetching predictions for ${placesToPredict.length} places...`
+    `✨ [ML Prediction] Running client-side predictions for ${placesToPredict.length} places...`
   );
 
   try {
-    // Batch predict (limit batch size to avoid huge requests)
+    // Batch predict (limit batch size for memory efficiency)
     const BATCH_SIZE = 50;
+    const markersToUpdate = [];
+
     for (let i = 0; i < placesToPredict.length; i += BATCH_SIZE) {
       const batch = placesToPredict.slice(i, i + BATCH_SIZE);
       const places = batch.map((p) => p.features);
 
-      const response = await fetch("/api/accessibility-predict", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ places }),
-      });
+      try {
+        const result = await predictAccessibilityBatch(places);
+        const predictions = result.predictions || [];
 
-      if (!response.ok) {
-        console.warn("ML prediction batch failed:", response.status);
+        // Collect predictions for batch UI update
+        for (let j = 0; j < batch.length && j < predictions.length; j++) {
+          const { placeKey, tags } = batch[j];
+          const prediction = predictions[j];
+
+          // Cache the prediction
+          placePredictionsCache.set(placeKey, prediction);
+
+          // Queue marker update (don't update immediately to avoid blocking)
+          markersToUpdate.push({ placeKey, tags, prediction });
+        }
+      } catch (batchErr) {
+        console.warn("ML prediction batch failed:", batchErr.message);
         continue;
       }
 
-      const result = await response.json();
-      const predictions = result.predictions || [];
+      // Yield to UI between batches to prevent freezing
+      if (i + BATCH_SIZE < placesToPredict.length) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    }
 
-      // Store predictions in cache and update markers
-      for (let j = 0; j < batch.length && j < predictions.length; j++) {
-        const { placeKey, tags } = batch[j];
-        const prediction = predictions[j];
-
-        // Cache the prediction
-        placePredictionsCache.set(placeKey, prediction);
-
-        // Update marker icon if it's still on the map
+    // Update markers in chunks with UI yielding
+    const MARKER_UPDATE_CHUNK = 20;
+    for (let i = 0; i < markersToUpdate.length; i += MARKER_UPDATE_CHUNK) {
+      const chunk = markersToUpdate.slice(i, i + MARKER_UPDATE_CHUNK);
+      for (const { placeKey, tags, prediction } of chunk) {
         updateMarkerWithPrediction(placeKey, tags, prediction);
+      }
+      // Yield to UI between chunks
+      if (i + MARKER_UPDATE_CHUNK < markersToUpdate.length) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
       }
     }
 
@@ -1561,7 +1585,7 @@ async function fetchAndApplyPlacePredictions(featuresInView) {
       `✨ [ML Prediction] Updated ${placesToPredict.length} markers with predictions`
     );
   } catch (err) {
-    console.error("Failed to fetch place predictions:", err);
+    console.error("Failed to run place predictions:", err);
   }
 }
 
@@ -3772,11 +3796,11 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
   // Colors from constants (same as map badges)
   const TIER_COLORS = {
-    designated: "#16a34a", // green
-    yes: "#6cc24a", // lighter green
-    limited: "#ffc107", // amber/orange
-    unknown: "#6c757d", // grey
-    no: "#dc3545", // red
+    designated: BADGE_COLOR_BY_TIER.designated,
+    yes: BADGE_COLOR_BY_TIER.yes,
+    limited: "#ffc107", // amber/orange (CSS var not usable here)
+    unknown: "#6c757d", // grey (CSS var not usable here)
+    no: "#dc3545", // red (CSS var not usable here)
   };
 
   const wheelchairTags = {};
@@ -4012,6 +4036,21 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     // Fetch ML prediction asynchronously
     (async () => {
       try {
+        // Generate a placeKey for cache lookup (same format as map markers)
+        const placeId =
+          nTags.id ||
+          nTags.osm_id ||
+          nTags["@id"] ||
+          globals.detailsCtx?.placeId;
+        const placeKey = placeId ? `N/${placeId}` : null;
+
+        // Check if we already have a cached prediction from map markers
+        if (placeKey && placePredictionsCache.has(placeKey)) {
+          const cachedPrediction = placePredictionsCache.get(placeKey);
+          renderPredictionResult(predictionContent, cachedPrediction);
+          return;
+        }
+
         // Extract relevant OSM features for prediction
         const features = {};
         const relevantTags = [
@@ -4051,143 +4090,99 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
           return;
         }
 
-        // Build query string
-        const params = new URLSearchParams();
-        for (const [key, value] of Object.entries(features)) {
-          params.append(key, String(value));
+        // Add place ID to features for caching (same as map markers)
+        if (placeKey) {
+          features._placeId = placeKey;
         }
 
-        const response = await fetch(
-          `/api/accessibility-predict?${params.toString()}`
-        );
-        if (!response.ok) throw new Error("Prediction failed");
+        // Use client-side ONNX prediction
+        const result = await predictAccessibility(features);
 
-        const result = await response.json();
-
-        // Update UI with prediction result
-        predictionContent.innerHTML = "";
-
-        // Prediction icon
-        const predIcon = document.createElement("div");
-        predIcon.style.width = "36px";
-        predIcon.style.height = "36px";
-        predIcon.style.borderRadius = "50%";
-        predIcon.style.display = "flex";
-        predIcon.style.alignItems = "center";
-        predIcon.style.justifyContent = "center";
-        predIcon.style.flexShrink = "0";
-
-        // Handle 3-class predictions: accessible, limited, not_accessible
-        const predictionLabel = result.label;
-        const isAccessible = predictionLabel === "accessible";
-        const isLimited = predictionLabel === "limited";
-        const isNotAccessible = predictionLabel === "not_accessible";
-
-        // Set colors based on prediction class
-        let iconColor, bgColor, labelText;
-        if (isAccessible) {
-          iconColor = "#16a34a"; // green
-          bgColor = "rgba(22, 163, 74, 0.1)";
-          labelText = "Likely Accessible";
-        } else if (isLimited) {
-          iconColor = "#ca8a04"; // yellow/amber
-          bgColor = "rgba(202, 138, 4, 0.1)";
-          labelText = "Likely Limited Access";
-        } else {
-          iconColor = "#dc2626"; // red
-          bgColor = "rgba(220, 38, 38, 0.1)";
-          labelText = "Likely Not Accessible";
+        // Cache the result for future use
+        if (placeKey && result) {
+          placePredictionsCache.set(placeKey, result);
         }
 
-        predIcon.style.backgroundColor = bgColor;
-
-        // Different icons for each state
-        if (isAccessible) {
-          predIcon.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>`;
-        } else if (isLimited) {
-          predIcon.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2"><path d="M12 9v4M12 17h.01M12 3a9 9 0 100 18 9 9 0 000-18z"/></svg>`;
-        } else {
-          predIcon.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>`;
-        }
-
-        // Prediction text
-        const predTextWrapper = document.createElement("div");
-        predTextWrapper.style.flex = "1";
-
-        const predLabel = document.createElement("div");
-        predLabel.style.fontSize = "0.9375rem";
-        predLabel.style.fontWeight = "500";
-        predLabel.style.color = iconColor;
-        predLabel.textContent = labelText;
-
-        const predConfidence = document.createElement("div");
-        predConfidence.style.fontSize = "0.75rem";
-        predConfidence.style.color = "rgba(0, 0, 0, 0.5)";
-        predConfidence.style.marginTop = "2px";
-        const confidencePercent = Math.round(result.probability * 100);
-        predConfidence.textContent = `${confidencePercent}% confidence`;
-
-        predTextWrapper.appendChild(predLabel);
-        predTextWrapper.appendChild(predConfidence);
-
-        predictionContent.appendChild(predIcon);
-        predictionContent.appendChild(predTextWrapper);
-
-        // Add "Based on" features section if available
-        if (result.basedOn && result.basedOn.length > 0) {
-          const basedOnSection = document.createElement("div");
-          basedOnSection.style.marginTop = "12px";
-          basedOnSection.style.paddingTop = "10px";
-          basedOnSection.style.borderTop = "1px solid rgba(12, 119, 210, 0.15)";
-
-          const basedOnLabel = document.createElement("div");
-          basedOnLabel.style.fontSize = "0.6875rem";
-          basedOnLabel.style.color = "rgba(0, 0, 0, 0.5)";
-          basedOnLabel.style.marginBottom = "6px";
-          basedOnLabel.textContent = "Based on:";
-
-          const featureChips = document.createElement("div");
-          featureChips.style.display = "flex";
-          featureChips.style.flexWrap = "wrap";
-          featureChips.style.gap = "6px";
-
-          result.basedOn.forEach((f) => {
-            const chip = document.createElement("span");
-            chip.style.display = "inline-block";
-            chip.style.padding = "3px 8px";
-            chip.style.fontSize = "0.6875rem";
-            chip.style.backgroundColor = "rgba(12, 119, 210, 0.1)";
-            chip.style.color = "#0c77d2";
-            chip.style.borderRadius = "12px";
-            chip.style.fontWeight = "500";
-            chip.textContent = f.displayName;
-            featureChips.appendChild(chip);
-          });
-
-          basedOnSection.appendChild(basedOnLabel);
-          basedOnSection.appendChild(featureChips);
-          predictionContainer.appendChild(basedOnSection);
-        }
-
-        // Add disclaimer
-        const disclaimer = document.createElement("div");
-        disclaimer.style.marginTop = "10px";
-        disclaimer.style.fontSize = "0.6875rem";
-        disclaimer.style.color = "rgba(0, 0, 0, 0.4)";
-        disclaimer.style.fontStyle = "italic";
-        disclaimer.textContent =
-          "Based on ML analysis of place characteristics. Actual accessibility may vary.";
-        predictionContainer.appendChild(disclaimer);
+        renderPredictionResult(predictionContent, result);
       } catch (err) {
         console.warn("Failed to get accessibility prediction:", err);
         predictionContent.innerHTML = "";
-        const errorText = document.createElement("span");
-        errorText.style.fontSize = "0.875rem";
-        errorText.style.color = "rgba(0, 0, 0, 0.5)";
-        errorText.textContent = "Could not analyze accessibility";
-        predictionContent.appendChild(errorText);
+        const errText = document.createElement("span");
+        errText.style.fontSize = "0.875rem";
+        errText.style.color = "rgba(0, 0, 0, 0.5)";
+        errText.textContent = "Prediction unavailable";
+        predictionContent.appendChild(errText);
       }
     })();
+
+    // Helper function to render prediction result
+    function renderPredictionResult(container, result) {
+      container.innerHTML = "";
+
+      // Prediction icon
+      const predIcon = document.createElement("div");
+      predIcon.style.width = "36px";
+      predIcon.style.height = "36px";
+      predIcon.style.borderRadius = "50%";
+      predIcon.style.display = "flex";
+      predIcon.style.alignItems = "center";
+      predIcon.style.justifyContent = "center";
+      predIcon.style.flexShrink = "0";
+
+      // Handle 3-class predictions: accessible, limited, not_accessible
+      const predictionLabel = result.label;
+      const isAccessible = predictionLabel === "accessible";
+      const isLimited = predictionLabel === "limited";
+
+      // Set colors based on prediction class using predefined constants
+      let iconColor, bgColor, labelText;
+      if (isAccessible) {
+        iconColor = PREDICTED_BADGE_COLOR_BY_TIER.accessible;
+        bgColor = "rgba(22, 163, 74, 0.1)";
+        labelText = "Likely Accessible";
+      } else if (isLimited) {
+        iconColor = PREDICTED_BADGE_COLOR_BY_TIER.limited;
+        bgColor = "rgba(202, 138, 4, 0.1)";
+        labelText = "Likely Limited Access";
+      } else {
+        iconColor = PREDICTED_BADGE_COLOR_BY_TIER.not_accessible;
+        bgColor = "rgba(220, 38, 38, 0.1)";
+        labelText = "Likely Not Accessible";
+      }
+
+      predIcon.style.backgroundColor = bgColor;
+
+      // Different icons for each state
+      if (isAccessible) {
+        predIcon.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>`;
+      } else if (isLimited) {
+        predIcon.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
+      } else {
+        predIcon.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+      }
+
+      container.appendChild(predIcon);
+
+      // Text content
+      const textWrapper = document.createElement("div");
+
+      const labelEl = document.createElement("div");
+      labelEl.style.fontSize = "0.9375rem";
+      labelEl.style.fontWeight = "500";
+      labelEl.style.color = iconColor;
+      labelEl.textContent = labelText;
+
+      const confidenceEl = document.createElement("div");
+      confidenceEl.style.fontSize = "0.75rem";
+      confidenceEl.style.color = "rgba(0, 0, 0, 0.5)";
+      confidenceEl.textContent = `${Math.round(
+        result.probability * 100
+      )}% confidence`;
+
+      textWrapper.appendChild(labelEl);
+      textWrapper.appendChild(confidenceEl);
+      container.appendChild(textWrapper);
+    }
   }
 
   accItem.appendChild(container);
@@ -8105,7 +8100,11 @@ export async function initMap(user = null) {
       window.isPredictionsEnabled = isPredictionsEnabled;
       window.isOnnxModelsReady = isOnnxModelsReady;
       window.preloadOnnxModelsInBackground = preloadOnnxModelsInBackground;
+      window.preloadAccessibilityModel = preloadAccessibilityModel;
     }
+
+    // Preload accessibility model in background
+    preloadAccessibilityModel();
 
     map.on("baselayerchange", (e) => ls.set(BASEMAP_LS_KEY, e.name));
     map.on("zoomend", toggleObstaclesByZoom);

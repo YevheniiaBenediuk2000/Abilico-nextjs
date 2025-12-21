@@ -18,9 +18,11 @@ import os
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 
-# Use the geographic split model (better generalization, avoids spatial leakage)
-MODEL_PATH = os.path.join(PROJECT_ROOT, 'accessibility_model_worldwide.joblib')
-# Fallback to old model if geographic model doesn't exist
+# Use the geographic split model (best F1, better generalization, avoids spatial leakage)
+MODEL_PATH = os.path.join(PROJECT_ROOT, 'accessibility_model_geographic.joblib')
+# Fallback to other models if geographic model doesn't exist
+if not os.path.exists(MODEL_PATH):
+    MODEL_PATH = os.path.join(PROJECT_ROOT, 'accessibility_model_worldwide.joblib')
 if not os.path.exists(MODEL_PATH):
     MODEL_PATH = os.path.join(PROJECT_ROOT, 'accessibility_model_3class_best_overall.joblib')
     

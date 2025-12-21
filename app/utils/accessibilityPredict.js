@@ -4,6 +4,8 @@
  * Use this module to predict wheelchair accessibility for places
  * based on their OSM features.
  *
+ * Now uses client-side ONNX inference (onnxruntime-web) instead of server API.
+ *
  * @example
  * import { predictAccessibility, predictAccessibilityBatch } from '@/app/utils/accessibilityPredict';
  *
@@ -22,38 +24,26 @@
  * ]);
  */
 
-const API_ENDPOINT = "/api/accessibility-predict";
+import {
+  predictAccessibility as onnxPredict,
+  predictSingle,
+  initAccessibilityModel,
+  isAccessibilityModelReady,
+  preloadAccessibilityModel,
+} from "./onnxAccessibilityPredictor.js";
+
+// Re-export preload function for app initialization
+export { preloadAccessibilityModel, isAccessibilityModelReady };
 
 /**
  * Predict accessibility for a single place.
  *
  * @param {Object} place - OSM features of the place
- * @param {Object} options - Additional options
- * @param {boolean} options.explain - Include feature explanation in response
- * @returns {Promise<{label: string, probability: number, confidence: string, features?: Array}>}
+ * @param {Object} options - Additional options (explain option is ignored in client-side mode)
+ * @returns {Promise<{label: string, probability: number, confidence: string, basedOn?: Array}>}
  */
 export async function predictAccessibility(place, options = {}) {
-  const params = new URLSearchParams();
-
-  // Add all place features as query parameters
-  for (const [key, value] of Object.entries(place)) {
-    if (value !== null && value !== undefined && value !== "") {
-      params.append(key, String(value));
-    }
-  }
-
-  if (options.explain) {
-    params.append("explain", "true");
-  }
-
-  const response = await fetch(`${API_ENDPOINT}?${params.toString()}`);
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || "Prediction failed");
-  }
-
-  return response.json();
+  return predictSingle(place);
 }
 
 /**
@@ -61,28 +51,11 @@ export async function predictAccessibility(place, options = {}) {
  * More efficient than making individual calls for each place.
  *
  * @param {Array<Object>} places - Array of places with OSM features
- * @param {Object} options - Additional options
- * @param {boolean} options.explain - Include feature explanation in response
- * @returns {Promise<{predictions: Array, model: string, metrics: Object}>}
+ * @param {Object} options - Additional options (explain option is ignored in client-side mode)
+ * @returns {Promise<{predictions: Array, model: string}>}
  */
 export async function predictAccessibilityBatch(places, options = {}) {
-  const response = await fetch(API_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      places,
-      explain: options.explain || false,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || "Prediction failed");
-  }
-
-  return response.json();
+  return onnxPredict(places);
 }
 
 /**
