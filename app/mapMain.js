@@ -78,6 +78,13 @@ import {
 
 import { recomputePlaceAccessibilityKeywords } from "./modules/accessibilityKeywordsExtraction.js";
 import globals from "./constants/globalVariables.js";
+import {
+  initRoadAccessibilityLayer,
+  setRoadAccessibilityEnabled,
+  setVisualizationMode,
+  isRoadAccessibilityEnabled,
+  forceRefreshRoads,
+} from "./modules/roadAccessibilityMap.js";
 
 // DEBUG: confirm import really works
 // console.log("🔍 computePlaceScores import is:", computePlaceScores);
@@ -7552,6 +7559,17 @@ export async function initMap(user = null) {
     window.visionAccessibilityControl = visionAccessibilityControl; // Store globally for updates
 
     map.addControl(new BasemapGallery({ initial: initialName }));
+
+    // Initialize road accessibility layer (disabled by default)
+    initRoadAccessibilityLayer(map);
+    // Expose road accessibility controls globally for React components
+    if (typeof window !== "undefined") {
+      window.setRoadAccessibilityEnabled = (enabled) =>
+        setRoadAccessibilityEnabled(map, enabled);
+      window.setRoadVisualizationMode = setVisualizationMode;
+      window.isRoadAccessibilityEnabled = isRoadAccessibilityEnabled;
+      window.forceRefreshRoads = () => forceRefreshRoads(map);
+    }
 
     map.on("baselayerchange", (e) => ls.set(BASEMAP_LS_KEY, e.name));
     map.on("zoomend", toggleObstaclesByZoom);

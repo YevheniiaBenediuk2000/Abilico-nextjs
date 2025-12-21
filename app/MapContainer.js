@@ -6,6 +6,7 @@ import "./styles/ui.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "leaflet/dist/leaflet.css";
 import "./styles/poi-badge.css";
+import "./styles/road-accessibility.css";
 import { supabase } from "./api/supabaseClient.js";
 
 import TextField from "@mui/material/TextField";
@@ -57,6 +58,9 @@ import PlacesListReact from "./components/PlacesListReact";
 import ReviewForm from "./components/ReviewForm";
 import ObstaclePopupDialog from "./components/ObstaclePopupDialog";
 import AccessibilityInfoLegend from "./components/AccessibilityInfoLegend";
+import RoadAccessibilityLegend, {
+  VIZ_MODES,
+} from "./components/RoadAccessibilityLegend";
 import { ensurePlaceExists } from "./api/reviewStorage.js";
 import globals from "./constants/globalVariables.js";
 import { PRIMARY_BLUE } from "./constants/constants.mjs";
@@ -111,7 +115,6 @@ function DetailsTabPanel({ value, active, children }) {
     </div>
   );
 }
-
 
 export default function MapContainer({
   user: initialUser,
@@ -178,6 +181,11 @@ export default function MapContainer({
   const [reviewWriteOpen, setReviewWriteOpen] = useState(false);
   const [reviewStats, setReviewStats] = useState({ count: 0, avg: 0 });
 
+  // Road accessibility layer state
+  const [roadAccessibilityEnabled, setRoadAccessibilityEnabled] =
+    useState(false);
+  const [roadVizMode, setRoadVizMode] = useState(VIZ_MODES.OVERALL);
+
   // Expose a global function so mapMain.js can open the details drawer
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -197,7 +205,13 @@ export default function MapContainer({
       };
 
       // NEW: floating place-details popup
-      window.openPlacePopup = (titleText, category = null, distance = null, features = [], shortName = null) => {
+      window.openPlacePopup = (
+        titleText,
+        category = null,
+        distance = null,
+        features = [],
+        shortName = null
+      ) => {
         if (titleText) setPlacePopupTitle(titleText);
         setPlaceShortName(shortName);
         setPlaceCategory(category);
@@ -211,7 +225,10 @@ export default function MapContainer({
       window.closePlacePopup = () => {
         setPlacePopupOpen(false);
         // Clear vision accessibility control when place popup is closed
-        if (typeof window !== "undefined" && window.visionAccessibilityControl) {
+        if (
+          typeof window !== "undefined" &&
+          window.visionAccessibilityControl
+        ) {
           window.visionAccessibilityControl.clear();
         }
       };
@@ -366,7 +383,8 @@ export default function MapContainer({
           if (typeof window === "undefined") return () => {};
           const map = window.map;
           const el = document.getElementById("map");
-          if (!map || !el || typeof map.invalidateSize !== "function") return () => {};
+          if (!map || !el || typeof map.invalidateSize !== "function")
+            return () => {};
 
           let raf1 = 0;
           let raf2 = 0;
@@ -624,7 +642,7 @@ export default function MapContainer({
     } else {
       setLastCheckedDate(null);
     }
-    
+
     const checkIfPlaceSaved = async () => {
       if (!placePopupOpen || !user || !globals.detailsCtx.placeId) {
         setIsPlaceSaved(false);
@@ -660,8 +678,12 @@ export default function MapContainer({
             const hasMessage = error.message && error.message.trim().length > 0;
             const hasCode = error.code && error.code.trim().length > 0;
             const errorStr = JSON.stringify(error);
-            const hasContent = errorStr && errorStr !== "{}" && errorStr !== "null" && errorStr !== "{\"code\":\"\"}";
-            
+            const hasContent =
+              errorStr &&
+              errorStr !== "{}" &&
+              errorStr !== "null" &&
+              errorStr !== '{"code":""}';
+
             // Only log if error has meaningful content
             if (hasMessage || (hasCode && hasContent)) {
               console.error("Error checking saved place:", error);
@@ -678,8 +700,12 @@ export default function MapContainer({
         // Only log if error has meaningful content
         const hasMessage = err?.message && err.message.trim().length > 0;
         const errStr = err?.toString() || JSON.stringify(err);
-        const hasContent = errStr && errStr !== "{}" && errStr !== "null" && errStr !== "[object Object]";
-        
+        const hasContent =
+          errStr &&
+          errStr !== "{}" &&
+          errStr !== "null" &&
+          errStr !== "[object Object]";
+
         if (hasMessage || hasContent) {
           console.error("Error checking saved place:", err);
         }
@@ -1094,19 +1120,21 @@ export default function MapContainer({
             <div id="directions-ui" className="d-none directions-panel">
               <div className="directions-panel__header">
                 <div className="directions-panel__title">
-                  <span className="directions-panel__title-text">Directions</span>
+                  <span className="directions-panel__title-text">
+                    Directions
+                  </span>
                   <span className="directions-panel__badge">Accessible</span>
                 </div>
                 <div className="directions-panel__header-actions">
-                <Tooltip title="Wheelchair mode" placement="top" arrow>
-                  <IconButton
-                    aria-label="Wheelchair mode"
-                    size="small"
-                    className="directions-panel__mode-btn"
-                  >
-                    <AccessibleForwardIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
+                  <Tooltip title="Wheelchair mode" placement="top" arrow>
+                    <IconButton
+                      aria-label="Wheelchair mode"
+                      size="small"
+                      className="directions-panel__mode-btn"
+                    >
+                      <AccessibleForwardIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
 
                   <Tooltip title="Close" placement="top" arrow>
                     <IconButton
@@ -1123,14 +1151,23 @@ export default function MapContainer({
 
               <div className="route-inputs" aria-label="Route inputs">
                 <div className="route-field">
-                  <div className="route-field__marker route-field__marker--from" aria-hidden="true">
+                  <div
+                    className="route-field__marker route-field__marker--from"
+                    aria-hidden="true"
+                  >
                     A
                   </div>
                   <div className="route-field__content">
-                    <label className="form-label" htmlFor="departure-search-input">
+                    <label
+                      className="form-label"
+                      htmlFor="departure-search-input"
+                    >
                       From
                     </label>
-                    <div id="departure-search-bar" className="position-relative">
+                    <div
+                      id="departure-search-bar"
+                      className="position-relative"
+                    >
                       <TextField
                         size="small"
                         id="departure-search-input"
@@ -1180,18 +1217,28 @@ export default function MapContainer({
                 </div>
 
                 <div className="route-field route-field--to">
-                  <div className="route-field__marker route-field__marker--to" aria-hidden="true">
+                  <div
+                    className="route-field__marker route-field__marker--to"
+                    aria-hidden="true"
+                  >
                     B
                   </div>
                   <div className="route-field__content">
-                    <label className="form-label" htmlFor="destination-search-input">
+                    <label
+                      className="form-label"
+                      htmlFor="destination-search-input"
+                    >
                       To
                     </label>
                     {/* destination-search-bar is moved here by mapMain.js (after the label above) */}
                   </div>
                 </div>
 
-                <Tooltip title="Swap start and destination" placement="left" arrow>
+                <Tooltip
+                  title="Swap start and destination"
+                  placement="left"
+                  arrow
+                >
                   <IconButton
                     id="btn-swap-route"
                     className="route-inputs__swap"
@@ -1203,7 +1250,11 @@ export default function MapContainer({
                 </Tooltip>
               </div>
 
-              <div className="route-actions-bottom" role="group" aria-label="Route actions">
+              <div
+                className="route-actions-bottom"
+                role="group"
+                aria-label="Route actions"
+              >
                 <button
                   id="btn-clear-route"
                   type="button"
@@ -1284,26 +1335,34 @@ export default function MapContainer({
                     >
                       {placePopupTitle}
                     </Typography>
-                    {placeShortName && placeShortName.trim() !== placePopupTitle.trim() && (
-                      <Chip
-                        label={placeShortName.toUpperCase()}
-                        size="small"
-                        sx={{
-                          height: 20,
-                          fontSize: "0.6875rem",
-                          fontWeight: 500,
-                          bgcolor: "rgba(0, 0, 0, 0.06)",
-                          color: "text.secondary",
-                          "& .MuiChip-label": {
-                            px: 1,
-                          },
-                        }}
-                        title={`Abbreviation: ${placeShortName}`}
-                        aria-label={`Abbreviation: ${placeShortName}`}
-                      />
-                    )}
+                    {placeShortName &&
+                      placeShortName.trim() !== placePopupTitle.trim() && (
+                        <Chip
+                          label={placeShortName.toUpperCase()}
+                          size="small"
+                          sx={{
+                            height: 20,
+                            fontSize: "0.6875rem",
+                            fontWeight: 500,
+                            bgcolor: "rgba(0, 0, 0, 0.06)",
+                            color: "text.secondary",
+                            "& .MuiChip-label": {
+                              px: 1,
+                            },
+                          }}
+                          title={`Abbreviation: ${placeShortName}`}
+                          aria-label={`Abbreviation: ${placeShortName}`}
+                        />
+                      )}
                   </Box>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 0.5,
+                      flexShrink: 0,
+                    }}
+                  >
                     <Tooltip
                       title={isPlaceSaved ? "Remove from saved" : "Save place"}
                     >
@@ -1342,9 +1401,11 @@ export default function MapContainer({
                     </IconButton>
                   </Box>
                 </Box>
-                
+
                 {/* Bottom row: Category chip, feature chips, and distance */}
-                {(placeCategory || (placeFeatures && placeFeatures.length > 0) || placeDistance) && (
+                {(placeCategory ||
+                  (placeFeatures && placeFeatures.length > 0) ||
+                  placeDistance) && (
                   <Box
                     sx={{
                       display: "flex",
@@ -1361,22 +1422,23 @@ export default function MapContainer({
                       />
                     )}
                     {/* Feature chips (Drive-through, Dispensing, etc.) */}
-                    {placeFeatures && placeFeatures.map((feature, index) => (
-                      <Chip
-                        key={index}
-                        icon={
-                          <span
-                            className="material-icons"
-                            style={TAG_CHIP_ICON_STYLE}
-                          >
-                            {feature.icon}
-                          </span>
-                        }
-                        label={feature.label}
-                        size="small"
-                        sx={TAG_CHIP_WITH_ICON_SX}
-                      />
-                    ))}
+                    {placeFeatures &&
+                      placeFeatures.map((feature, index) => (
+                        <Chip
+                          key={index}
+                          icon={
+                            <span
+                              className="material-icons"
+                              style={TAG_CHIP_ICON_STYLE}
+                            >
+                              {feature.icon}
+                            </span>
+                          }
+                          label={feature.label}
+                          size="small"
+                          sx={TAG_CHIP_WITH_ICON_SX}
+                        />
+                      ))}
                     {placeDistance && (
                       <Typography
                         variant="body2"
@@ -1471,9 +1533,7 @@ export default function MapContainer({
                             mb: 2,
                           }}
                         >
-                          <Typography variant="h6">
-                            Reviews
-                          </Typography>
+                          <Typography variant="h6">Reviews</Typography>
                           <Box
                             sx={{
                               display: "flex",
@@ -1490,19 +1550,19 @@ export default function MapContainer({
                                   gap: 0.5,
                                 }}
                               >
-                                <StarBorderIcon 
-                                  sx={{ 
-                                    fontSize: "0.875rem", 
+                                <StarBorderIcon
+                                  sx={{
+                                    fontSize: "0.875rem",
                                     color: "text.secondary",
                                     display: "block",
                                     lineHeight: 1,
-                                  }} 
+                                  }}
                                 />
                                 <Typography
                                   variant="caption"
                                   color="text.secondary"
-                                  sx={{ 
-                                    fontSize: "0.75rem", 
+                                  sx={{
+                                    fontSize: "0.75rem",
                                     lineHeight: 1,
                                   }}
                                 >
@@ -1521,8 +1581,11 @@ export default function MapContainer({
                                   variant="body2"
                                   color="text.secondary"
                                 >
-                                  {reviewStats.avg.toFixed(1)} • {reviewStats.count}{" "}
-                                  {reviewStats.count === 1 ? "review" : "reviews"}
+                                  {reviewStats.avg.toFixed(1)} •{" "}
+                                  {reviewStats.count}{" "}
+                                  {reviewStats.count === 1
+                                    ? "review"
+                                    : "reviews"}
                                 </Typography>
                               </>
                             )}
@@ -1569,7 +1632,14 @@ export default function MapContainer({
                 </div>
               </div>
             </CardContent>
-            <CardActions sx={{ justifyContent: "space-between", alignItems: "center", px: 2, pb: 2 }}>
+            <CardActions
+              sx={{
+                justifyContent: "space-between",
+                alignItems: "center",
+                px: 2,
+                pb: 2,
+              }}
+            >
               {/* Left: Last checked date */}
               {lastCheckedDate && (
                 <Box
@@ -1746,7 +1816,10 @@ export default function MapContainer({
                   onClick={() => {
                     setShowObstacleManagementOverlay(false);
                     try {
-                      if (typeof window !== "undefined" && window.localStorage) {
+                      if (
+                        typeof window !== "undefined" &&
+                        window.localStorage
+                      ) {
                         window.localStorage.setItem(
                           "abilico_obstacle_overlay_dismissed",
                           "1"
@@ -1877,7 +1950,9 @@ export default function MapContainer({
               }}
             >
               <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                <ReportProblemIcon sx={{ color: PRIMARY_BLUE, fontSize: "1.5rem" }} />
+                <ReportProblemIcon
+                  sx={{ color: PRIMARY_BLUE, fontSize: "1.5rem" }}
+                />
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
                   Choose what's wrong
                 </Typography>
@@ -1933,7 +2008,10 @@ export default function MapContainer({
                         />
                       }
                       label={
-                        <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
+                        <Typography
+                          variant="body1"
+                          sx={{ fontSize: "1rem", fontWeight: 400 }}
+                        >
                           Accessibility info is wrong
                         </Typography>
                       }
@@ -1964,7 +2042,10 @@ export default function MapContainer({
                         />
                       }
                       label={
-                        <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
+                        <Typography
+                          variant="body1"
+                          sx={{ fontSize: "1rem", fontWeight: 400 }}
+                        >
                           Place is permanently closed or moved
                         </Typography>
                       }
@@ -1995,7 +2076,10 @@ export default function MapContainer({
                         />
                       }
                       label={
-                        <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
+                        <Typography
+                          variant="body1"
+                          sx={{ fontSize: "1rem", fontWeight: 400 }}
+                        >
                           Wrong category or type of place
                         </Typography>
                       }
@@ -2026,7 +2110,10 @@ export default function MapContainer({
                         />
                       }
                       label={
-                        <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
+                        <Typography
+                          variant="body1"
+                          sx={{ fontSize: "1rem", fontWeight: 400 }}
+                        >
                           Duplicate place
                         </Typography>
                       }
@@ -2057,7 +2144,10 @@ export default function MapContainer({
                         />
                       }
                       label={
-                        <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
+                        <Typography
+                          variant="body1"
+                          sx={{ fontSize: "1rem", fontWeight: 400 }}
+                        >
                           Wrong address or pin location
                         </Typography>
                       }
@@ -2088,7 +2178,10 @@ export default function MapContainer({
                         />
                       }
                       label={
-                        <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
+                        <Typography
+                          variant="body1"
+                          sx={{ fontSize: "1rem", fontWeight: 400 }}
+                        >
                           Other
                         </Typography>
                       }
@@ -2174,7 +2267,9 @@ export default function MapContainer({
               }}
             >
               <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                <AccessibilityNewIcon sx={{ color: PRIMARY_BLUE, fontSize: "1.5rem" }} />
+                <AccessibilityNewIcon
+                  sx={{ color: PRIMARY_BLUE, fontSize: "1.5rem" }}
+                />
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
                   Fix accessibility info
                 </Typography>
@@ -2225,7 +2320,14 @@ export default function MapContainer({
                   >
                     Accessibility Level
                   </Typography>
-                  <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "center" }}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      gap: 1,
+                      flexWrap: "wrap",
+                      justifyContent: "center",
+                    }}
+                  >
                     <Chip
                       label={ACCESSIBILITY_LABEL_DESIGNATED}
                       onClick={() => setSelectedRealityStatus("designated")}
@@ -2242,7 +2344,8 @@ export default function MapContainer({
                         borderColor: GREEN,
                         borderWidth: 1.5,
                         borderStyle: "solid",
-                        fontWeight: selectedRealityStatus === "designated" ? 600 : 400,
+                        fontWeight:
+                          selectedRealityStatus === "designated" ? 600 : 400,
                         "&:hover": {
                           backgroundColor: GREEN,
                           color: "white",
@@ -2286,7 +2389,8 @@ export default function MapContainer({
                         borderColor: ORANGE,
                         borderWidth: 1.5,
                         borderStyle: "solid",
-                        fontWeight: selectedRealityStatus === "limited" ? 600 : 400,
+                        fontWeight:
+                          selectedRealityStatus === "limited" ? 600 : 400,
                         "&:hover": {
                           backgroundColor: ORANGE,
                           color: "white",
@@ -2299,11 +2403,8 @@ export default function MapContainer({
                       sx={{
                         height: 32,
                         backgroundColor:
-                          selectedRealityStatus === "no"
-                            ? RED
-                            : "transparent",
-                        color:
-                          selectedRealityStatus === "no" ? "white" : RED,
+                          selectedRealityStatus === "no" ? RED : "transparent",
+                        color: selectedRealityStatus === "no" ? "white" : RED,
                         borderColor: RED,
                         borderWidth: 1.5,
                         borderStyle: "solid",
@@ -2351,14 +2452,27 @@ export default function MapContainer({
                       }}
                     >
                       Details{" "}
-                      <Typography component="span" sx={{ color: PRIMARY_BLUE, textTransform: "none", fontWeight: 600, fontSize: "0.75rem", letterSpacing: "0.5px" }}>
+                      <Typography
+                        component="span"
+                        sx={{
+                          color: PRIMARY_BLUE,
+                          textTransform: "none",
+                          fontWeight: 600,
+                          fontSize: "0.75rem",
+                          letterSpacing: "0.5px",
+                        }}
+                      >
                         (optional)
                       </Typography>
                     </Typography>
                     {expandedDetails ? (
-                      <ExpandLessIcon sx={{ color: PRIMARY_BLUE, fontSize: "1.25rem" }} />
+                      <ExpandLessIcon
+                        sx={{ color: PRIMARY_BLUE, fontSize: "1.25rem" }}
+                      />
                     ) : (
-                      <ExpandMoreIcon sx={{ color: PRIMARY_BLUE, fontSize: "1.25rem" }} />
+                      <ExpandMoreIcon
+                        sx={{ color: PRIMARY_BLUE, fontSize: "1.25rem" }}
+                      />
                     )}
                   </Box>
                   <Collapse in={expandedDetails} timeout="auto" unmountOnExit>
@@ -2379,7 +2493,8 @@ export default function MapContainer({
                                 } else {
                                   setSelectedSpecificIssues(
                                     selectedSpecificIssues.filter(
-                                      (issue) => issue !== "entrance_not_accessible"
+                                      (issue) =>
+                                        issue !== "entrance_not_accessible"
                                     )
                                   );
                                 }
@@ -2393,7 +2508,10 @@ export default function MapContainer({
                             />
                           }
                           label={
-                            <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
+                            <Typography
+                              variant="body1"
+                              sx={{ fontSize: "1rem", fontWeight: 400 }}
+                            >
                               Entrance not wheelchair accessible
                             </Typography>
                           }
@@ -2437,7 +2555,10 @@ export default function MapContainer({
                             />
                           }
                           label={
-                            <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
+                            <Typography
+                              variant="body1"
+                              sx={{ fontSize: "1rem", fontWeight: 400 }}
+                            >
                               There are steps at the entrance
                             </Typography>
                           }
@@ -2467,7 +2588,8 @@ export default function MapContainer({
                                 } else {
                                   setSelectedSpecificIssues(
                                     selectedSpecificIssues.filter(
-                                      (issue) => issue !== "no_accessible_toilet"
+                                      (issue) =>
+                                        issue !== "no_accessible_toilet"
                                     )
                                   );
                                 }
@@ -2481,7 +2603,10 @@ export default function MapContainer({
                             />
                           }
                           label={
-                            <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
+                            <Typography
+                              variant="body1"
+                              sx={{ fontSize: "1rem", fontWeight: 400 }}
+                            >
                               No accessible toilet
                             </Typography>
                           }
@@ -2525,7 +2650,10 @@ export default function MapContainer({
                             />
                           }
                           label={
-                            <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
+                            <Typography
+                              variant="body1"
+                              sx={{ fontSize: "1rem", fontWeight: 400 }}
+                            >
                               Ramp is too steep or unusable
                             </Typography>
                           }
@@ -2569,7 +2697,10 @@ export default function MapContainer({
                             />
                           }
                           label={
-                            <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
+                            <Typography
+                              variant="body1"
+                              sx={{ fontSize: "1rem", fontWeight: 400 }}
+                            >
                               Door is too narrow or heavy
                             </Typography>
                           }
@@ -2613,7 +2744,10 @@ export default function MapContainer({
                             />
                           }
                           label={
-                            <Typography variant="body1" sx={{ fontSize: "1rem", fontWeight: 400 }}>
+                            <Typography
+                              variant="body1"
+                              sx={{ fontSize: "1rem", fontWeight: 400 }}
+                            >
                               Other accessibility issue
                             </Typography>
                           }
@@ -2740,6 +2874,30 @@ export default function MapContainer({
 
       {/* Accessibility Info Legend */}
       <AccessibilityInfoLegend />
+
+      {/* Road Accessibility Legend */}
+      <RoadAccessibilityLegend
+        enabled={roadAccessibilityEnabled}
+        onToggle={(enabled) => {
+          setRoadAccessibilityEnabled(enabled);
+          if (
+            typeof window !== "undefined" &&
+            window.setRoadAccessibilityEnabled
+          ) {
+            window.setRoadAccessibilityEnabled(enabled);
+          }
+        }}
+        vizMode={roadVizMode}
+        onVizModeChange={(mode) => {
+          setRoadVizMode(mode);
+          if (
+            typeof window !== "undefined" &&
+            window.setRoadVisualizationMode
+          ) {
+            window.setRoadVisualizationMode(mode);
+          }
+        }}
+      />
     </div>
   );
 }

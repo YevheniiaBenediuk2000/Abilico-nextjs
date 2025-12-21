@@ -53,3 +53,10 @@ ukraine_wheelchair_nodes.geojson
 .ipynb_checkpoints/
 *.pkl
 *.csv
+*.joblib
+
+# Large cache files
+road_accessibility_data_cache.json
+road_accessibility_europe_cache.json
+road_accessibility_europe_cache.json.partial
+*.json.partialroad_accessibility_models.joblib
