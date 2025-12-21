@@ -1,0 +1,6 @@
+{
+  "version": "1.0.0",
+  "description": "Road accessibility ML models - placeholder",
+  "models": {},
+  "note": "Run road_accessibility_ml_model.ipynb to generate the actual ONNX models"
+}

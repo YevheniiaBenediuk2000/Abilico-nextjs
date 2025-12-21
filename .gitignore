@@ -63,7 +63,6 @@ road_accessibility_fetched_regions.json
 road_accessibility_europe_cache.json.partial
 *.json.partial
 road_accessibility_models.joblib
-schema.json
 
-# Large ONNX models
-public/models/
+# Note: public/models/ contains ONNX models needed for production
+# They must be committed to deploy to Vercel
