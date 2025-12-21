@@ -126,7 +126,10 @@ async function saveModelToCache(modelName, data, version) {
  */
 async function fetchModelWithCache(modelPath, schemaVersion) {
   // Try cache first
-  const cached = await getModelFromCache(ACCESSIBILITY_MODEL_KEY, schemaVersion);
+  const cached = await getModelFromCache(
+    ACCESSIBILITY_MODEL_KEY,
+    schemaVersion
+  );
   if (cached) {
     return cached;
   }
@@ -141,7 +144,9 @@ async function fetchModelWithCache(modelPath, schemaVersion) {
 
   const data = await response.arrayBuffer();
   console.log(
-    `🌐 [ONNX-Acc] Downloaded model (${(data.byteLength / 1024 / 1024).toFixed(1)}MB)`
+    `🌐 [ONNX-Acc] Downloaded model (${(data.byteLength / 1024 / 1024).toFixed(
+      1
+    )}MB)`
   );
 
   // Save to cache in background
@@ -178,7 +183,7 @@ export async function initAccessibilityModel() {
       // Configure ONNX Runtime for browser - use specific version matching package.json
       ort.env.wasm.wasmPaths =
         "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/";
-      
+
       // Use SIMD if available for better performance
       ort.env.wasm.numThreads = 1;
       ort.env.logLevel = "error";
@@ -195,10 +200,16 @@ export async function initAccessibilityModel() {
         graphOptimizationLevel: "all",
       });
 
+      // Build feature structure and log info
+      const struct = buildFeatureStructure();
       console.log("✅ [ONNX-Acc] Accessibility model loaded successfully!");
-      console.log(`   Model: ${config.model_name}`);
-      console.log(`   Features: ${config.feature_columns?.length || 0}`);
-      console.log(`   Classes: ${config.n_classes || 0}`);
+      console.log(
+        `   Categorical keys: ${config.categoricalKeys?.length || 0}`
+      );
+      console.log(`   Numeric keys: ${config.numericKeys?.length || 0}`);
+      console.log(`   Total features: ${struct.numFeatures}`);
+      console.log(`   Input names: ${session.inputNames}`);
+      console.log(`   Output names: ${session.outputNames}`);
 
       isInitialized = true;
       return true;
@@ -240,58 +251,112 @@ function normalizeTagKey(key) {
   return key.replace(/^tags\./, "");
 }
 
+// Cached feature structure for efficient encoding
+let featureStructure = null;
+
+/**
+ * Build the feature structure from the schema
+ * This computes the feature columns and their indices once
+ */
+function buildFeatureStructure() {
+  if (featureStructure) return featureStructure;
+
+  const { categoricalKeys, numericKeys, vocab, numericStats } = config;
+
+  // Build feature columns in the same order as training
+  const featureColumns = [];
+  const columnIndex = {};
+
+  // First: categorical features (one-hot encoded)
+  for (const key of categoricalKeys) {
+    const values = vocab[key] || [];
+    for (const value of values) {
+      const colName = `${key}_${value}`;
+      columnIndex[colName] = featureColumns.length;
+      featureColumns.push({ type: "categorical", key, value, name: colName });
+    }
+  }
+
+  // Then: numeric features
+  for (const key of numericKeys) {
+    const stats = numericStats[key] || { mean: 0, std: 1 };
+    columnIndex[key] = featureColumns.length;
+    featureColumns.push({
+      type: "numeric",
+      key,
+      name: key,
+      mean: stats.mean,
+      std: stats.std,
+    });
+  }
+
+  featureStructure = {
+    featureColumns,
+    columnIndex,
+    numFeatures: featureColumns.length,
+    categoricalKeys,
+    numericKeys,
+    vocab,
+  };
+
+  console.log(
+    `📊 [ONNX-Acc] Feature structure: ${featureStructure.numFeatures} features`
+  );
+
+  return featureStructure;
+}
+
 /**
  * Encode a single place's OSM features into a feature vector
+ * Uses the schema format with categoricalKeys, numericKeys, and vocab
  */
 function encodeFeatures(place) {
   if (!config) {
     throw new Error("Model not initialized");
   }
 
-  const { feature_columns, encoding_info } = config;
-  const features = new Float32Array(feature_columns.length);
+  const struct = buildFeatureStructure();
+  const features = new Float32Array(struct.numFeatures);
 
-  // Create lookup for feature column indices
-  const columnIndex = {};
-  feature_columns.forEach((col, idx) => {
-    columnIndex[col] = idx;
-  });
-
-  // Normalize input
+  // Normalize input tags
   const normalizedTags = {};
   for (const [key, value] of Object.entries(place)) {
     if (value !== null && value !== undefined && value !== "") {
       const normalizedKey = normalizeTagKey(key);
-      normalizedTags[normalizedKey] = String(value)
-        .replace(/ /g, "_")
-        .replace(/-/g, "_");
+      normalizedTags[normalizedKey] = String(value);
     }
   }
 
-  // Set binary "has_" features
-  for (const hasFeature of encoding_info.has_features || []) {
-    const tagName = normalizeTagKey(hasFeature.tag);
-    if (tagName in normalizedTags) {
-      const colIdx = columnIndex[hasFeature.column];
-      if (colIdx !== undefined) {
-        features[colIdx] = 1;
+  // Process each feature column
+  struct.featureColumns.forEach((col, idx) => {
+    if (col.type === "categorical") {
+      // One-hot encoding: set to 1 if the tag value matches
+      const tagValue = normalizedTags[col.key];
+      if (tagValue === col.value) {
+        features[idx] = 1;
+      } else if (!tagValue && col.value === "__MISSING__") {
+        // Mark as missing if tag is not present
+        features[idx] = 1;
+      } else if (tagValue && col.value === "__OTHER__") {
+        // Check if value is not in vocabulary, mark as OTHER
+        const vocabValues = struct.vocab[col.key] || [];
+        if (!vocabValues.includes(tagValue)) {
+          features[idx] = 1;
+        }
       }
-    }
-  }
-
-  // Set categorical (one-hot) features
-  for (const [category, valueMap] of Object.entries(
-    encoding_info.categorical_features || {}
-  )) {
-    const tagValue = normalizedTags[category];
-    if (tagValue) {
-      const truncatedValue = tagValue.substring(0, 20);
-      const columnName = valueMap[truncatedValue];
-      if (columnName && columnIndex[columnName] !== undefined) {
-        features[columnIndex[columnName]] = 1;
+    } else if (col.type === "numeric") {
+      // Numeric: normalize using mean/std
+      const rawValue = normalizedTags[col.key];
+      if (rawValue !== undefined) {
+        const numValue = parseFloat(rawValue);
+        if (!isNaN(numValue)) {
+          // Z-score normalization
+          features[idx] = (numValue - col.mean) / (col.std || 1);
+        }
       }
+      // Missing numerics stay as 0 (which is the mean after normalization)
     }
-  }
+  });
 
   return features;
 }
@@ -300,7 +365,8 @@ function encodeFeatures(place) {
  * Encode multiple places into a batch feature matrix
  */
 function encodeBatch(places) {
-  const numFeatures = config.feature_columns.length;
+  const struct = buildFeatureStructure();
+  const numFeatures = struct.numFeatures;
   const batchSize = places.length;
   const batchFeatures = new Float32Array(batchSize * numFeatures);
 
@@ -325,7 +391,15 @@ function getConfidence(probability) {
 /**
  * Format feature name for display
  */
-function formatFeatureName(feature) {
+function formatFeatureName(key, value) {
+  if (value) {
+    const formattedKey = key.charAt(0).toUpperCase() + key.slice(1);
+    const formattedValue = value.replace(/_/g, " ");
+    return `${formattedKey}: ${formattedValue}`;
+  }
+
+  // Fallback for old format
+  const feature = key;
   if (feature.startsWith("has_")) {
     const tagName = feature.replace("has_", "");
     return `Has ${tagName.replace(/_/g, " ")}`;
@@ -334,11 +408,11 @@ function formatFeatureName(feature) {
   const parts = feature.split("_");
   if (parts.length >= 2) {
     const category = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-    const value = parts
+    const val = parts
       .slice(1)
       .join(" ")
       .replace(/^(\w)/, (c) => c.toUpperCase());
-    return `${category}: ${value}`;
+    return `${category}: ${val}`;
   }
 
   return feature.replace(/_/g, " ");
@@ -346,24 +420,30 @@ function formatFeatureName(feature) {
 
 /**
  * Get top contributing features for a place
+ * Returns the active features that likely contributed to the prediction
  */
 function getContributingFeatures(place, topN = 3) {
+  const struct = buildFeatureStructure();
   const features = encodeFeatures(place);
-  const importances = config.feature_importances || {};
 
-  const activeWithImportance = [];
-  config.feature_columns.forEach((col, idx) => {
-    if (features[idx] > 0 && importances[col]) {
-      activeWithImportance.push({
-        feature: col,
-        importance: importances[col],
-        displayName: formatFeatureName(col),
-      });
+  // Collect active categorical features (value = 1)
+  const activeFeatures = [];
+  struct.featureColumns.forEach((col, idx) => {
+    if (col.type === "categorical" && features[idx] === 1) {
+      // Skip __MISSING__ and __OTHER__ unless they're the only ones
+      if (col.value !== "__MISSING__" && col.value !== "__OTHER__") {
+        activeFeatures.push({
+          feature: col.name,
+          displayName: formatFeatureName(col.key, col.value),
+          key: col.key,
+          value: col.value,
+        });
+      }
     }
   });
 
-  activeWithImportance.sort((a, b) => b.importance - a.importance);
-  return activeWithImportance.slice(0, topN);
+  // Return top N (just take first N since we don't have importance weights)
+  return activeFeatures.slice(0, topN);
 }
 
 /**
@@ -379,10 +459,13 @@ export async function predictAccessibility(places) {
     }
   }
 
-  const numFeatures = config.feature_columns.length;
+  const struct = buildFeatureStructure();
+  const numFeatures = struct.numFeatures;
   const batchSize = places.length;
-  const numClasses = config.n_classes || 3;
-  const labels = config.labels || ["not_accessible", "limited", "accessible"];
+
+  // Fixed: 3 classes for wheelchair accessibility (no, limited, yes)
+  const numClasses = 3;
+  const labels = ["no", "limited", "yes"];
 
   // Encode features
   const featuresArray = encodeBatch(places);
@@ -393,33 +476,46 @@ export async function predictAccessibility(places) {
     numFeatures,
   ]);
 
-  // Run inference
-  const inputName = config.input_name || "input";
+  // Get input name from session
+  const inputNames = session.inputNames;
+  const inputName = inputNames[0] || "input";
   const feeds = { [inputName]: inputTensor };
+
+  // Run inference
   const results = await session.run(feeds);
 
-  // Extract predictions
-  const labelData = results.output_label?.data || results.label?.data;
-  const probData =
-    results.output_probability?.data || results.probabilities?.data;
+  // Get output names
+  const outputNames = session.outputNames;
+
+  // Extract probabilities from first available output
+  let probData = null;
+  for (const name of outputNames) {
+    if (results[name] && results[name].data) {
+      probData = results[name].data;
+      break;
+    }
+  }
 
   // Format results
   const predictions = [];
   for (let i = 0; i < batchSize; i++) {
-    const predictedClassIdx = labelData ? Number(labelData[i]) : 0;
-
-    const classProbabilities = {};
+    let predictedClassIdx = 0;
     let maxProb = 0;
+    const classProbabilities = {};
 
     if (probData && probData.length) {
       for (let c = 0; c < numClasses; c++) {
         const prob = probData[i * numClasses + c] ?? 0;
         classProbabilities[labels[c]] = Math.round(prob * 1000) / 1000;
-        if (prob > maxProb) maxProb = prob;
+        if (prob > maxProb) {
+          maxProb = prob;
+          predictedClassIdx = c;
+        }
       }
     } else {
+      // Fallback if no probability output
       labels.forEach((label, idx) => {
-        classProbabilities[label] = idx === predictedClassIdx ? 1.0 : 0.0;
+        classProbabilities[label] = idx === 0 ? 1.0 : 0.0;
       });
       maxProb = 1.0;
     }
@@ -437,7 +533,7 @@ export async function predictAccessibility(places) {
 
   return {
     predictions,
-    model: config.model_name,
+    model: "accessibility_model",
     n_classes: numClasses,
   };
 }
