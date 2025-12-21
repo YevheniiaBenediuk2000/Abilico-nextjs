@@ -132,6 +132,25 @@ let placesPane;
 
 const placeClusterLayer = L.markerClusterGroup(placeClusterConfig);
 
+// Cache for ML accessibility predictions (persists across refreshes)
+const placePredictionsCache = new Map(); // placeKey -> { label, probability, confidence }
+let placePredictionsEnabled = true; // Toggle for showing predictions on map
+
+// Expose toggle function and prediction cache for React components
+if (typeof window !== "undefined") {
+  window.setPlacePredictionsEnabled = (enabled) => {
+    placePredictionsEnabled = enabled;
+    // Optionally refresh the markers when toggled
+    if (map) {
+      refreshPlaceMarkerPredictions();
+    }
+  };
+  window.isPlacePredictionsEnabled = () => placePredictionsEnabled;
+  // Expose prediction cache for PlacesListOverlay to show predictions in cards
+  window.getPlacePrediction = (placeKey) => placePredictionsCache.get(placeKey);
+  window.getPlacePredictionsCache = () => placePredictionsCache;
+}
+
 // Track when Leaflet.Draw is in editing/deleting mode
 const drawState = { editing: false, deleting: false };
 let drawControl = null;
@@ -1357,6 +1376,11 @@ async function refreshPlaces() {
     } catch (err) {
       console.error("❌ Failed to update places list overlay:", err);
     }
+
+    // ✨ Fetch ML predictions for places with unknown accessibility (async, non-blocking)
+    fetchAndApplyPlacePredictions(featuresInView).catch((err) => {
+      console.warn("ML prediction background fetch failed:", err);
+    });
   } finally {
     hideLoading(key);
   }
@@ -1399,6 +1423,184 @@ function setSelectedPlaceMarker(placeKey, tags = {}) {
     })
   );
 }
+
+// ============================================================================
+// ML ACCESSIBILITY PREDICTIONS FOR MAP MARKERS
+// ============================================================================
+
+/**
+ * Extract relevant OSM features for ML prediction from tags
+ */
+function extractFeaturesForPrediction(tags) {
+  const relevantTags = [
+    "amenity",
+    "shop",
+    "tourism",
+    "building",
+    "entrance",
+    "door",
+    "automatic_door",
+    "access",
+    "level",
+    "healthcare",
+    "office",
+    "bench",
+    "changing_table",
+    "indoor",
+    "leisure",
+  ];
+
+  const features = {};
+  for (const tag of relevantTags) {
+    const value = tags[tag];
+    if (value !== null && value !== undefined && value !== "") {
+      features[tag] = value;
+    }
+  }
+  return features;
+}
+
+/**
+ * Batch-fetch ML predictions for places with unknown accessibility
+ * and update their marker icons on the map.
+ */
+async function fetchAndApplyPlacePredictions(featuresInView) {
+  if (!placePredictionsEnabled) return;
+
+  // Find places with unknown accessibility that need prediction
+  const placesToPredict = [];
+  const placeKeyToTags = new Map();
+
+  for (const feature of featuresInView) {
+    const tags = feature.properties?.tags || feature.properties || {};
+    const placeKey = placeKeyFromFeature(feature);
+    if (!placeKey) continue;
+
+    // Check if already in cache
+    if (placePredictionsCache.has(placeKey)) continue;
+
+    // Check if accessibility is unknown
+    const wheelchair =
+      tags.wheelchair ||
+      tags["toilets:wheelchair"] ||
+      tags["wheelchair:toilets"];
+    if (wheelchair) continue; // Already has accessibility info
+
+    // Extract features for prediction
+    const features = extractFeaturesForPrediction(tags);
+    if (Object.keys(features).length === 0) continue; // Not enough data
+
+    placesToPredict.push({ placeKey, features, tags });
+    placeKeyToTags.set(placeKey, tags);
+  }
+
+  if (placesToPredict.length === 0) return;
+
+  console.log(
+    `✨ [ML Prediction] Fetching predictions for ${placesToPredict.length} places...`
+  );
+
+  try {
+    // Batch predict (limit batch size to avoid huge requests)
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < placesToPredict.length; i += BATCH_SIZE) {
+      const batch = placesToPredict.slice(i, i + BATCH_SIZE);
+      const places = batch.map((p) => p.features);
+
+      const response = await fetch("/api/accessibility-predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ places }),
+      });
+
+      if (!response.ok) {
+        console.warn("ML prediction batch failed:", response.status);
+        continue;
+      }
+
+      const result = await response.json();
+      const predictions = result.predictions || [];
+
+      // Store predictions in cache and update markers
+      for (let j = 0; j < batch.length && j < predictions.length; j++) {
+        const { placeKey, tags } = batch[j];
+        const prediction = predictions[j];
+
+        // Cache the prediction
+        placePredictionsCache.set(placeKey, prediction);
+
+        // Update marker icon if it's still on the map
+        updateMarkerWithPrediction(placeKey, tags, prediction);
+      }
+    }
+
+    console.log(
+      `✨ [ML Prediction] Updated ${placesToPredict.length} markers with predictions`
+    );
+  } catch (err) {
+    console.error("Failed to fetch place predictions:", err);
+  }
+}
+
+/**
+ * Update a single marker's icon to show the ML prediction
+ */
+function updateMarkerWithPrediction(placeKey, tags, prediction) {
+  if (!placePredictionsEnabled) return;
+
+  const marker = placeMarkersByKey.get(placeKey);
+  if (!marker || typeof marker.setIcon !== "function") return;
+
+  // Don't override the currently selected marker (it has blue badge)
+  if (selectedMarkerState && selectedMarkerState.key === placeKey) return;
+
+  // Create new icon with prediction styling
+  const newIcon = makePoiIcon(tags, {
+    isPredicted: true,
+    predictedTier: prediction.label, // "accessible", "limited", or "not_accessible"
+  });
+
+  marker.setIcon(newIcon);
+}
+
+/**
+ * Refresh all place marker predictions (called when toggle changes)
+ */
+function refreshPlaceMarkerPredictions() {
+  for (const [placeKey, marker] of placeMarkersByKey) {
+    // Skip currently selected marker
+    if (selectedMarkerState && selectedMarkerState.key === placeKey) continue;
+
+    // Get the cached feature tags
+    const feature = placesCacheById.get(placeKey);
+    if (!feature) continue;
+
+    const tags = feature.properties?.tags || feature.properties || {};
+    const wheelchair =
+      tags.wheelchair ||
+      tags["toilets:wheelchair"] ||
+      tags["wheelchair:toilets"];
+
+    if (wheelchair) continue; // Has known accessibility, skip
+
+    const prediction = placePredictionsCache.get(placeKey);
+
+    if (placePredictionsEnabled && prediction) {
+      // Show prediction styling
+      marker.setIcon(
+        makePoiIcon(tags, {
+          isPredicted: true,
+          predictedTier: prediction.label,
+        })
+      );
+    } else {
+      // Revert to default unknown styling
+      marker.setIcon(makePoiIcon(tags));
+    }
+  }
+}
+
+// ============================================================================
 
 function moveDepartureSearchBarUnderTo() {
   const directionsUi = getDirectionsUiEl();
