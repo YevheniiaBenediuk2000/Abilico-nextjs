@@ -33,6 +33,8 @@ import PersonIcon from "@mui/icons-material/Person";
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import AddLocationIcon from "@mui/icons-material/AddLocation";
 import Tooltip from "@mui/material/Tooltip";
+import useMediaQuery from "@mui/material/useMediaQuery";
+import { useTheme } from "@mui/material/styles";
 
 import { queryClient } from "../queryClient";
 import AddPlaceDialog from "./AddPlaceDialog";
@@ -62,6 +64,8 @@ function getAvatarColor(email) {
 
 export default function MapLayout({ isDashboard = false, children, hideSidebar = false }) {
   const router = useRouter();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [user, setUser] = useState(null);
   const [isPlacesListOpen, setIsPlacesListOpen] = useState(false);
   const [avatarMenuAnchor, setAvatarMenuAnchor] = useState(null);
@@ -69,6 +73,9 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
 
   // Keep sidebar closed when hideSidebar is true
   const effectiveIsPlacesListOpen = hideSidebar ? false : isPlacesListOpen;
+  
+  // Remove shadow from header when sidebar is open on mobile
+  const headerElevation = isMobile && effectiveIsPlacesListOpen ? 0 : 1;
 
   // ✅ Track user session
   useEffect(() => {
@@ -158,7 +165,7 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
       <div className="d-flex flex-column min-vh-100">
         {/* === MUI AppBar with burger + search + account === */}
         <AppBar
-          elevation={1}
+          elevation={headerElevation}
           position="static"
           color="transparent"
           sx={{

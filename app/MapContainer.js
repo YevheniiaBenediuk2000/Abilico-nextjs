@@ -124,7 +124,7 @@ export default function MapContainer({
   const [user, setUser] = useState(initialUser);
   const router = useRouter();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const mapResizeCleanupRef = useRef(null);
   const [showObstacleManagementOverlay, setShowObstacleManagementOverlay] =
     useState(true);
@@ -1135,28 +1135,24 @@ export default function MapContainer({
 
       {/* === Places list Drawer (controlled by AppBar burger) === */}
       <Drawer
-        variant="persistent"
+        variant={isMobile ? "temporary" : "persistent"}
         anchor="left"
         open={isPlacesListOpen}
         onClose={onPlacesListClose}
         ModalProps={{
           keepMounted: true, // (optional) keeps it mounted for better perf
         }}
-        hideBackdrop
+        hideBackdrop={!isMobile}
         PaperProps={{
           sx: (theme) => ({
-            width: 360,
-            maxWidth: "80vw",
+            width: { xs: "100%", md: 360 },
+            maxWidth: { xs: "100%", md: "80vw" },
             pt: 1,
             px: 2,
-            boxShadow: "none", // ✅ remove the right-hand shadow
-            borderRight: "1px solid rgba(0,0,0,0.12)", // optional subtle divider
-            top: 56,
-            height: "calc(100% - 56px)",
-            [theme.breakpoints.up("sm")]: {
-              top: 64,
-              height: "calc(100% - 64px)",
-            },
+            boxShadow: { xs: theme.shadows[16], sm: theme.shadows[16], md: "none" }, // Add shadow on mobile for depth
+            borderRight: { xs: "none", sm: "none", md: "1px solid rgba(0,0,0,0.12)" }, // Remove border on mobile
+            top: { xs: 56, sm: 64, md: 64 }, // Start below header on mobile
+            height: { xs: "calc(100vh - 56px)", sm: "calc(100vh - 64px)", md: "calc(100% - 64px)" }, // Full height minus header
           }),
         }}
       >
