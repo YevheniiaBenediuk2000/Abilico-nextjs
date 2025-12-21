@@ -5,7 +5,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Switch from "@mui/material/Switch";
@@ -111,12 +111,27 @@ export default function RoadAccessibilityLegend({
   onnxReady = false,
 }) {
   const [expanded, setExpanded] = useState(false);
+  const hasTriggeredPreload = useRef(false);
+
+  // Trigger ONNX model preload on first hover
+  const handleMouseEnter = useCallback(() => {
+    if (
+      !hasTriggeredPreload.current &&
+      typeof window !== "undefined" &&
+      window.preloadOnnxModelsInBackground
+    ) {
+      hasTriggeredPreload.current = true;
+      console.log("🤖 [ONNX] Hover detected - starting model preload...");
+      window.preloadOnnxModelsInBackground();
+    }
+  }, []);
 
   const legend = LEGENDS[vizMode] || LEGENDS[VIZ_MODES.OVERALL];
 
   return (
     <Paper
       elevation={2}
+      onMouseEnter={handleMouseEnter}
       sx={{
         position: "absolute",
         bottom: 170,

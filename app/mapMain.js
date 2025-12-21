@@ -90,6 +90,7 @@ import {
   setPredictionsEnabled,
   isPredictionsEnabled,
   isOnnxModelsReady,
+  preloadOnnxModelsInBackground,
 } from "./modules/roadAccessibilityMap.js";
 
 // DEBUG: confirm import really works
@@ -8087,6 +8088,10 @@ export async function initMap(user = null) {
 
     // Initialize road accessibility layer (disabled by default)
     initRoadAccessibilityLayer(map);
+
+    // Note: ONNX models are preloaded on hover of the Road Accessibility legend
+    // This defers the ~73MB download until user shows interest in the feature
+
     // Expose road accessibility controls globally for React components
     if (typeof window !== "undefined") {
       window.setRoadAccessibilityEnabled = (enabled) =>
@@ -8099,6 +8104,7 @@ export async function initMap(user = null) {
       window.setPredictionsEnabled = setPredictionsEnabled;
       window.isPredictionsEnabled = isPredictionsEnabled;
       window.isOnnxModelsReady = isOnnxModelsReady;
+      window.preloadOnnxModelsInBackground = preloadOnnxModelsInBackground;
     }
 
     map.on("baselayerchange", (e) => ls.set(BASEMAP_LS_KEY, e.name));

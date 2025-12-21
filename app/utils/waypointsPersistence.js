@@ -55,17 +55,17 @@ export const saveWaypointsToCache = async (waypoints) => {
 
   try {
     const db = await openDB();
+
     return new Promise((resolve, reject) => {
       const transaction = db.transaction([WAYPOINTS_STORE_NAME], "readwrite");
       const store = transaction.objectStore(WAYPOINTS_STORE_NAME);
 
       transaction.oncomplete = () => {
-        console.log(
-          `💾 [waypointsPersistence] Saved ${waypoints.length} waypoints to cache`
-        );
         resolve();
       };
-      transaction.onerror = (event) => reject(event.target.error);
+      transaction.onerror = (event) => {
+        reject(event.target.error);
+      };
 
       waypoints.forEach((item) => {
         // item should be { id: key, feature: feature }
@@ -84,18 +84,18 @@ export const saveWaypointsToCache = async (waypoints) => {
 export const loadWaypointsFromCache = async () => {
   try {
     const db = await openDB();
+
     return new Promise((resolve, reject) => {
       const transaction = db.transaction([WAYPOINTS_STORE_NAME], "readonly");
       const store = transaction.objectStore(WAYPOINTS_STORE_NAME);
       const request = store.getAll();
 
       request.onsuccess = () => {
-        console.log(
-          `📂 [waypointsPersistence] Loaded ${request.result.length} waypoints from cache`
-        );
         resolve(request.result);
       };
-      request.onerror = (event) => reject(event.target.error);
+      request.onerror = (event) => {
+        reject(event.target.error);
+      };
     });
   } catch (e) {
     console.warn("Failed to load waypoints from cache", e);
