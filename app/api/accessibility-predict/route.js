@@ -144,6 +144,17 @@ async function runInference(places, options = {}) {
  */
 export async function GET(request) {
   try {
+    // Check if ONNX runtime is available
+    if (!OnnxModelSingleton.isAvailable()) {
+      return NextResponse.json(
+        { 
+          error: "ML model not available in this environment",
+          hint: "ONNX runtime requires native binaries not available on serverless"
+        },
+        { status: 503 }
+      );
+    }
+    
     const { searchParams } = new URL(request.url);
 
     // Build place object from query params
@@ -201,6 +212,17 @@ export async function GET(request) {
  */
 export async function POST(request) {
   try {
+    // Check if ONNX runtime is available
+    if (!OnnxModelSingleton.isAvailable()) {
+      return NextResponse.json(
+        { 
+          error: "ML model not available in this environment",
+          hint: "ONNX runtime requires native binaries not available on serverless"
+        },
+        { status: 503 }
+      );
+    }
+    
     const body = await request.json();
     const { places, explain = false } = body;
 
