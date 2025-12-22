@@ -32,7 +32,11 @@ export default function AuthPage() {
   }, []);
 
   // Get redirect URL - only use on client side
-  const redirectTo = mounted ? `${typeof window !== "undefined" ? window.location.origin : ""}/auth/callback` : "";
+  // Use a stable URL that works in both development and production
+  const redirectTo =
+    mounted && typeof window !== "undefined"
+      ? `${window.location.origin}/auth/callback`
+      : null;
 
   useEffect(() => {
     const {
@@ -97,7 +101,7 @@ export default function AuthPage() {
   const handleDigitChange = (index, value) => {
     // Only allow single digit
     if (value.length > 1) return;
-    
+
     const newCode = [...totpCode];
     newCode[index] = value;
     setTotpCode(newCode);
@@ -118,7 +122,9 @@ export default function AuthPage() {
   const handlePaste = (e) => {
     e.preventDefault();
     const pastedData = e.clipboardData.getData("text").slice(0, 6);
-    const newCode = pastedData.split("").concat(Array(6 - pastedData.length).fill(""));
+    const newCode = pastedData
+      .split("")
+      .concat(Array(6 - pastedData.length).fill(""));
     setTotpCode(newCode.slice(0, 6));
     // Focus the last filled input or first empty
     const lastFilledIndex = Math.min(pastedData.length - 1, 5);
@@ -167,7 +173,6 @@ export default function AuthPage() {
     }
   };
 
-
   // Don't render anything until mounted to prevent hydration mismatch
   if (!mounted) {
     return (
@@ -196,157 +201,159 @@ export default function AuthPage() {
       }}
     >
       {!pendingMFA ? (
+        <Box
+          sx={{
+            display: "flex",
+            width: "100%",
+            minHeight: "100vh",
+          }}
+        >
+          {/* Left Side - Logo and Illustration */}
           <Box
             sx={{
+              flex: 1,
+              display: { xs: "none", md: "flex" },
+              flexDirection: "column",
+              alignItems: "flex-start",
+              justifyContent: "flex-start",
+              p: 4,
+              position: "relative",
+              background: "#ffffff",
+            }}
+          >
+            {/* Logo at top left */}
+            <AbilicoLogo
+              logoHeight={48}
+              textColor={PRIMARY_BLUE}
+              sx={{ mb: 4 }}
+            />
+
+            {/* Illustration */}
+            <Box
+              sx={{
+                position: "absolute",
+                top: "50%",
+                left: 0,
+                right: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transform: "translateY(-50%)",
+                p: 4,
+                pl: 6,
+              }}
+            >
+              <Box
+                component="img"
+                src="/illustrations/registration-welcome-wheelchair-transparent-background.png"
+                alt="Welcome illustration"
+                sx={{
+                  maxWidth: "100%",
+                  height: "auto",
+                  objectFit: "contain",
+                  transform: "scaleX(-1)",
+                  ml: 12,
+                }}
+              />
+            </Box>
+          </Box>
+
+          {/* Right Side - Auth Form */}
+          <Box
+            sx={{
+              flex: { xs: 1, md: 1 },
               display: "flex",
-              width: "100%",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              p: { xs: 3, md: 6 },
+              background: "#ffffff",
               minHeight: "100vh",
             }}
           >
-            {/* Left Side - Logo and Illustration */}
+            {/* Mobile Logo */}
             <Box
               sx={{
-                flex: 1,
-                display: { xs: "none", md: "flex" },
-                flexDirection: "column",
-                alignItems: "flex-start",
-                justifyContent: "flex-start",
-                p: 4,
-                position: "relative",
-                background: "#ffffff",
+                display: { xs: "block", md: "none" },
+                mb: 4,
+                alignSelf: "flex-start",
               }}
             >
-              {/* Logo at top left */}
-              <AbilicoLogo
-                logoHeight={48}
-                textColor={PRIMARY_BLUE}
-                sx={{ mb: 4 }}
-              />
-              
-              {/* Illustration */}
-              <Box
-                sx={{
-                  position: "absolute",
-                  top: "50%",
-                  left: 0,
-                  right: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transform: "translateY(-50%)",
-                  p: 4,
-                  pl: 6,
-                }}
-              >
-                <Box
-                  component="img"
-                  src="/illustrations/registration-welcome-wheelchair-transparent-background.png"
-                  alt="Welcome illustration"
-                  sx={{
-                    maxWidth: "100%",
-                    height: "auto",
-                    objectFit: "contain",
-                    transform: "scaleX(-1)",
-                    ml: 12,
-                  }}
-                />
-              </Box>
+              <AbilicoLogo logoHeight={40} textColor={PRIMARY_BLUE} />
             </Box>
 
-            {/* Right Side - Auth Form */}
+            {/* Auth Form Container */}
             <Box
+              className={styles.authForm}
               sx={{
-                flex: { xs: 1, md: 1 },
+                width: "100%",
+                maxWidth: "440px",
                 display: "flex",
                 flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                p: { xs: 3, md: 6 },
-                background: "#ffffff",
-                minHeight: "100vh",
               }}
             >
-              {/* Mobile Logo */}
-              <Box
-                sx={{
-                  display: { xs: "block", md: "none" },
-                  mb: 4,
-                  alignSelf: "flex-start",
-                }}
-              >
-                <AbilicoLogo logoHeight={40} textColor={PRIMARY_BLUE} />
-              </Box>
-
-              {/* Auth Form Container */}
-              <Box
-                className={styles.authForm}
-                sx={{
-                  width: "100%",
-                  maxWidth: "440px",
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-              >
-                <Auth
-                  supabaseClient={supabase}
-                  appearance={{
-                    theme: ThemeSupa,
-                    variables: {
-                      default: {
-                        colors: {
-                          brand: PRIMARY_BLUE,
-                          brandAccent: PRIMARY_BLUE,
-                          inputText: "#000000",
-                          inputLabelText: "#000000",
-                          inputPlaceholder: "#9e9e9e",
-                          inputBorder: "rgba(0, 0, 0, 0.23)",
-                          inputBorderHover: "rgba(0, 0, 0, 0.5)",
-                          inputBorderFocus: PRIMARY_BLUE,
-                          messageText: "#000000",
-                          messageTextDanger: "#d32f2f",
-                          anchorTextColor: PRIMARY_BLUE,
-                          anchorTextHoverColor: PRIMARY_BLUE,
-                        },
-                        space: {
-                          inputPadding: "16px",
-                          buttonPadding: "16px",
-                        },
-                          fontSizes: {
-                            baseBodySize: "14px",
-                            baseInputSize: "16px",
-                            labelText: "14px",
-                            inputPlaceholder: "13px",
-                          },
-                        radii: {
-                          borderRadiusButton: "8px",
-                          buttonBorderRadius: "8px",
-                          inputBorderRadius: "8px",
-                        },
+              <Auth
+                supabaseClient={supabase}
+                appearance={{
+                  theme: ThemeSupa,
+                  variables: {
+                    default: {
+                      colors: {
+                        brand: PRIMARY_BLUE,
+                        brandAccent: PRIMARY_BLUE,
+                        inputText: "#000000",
+                        inputLabelText: "#000000",
+                        inputPlaceholder: "#9e9e9e",
+                        inputBorder: "rgba(0, 0, 0, 0.23)",
+                        inputBorderHover: "rgba(0, 0, 0, 0.5)",
+                        inputBorderFocus: PRIMARY_BLUE,
+                        messageText: "#000000",
+                        messageTextDanger: "#d32f2f",
+                        anchorTextColor: PRIMARY_BLUE,
+                        anchorTextHoverColor: PRIMARY_BLUE,
+                      },
+                      space: {
+                        inputPadding: "16px",
+                        buttonPadding: "16px",
+                      },
+                      fontSizes: {
+                        baseBodySize: "14px",
+                        baseInputSize: "16px",
+                        labelText: "14px",
+                        inputPlaceholder: "13px",
+                      },
+                      radii: {
+                        borderRadiusButton: "8px",
+                        buttonBorderRadius: "8px",
+                        inputBorderRadius: "8px",
                       },
                     },
-                  }}
-                  localization={{
-                    variables: {
-                      sign_in: {
-                        email_label: "Email",
-                        password_label: "Password",
-                        email_input_placeholder: "name@example.com",
-                        password_input_placeholder: "Min. 8 chars, A–Z, a–z, 0–9, symbol",
-                      },
-                      sign_up: {
-                        email_label: "Email",
-                        password_label: "Password",
-                        email_input_placeholder: "name@example.com",
-                        password_input_placeholder: "Min. 8 chars, A–Z, a–z, 0–9, symbol",
-                      },
+                  },
+                }}
+                localization={{
+                  variables: {
+                    sign_in: {
+                      email_label: "Email",
+                      password_label: "Password",
+                      email_input_placeholder: "name@example.com",
+                      password_input_placeholder:
+                        "Min. 8 chars, A–Z, a–z, 0–9, symbol",
                     },
-                  }}
-                  providers={["google"]}
-                  redirectTo={redirectTo}
-                />
-              </Box>
+                    sign_up: {
+                      email_label: "Email",
+                      password_label: "Password",
+                      email_input_placeholder: "name@example.com",
+                      password_input_placeholder:
+                        "Min. 8 chars, A–Z, a–z, 0–9, symbol",
+                    },
+                  },
+                }}
+                providers={["google"]}
+                redirectTo={redirectTo}
+              />
             </Box>
           </Box>
+        </Box>
       ) : (
         <Box
           sx={{
@@ -481,11 +488,16 @@ export default function AuthPage() {
             </Button>
 
             {/* Abilico Logo/Branding */}
-            <AbilicoLogo sx={{ mt: 2 }} horizontal={true} logoHeight={32} textColor={PRIMARY_BLUE} />
+            <AbilicoLogo
+              sx={{ mt: 2 }}
+              horizontal={true}
+              logoHeight={32}
+              textColor={PRIMARY_BLUE}
+            />
           </Card>
         </Box>
       )}
-      
+
       {/* Toast Notifications */}
       <ToastHost />
     </Box>
