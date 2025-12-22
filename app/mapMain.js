@@ -3846,7 +3846,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     originalWheelchair !== userReportedWheelchair;
 
   // Track if we need to show ML prediction (for unknown accessibility)
-  const showMlPrediction = tier === "unknown";
+  const showMlPrediction = primaryTier === "unknown";
 
   const accItem = document.createElement("div");
   accItem.className = "list-group-item";
@@ -3982,7 +3982,7 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     false
   );
   container.appendChild(header);
-  container.appendChild(cardContainer);
+  container.appendChild(primaryStatusCard);
 
   // --- ML PREDICTION: Show AI prediction when wheelchair status is unknown ---
   if (showMlPrediction) {
