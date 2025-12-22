@@ -4181,6 +4181,26 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
 
       textWrapper.appendChild(labelEl);
       textWrapper.appendChild(confidenceEl);
+
+      // Show contributing features (basedOn) if available
+      if (
+        result.basedOn &&
+        Array.isArray(result.basedOn) &&
+        result.basedOn.length > 0
+      ) {
+        const basedOnEl = document.createElement("div");
+        basedOnEl.style.fontSize = "0.6875rem";
+        basedOnEl.style.color = "rgba(0, 0, 0, 0.4)";
+        basedOnEl.style.marginTop = "4px";
+        basedOnEl.style.fontStyle = "italic";
+        const featureNames = result.basedOn
+          .slice(0, 3)
+          .map((f) => f.displayName || f.feature || f)
+          .join(", ");
+        basedOnEl.textContent = `Based on: ${featureNames}`;
+        textWrapper.appendChild(basedOnEl);
+      }
+
       container.appendChild(textWrapper);
     }
   }
