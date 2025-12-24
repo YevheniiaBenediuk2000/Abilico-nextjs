@@ -8,13 +8,15 @@ let routeAbortController = null;
 /**
  * Builds a valid GeoJSON MultiPolygon for ORS avoid_polygons parameter.
  * Ensures correct nesting: MultiPolygon → Polygon → LinearRing → [lon, lat]
- * 
+ *
  * @param {Array} obstacleFeatures - Array of obstacle GeoJSON features
  * @returns {Object|null} - Valid MultiPolygon GeoJSON or null if no valid obstacles
  */
 function buildAvoidPolygons(obstacleFeatures = []) {
   const polygons = [];
-  console.log(`🔍 buildAvoidPolygons: Processing ${obstacleFeatures.length} obstacles`);
+  console.log(
+    `🔍 buildAvoidPolygons: Processing ${obstacleFeatures.length} obstacles`
+  );
 
   for (const f of obstacleFeatures) {
     if (!f?.geometry) continue;
@@ -26,9 +28,9 @@ function buildAvoidPolygons(obstacleFeatures = []) {
     if (geom.type === "Point") {
       const radius = f.properties?.radius;
       const shape = f.properties?.shape;
-      
+
       let circleRadius;
-      
+
       if (shape === "circle" && radius) {
         // Circular obstacles use their specified radius
         circleRadius = radius;
@@ -42,14 +44,21 @@ function buildAvoidPolygons(obstacleFeatures = []) {
       // Convert circle to polygon using turfcircle
       try {
         const [lng, lat] = geom.coordinates;
-        const circle = turfcircle([lng, lat], circleRadius, { units: "meters", steps: 64 });
+        const circle = turfcircle([lng, lat], circleRadius, {
+          units: "meters",
+          steps: 64,
+        });
         if (circle?.geometry?.coordinates) {
           geom = circle.geometry;
         } else {
           continue;
         }
       } catch (err) {
-        console.warn("Failed to convert Point obstacle to polygon:", err, f.properties);
+        console.warn(
+          "Failed to convert Point obstacle to polygon:",
+          err,
+          f.properties
+        );
         continue;
       }
     }
@@ -106,8 +115,10 @@ function buildAvoidPolygons(obstacleFeatures = []) {
   const result = polygons.length
     ? { type: "MultiPolygon", coordinates: polygons }
     : null;
-  
-  console.log(`✅ buildAvoidPolygons: Created MultiPolygon with ${polygons.length} polygon(s)`);
+
+  console.log(
+    `✅ buildAvoidPolygons: Created MultiPolygon with ${polygons.length} polygon(s)`
+  );
   return result;
 }
 
@@ -118,8 +129,8 @@ export async function fetchRoute(coordinates, obstacleFeatures) {
   routeAbortController = new AbortController();
   const { signal } = routeAbortController;
 
-  const url =
-    "https://api.openrouteservice.org/v2/directions/wheelchair/geojson";
+  // Use local API route to proxy requests to OpenRouteService (avoids CORS issues)
+  const url = "/api/route-directions";
 
   // Build valid MultiPolygon for ORS avoid_polygons
   const avoidPolygons = buildAvoidPolygons(obstacleFeatures);
@@ -145,7 +156,6 @@ export async function fetchRoute(coordinates, obstacleFeatures) {
     const response = await fetch(url, {
       method: "POST",
       headers: {
-        Authorization: process.env.NEXT_PUBLIC_ORS_API_KEY,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(requestBody),

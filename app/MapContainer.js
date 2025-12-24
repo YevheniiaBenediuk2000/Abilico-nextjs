@@ -361,7 +361,11 @@ export default function MapContainer({
 
   // Load reviews when the reviews tab is clicked
   useEffect(() => {
-    if (detailsTab === "reviews" && typeof window !== "undefined" && typeof window.ensureReviewsLoaded === "function") {
+    if (
+      detailsTab === "reviews" &&
+      typeof window !== "undefined" &&
+      typeof window.ensureReviewsLoaded === "function"
+    ) {
       // Call ensureReviewsLoaded to fetch reviews if they haven't been loaded yet
       window.ensureReviewsLoaded().catch((error) => {
         console.error("❌ Failed to load reviews when tab clicked:", error);
@@ -506,15 +510,26 @@ export default function MapContainer({
         // Check if there's a place to select from saved places
         if (
           typeof window !== "undefined" &&
-          (typeof sessionStorage !== "undefined" || typeof localStorage !== "undefined")
+          (typeof sessionStorage !== "undefined" ||
+            typeof localStorage !== "undefined")
         ) {
           // Check both sessionStorage (same tab) and localStorage (cross-tab for new tab opens)
-          const selectedPlaceId = sessionStorage?.getItem("selectedPlaceId") || localStorage?.getItem("selectedPlaceId");
-          const fromSavedPlaces = sessionStorage?.getItem("fromSavedPlaces") || localStorage?.getItem("fromSavedPlaces");
+          const selectedPlaceId =
+            sessionStorage?.getItem("selectedPlaceId") ||
+            localStorage?.getItem("selectedPlaceId");
+          const fromSavedPlaces =
+            sessionStorage?.getItem("fromSavedPlaces") ||
+            localStorage?.getItem("fromSavedPlaces");
 
           if (selectedPlaceId && fromSavedPlaces) {
-            const lat = parseFloat(sessionStorage?.getItem("selectedPlaceLat") || localStorage?.getItem("selectedPlaceLat"));
-            const lon = parseFloat(sessionStorage?.getItem("selectedPlaceLon") || localStorage?.getItem("selectedPlaceLon"));
+            const lat = parseFloat(
+              sessionStorage?.getItem("selectedPlaceLat") ||
+                localStorage?.getItem("selectedPlaceLat")
+            );
+            const lon = parseFloat(
+              sessionStorage?.getItem("selectedPlaceLon") ||
+                localStorage?.getItem("selectedPlaceLon")
+            );
 
             // Clear both sessionStorage and localStorage
             if (sessionStorage) {
@@ -645,9 +660,13 @@ export default function MapContainer({
 
                 // Extract wheelchair status from accessibility_keywords or accessibility_status
                 // This is the original/OSM status (not user-reported)
-                if (placeData.accessibility_keywords && typeof placeData.accessibility_keywords === 'object') {
+                if (
+                  placeData.accessibility_keywords &&
+                  typeof placeData.accessibility_keywords === "object"
+                ) {
                   if (placeData.accessibility_keywords.wheelchair) {
-                    tags.wheelchair = placeData.accessibility_keywords.wheelchair;
+                    tags.wheelchair =
+                      placeData.accessibility_keywords.wheelchair;
                   }
                 } else if (placeData.accessibility_status) {
                   // Fallback to accessibility_status if accessibility_keywords doesn't exist
@@ -657,10 +676,12 @@ export default function MapContainer({
                 // Add user-reported accessibility (from approved reports) as separate field
                 // This allows displaying both original and user-reported status
                 if (placeData.user_reported_accessibility) {
-                  tags.user_reported_accessibility = placeData.user_reported_accessibility;
+                  tags.user_reported_accessibility =
+                    placeData.user_reported_accessibility;
                 }
                 if (placeData.user_reported_accessibility_comment) {
-                  tags.user_reported_accessibility_comment = placeData.user_reported_accessibility_comment;
+                  tags.user_reported_accessibility_comment =
+                    placeData.user_reported_accessibility_comment;
                 }
 
                 const feature = {
@@ -1149,10 +1170,22 @@ export default function MapContainer({
             maxWidth: { xs: "100%", md: "80vw" },
             pt: 1,
             px: 2,
-            boxShadow: { xs: theme.shadows[16], sm: theme.shadows[16], md: "none" }, // Add shadow on mobile for depth
-            borderRight: { xs: "none", sm: "none", md: "1px solid rgba(0,0,0,0.12)" }, // Remove border on mobile
+            boxShadow: {
+              xs: theme.shadows[16],
+              sm: theme.shadows[16],
+              md: "none",
+            }, // Add shadow on mobile for depth
+            borderRight: {
+              xs: "none",
+              sm: "none",
+              md: "1px solid rgba(0,0,0,0.12)",
+            }, // Remove border on mobile
             top: { xs: 56, sm: 64, md: 64 }, // Start below header on mobile
-            height: { xs: "calc(100vh - 56px)", sm: "calc(100vh - 64px)", md: "calc(100% - 64px)" }, // Full height minus header
+            height: {
+              xs: "calc(100vh - 56px)",
+              sm: "calc(100vh - 64px)",
+              md: "calc(100% - 64px)",
+            }, // Full height minus header
           }),
         }}
       >
@@ -1692,36 +1725,34 @@ export default function MapContainer({
                           </Box>
                         </Box>
 
-                        {/* Empty state + CTA button (only show when no reviews) */}
-                        {!reviewStats.count && (
-                          <Box
+                        {/* CTA button to write a review */}
+                        <Box
+                          sx={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            gap: 2,
+                            mb: 2,
+                          }}
+                        >
+                          <Button
+                            variant="contained"
+                            size="small"
+                            onClick={() => {
+                              if (user) setReviewWriteOpen(true);
+                              else router.push("/auth");
+                            }}
                             sx={{
-                              display: "flex",
-                              flexDirection: "column",
-                              alignItems: "center",
-                              gap: 2,
-                              mb: 1,
+                              borderRadius: "25px",
+                              textTransform: "none",
+                              fontWeight: 500,
+                              px: 2,
+                              py: 0.75,
                             }}
                           >
-                            <Button
-                              variant="contained"
-                              size="small"
-                              onClick={() => {
-                                if (user) setReviewWriteOpen(true);
-                                else router.push("/auth");
-                              }}
-                              sx={{
-                                borderRadius: "25px",
-                                textTransform: "none",
-                                fontWeight: 500,
-                                px: 2,
-                                py: 0.75,
-                              }}
-                            >
-                              Write a review
-                            </Button>
-                          </Box>
-                        )}
+                            Write a review
+                          </Button>
+                        </Box>
 
                         {/* Reviews list */}
                         <ul id="reviews-list" className="list-group"></ul>
@@ -2059,8 +2090,13 @@ export default function MapContainer({
               }}
             >
               <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                <ReportProblemIcon sx={{ color: PRIMARY_BLUE, fontSize: "1.5rem" }} />
-                <Typography variant="h6" sx={{ fontWeight: 600, lineHeight: 1.5 }}>
+                <ReportProblemIcon
+                  sx={{ color: PRIMARY_BLUE, fontSize: "1.5rem" }}
+                />
+                <Typography
+                  variant="h6"
+                  sx={{ fontWeight: 600, lineHeight: 1.5 }}
+                >
                   Choose what's wrong
                 </Typography>
               </Box>
