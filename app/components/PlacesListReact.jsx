@@ -17,6 +17,7 @@ import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
 import IconButton from "@mui/material/IconButton";
 import CloseIcon from "@mui/icons-material/Close";
 import FilterListIcon from "@mui/icons-material/FilterList";
@@ -1191,6 +1192,26 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
   const [sortAnchorEl, setSortAnchorEl] = useState(null);
   const [filterResetKey, setFilterResetKey] = useState(0); // Key to force re-render of filter components
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  
+  // Staged filter state (for Apply button)
+  const [stagedAccessibilityFilters, setStagedAccessibilityFilters] = useState(null);
+  const [stagedPhotosOnly, setStagedPhotosOnly] = useState(null);
+  
+  // Applied accessibility filters state (to ensure immediate updates)
+  const [appliedAccessibilityFilters, setAppliedAccessibilityFilters] = useState(() => {
+    if (typeof window === "undefined") return ALL_ACCESSIBILITY_TIERS;
+    try {
+      const raw = window.localStorage.getItem(ACCESSIBILITY_FILTER_LS_KEY);
+      if (!raw) return ALL_ACCESSIBILITY_TIERS;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.filter((t) => ALL_ACCESSIBILITY_TIERS.includes(t));
+      }
+    } catch {
+      // ignore parse errors
+    }
+    return ALL_ACCESSIBILITY_TIERS;
+  });
 
   // Check if any accessibility filters are active (not all tiers selected)
   const hasAccessibilityFiltersActive = useMemo(() => {
@@ -1221,6 +1242,9 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
         ACCESSIBILITY_FILTER_LS_KEY,
         JSON.stringify(ALL_ACCESSIBILITY_TIERS)
       );
+
+      // Update applied state
+      setAppliedAccessibilityFilters(ALL_ACCESSIBILITY_TIERS);
 
       // notify AccessibilityLegendReact + map
       document.dispatchEvent(
@@ -1287,6 +1311,64 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
     }
   });
 
+  // Initialize staged filters when dialog opens
+  useEffect(() => {
+    if (filtersOpen) {
+      // Use current applied filters as starting point for staged filters
+      setStagedAccessibilityFilters(appliedAccessibilityFilters);
+      // Load current photos filter
+      setStagedPhotosOnly(photosOnly);
+    }
+  }, [filtersOpen, photosOnly, appliedAccessibilityFilters]);
+
+  // Apply staged filters
+  const handleApplyFilters = () => {
+    if (typeof window === "undefined") return;
+
+    try {
+      // Apply accessibility filters
+      if (stagedAccessibilityFilters !== null) {
+        console.log("✅ Applying accessibility filters:", stagedAccessibilityFilters);
+        window.localStorage.setItem(
+          ACCESSIBILITY_FILTER_LS_KEY,
+          JSON.stringify(stagedAccessibilityFilters)
+        );
+        // Update applied state immediately
+        setAppliedAccessibilityFilters(stagedAccessibilityFilters);
+        document.dispatchEvent(
+          new CustomEvent("accessibilityFilterChanged", {
+            detail: stagedAccessibilityFilters,
+          })
+        );
+      }
+
+      // Apply photos filter
+      if (stagedPhotosOnly !== null) {
+        if (stagedPhotosOnly) {
+          window.localStorage.setItem(PHOTOS_ONLY_LS_KEY, "1");
+        } else {
+          window.localStorage.removeItem(PHOTOS_ONLY_LS_KEY);
+        }
+        setPhotosOnly(stagedPhotosOnly);
+      }
+
+      // Force remount of filter components
+      setFilterResetKey((prev) => prev + 1);
+      
+      // Close dialog
+      setFiltersOpen(false);
+    } catch (err) {
+      console.error("Failed to apply filters:", err);
+    }
+  };
+
+  // Cancel staged filters (discard changes)
+  const handleCancelFilters = () => {
+    setStagedAccessibilityFilters(null);
+    setStagedPhotosOnly(null);
+    setFiltersOpen(false);
+  };
+
   // Clear all filters function
   const clearAllFilters = () => {
     if (typeof window === "undefined") return;
@@ -1297,6 +1379,8 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
         ACCESSIBILITY_FILTER_LS_KEY,
         JSON.stringify(ALL_ACCESSIBILITY_TIERS)
       );
+      // Update applied state
+      setAppliedAccessibilityFilters(ALL_ACCESSIBILITY_TIERS);
       // Dispatch event to notify AccessibilityLegendReact and mapMain
       document.dispatchEvent(
         new CustomEvent("accessibilityFilterChanged", {
@@ -2063,11 +2147,47 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
       document.removeEventListener("placeTypeFilterChanged", handler);
   }, [hideControls]);
 
+  // Get current accessibility filters (use staged if dialog is open, otherwise use applied state)
+  const currentAccessibilityFilters = useMemo(() => {
+    // If dialog is open and we have staged filters, use those (for preview)
+    if (filtersOpen && stagedAccessibilityFilters !== null) {
+      console.log("🔍 Using staged filters:", stagedAccessibilityFilters);
+      return stagedAccessibilityFilters;
+    }
+    
+    // Otherwise, use the applied filters state
+    console.log("🔍 Using applied filters:", appliedAccessibilityFilters);
+    return appliedAccessibilityFilters;
+  }, [filtersOpen, stagedAccessibilityFilters, appliedAccessibilityFilters]);
+
   // Apply place-type filters to rawItems
   const items = useMemo(() => {
     if (!rawItems.length) return [];
 
     let filtered = rawItems;
+
+    // 👇 Filter by accessibility tier
+    // Only filter if not all tiers are selected (i.e., user has filtered)
+    const accessibilityFilterSet = new Set(currentAccessibilityFilters);
+    const allTiersSet = new Set(ALL_ACCESSIBILITY_TIERS);
+    const isFilteringByAccessibility = 
+      accessibilityFilterSet.size !== allTiersSet.size ||
+      !ALL_ACCESSIBILITY_TIERS.every((tier) => accessibilityFilterSet.has(tier));
+    
+    if (isFilteringByAccessibility) {
+      const beforeCount = filtered.length;
+      filtered = filtered.filter((item) => {
+        const tier = item.accTier || "unknown";
+        const isAllowed = accessibilityFilterSet.has(tier);
+        if (!isAllowed) {
+          console.log(`🚫 Filtered out place "${item.name}" - tier: ${tier}, allowed tiers:`, Array.from(accessibilityFilterSet));
+        }
+        return isAllowed;
+      });
+      console.log(`🔍 Accessibility filter applied: ${beforeCount} → ${filtered.length} places. Filter tiers:`, Array.from(accessibilityFilterSet));
+    } else {
+      console.log(`✅ No accessibility filtering (all tiers selected)`);
+    }
 
     if (activeTypeFilters) {
       // If the saved filter is incomplete (e.g. only has "Shops"), do NOT hide other groups.
@@ -2173,6 +2293,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
     return uniqueFiltered;
   }, [
     rawItems,
+    currentAccessibilityFilters,
     activeTypeFilters,
     photosOnly,
     photoByKey,
@@ -2520,7 +2641,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
       {/* Filters Dialog */}
       <Dialog
         open={filtersOpen}
-        onClose={() => setFiltersOpen(false)}
+        onClose={handleCancelFilters}
         maxWidth="sm"
         fullWidth
         PaperProps={{
@@ -2555,7 +2676,13 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
               <Button
                 variant="text"
                 size="small"
-                onClick={clearAllFilters}
+                onClick={() => {
+                  // Reset staged filters to defaults
+                  setStagedAccessibilityFilters(ALL_ACCESSIBILITY_TIERS);
+                  setStagedPhotosOnly(false);
+                  // Also reset place type filters if needed
+                  setActiveTypeFilters(null);
+                }}
                 sx={{
                   color: "primary.main",
                   fontWeight: 500,
@@ -2575,7 +2702,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
               </Button>
             <IconButton
               aria-label="close"
-              onClick={() => setFiltersOpen(false)}
+              onClick={handleCancelFilters}
                 size="small"
                 sx={{
                   color: "text.secondary",
@@ -2616,7 +2743,10 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
 
                 <Link
                   component="button"
-                  onClick={clearAccessibilityFilters}
+                  onClick={() => {
+                    // Reset staged accessibility filters to all tiers
+                    setStagedAccessibilityFilters(ALL_ACCESSIBILITY_TIERS);
+                  }}
                   sx={{
                     fontSize: "0.7rem",
                     color: "text.secondary",
@@ -2641,7 +2771,12 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
                   p: 2.5,
                 }}
               >
-                <AccessibilityLegendReact hideTitle={true} />
+                <AccessibilityLegendReact 
+                  hideTitle={true}
+                  value={stagedAccessibilityFilters || ALL_ACCESSIBILITY_TIERS}
+                  onChange={setStagedAccessibilityFilters}
+                  applyImmediately={false}
+                />
               </Paper>
             </Box>
 
@@ -2672,8 +2807,8 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
                 control={
                   <Switch
                     size="small"
-                    checked={photosOnly}
-                    onChange={(e) => setPhotosOnly(e.target.checked)}
+                    checked={stagedPhotosOnly !== null ? stagedPhotosOnly : photosOnly}
+                    onChange={(e) => setStagedPhotosOnly(e.target.checked)}
                     disabled={!hasAnyPhotoInArea}
                   />
                 }
@@ -2690,6 +2825,37 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
             </Box>
           </Box>
         </DialogContent>
+        <DialogActions
+          sx={{
+            px: 3,
+            py: 2,
+            borderTop: "1px solid rgba(0,0,0,0.12)",
+            gap: 1,
+          }}
+        >
+          <Button
+            onClick={handleCancelFilters}
+            variant="outlined"
+            sx={{
+              textTransform: "none",
+              borderRadius: 2,
+              px: 3,
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleApplyFilters}
+            variant="contained"
+            sx={{
+              textTransform: "none",
+              borderRadius: 2,
+              px: 3,
+            }}
+          >
+            Apply
+          </Button>
+        </DialogActions>
       </Dialog>
 
       {/* Reset Confirmation Dialog */}

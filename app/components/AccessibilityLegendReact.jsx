@@ -41,11 +41,22 @@ function getInitialSelection() {
   return ALL_TIERS;
 }
 
-export default function AccessibilityLegendReact({ hideTitle = false }) {
-  const [selected, setSelected] = useState(getInitialSelection);
+export default function AccessibilityLegendReact({ 
+  hideTitle = false,
+  value,
+  onChange,
+  applyImmediately = true 
+}) {
+  // Controlled mode: use value/onChange if provided
+  // Uncontrolled mode: use internal state
+  const [internalSelected, setInternalSelected] = useState(getInitialSelection);
+  const selected = value !== undefined ? value : internalSelected;
+  const setSelected = onChange || setInternalSelected;
 
-  // Persist + notify mapMain.js whenever selection changes
+  // Persist + notify mapMain.js whenever selection changes (only in uncontrolled mode or when applyImmediately is true)
   useEffect(() => {
+    if (!applyImmediately) return; // Don't apply immediately in controlled mode
+    
     try {
       window.localStorage.setItem(
         ACCESSIBILITY_FILTER_LS_KEY,
@@ -58,12 +69,13 @@ export default function AccessibilityLegendReact({ hideTitle = false }) {
     document.dispatchEvent(
       new CustomEvent("accessibilityFilterChanged", { detail: selected })
     );
-  }, [selected]);
+  }, [selected, applyImmediately]);
 
   const toggleTier = (tier) => {
-    setSelected((prev) =>
-      prev.includes(tier) ? prev.filter((t) => t !== tier) : [...prev, tier]
-    );
+    const newSelected = selected.includes(tier)
+      ? selected.filter((t) => t !== tier)
+      : [...selected, tier];
+    setSelected(newSelected);
   };
 
   // Map tier colors to actual hex values for solid backgrounds (for accessibility contrast)
@@ -146,7 +158,7 @@ export default function AccessibilityLegendReact({ hideTitle = false }) {
                     sx={{
                       fontSize: "0.8125rem",
                       fontWeight: isSelected ? 500 : 400,
-                      color: "white",
+                      color: isSelected ? "white" : solidColor,
                     }}
                   >
                     {label}
@@ -155,15 +167,16 @@ export default function AccessibilityLegendReact({ hideTitle = false }) {
                 onClick={() => toggleTier(tier)}
                 sx={{
                   height: 28,
-                  bgcolor: solidColor,
-                  color: "white",
+                  bgcolor: isSelected ? solidColor : "transparent",
+                  color: isSelected ? "white" : solidColor,
                   border: `1px solid ${solidColor}`,
                   borderRadius: 3,
                   cursor: "pointer",
+                  opacity: isSelected ? 1 : 0.6,
                   "&:hover": {
-                    bgcolor: solidColor,
+                    bgcolor: isSelected ? solidColor : hexToRgba(solidColor, 0.1),
                     borderColor: solidColor,
-                    opacity: 0.9,
+                    opacity: 1,
                   },
                   "& .MuiChip-label": {
                     paddingLeft: 1.5,
@@ -199,7 +212,7 @@ export default function AccessibilityLegendReact({ hideTitle = false }) {
                     sx={{
                       fontSize: "0.8125rem",
                       fontWeight: isSelected ? 500 : 400,
-                      color: "white",
+                      color: isSelected ? "white" : solidColor,
                     }}
                   >
                     {label}
@@ -208,15 +221,16 @@ export default function AccessibilityLegendReact({ hideTitle = false }) {
                 onClick={() => toggleTier(tier)}
                 sx={{
                   height: 28,
-                  bgcolor: solidColor,
-                  color: "white",
+                  bgcolor: isSelected ? solidColor : "transparent",
+                  color: isSelected ? "white" : solidColor,
                   border: `1px solid ${solidColor}`,
                   borderRadius: 3,
                   cursor: "pointer",
+                  opacity: isSelected ? 1 : 0.6,
                   "&:hover": {
-                    bgcolor: solidColor,
+                    bgcolor: isSelected ? solidColor : hexToRgba(solidColor, 0.1),
                     borderColor: solidColor,
-                    opacity: 0.9,
+                    opacity: 1,
                   },
                   "& .MuiChip-label": {
                     paddingLeft: 1.5,

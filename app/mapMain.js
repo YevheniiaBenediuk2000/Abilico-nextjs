@@ -262,6 +262,44 @@ function loadPlaceTypeFilterFromLS() {
   return null;
 }
 
+// Helper to get accessibility tier from feature tags
+function getAccessibilityTierFromFeature(feature) {
+  const props = feature.properties || {};
+  const tags = props.tags || props;
+  
+  const raw = (
+    tags.wheelchair ??
+    tags["toilets:wheelchair"] ??
+    tags["wheelchair:toilets"] ??
+    ""
+  )
+    .toString()
+    .toLowerCase();
+
+  if (raw.includes("designated")) return "designated";
+  if (raw === "yes" || raw.includes("true")) return "yes";
+  if (raw.includes("limited") || raw.includes("partial")) return "limited";
+  if (raw === "no" || raw.includes("false")) return "no";
+  
+  return "unknown";
+}
+
+// used when building markers to decide if a feature is visible by accessibility tier
+function isFeatureAllowedByAccessibilityFilter(feature) {
+  // If all tiers are selected (default), allow all features
+  const allTiers = new Set(["designated", "yes", "limited", "unknown", "no"]);
+  if (accessibilityFilter.size === allTiers.size && 
+      Array.from(accessibilityFilter).every(tier => allTiers.has(tier))) {
+    return true; // all tiers selected -> show all
+  }
+  
+  // Get the accessibility tier for this feature
+  const tier = getAccessibilityTierFromFeature(feature);
+  
+  // Check if this tier is in the allowed set
+  return accessibilityFilter.has(tier);
+}
+
 // used when building markers to decide if a feature is visible
 function isFeatureAllowedByTypeFilter(feature) {
   if (!placeTypeFilterState) return true; // no filter -> all allowed
@@ -1327,6 +1365,7 @@ async function refreshPlaces() {
       filter: (feature) => {
         // called for each feature; return true to keep it
         if (isBenchFeature(feature)) return false; // don't show benches on the map
+        if (!isFeatureAllowedByAccessibilityFilter(feature)) return false; // filter by accessibility tier
         return isFeatureAllowedByTypeFilter(feature);
       },
       pointToLayer: (feature, latlng) => {
