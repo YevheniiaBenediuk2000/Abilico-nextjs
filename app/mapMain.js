@@ -111,7 +111,13 @@ if (typeof window !== "undefined") {
 
 // Initialize accessibility filter from localStorage, or default to all tiers
 const ACCESSIBILITY_FILTER_LS_KEY = "ui.placeAccessibility.filter";
-const ALL_ACCESSIBILITY_TIERS = ["designated", "yes", "limited", "unknown", "no"];
+const ALL_ACCESSIBILITY_TIERS = [
+  "designated",
+  "yes",
+  "limited",
+  "unknown",
+  "no",
+];
 
 function loadAccessibilityFilterFromLS() {
   if (typeof window === "undefined") return new Set(ALL_ACCESSIBILITY_TIERS);
@@ -120,7 +126,9 @@ function loadAccessibilityFilterFromLS() {
     if (!raw) return new Set(ALL_ACCESSIBILITY_TIERS);
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      const filtered = parsed.filter((t) => ALL_ACCESSIBILITY_TIERS.includes(t));
+      const filtered = parsed.filter((t) =>
+        ALL_ACCESSIBILITY_TIERS.includes(t)
+      );
       if (filtered.length) return new Set(filtered);
     }
   } catch {
@@ -143,7 +151,9 @@ function getFeatureAccessibilityTier(feature) {
     tags["toilets:wheelchair"] ??
     tags["wheelchair:toilets"] ??
     ""
-  ).toString().toLowerCase();
+  )
+    .toString()
+    .toLowerCase();
 
   if (raw.includes("designated")) return "designated";
   if (raw === "yes" || raw.includes("true")) return "yes";
@@ -233,6 +243,10 @@ let editingReviewId = null;
 
 // place-type filter state used on the map side
 let placeTypeFilterState = null; // { [groupLabel]: { [subLabel]: boolean } } or null = all on
+
+// photos-only filter state used on the map side
+let photosOnlyFilterEnabled = false;
+let photosOnlyPlaceKeys = new Set(); // placeKeys that have photos
 
 // ---- User accessibility preferences (for personalised scores) ----
 let userPrefsCache = [];
@@ -403,6 +417,16 @@ function isFeatureAllowedByTypeFilter(feature) {
   if (typeof val === "undefined") return true;
 
   return !!val;
+}
+
+// used when building markers to decide if a feature should be shown based on photos filter
+function isFeatureAllowedByPhotosFilter(feature) {
+  if (!photosOnlyFilterEnabled) return true; // filter not active -> all allowed
+
+  const placeKey = placeKeyFromFeature(feature);
+  if (!placeKey) return false; // no key -> can't match
+
+  return photosOnlyPlaceKeys.has(placeKey);
 }
 
 function isBenchFeature(feature) {
@@ -1361,7 +1385,9 @@ async function refreshPlaces() {
       .filter((f) => !isBenchFeature(f))
       .filter((f) => isFeatureAllowedByAccessibilityFilter(f));
 
-    console.log(`🗺️ [refreshPlaces] Features in view after accessibility filter: ${featuresInView.length}`);
+    console.log(
+      `🗺️ [refreshPlaces] Features in view after accessibility filter: ${featuresInView.length}`
+    );
 
     const geojsonForView = {
       type: "FeatureCollection",
@@ -1376,7 +1402,9 @@ async function refreshPlaces() {
       filter: (feature) => {
         // called for each feature; return true to keep it
         if (isBenchFeature(feature)) return false; // don't show benches on the map
-        return isFeatureAllowedByTypeFilter(feature);
+        if (!isFeatureAllowedByTypeFilter(feature)) return false;
+        if (!isFeatureAllowedByPhotosFilter(feature)) return false;
+        return true;
       },
       pointToLayer: (feature, latlng) => {
         const tags = feature.properties.tags || feature.properties;
@@ -8123,6 +8151,14 @@ export async function initMap(user = null) {
     // Initialize place type filter state from localStorage on map load
     placeTypeFilterState = loadPlaceTypeFilterFromLS();
 
+    // Initialize photos-only filter state from localStorage on map load
+    try {
+      photosOnlyFilterEnabled =
+        window.localStorage.getItem("ui.placeList.photosOnly") === "1";
+    } catch {
+      // ignore storage errors
+    }
+
     map.addControl(new ZoomMuiControl({ position: "bottomright" }));
     placeClusterLayer.addTo(map);
 
@@ -8550,7 +8586,10 @@ export async function initMap(user = null) {
       accessibilityFilter = new Set(incoming);
     }
 
-    console.log("🎯 accessibilityFilter updated to:", Array.from(accessibilityFilter));
+    console.log(
+      "🎯 accessibilityFilter updated to:",
+      Array.from(accessibilityFilter)
+    );
     refreshPlaces();
   });
 
@@ -8562,6 +8601,31 @@ export async function initMap(user = null) {
     // so markers hide/show without refetching Overpass.
     if (map) {
       refreshPlaces(); // refresh will respect isFeatureAllowedByTypeFilter
+    }
+  });
+
+  // Listen for photos-only filter updates from React
+  document.addEventListener("photosOnlyFilterChanged", (ev) => {
+    const { enabled, photoByKey } = ev.detail || {};
+    photosOnlyFilterEnabled = !!enabled;
+
+    // Build a Set of placeKeys that have photos for fast lookup
+    photosOnlyPlaceKeys.clear();
+    if (photoByKey && typeof photoByKey === "object") {
+      for (const [placeKey, photo] of Object.entries(photoByKey)) {
+        if (photo && (photo.thumb || photo.src || photo.pageUrl)) {
+          photosOnlyPlaceKeys.add(placeKey);
+        }
+      }
+    }
+
+    console.log(
+      `📷 photosOnlyFilterChanged: enabled=${photosOnlyFilterEnabled}, placesWithPhotos=${photosOnlyPlaceKeys.size}`
+    );
+
+    // Rebuild places layer in the current viewport using cached features
+    if (map) {
+      refreshPlaces();
     }
   });
 

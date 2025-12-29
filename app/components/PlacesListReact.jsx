@@ -116,16 +116,20 @@ function derivePlaceInfo(feature, center) {
 
   const resolveDiplomaticLabel = () => {
     const embassyRaw = tags.embassy ?? null;
-    const embassyLower = embassyRaw != null ? String(embassyRaw).trim().toLowerCase() : "";
+    const embassyLower =
+      embassyRaw != null ? String(embassyRaw).trim().toLowerCase() : "";
     if (embassyLower) {
       if (embassyLower === "yes") return "Embassy";
       if (embassyLower.includes("consulate")) return "Consulate";
       return humanize(embassyLower) || null;
     }
 
-    const officeLower = String(tags.office ?? "").trim().toLowerCase();
+    const officeLower = String(tags.office ?? "")
+      .trim()
+      .toLowerCase();
     const diplomaticRaw = tags.diplomatic ?? null;
-    const diplomaticLower = diplomaticRaw != null ? String(diplomaticRaw).trim().toLowerCase() : "";
+    const diplomaticLower =
+      diplomaticRaw != null ? String(diplomaticRaw).trim().toLowerCase() : "";
     if (officeLower === "diplomatic" && diplomaticLower) {
       if (diplomaticLower === "embassy") return "Embassy";
       if (diplomaticLower.includes("consulate")) return "Consulate";
@@ -148,8 +152,12 @@ function derivePlaceInfo(feature, center) {
     const v = raw != null ? String(raw).trim().toLowerCase() : "";
     if (!v || v === "no" || v === "false" || v === "0") return null;
 
-    const amenityLower = String(tags.amenity ?? "").trim().toLowerCase();
-    const shopLower = String(tags.shop ?? "").trim().toLowerCase();
+    const amenityLower = String(tags.amenity ?? "")
+      .trim()
+      .toLowerCase();
+    const shopLower = String(tags.shop ?? "")
+      .trim()
+      .toLowerCase();
     const relevantAmenities = new Set([
       "restaurant",
       "cafe",
@@ -169,7 +177,8 @@ function derivePlaceInfo(feature, center) {
       "deli",
       "bakery",
     ]);
-    const isRelevant = relevantAmenities.has(amenityLower) || relevantShops.has(shopLower);
+    const isRelevant =
+      relevantAmenities.has(amenityLower) || relevantShops.has(shopLower);
     if (!isRelevant) return null;
 
     if (v === "only") return "Vegetarian only";
@@ -190,8 +199,12 @@ function derivePlaceInfo(feature, center) {
     const v = raw != null ? String(raw).trim().toLowerCase() : "";
     if (!v || v === "no" || v === "false" || v === "0") return null;
 
-    const amenityLower = String(tags.amenity ?? "").trim().toLowerCase();
-    const shopLower = String(tags.shop ?? "").trim().toLowerCase();
+    const amenityLower = String(tags.amenity ?? "")
+      .trim()
+      .toLowerCase();
+    const shopLower = String(tags.shop ?? "")
+      .trim()
+      .toLowerCase();
     const relevantAmenities = new Set([
       "restaurant",
       "cafe",
@@ -211,7 +224,8 @@ function derivePlaceInfo(feature, center) {
       "deli",
       "bakery",
     ]);
-    const isRelevant = relevantAmenities.has(amenityLower) || relevantShops.has(shopLower);
+    const isRelevant =
+      relevantAmenities.has(amenityLower) || relevantShops.has(shopLower);
     if (!isRelevant) return null;
 
     if (v === "only") return "Vegan only";
@@ -235,7 +249,9 @@ function derivePlaceInfo(feature, center) {
     humanize(tags.craft) ||
     humanize(tags.man_made) ||
     humanize(tags.military) ||
-    (String(tags.building ?? "").toLowerCase().trim() === "yes"
+    (String(tags.building ?? "")
+      .toLowerCase()
+      .trim() === "yes"
       ? "Building"
       : humanize(tags.building)) ||
     "Point of interest";
@@ -284,7 +300,9 @@ function derivePlaceInfo(feature, center) {
     humanize(tags.historic) ||
     humanize(tags.natural) ||
     humanize(tags.sport) ||
-    (String(tags.building ?? "").toLowerCase().trim() === "yes"
+    (String(tags.building ?? "")
+      .toLowerCase()
+      .trim() === "yes"
       ? "Building"
       : humanize(tags.building)) ||
     "";
@@ -369,7 +387,13 @@ function buildTypeTree(items) {
 const PLACE_TYPE_FILTER_LS_KEY = "ui.placeType.filter";
 const PHOTOS_ONLY_LS_KEY = "ui.placeList.photosOnly";
 const ACCESSIBILITY_FILTER_LS_KEY = "ui.placeAccessibility.filter";
-const ALL_ACCESSIBILITY_TIERS = ["designated", "yes", "limited", "unknown", "no"];
+const ALL_ACCESSIBILITY_TIERS = [
+  "designated",
+  "yes",
+  "limited",
+  "unknown",
+  "no",
+];
 
 // Mapping from group labels to MAKI icon names
 const GROUP_ICON_MAP = {
@@ -477,13 +501,13 @@ function NestedPlaceTypeFilter({ items }) {
 
   // Persist & notify mapMain
   useEffect(() => {
-    if (!selection || typeof selection !== 'object') return;
+    if (!selection || typeof selection !== "object") return;
     saveTypeFilter(selection);
 
     // Build payload for non-React consumers
     const active = [];
     Object.entries(selection).forEach(([groupLabel, subs]) => {
-      if (!subs || typeof subs !== 'object') return;
+      if (!subs || typeof subs !== "object") return;
       Object.entries(subs).forEach(([subLabel, isOn]) => {
         if (!isOn) return;
         active.push({ groupLabel, subLabel });
@@ -500,28 +524,48 @@ function NestedPlaceTypeFilter({ items }) {
 
   // group-level helpers
   const isGroupAllChecked = (groupLabel) => {
-    if (!selection || typeof selection !== 'object' || selection === null) return false;
+    if (!selection || typeof selection !== "object" || selection === null)
+      return false;
     const subs = selection[groupLabel];
-    if (!subs || typeof subs !== 'object' || subs === null || Array.isArray(subs)) return false;
+    if (
+      !subs ||
+      typeof subs !== "object" ||
+      subs === null ||
+      Array.isArray(subs)
+    )
+      return false;
     const values = Object.values(subs || {});
     if (!values.length) return false;
     return values.every(Boolean);
   };
 
   const isGroupSomeChecked = (groupLabel) => {
-    if (!selection || typeof selection !== 'object' || selection === null) return false;
+    if (!selection || typeof selection !== "object" || selection === null)
+      return false;
     const subs = selection[groupLabel];
-    if (!subs || typeof subs !== 'object' || subs === null || Array.isArray(subs)) return false;
+    if (
+      !subs ||
+      typeof subs !== "object" ||
+      subs === null ||
+      Array.isArray(subs)
+    )
+      return false;
     const values = Object.values(subs || {});
     return values.some(Boolean);
   };
 
   const toggleGroup = (groupLabel) => {
     setSelection((prev) => {
-      if (!prev || typeof prev !== 'object' || prev === null) return {};
+      if (!prev || typeof prev !== "object" || prev === null) return {};
       const next = { ...prev };
       const subs = next[groupLabel];
-      if (!subs || typeof subs !== 'object' || subs === null || Array.isArray(subs)) return next;
+      if (
+        !subs ||
+        typeof subs !== "object" ||
+        subs === null ||
+        Array.isArray(subs)
+      )
+        return next;
       const allChecked = Object.values(subs || {}).every(Boolean);
       const newSubs = {};
       Object.keys(subs).forEach((subLabel) => {
@@ -534,7 +578,7 @@ function NestedPlaceTypeFilter({ items }) {
 
   const toggleSub = (groupLabel, subLabel) => {
     setSelection((prev) => {
-      if (!prev || typeof prev !== 'object') return {};
+      if (!prev || typeof prev !== "object") return {};
       return {
         ...prev,
         [groupLabel]: {
@@ -548,11 +592,11 @@ function NestedPlaceTypeFilter({ items }) {
   // Clear all place types (sets all subtypes to false)
   const clearAllPlaceTypes = () => {
     setSelection((prev) => {
-      if (!prev || typeof prev !== 'object') return {};
+      if (!prev || typeof prev !== "object") return {};
       const next = { ...prev };
       Object.keys(next).forEach((groupLabel) => {
         const group = next[groupLabel];
-        if (group && typeof group === 'object' && !Array.isArray(group)) {
+        if (group && typeof group === "object" && !Array.isArray(group)) {
           const newSubs = {};
           Object.keys(group).forEach((subLabel) => {
             newSubs[subLabel] = false;
@@ -567,10 +611,10 @@ function NestedPlaceTypeFilter({ items }) {
   // Clear a specific group (sets all subtypes in that group to false)
   const clearGroup = (groupLabel) => {
     setSelection((prev) => {
-      if (!prev || typeof prev !== 'object') return {};
+      if (!prev || typeof prev !== "object") return {};
       const next = { ...prev };
       const group = next[groupLabel];
-      if (group && typeof group === 'object' && !Array.isArray(group)) {
+      if (group && typeof group === "object" && !Array.isArray(group)) {
         const newSubs = {};
         Object.keys(group).forEach((subLabel) => {
           newSubs[subLabel] = false;
@@ -583,9 +627,10 @@ function NestedPlaceTypeFilter({ items }) {
 
   // Check if any place type is selected (for showing "Clear place types" button)
   const hasAnyPlaceTypeSelected = useMemo(() => {
-    if (!selection || typeof selection !== 'object') return false;
+    if (!selection || typeof selection !== "object") return false;
     return Object.values(selection || {}).some((group) => {
-      if (!group || typeof group !== 'object' || Array.isArray(group)) return false;
+      if (!group || typeof group !== "object" || Array.isArray(group))
+        return false;
       return Object.values(group || {}).some(Boolean);
     });
   }, [selection]);
@@ -654,12 +699,12 @@ function NestedPlaceTypeFilter({ items }) {
               (label) => tree[label]
             );
             if (firstRowCategories.length === 0) return null;
-            
+
             // Check if any category in this row is expanded
             const hasExpanded = firstRowCategories.some(
               (label) => expanded[label]
             );
-            
+
             return (
               <Box
                 sx={{
@@ -672,38 +717,326 @@ function NestedPlaceTypeFilter({ items }) {
                 }}
               >
                 {firstRowCategories.map((groupLabel) => {
-                const subs = tree[groupLabel];
-          const allChecked = isGroupAllChecked(groupLabel);
-          const groupChecked = allChecked;
-                
-                // Count selected subcategories
-                const groupSelection = selection && selection[groupLabel];
-                const selectedCount = (groupSelection && typeof groupSelection === 'object' && groupSelection !== null && !Array.isArray(groupSelection)
-                  ? Object.values(groupSelection || {}) 
-                  : []).filter(Boolean).length;
-                const totalCount = Object.keys(subs).length;
-                
-          return (
-                  <Box
-              key={groupLabel}
-                    sx={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 0.75,
-                      flex: hasExpanded ? "1 1 100%" : "0 1 auto",
-                      width: hasExpanded ? "100%" : "auto",
-                    }}
-                  >
+                  const subs = tree[groupLabel];
+                  const allChecked = isGroupAllChecked(groupLabel);
+                  const groupChecked = allChecked;
+
+                  // Count selected subcategories
+                  const groupSelection = selection && selection[groupLabel];
+                  const selectedCount = (
+                    groupSelection &&
+                    typeof groupSelection === "object" &&
+                    groupSelection !== null &&
+                    !Array.isArray(groupSelection)
+                      ? Object.values(groupSelection || {})
+                      : []
+                  ).filter(Boolean).length;
+                  const totalCount = Object.keys(subs).length;
+
+                  return (
                     <Box
-                      display="flex"
-                      alignItems="center"
-                      gap={1}
-                      justifyContent="space-between"
+                      key={groupLabel}
+                      sx={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 0.75,
+                        flex: hasExpanded ? "1 1 100%" : "0 1 auto",
+                        width: hasExpanded ? "100%" : "auto",
+                      }}
                     >
-                      <Box display="flex" alignItems="center" gap={1}>
+                      <Box
+                        display="flex"
+                        alignItems="center"
+                        gap={1}
+                        justifyContent="space-between"
+                      >
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Box
+                            onClick={() => toggleGroup(groupLabel)}
+                            sx={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 0.75,
+                              cursor: "pointer",
+                              py: 0.5,
+                              px: 1.25,
+                              borderRadius: 3,
+                              bgcolor: groupChecked
+                                ? "primary.main"
+                                : "transparent",
+                              border: `1px solid ${
+                                groupChecked
+                                  ? "primary.main"
+                                  : "rgba(0,0,0,0.12)"
+                              }`,
+                              transition: "all 0.2s ease-in-out",
+                              "&:hover": {
+                                bgcolor: groupChecked
+                                  ? "primary.dark"
+                                  : "action.hover",
+                                borderColor: "primary.main",
+                              },
+                            }}
+                          >
+                            {GROUP_ICON_MAP[groupLabel] && (
+                              <Box
+                                component="img"
+                                src={makiIconUrl(GROUP_ICON_MAP[groupLabel])}
+                                alt={groupLabel}
+                                sx={{
+                                  width: 16,
+                                  height: 16,
+                                  objectFit: "contain",
+                                  flexShrink: 0,
+                                  opacity: groupChecked ? 1 : 0.7,
+                                  filter: groupChecked
+                                    ? "brightness(0) invert(1)"
+                                    : "none",
+                                }}
+                              />
+                            )}
+                            <Typography
+                              variant="body2"
+                              fontWeight={500}
+                              sx={{
+                                color: groupChecked ? "white" : "text.primary",
+                                fontSize: "0.875rem",
+                              }}
+                            >
+                              {groupLabel}
+                            </Typography>
+                          </Box>
+                          {selectedCount < totalCount && (
+                            <>
+                              <Chip
+                                label={`${selectedCount} selected`}
+                                size="small"
+                                sx={{
+                                  height: 18,
+                                  fontSize: "0.65rem",
+                                  bgcolor: "action.selected",
+                                  color: "text.secondary",
+                                  fontWeight: 400,
+                                }}
+                              />
+                              {selectedCount > 0 && (
+                                <Link
+                                  component="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    clearGroup(groupLabel);
+                                  }}
+                                  sx={{
+                                    fontSize: "0.65rem",
+                                    color: "text.secondary",
+                                    textDecoration: "none",
+                                    cursor: "pointer",
+                                    ml: 0.5,
+                                    "&:hover": {
+                                      textDecoration: "underline",
+                                      color: "text.primary",
+                                    },
+                                  }}
+                                >
+                                  Clear
+                                </Link>
+                              )}
+                            </>
+                          )}
+                        </Box>
+                        <IconButton
+                          size="small"
+                          onClick={() => toggleExpanded(groupLabel)}
+                          sx={{
+                            p: 0.5,
+                            color: "text.secondary",
+                          }}
+                        >
+                          {expanded[groupLabel] ? (
+                            <KeyboardArrowUpIcon fontSize="small" />
+                          ) : (
+                            <KeyboardArrowDownIcon fontSize="small" />
+                          )}
+                        </IconButton>
+                      </Box>
+                      {expanded[groupLabel] && (
+                        <Box
+                          sx={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: 0.75,
+                            justifyContent: "flex-start",
+                            alignContent: "flex-start",
+                            width: "100%",
+                            mt: 0.5,
+                            pl: 1.5,
+                          }}
+                        >
+                          {Object.keys(subs)
+                            .sort()
+                            .map((subLabel) => {
+                              const rawValues = Array.from(subs[subLabel]);
+                              const rawValue =
+                                rawValues[0] || subLabel.replace(/\s/g, "_");
+                              const majorKey =
+                                GROUP_TO_MAJOR_KEY[groupLabel] || "other";
+                              const tags = { [majorKey]: rawValue };
+                              let iconUrl = iconFor(tags);
+                              // Fallback to information icon if iconFor returns null/undefined
+                              if (!iconUrl) {
+                                iconUrl = "/icons/maki/information.svg";
+                              }
+                              const isSelected =
+                                selection[groupLabel]?.[subLabel] ?? true;
+
+                              return (
+                                <Chip
+                                  key={subLabel}
+                                  icon={
+                                    <Box
+                                      component="img"
+                                      src={iconUrl}
+                                      alt={subLabel}
+                                      sx={{
+                                        width: 14,
+                                        height: 14,
+                                        objectFit: "contain",
+                                        display: "block",
+                                        flexShrink: 0,
+                                      }}
+                                      onError={(e) => {
+                                        // Fallback to information icon if image fails to load
+                                        e.target.src =
+                                          "/icons/maki/information.svg";
+                                      }}
+                                    />
+                                  }
+                                  label={
+                                    <Typography
+                                      variant="body2"
+                                      sx={{
+                                        fontSize: "0.8125rem",
+                                        color: isSelected
+                                          ? "white"
+                                          : "text.primary",
+                                        whiteSpace: "nowrap",
+                                      }}
+                                    >
+                                      {subLabel.charAt(0).toUpperCase() +
+                                        subLabel.slice(1)}
+                                    </Typography>
+                                  }
+                                  onClick={() =>
+                                    toggleSub(groupLabel, subLabel)
+                                  }
+                                  sx={{
+                                    height: 28,
+                                    bgcolor: isSelected
+                                      ? "primary.main"
+                                      : "transparent",
+                                    color: isSelected
+                                      ? "white"
+                                      : "text.primary",
+                                    border: `1px solid ${
+                                      isSelected
+                                        ? "primary.main"
+                                        : "rgba(0,0,0,0.12)"
+                                    }`,
+                                    borderRadius: 3,
+                                    cursor: "pointer",
+                                    "&:hover": {
+                                      bgcolor: isSelected
+                                        ? "primary.dark"
+                                        : "action.hover",
+                                      borderColor: "primary.main",
+                                    },
+                                    "& .MuiChip-icon": {
+                                      marginLeft: 0.75,
+                                      marginRight: 0.5,
+                                      opacity: isSelected ? 1 : 0.7,
+                                      filter: isSelected
+                                        ? "brightness(0) invert(1)"
+                                        : "none",
+                                      width: 14,
+                                      height: 14,
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                    },
+                                    "& .MuiChip-label": {
+                                      paddingLeft: iconUrl ? 0 : 0.75,
+                                      paddingRight: 1,
+                                      display: "flex",
+                                      alignItems: "center",
+                                    },
+                                  }}
+                                />
+                              );
+                            })}
+                        </Box>
+                      )}
+                    </Box>
+                  );
+                })}
+              </Box>
+            );
+          })()}
+
+          {/* Second row: Leisure, Historic (centered) */}
+          {(() => {
+            const secondRowCategories = ["Leisure", "Historic"].filter(
+              (label) => tree[label]
+            );
+            if (secondRowCategories.length === 0) return null;
+
+            // Check if any category in this row is expanded
+            const hasExpanded = secondRowCategories.some(
+              (label) => expanded[label]
+            );
+
+            return (
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: hasExpanded ? "column" : "row",
+                  gap: 2,
+                  justifyContent: hasExpanded ? "flex-start" : "center",
+                  flexWrap: "wrap",
+                  width: "100%",
+                }}
+              >
+                {secondRowCategories.map((groupLabel) => {
+                  const subs = tree[groupLabel];
+                  const allChecked = isGroupAllChecked(groupLabel);
+                  const groupChecked = allChecked;
+
+                  // Count selected subcategories
+                  const groupSelection = selection && selection[groupLabel];
+                  const selectedCount = (
+                    groupSelection &&
+                    typeof groupSelection === "object" &&
+                    groupSelection !== null &&
+                    !Array.isArray(groupSelection)
+                      ? Object.values(groupSelection || {})
+                      : []
+                  ).filter(Boolean).length;
+                  const totalCount = Object.keys(subs).length;
+
+                  return (
+                    <Box
+                      key={groupLabel}
+                      sx={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 1,
+                        flex: hasExpanded ? "1 1 100%" : "0 1 auto",
+                        width: hasExpanded ? "100%" : "auto",
+                      }}
+                    >
+                      <Box display="flex" alignItems="center" gap={0.5}>
                         <Box
                           onClick={() => toggleGroup(groupLabel)}
-                sx={{
+                          sx={{
                             display: "inline-flex",
                             alignItems: "center",
                             gap: 0.75,
@@ -737,7 +1070,9 @@ function NestedPlaceTypeFilter({ items }) {
                                 objectFit: "contain",
                                 flexShrink: 0,
                                 opacity: groupChecked ? 1 : 0.7,
-                                filter: groupChecked ? "brightness(0) invert(1)" : "none",
+                                filter: groupChecked
+                                  ? "brightness(0) invert(1)"
+                                  : "none",
                               }}
                             />
                           )}
@@ -752,6 +1087,21 @@ function NestedPlaceTypeFilter({ items }) {
                             {groupLabel}
                           </Typography>
                         </Box>
+                        <IconButton
+                          size="small"
+                          onClick={() => toggleExpanded(groupLabel)}
+                          sx={{
+                            p: 0.25,
+                            color: "text.secondary",
+                            ml: -0.5,
+                          }}
+                        >
+                          {expanded[groupLabel] ? (
+                            <KeyboardArrowUpIcon fontSize="small" />
+                          ) : (
+                            <KeyboardArrowDownIcon fontSize="small" />
+                          )}
+                        </IconButton>
                         {selectedCount < totalCount && (
                           <>
                             <Chip
@@ -763,6 +1113,7 @@ function NestedPlaceTypeFilter({ items }) {
                                 bgcolor: "action.selected",
                                 color: "text.secondary",
                                 fontWeight: 400,
+                                ml: 0.5,
                               }}
                             />
                             {selectedCount > 0 && (
@@ -790,390 +1141,124 @@ function NestedPlaceTypeFilter({ items }) {
                           </>
                         )}
                       </Box>
-                      <IconButton
-                        size="small"
-                        onClick={() => toggleExpanded(groupLabel)}
-                        sx={{
-                          p: 0.5,
-                          color: "text.secondary",
-                        }}
-                      >
-                        {expanded[groupLabel] ? (
-                          <KeyboardArrowUpIcon fontSize="small" />
-                        ) : (
-                          <KeyboardArrowDownIcon fontSize="small" />
-                        )}
-                      </IconButton>
-                    </Box>
-                    {expanded[groupLabel] && (
-                      <Box
-                        sx={{
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: 0.75,
-                          justifyContent: "flex-start",
-                          alignContent: "flex-start",
-                          width: "100%",
-                          mt: 0.5,
-                          pl: 1.5,
-                        }}
-                      >
-                      {Object.keys(subs)
-                        .sort()
-                        .map((subLabel) => {
-                          const rawValues = Array.from(subs[subLabel]);
-                          const rawValue = rawValues[0] || subLabel.replace(/\s/g, "_");
-                          const majorKey = GROUP_TO_MAJOR_KEY[groupLabel] || "other";
-                          const tags = { [majorKey]: rawValue };
-                          let iconUrl = iconFor(tags);
-                          // Fallback to information icon if iconFor returns null/undefined
-                          if (!iconUrl) {
-                            iconUrl = "/icons/maki/information.svg";
-                          }
-                          const isSelected = selection[groupLabel]?.[subLabel] ?? true;
-                          
-                          return (
-                            <Chip
-                              key={subLabel}
-                              icon={
-                                <Box
-                                  component="img"
-                                  src={iconUrl}
-                                  alt={subLabel}
-                                  sx={{
-                                    width: 14,
-                                    height: 14,
-                                    objectFit: "contain",
-                                    display: "block",
-                                    flexShrink: 0,
-                                  }}
-                                  onError={(e) => {
-                                    // Fallback to information icon if image fails to load
-                                    e.target.src = "/icons/maki/information.svg";
-                                  }}
-                    />
-                  }
-                  label={
-                                <Typography
-                                  variant="body2"
-                                  sx={{
-                                    fontSize: "0.8125rem",
-                                    color: isSelected ? "white" : "text.primary",
-                                    whiteSpace: "nowrap",
-                                  }}
-                                >
-                                  {subLabel.charAt(0).toUpperCase() +
-                                    subLabel.slice(1)}
-                    </Typography>
-                  }
-                              onClick={() => toggleSub(groupLabel, subLabel)}
-                              sx={{
-                                height: 28,
-                                bgcolor: isSelected
-                                  ? "primary.main"
-                                  : "transparent",
-                                color: isSelected ? "white" : "text.primary",
-                                border: `1px solid ${
-                                  isSelected ? "primary.main" : "rgba(0,0,0,0.12)"
-                                }`,
-                                borderRadius: 3,
-                                cursor: "pointer",
-                                "&:hover": {
-                                  bgcolor: isSelected
-                                    ? "primary.dark"
-                                    : "action.hover",
-                                  borderColor: "primary.main",
-                                },
-                                "& .MuiChip-icon": {
-                                  marginLeft: 0.75,
-                                  marginRight: 0.5,
-                                  opacity: isSelected ? 1 : 0.7,
-                                  filter: isSelected ? "brightness(0) invert(1)" : "none",
-                                  width: 14,
-                                  height: 14,
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                },
-                                "& .MuiChip-label": {
-                                  paddingLeft: iconUrl ? 0 : 0.75,
-                                  paddingRight: 1,
-                                  display: "flex",
-                                  alignItems: "center",
-                                },
-                              }}
-                            />
-                          );
-                        })}
-                      </Box>
-                    )}
-                  </Box>
-                );
-                })}
-              </Box>
-            );
-          })()}
-          
-          {/* Second row: Leisure, Historic (centered) */}
-          {(() => {
-            const secondRowCategories = ["Leisure", "Historic"].filter(
-              (label) => tree[label]
-            );
-            if (secondRowCategories.length === 0) return null;
-            
-            // Check if any category in this row is expanded
-            const hasExpanded = secondRowCategories.some(
-              (label) => expanded[label]
-            );
-            
-            return (
-              <Box
-                sx={{
-                  display: "flex",
-                  flexDirection: hasExpanded ? "column" : "row",
-                  gap: 2,
-                  justifyContent: hasExpanded ? "flex-start" : "center",
-                  flexWrap: "wrap",
-                  width: "100%",
-                }}
-              >
-                {secondRowCategories.map((groupLabel) => {
-                const subs = tree[groupLabel];
-                const allChecked = isGroupAllChecked(groupLabel);
-                const groupChecked = allChecked;
-                
-                // Count selected subcategories
-                const groupSelection = selection && selection[groupLabel];
-                const selectedCount = (groupSelection && typeof groupSelection === 'object' && groupSelection !== null && !Array.isArray(groupSelection)
-                  ? Object.values(groupSelection || {}) 
-                  : []).filter(Boolean).length;
-                const totalCount = Object.keys(subs).length;
-                
-                return (
-                  <Box
-                    key={groupLabel}
-                    sx={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 1,
-                      flex: hasExpanded ? "1 1 100%" : "0 1 auto",
-                      width: hasExpanded ? "100%" : "auto",
-                    }}
-                  >
-                    <Box
-                      display="flex"
-                      alignItems="center"
-                      gap={0.5}
-                    >
-                      <Box
-                        onClick={() => toggleGroup(groupLabel)}
-                        sx={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 0.75,
-                          cursor: "pointer",
-                          py: 0.5,
-                          px: 1.25,
-                          borderRadius: 3,
-                          bgcolor: groupChecked
-                            ? "primary.main"
-                            : "transparent",
-                          border: `1px solid ${
-                            groupChecked ? "primary.main" : "rgba(0,0,0,0.12)"
-                          }`,
-                          transition: "all 0.2s ease-in-out",
-                          "&:hover": {
-                            bgcolor: groupChecked
-                              ? "primary.dark"
-                              : "action.hover",
-                            borderColor: "primary.main",
-                          },
-                        }}
-                      >
-                        {GROUP_ICON_MAP[groupLabel] && (
-                          <Box
-                            component="img"
-                            src={makiIconUrl(GROUP_ICON_MAP[groupLabel])}
-                            alt={groupLabel}
-                            sx={{
-                              width: 16,
-                              height: 16,
-                              objectFit: "contain",
-                              flexShrink: 0,
-                              opacity: groupChecked ? 1 : 0.7,
-                              filter: groupChecked ? "brightness(0) invert(1)" : "none",
-                            }}
-                          />
-                        )}
-                        <Typography
-                          variant="body2"
-                          fontWeight={500}
+                      {expanded[groupLabel] && (
+                        <Box
                           sx={{
-                            color: groupChecked ? "white" : "text.primary",
-                            fontSize: "0.875rem",
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: 0.75,
+                            justifyContent: "flex-start",
+                            alignContent: "flex-start",
+                            width: "100%",
+                            mt: 0.5,
+                            pl: 1.5,
                           }}
                         >
-                          {groupLabel}
-                        </Typography>
-                      </Box>
-                      <IconButton
-                        size="small"
-                        onClick={() => toggleExpanded(groupLabel)}
-                        sx={{
-                          p: 0.25,
-                          color: "text.secondary",
-                          ml: -0.5,
-                        }}
-                      >
-                        {expanded[groupLabel] ? (
-                          <KeyboardArrowUpIcon fontSize="small" />
-                        ) : (
-                          <KeyboardArrowDownIcon fontSize="small" />
-                        )}
-                      </IconButton>
-                      {selectedCount < totalCount && (
-                        <>
-                          <Chip
-                            label={`${selectedCount} selected`}
-                            size="small"
-                            sx={{
-                              height: 18,
-                              fontSize: "0.65rem",
-                              bgcolor: "action.selected",
-                              color: "text.secondary",
-                              fontWeight: 400,
-                              ml: 0.5,
-                            }}
-                          />
-                          {selectedCount > 0 && (
-                            <Link
-                              component="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                clearGroup(groupLabel);
-                              }}
-                              sx={{
-                                fontSize: "0.65rem",
-                                color: "text.secondary",
-                                textDecoration: "none",
-                                cursor: "pointer",
-                                ml: 0.5,
-                                "&:hover": {
-                                  textDecoration: "underline",
-                                  color: "text.primary",
-                                },
-                              }}
-                            >
-                              Clear
-                            </Link>
-                          )}
-                        </>
+                          {Object.keys(subs)
+                            .sort()
+                            .map((subLabel) => {
+                              const rawValues = Array.from(subs[subLabel]);
+                              const rawValue =
+                                rawValues[0] || subLabel.replace(/\s/g, "_");
+                              const majorKey =
+                                GROUP_TO_MAJOR_KEY[groupLabel] || "other";
+                              const tags = { [majorKey]: rawValue };
+                              let iconUrl = iconFor(tags);
+                              // Fallback to information icon if iconFor returns null/undefined
+                              if (!iconUrl) {
+                                iconUrl = "/icons/maki/information.svg";
+                              }
+                              const isSelected =
+                                selection[groupLabel]?.[subLabel] ?? true;
+
+                              return (
+                                <Chip
+                                  key={subLabel}
+                                  icon={
+                                    <Box
+                                      component="img"
+                                      src={iconUrl}
+                                      alt={subLabel}
+                                      sx={{
+                                        width: 14,
+                                        height: 14,
+                                        objectFit: "contain",
+                                        display: "block",
+                                        flexShrink: 0,
+                                      }}
+                                      onError={(e) => {
+                                        // Fallback to information icon if image fails to load
+                                        e.target.src =
+                                          "/icons/maki/information.svg";
+                                      }}
+                                    />
+                                  }
+                                  label={
+                                    <Typography
+                                      variant="body2"
+                                      sx={{
+                                        fontSize: "0.8125rem",
+                                        color: isSelected
+                                          ? "white"
+                                          : "text.primary",
+                                        whiteSpace: "nowrap",
+                                      }}
+                                    >
+                                      {subLabel.charAt(0).toUpperCase() +
+                                        subLabel.slice(1)}
+                                    </Typography>
+                                  }
+                                  onClick={() =>
+                                    toggleSub(groupLabel, subLabel)
+                                  }
+                                  sx={{
+                                    height: 28,
+                                    bgcolor: isSelected
+                                      ? "primary.main"
+                                      : "transparent",
+                                    color: isSelected
+                                      ? "white"
+                                      : "text.primary",
+                                    border: `1px solid ${
+                                      isSelected
+                                        ? "primary.main"
+                                        : "rgba(0,0,0,0.12)"
+                                    }`,
+                                    borderRadius: 3,
+                                    cursor: "pointer",
+                                    "&:hover": {
+                                      bgcolor: isSelected
+                                        ? "primary.dark"
+                                        : "action.hover",
+                                      borderColor: "primary.main",
+                                    },
+                                    "& .MuiChip-icon": {
+                                      marginLeft: 0.75,
+                                      marginRight: 0.5,
+                                      opacity: isSelected ? 1 : 0.7,
+                                      filter: isSelected
+                                        ? "brightness(0) invert(1)"
+                                        : "none",
+                                      width: 14,
+                                      height: 14,
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                    },
+                                    "& .MuiChip-label": {
+                                      paddingLeft: iconUrl ? 0 : 0.75,
+                                      paddingRight: 1,
+                                      display: "flex",
+                                      alignItems: "center",
+                                    },
+                                  }}
+                                />
+                              );
+                            })}
+                        </Box>
                       )}
                     </Box>
-                    {expanded[groupLabel] && (
-                      <Box
-                        sx={{
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: 0.75,
-                          justifyContent: "flex-start",
-                          alignContent: "flex-start",
-                          width: "100%",
-                          mt: 0.5,
-                          pl: 1.5,
-                        }}
-                      >
-                  {Object.keys(subs)
-                    .sort()
-                        .map((subLabel) => {
-                          const rawValues = Array.from(subs[subLabel]);
-                          const rawValue = rawValues[0] || subLabel.replace(/\s/g, "_");
-                          const majorKey = GROUP_TO_MAJOR_KEY[groupLabel] || "other";
-                          const tags = { [majorKey]: rawValue };
-                          let iconUrl = iconFor(tags);
-                          // Fallback to information icon if iconFor returns null/undefined
-                          if (!iconUrl) {
-                            iconUrl = "/icons/maki/information.svg";
-                          }
-                          const isSelected = selection[groupLabel]?.[subLabel] ?? true;
-                          
-                          return (
-                            <Chip
-                        key={subLabel}
-                              icon={
-                                <Box
-                                  component="img"
-                                  src={iconUrl}
-                                  alt={subLabel}
-                                  sx={{
-                                    width: 14,
-                                    height: 14,
-                                    objectFit: "contain",
-                                    display: "block",
-                                    flexShrink: 0,
-                                  }}
-                                  onError={(e) => {
-                                    // Fallback to information icon if image fails to load
-                                    e.target.src = "/icons/maki/information.svg";
-                                  }}
-                          />
-                        }
-                        label={
-                                <Typography
-                                  variant="body2"
-                                  sx={{
-                                    fontSize: "0.8125rem",
-                                    color: isSelected ? "white" : "text.primary",
-                                    whiteSpace: "nowrap",
-                                  }}
-                                >
-                            {subLabel.charAt(0).toUpperCase() +
-                              subLabel.slice(1)}
-                          </Typography>
-                        }
-                              onClick={() => toggleSub(groupLabel, subLabel)}
-                              sx={{
-                                height: 28,
-                                bgcolor: isSelected
-                                  ? "primary.main"
-                                  : "transparent",
-                                color: isSelected ? "white" : "text.primary",
-                                border: `1px solid ${
-                                  isSelected ? "primary.main" : "rgba(0,0,0,0.12)"
-                                }`,
-                                borderRadius: 3,
-                                cursor: "pointer",
-                                "&:hover": {
-                                  bgcolor: isSelected
-                                    ? "primary.dark"
-                                    : "action.hover",
-                                  borderColor: "primary.main",
-                                },
-                                "& .MuiChip-icon": {
-                                  marginLeft: 0.75,
-                                  marginRight: 0.5,
-                                  opacity: isSelected ? 1 : 0.7,
-                                  filter: isSelected ? "brightness(0) invert(1)" : "none",
-                                  width: 14,
-                                  height: 14,
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                },
-                                "& .MuiChip-label": {
-                                  paddingLeft: iconUrl ? 0 : 0.75,
-                                  paddingRight: 1,
-                                  display: "flex",
-                                  alignItems: "center",
-                                },
-                              }}
-                            />
-          );
-        })}
-      </Box>
-                    )}
-                  </Box>
-                );
+                  );
                 })}
               </Box>
             );
@@ -1184,7 +1269,13 @@ function NestedPlaceTypeFilter({ items }) {
   );
 }
 
-export default function PlacesListReact({ data, onSelect, hideControls = false, onUnsave = null, isOpen = true }) {
+export default function PlacesListReact({
+  data,
+  onSelect,
+  hideControls = false,
+  onUnsave = null,
+  isOpen = true,
+}) {
   const { features = [], center, zoom } = data || {};
   const [sortBy, setSortBy] = useState("distance"); // "distance" | "name" | "accessibility" | "overall" | "bestForMe"
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -1330,10 +1421,37 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
       } else {
         window.localStorage.removeItem(PHOTOS_ONLY_LS_KEY);
       }
+
+      // Dispatch event to notify mapMain.js about the filter change
+      document.dispatchEvent(
+        new CustomEvent("photosOnlyFilterChanged", {
+          detail: {
+            enabled: photosOnly,
+            photoByKey: photoCacheRef.current,
+          },
+        })
+      );
     } catch {
       // ignore storage errors
     }
   }, [photosOnly, hideControls]);
+
+  // Also dispatch when photoByKey changes and photosOnly is enabled
+  useEffect(() => {
+    if (hideControls) return;
+    if (typeof window === "undefined") return;
+    if (!photosOnly) return; // Only update map when filter is active
+
+    // Dispatch updated photo data to mapMain.js
+    document.dispatchEvent(
+      new CustomEvent("photosOnlyFilterChanged", {
+        detail: {
+          enabled: photosOnly,
+          photoByKey,
+        },
+      })
+    );
+  }, [photoByKey, photosOnly, hideControls]);
 
   // raw items (with type metadata)
   const rawItems = useMemo(() => {
@@ -1357,7 +1475,13 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
       sorted.sort((a, b) => a.name.localeCompare(b.name));
     } else if (sortBy === "accessibility") {
       // Sort by accessibility tier: designated > yes > limited > no > unknown
-      const tierOrder = { designated: 0, yes: 1, limited: 2, no: 3, unknown: 4 };
+      const tierOrder = {
+        designated: 0,
+        yes: 1,
+        limited: 2,
+        no: 3,
+        unknown: 4,
+      };
       sorted.sort((a, b) => {
         const orderA = tierOrder[a.accTier] ?? 4;
         const orderB = tierOrder[b.accTier] ?? 4;
@@ -1467,7 +1591,10 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
             (error && typeof error === "object"
               ? JSON.stringify(error)
               : String(error));
-          console.warn("⚠️ Could not fetch accessibility keywords for list:", msg);
+          console.warn(
+            "⚠️ Could not fetch accessibility keywords for list:",
+            msg
+          );
         }
         return;
       }
@@ -1527,7 +1654,10 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
             // Handle both string URLs and objects with url/src properties
             if (typeof photoUrl === "string") {
               first = { src: photoUrl, thumb: photoUrl };
-            } else if (photoUrl && (photoUrl.url || photoUrl.src || photoUrl.thumb)) {
+            } else if (
+              photoUrl &&
+              (photoUrl.url || photoUrl.src || photoUrl.thumb)
+            ) {
               first = {
                 src: photoUrl.url || photoUrl.src || photoUrl.thumb,
                 thumb: photoUrl.thumb || photoUrl.url || photoUrl.src,
@@ -1906,12 +2036,12 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
                     reviewsCount: reviewsForPlace.length,
                   });
                 }
-                
+
                 // after the loop over byPlace.values()
                 if (!cancelled) {
                   setBestForMeCityPlaces(cityPlacesWithScores);
                 }
-                
+
                 console.log("🏙️ BestForMe – ALL multi-level places in city", {
                   detectedCity,
                   viewportCenter: center || null,
@@ -2052,7 +2182,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
   useEffect(() => {
     // Don't listen to filter changes when hideControls is true
     if (hideControls) return;
-    
+
     const handler = (ev) => {
       // we don't actually use the compact "active" list here, we just reload from LS
       const fromLs = loadInitialTypeFilter();
@@ -2314,11 +2444,12 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
                     return (
                       <Box key={uniqueKey}>
                         <Divider component="li" />
-                        <ListItem 
-                          disablePadding 
+                        <ListItem
+                          disablePadding
                           sx={{ alignItems: "stretch" }}
                           secondaryAction={
-                            onUnsave && item.feature?.properties?.savedPlaceId ? (
+                            onUnsave &&
+                            item.feature?.properties?.savedPlaceId ? (
                               <Tooltip title="Remove from saved">
                                 <IconButton
                                   edge="end"
@@ -2327,9 +2458,9 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
                                     e.stopPropagation();
                                     onUnsave(item.feature);
                                   }}
-                                  sx={{ 
+                                  sx={{
                                     color: "error.main",
-                                    mr: 1
+                                    mr: 1,
                                   }}
                                 >
                                   <FavoriteIcon fontSize="small" />
@@ -2573,9 +2704,9 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
               >
                 Reset
               </Button>
-            <IconButton
-              aria-label="close"
-              onClick={() => setFiltersOpen(false)}
+              <IconButton
+                aria-label="close"
+                onClick={() => setFiltersOpen(false)}
                 size="small"
                 sx={{
                   color: "text.secondary",
@@ -2586,7 +2717,7 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
                 }}
               >
                 <CloseIcon fontSize="small" />
-            </IconButton>
+              </IconButton>
             </Box>
           </Box>
         </DialogTitle>
@@ -2680,7 +2811,9 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
                 label={
                   <Typography
                     variant="body2"
-                    color={!hasAnyPhotoInArea ? "text.disabled" : "text.secondary"}
+                    color={
+                      !hasAnyPhotoInArea ? "text.disabled" : "text.secondary"
+                    }
                   >
                     Only places with photos
                     {!hasAnyPhotoInArea && " – no photos in this area yet"}
@@ -2743,7 +2876,8 @@ export default function PlacesListReact({ data, onSelect, hideControls = false, 
                 color: "text.secondary",
               }}
             >
-              Are you sure you want to reset all filters? This will clear your accessibility and place type selections.
+              Are you sure you want to reset all filters? This will clear your
+              accessibility and place type selections.
             </Typography>
           </Box>
           <Box
