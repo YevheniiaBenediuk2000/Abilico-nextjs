@@ -18,9 +18,9 @@ const MODEL_DB_VERSION = 3;
 const MODEL_STORE_NAME = "models";
 const PREDICTIONS_STORE_NAME = "predictions";
 
-// In-memory prediction cache
+// In-memory prediction cache (large enough for typical viewport)
 const predictionCache = new Map();
-const PREDICTION_CACHE_MAX_SIZE = 5000;
+const PREDICTION_CACHE_MAX_SIZE = 50000; // Increased to handle ~24k features per viewport
 
 // State
 let schema = null;
@@ -172,18 +172,34 @@ async function saveModelToCache(modelName, data, version) {
  * Fetch model with cache
  */
 async function fetchModelWithCache(modelName, modelPath, schemaVersion) {
+  const cacheStart = performance.now();
   const cached = await getModelFromCache(modelName, schemaVersion);
-  if (cached) return cached;
+  const cacheCheckTime = performance.now() - cacheStart;
 
-  console.log(`[Worker ONNX] Downloading ${modelName}...`);
+  if (cached) {
+    console.log(
+      `[Worker ONNX] ⏱️ ${modelName} loaded from IndexedDB cache: ${cacheCheckTime.toFixed(
+        1
+      )}ms (${(cached.byteLength / 1024).toFixed(1)}KB)`
+    );
+    return cached;
+  }
+
+  console.log(
+    `[Worker ONNX] ⏱️ ${modelName} cache miss (${cacheCheckTime.toFixed(
+      1
+    )}ms), downloading...`
+  );
+  const fetchStart = performance.now();
   const response = await fetch(modelPath);
   if (!response.ok) {
     throw new Error(`Failed to fetch ${modelName}: ${response.status}`);
   }
 
   const data = await response.arrayBuffer();
+  const fetchTime = performance.now() - fetchStart;
   console.log(
-    `[Worker ONNX] Downloaded ${modelName} (${(
+    `[Worker ONNX] ⏱️ Downloaded ${modelName}: ${fetchTime.toFixed(1)}ms (${(
       data.byteLength /
       1024 /
       1024
@@ -198,17 +214,31 @@ async function fetchModelWithCache(modelName, modelPath, schemaVersion) {
  * Get cached prediction
  */
 async function getCachedPrediction(cacheKey) {
+  // Check memory cache first (fast path)
   if (predictionCache.has(cacheKey)) {
     return predictionCache.get(cacheKey);
   }
 
+  // Check IndexedDB (slower path)
   try {
+    const dbStart = performance.now();
     const db = await openModelDB();
+    const dbOpenTime = performance.now() - dbStart;
+
     return new Promise((resolve) => {
+      const txStart = performance.now();
       const tx = db.transaction([PREDICTIONS_STORE_NAME], "readonly");
       const store = tx.objectStore(PREDICTIONS_STORE_NAME);
       const req = store.get(cacheKey);
       req.onsuccess = () => {
+        const totalTime = performance.now() - txStart;
+        if (totalTime > 10) {
+          console.log(
+            `[Worker ONNX] ⏱️ IndexedDB cache read slow: ${totalTime.toFixed(
+              1
+            )}ms (db open: ${dbOpenTime.toFixed(1)}ms)`
+          );
+        }
         if (req.result) {
           addToMemoryCache(cacheKey, req.result.data);
           resolve(req.result.data);
@@ -251,6 +281,46 @@ function addToMemoryCache(key, value) {
 }
 
 /**
+ * Bulk get cached predictions from IndexedDB using getAll()
+ * Much faster than individual lookups for large batches
+ * @param {string[]} cacheKeys - Array of cache keys to look up
+ * @returns {Promise<Map<string, any>>} - Map of key -> cached data
+ */
+async function getCachedPredictionsBulk(cacheKeys) {
+  if (cacheKeys.length === 0) return new Map();
+
+  try {
+    const db = await openModelDB();
+
+    // Use getAll() for much faster bulk reads
+    return new Promise((resolve) => {
+      const tx = db.transaction([PREDICTIONS_STORE_NAME], "readonly");
+      const store = tx.objectStore(PREDICTIONS_STORE_NAME);
+      const req = store.getAll();
+
+      req.onsuccess = () => {
+        const resultMap = new Map();
+        const keySet = new Set(cacheKeys);
+        const allItems = req.result || [];
+
+        for (const item of allItems) {
+          if (keySet.has(item.id)) {
+            resultMap.set(item.id, item.data);
+            addToMemoryCache(item.id, item.data);
+          }
+        }
+
+        resolve(resultMap);
+      };
+
+      req.onerror = () => resolve(new Map());
+    });
+  } catch {
+    return new Map();
+  }
+}
+
+/**
  * Generate prediction cache key
  */
 function getPredictionCacheKey(props) {
@@ -277,6 +347,7 @@ function getPredictionCacheKey(props) {
 
 /**
  * Initialize ONNX models
+ * Loads all models in parallel for faster startup
  */
 async function initOnnxModels() {
   if (isInitialized) return true;
@@ -284,48 +355,59 @@ async function initOnnxModels() {
 
   initPromise = (async () => {
     try {
-      console.log("[Worker ONNX] Loading road accessibility models...");
+      const totalStart = performance.now();
+      console.log(
+        "[Worker ONNX] ⏱️ Starting model initialization (parallel)..."
+      );
 
       // Load schema
+      const schemaStart = performance.now();
       const schemaResponse = await fetch(`${MODEL_BASE_PATH}/schema.json`);
       if (!schemaResponse.ok) {
         throw new Error(`Failed to load schema: ${schemaResponse.status}`);
       }
       schema = await schemaResponse.json();
+      console.log(
+        `[Worker ONNX] ⏱️ Schema fetch: ${(
+          performance.now() - schemaStart
+        ).toFixed(1)}ms`
+      );
 
       // Configure ONNX Runtime
+      const wasmStart = performance.now();
       ort.env.wasm.wasmPaths =
         "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/";
       ort.env.wasm.numThreads = 1;
       ort.env.logLevel = "error";
+      console.log(
+        `[Worker ONNX] ⏱️ WASM config: ${(
+          performance.now() - wasmStart
+        ).toFixed(1)}ms`
+      );
 
       const schemaVersion = schema.version || "1.0";
 
-      // Load models
-      for (const [modelName, modelInfo] of Object.entries(
-        schema.models || {}
-      )) {
-        try {
-          const modelPath = `${MODEL_BASE_PATH}/${modelInfo.file}`;
-          const modelData = await fetchModelWithCache(
-            modelName,
-            modelPath,
-            schemaVersion
-          );
-          sessions[modelName] = await ort.InferenceSession.create(modelData, {
-            executionProviders: ["wasm"],
-            graphOptimizationLevel: "all",
-          });
-          console.log(`[Worker ONNX] ✅ Loaded ${modelName} model`);
-        } catch (error) {
-          console.warn(
-            `[Worker ONNX] ⚠️ Failed to load ${modelName}:`,
-            error.message
-          );
-        }
-      }
+      // Get all models to load
+      const allModels = Object.entries(schema.models || {});
+      console.log(
+        `[Worker ONNX] Loading ${
+          allModels.length
+        } models in parallel: ${allModels.map((m) => m[0]).join(", ")}`
+      );
+
+      // Load ALL models in parallel
+      const loadPromises = allModels.map(([modelName, modelInfo]) =>
+        loadSingleModel(modelName, modelInfo, schemaVersion)
+      );
+
+      await Promise.all(loadPromises);
 
       isInitialized = true;
+      console.log(
+        `[Worker ONNX] ⏱️ Total initialization: ${(
+          performance.now() - totalStart
+        ).toFixed(1)}ms`
+      );
       return true;
     } catch (error) {
       console.error("[Worker ONNX] ❌ Initialization failed:", error);
@@ -334,6 +416,49 @@ async function initOnnxModels() {
   })();
 
   return initPromise;
+}
+
+/**
+ * Load a single model
+ */
+async function loadSingleModel(modelName, modelInfo, schemaVersion) {
+  try {
+    const modelStart = performance.now();
+    const modelPath = `${MODEL_BASE_PATH}/${modelInfo.file}`;
+
+    const fetchStart = performance.now();
+    const modelData = await fetchModelWithCache(
+      modelName,
+      modelPath,
+      schemaVersion
+    );
+    console.log(
+      `[Worker ONNX] ⏱️ ${modelName} fetch/cache: ${(
+        performance.now() - fetchStart
+      ).toFixed(1)}ms (${(modelData.byteLength / 1024).toFixed(1)}KB)`
+    );
+
+    const sessionStart = performance.now();
+    sessions[modelName] = await ort.InferenceSession.create(modelData, {
+      executionProviders: ["wasm"],
+      graphOptimizationLevel: "all",
+    });
+    console.log(
+      `[Worker ONNX] ⏱️ ${modelName} session create: ${(
+        performance.now() - sessionStart
+      ).toFixed(1)}ms`
+    );
+    console.log(
+      `[Worker ONNX] ✅ Loaded ${modelName} model (total: ${(
+        performance.now() - modelStart
+      ).toFixed(1)}ms)`
+    );
+  } catch (error) {
+    console.warn(
+      `[Worker ONNX] ⚠️ Failed to load ${modelName}:`,
+      error.message
+    );
+  }
 }
 
 /**
@@ -664,22 +789,49 @@ async function runInference(modelName, props) {
  * Predict road features
  */
 async function predictRoadFeatures(props) {
+  const predStart = performance.now();
   const cacheKey = getPredictionCacheKey(props);
+
+  const cacheCheckStart = performance.now();
   const cachedResult = await getCachedPrediction(cacheKey);
+  const cacheCheckTime = performance.now() - cacheCheckStart;
+
   if (cachedResult) {
+    console.log(
+      `[Worker ONNX] ⏱️ Prediction cache HIT: ${cacheCheckTime.toFixed(
+        1
+      )}ms (key: ${cacheKey.slice(0, 20)}...)`
+    );
     return { ...props, ...cachedResult, _fromCache: true };
   }
 
+  if (cacheCheckTime > 10) {
+    console.log(
+      `[Worker ONNX] ⏱️ Prediction cache MISS check took: ${cacheCheckTime.toFixed(
+        1
+      )}ms`
+    );
+  }
+
   if (!isInitialized) {
+    const initStart = performance.now();
     await initOnnxModels();
+    console.log(
+      `[Worker ONNX] ⏱️ Late init during predict: ${(
+        performance.now() - initStart
+      ).toFixed(1)}ms`
+    );
   }
 
   const result = { ...props };
   const predictions = {};
+  const inferenceTimings = {};
 
   // Surface
   if (!props.surface && sessions.surface) {
+    const infStart = performance.now();
     const pred = await runInference("surface", props);
+    inferenceTimings.surface = performance.now() - infStart;
     if (pred.prediction) {
       result.surface = pred.prediction;
       result._surfacePredicted = true;
@@ -693,7 +845,9 @@ async function predictRoadFeatures(props) {
 
   // Smoothness
   if (!props.smoothness && sessions.smoothness) {
+    const infStart = performance.now();
     const pred = await runInference("smoothness", props);
+    inferenceTimings.smoothness = performance.now() - infStart;
     if (pred.prediction) {
       result.smoothness = pred.prediction;
       result._smoothnessPredicted = true;
@@ -707,7 +861,9 @@ async function predictRoadFeatures(props) {
 
   // Width
   if (!props.width && sessions.width) {
+    const infStart = performance.now();
     const pred = await runInference("width", props);
+    inferenceTimings.width = performance.now() - infStart;
     if (pred.prediction != null && pred.prediction > 0) {
       result.width = `${pred.prediction.toFixed(1)} m`;
       result._widthPredicted = true;
@@ -720,7 +876,9 @@ async function predictRoadFeatures(props) {
 
   // Incline
   if (!props.incline && sessions.incline) {
+    const infStart = performance.now();
     const pred = await runInference("incline", props);
+    inferenceTimings.incline = performance.now() - infStart;
     if (pred.prediction != null) {
       result.incline = `${pred.prediction.toFixed(1)}%`;
       result._inclinePredicted = true;
@@ -733,6 +891,21 @@ async function predictRoadFeatures(props) {
 
   result._predictions = predictions;
   result._hasPredictions = Object.keys(predictions).length > 0;
+
+  const totalPredTime = performance.now() - predStart;
+  if (totalPredTime > 20) {
+    console.log(
+      `[Worker ONNX] ⏱️ Prediction total: ${totalPredTime.toFixed(
+        1
+      )}ms | inference: surface=${
+        inferenceTimings.surface?.toFixed(1) || "skip"
+      }ms, smoothness=${
+        inferenceTimings.smoothness?.toFixed(1) || "skip"
+      }ms, width=${inferenceTimings.width?.toFixed(1) || "skip"}ms, incline=${
+        inferenceTimings.incline?.toFixed(1) || "skip"
+      }ms`
+    );
+  }
 
   // Cache predictions
   if (result._hasPredictions) {
@@ -774,21 +947,131 @@ async function predictRoadFeatures(props) {
 }
 
 /**
- * Batch predict
+ * Batch predict - optimized for throughput
+ * Uses bulk IndexedDB lookup and parallel processing
  */
 async function predictRoadFeaturesBatch(roadsList) {
+  const batchStart = performance.now();
+
   if (!isInitialized) {
+    const initStart = performance.now();
     await initOnnxModels();
+    console.log(
+      `[Worker ONNX] ⏱️ Late init in batch: ${(
+        performance.now() - initStart
+      ).toFixed(1)}ms`
+    );
   }
 
-  const BATCH_SIZE = 50;
-  const results = [];
+  // First pass: check memory cache for all items and collect cache keys
+  const cacheCheckStart = performance.now();
+  const results = new Array(roadsList.length);
+  const notInMemoryIndices = [];
+  const notInMemoryProps = [];
+  const notInMemoryCacheKeys = [];
 
-  for (let i = 0; i < roadsList.length; i += BATCH_SIZE) {
-    const batch = roadsList.slice(i, i + BATCH_SIZE);
-    const batchResults = await Promise.all(batch.map(predictRoadFeatures));
-    results.push(...batchResults);
+  for (let i = 0; i < roadsList.length; i++) {
+    const props = roadsList[i];
+    const cacheKey = getPredictionCacheKey(props);
+
+    // Check memory cache only (fast path)
+    if (predictionCache.has(cacheKey)) {
+      const cachedResult = predictionCache.get(cacheKey);
+      results[i] = { ...props, ...cachedResult, _fromCache: true };
+    } else {
+      notInMemoryIndices.push(i);
+      notInMemoryProps.push(props);
+      notInMemoryCacheKeys.push(cacheKey);
+    }
   }
+
+  const memoryCacheHits = roadsList.length - notInMemoryIndices.length;
+  console.log(
+    `[Worker ONNX] ⏱️ Memory cache: ${(
+      performance.now() - cacheCheckStart
+    ).toFixed(1)}ms, ${memoryCacheHits}/${roadsList.length} hits`
+  );
+
+  // If all in memory cache, return immediately
+  if (notInMemoryIndices.length === 0) {
+    console.log(
+      `[Worker ONNX] ⏱️ Batch complete (all in memory): ${(
+        performance.now() - batchStart
+      ).toFixed(1)}ms`
+    );
+    return results;
+  }
+
+  // Second pass: bulk lookup IndexedDB for items not in memory cache
+  const idbStart = performance.now();
+  const idbCache = await getCachedPredictionsBulk(notInMemoryCacheKeys);
+  const idbTime = performance.now() - idbStart;
+  console.log(
+    `[Worker ONNX] ⏱️ IndexedDB bulk lookup: ${idbTime.toFixed(1)}ms, ${
+      idbCache.size
+    }/${notInMemoryCacheKeys.length} hits`
+  );
+
+  // Process IndexedDB cache hits and collect items needing inference
+  const needInferenceIndices = [];
+  const needInferenceProps = [];
+
+  for (let i = 0; i < notInMemoryIndices.length; i++) {
+    const originalIndex = notInMemoryIndices[i];
+    const props = notInMemoryProps[i];
+    const cacheKey = notInMemoryCacheKeys[i];
+
+    if (idbCache.has(cacheKey)) {
+      const cachedResult = idbCache.get(cacheKey);
+      results[originalIndex] = { ...props, ...cachedResult, _fromCache: true };
+    } else {
+      needInferenceIndices.push(originalIndex);
+      needInferenceProps.push(props);
+    }
+  }
+
+  // If all found in caches, return
+  if (needInferenceIndices.length === 0) {
+    console.log(
+      `[Worker ONNX] ⏱️ Batch complete (all cached): ${(
+        performance.now() - batchStart
+      ).toFixed(1)}ms`
+    );
+    return results;
+  }
+
+  // Process truly uncached items - run actual inference
+  const BATCH_SIZE = 100;
+  const inferenceStart = performance.now();
+  console.log(
+    `[Worker ONNX] ⏱️ Running inference for ${needInferenceIndices.length} uncached items...`
+  );
+
+  for (let i = 0; i < needInferenceProps.length; i += BATCH_SIZE) {
+    const batchProps = needInferenceProps.slice(i, i + BATCH_SIZE);
+    const batchIndices = needInferenceIndices.slice(i, i + BATCH_SIZE);
+
+    // Process this batch in parallel (these will run actual ONNX inference)
+    const batchResults = await Promise.all(batchProps.map(predictRoadFeatures));
+
+    // Place results in correct positions
+    for (let j = 0; j < batchResults.length; j++) {
+      results[batchIndices[j]] = batchResults[j];
+    }
+  }
+
+  const inferenceTime = performance.now() - inferenceStart;
+  const totalTime = performance.now() - batchStart;
+
+  console.log(
+    `[Worker ONNX] ⏱️ Batch complete: ${totalTime.toFixed(
+      1
+    )}ms total | memory: ${memoryCacheHits}, idb: ${
+      idbCache.size
+    }, inference: ${needInferenceIndices.length} (${inferenceTime.toFixed(
+      1
+    )}ms)`
+  );
 
   return results;
 }

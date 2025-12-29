@@ -26,7 +26,7 @@ import {
 } from "../utils/waypointsPersistence.js";
 import {
   initOnnxModels,
-  predictRoadFeatures,
+  predictRoadFeaturesBatch,
   isOnnxReady,
   getAvailableModels,
 } from "../utils/onnxRoadPredictor.js";
@@ -351,18 +351,27 @@ async function refreshRoadAccessibilityData(map) {
   setLoadingState(true);
 
   try {
+    const refreshStart = performance.now();
+
     // Start ONNX loading in background if not already loading (don't wait for it)
     if (predictionsEnabled && !isOnnxReady() && !onnxLoadingPromise) {
+      console.log("⏱️ [RoadMap] Starting ONNX preload in background...");
       preloadOnnxModelsInBackground();
     }
 
     // Use the caching-enabled fetch
+    const fetchStart = performance.now();
     const geojson = await fetchWaypointsWithCache({
       south: bounds.getSouth(),
       west: bounds.getWest(),
       north: bounds.getNorth(),
       east: bounds.getEast(),
     });
+    console.log(
+      `⏱️ [RoadMap] Fetch waypoints: ${(performance.now() - fetchStart).toFixed(
+        1
+      )}ms`
+    );
 
     if (!geojson || !geojson.features) {
       setLoadingState(false);
@@ -370,18 +379,33 @@ async function refreshRoadAccessibilityData(map) {
     }
 
     // RENDER ROADS IMMEDIATELY (without predictions)
+    const renderStart = performance.now();
     renderRoadFeatures(geojson.features);
+    console.log(
+      `⏱️ [RoadMap] Initial render: ${(performance.now() - renderStart).toFixed(
+        1
+      )}ms for ${geojson.features.length} features`
+    );
 
     // Mark loading as done - roads are visible now!
     setLoadingState(false);
+    console.log(
+      `⏱️ [RoadMap] Total time to visible roads: ${(
+        performance.now() - refreshStart
+      ).toFixed(1)}ms`
+    );
 
     // Apply ML predictions in background (if models are ready or when they become ready)
     if (predictionsEnabled) {
       if (isOnnxReady()) {
         // Models are ready, apply predictions in background
+        console.log("⏱️ [RoadMap] ONNX ready, applying predictions now...");
         applyPredictionsInBackground(geojson.features);
       } else {
         // Store features for later when models are loaded
+        console.log(
+          `⏱️ [RoadMap] ONNX not ready, storing ${geojson.features.length} features for later prediction`
+        );
         pendingPredictionFeatures = geojson.features;
       }
     }
@@ -398,10 +422,16 @@ async function refreshRoadAccessibilityData(map) {
  */
 async function applyPredictionsInBackground(features) {
   if (isApplyingPredictions) {
+    console.log(
+      "⏱️ [RoadMap] applyPredictionsInBackground skipped - already in progress"
+    );
     return;
   }
 
   if (!isOnnxReady()) {
+    console.log(
+      "⏱️ [RoadMap] applyPredictionsInBackground skipped - ONNX not ready"
+    );
     return;
   }
 
@@ -409,11 +439,31 @@ async function applyPredictionsInBackground(features) {
   pendingPredictionFeatures = null; // Clear pending
 
   try {
+    const startTime = performance.now();
+    console.log(
+      `⏱️ [RoadMap] Starting background predictions for ${features.length} features...`
+    );
+
     const enrichedFeatures = await applyMlPredictions(features);
+
+    const predictTime = performance.now() - startTime;
+    console.log(
+      `⏱️ [RoadMap] Background predictions complete: ${predictTime.toFixed(
+        1
+      )}ms for ${features.length} features (${(
+        predictTime / features.length
+      ).toFixed(2)}ms/feature)`
+    );
 
     // Re-render with predictions if road layer is still enabled
     if (roadAccessibilityEnabled && roadAccessibilityLayer) {
+      const renderStart = performance.now();
       renderRoadFeatures(enrichedFeatures);
+      console.log(
+        `⏱️ [RoadMap] Re-render after predictions: ${(
+          performance.now() - renderStart
+        ).toFixed(1)}ms`
+      );
     }
   } catch (error) {
     console.error("🤖 [ONNX] Background prediction failed:", error);
@@ -424,83 +474,139 @@ async function applyPredictionsInBackground(features) {
 
 /**
  * Apply ML predictions to features with missing accessibility data
+ * Uses batch processing for efficiency (single worker round-trip instead of N)
  * @param {Array} features - GeoJSON features
  * @returns {Promise<Array>} - Enriched features with predictions
  */
 async function applyMlPredictions(features) {
-  const enrichedFeatures = [];
-  let predictedCount = 0;
+  const applyStart = performance.now();
 
-  // Process features sequentially to avoid ONNX session conflicts
-  // The inference queue handles per-model concurrency, but we still
-  // serialize feature processing to avoid overwhelming the system
-  for (const feature of features) {
+  // Separate features that need prediction from those that don't
+  const needsPredictionFeatures = [];
+  const needsPredictionIndices = [];
+  const enrichedFeatures = new Array(features.length);
+
+  for (let i = 0; i < features.length; i++) {
+    const feature = features[i];
     const props = feature.properties || {};
 
-    // Check if any accessibility data is missing
     const needsPrediction =
       !props.surface || !props.smoothness || !props.width || !props.incline;
 
-    if (!needsPrediction) {
-      enrichedFeatures.push(feature);
-      continue;
-    }
-
-    try {
-      // Run ONNX prediction
-      const predictedProps = await predictRoadFeatures(props);
-
-      // Recalculate colors based on predicted values
-      const enhancedProps = {
-        ...predictedProps,
-        _surfaceColor: getSurfaceColor(predictedProps.surface),
-        _inclineColor: getInclineColor(predictedProps.incline),
-        _widthColor: getWidthColor(predictedProps.width),
-        _smoothnessColor: getSmoothnessColor(predictedProps.smoothness),
-      };
-
-      // Recalculate scores with predicted data
-      const surfaceScore = calculateSurfaceScore(enhancedProps.surface);
-      const inclineScore = calculateInclineScore(enhancedProps.incline);
-      const widthScore = calculateWidthScore(enhancedProps.width);
-      const smoothnessScore = calculateSmoothnessScore(
-        enhancedProps.smoothness
-      );
-
-      const overallScore = calculateOverallScore({
-        surfaceScore,
-        inclineScore,
-        widthScore,
-        smoothnessScore,
-        hasLighting: enhancedProps.lit === "yes",
-        hasTactilePaving: enhancedProps.tactile_paving === "yes",
-        hasKerb: enhancedProps.kerb && enhancedProps.kerb !== "no",
-        hasRamp: enhancedProps.ramp && enhancedProps.ramp !== "no",
-        isSteps: enhancedProps.highway === "steps",
-      });
-
-      enhancedProps._accessibilityScore = overallScore;
-      enhancedProps._overallColor = getOverallColor(overallScore);
-      enhancedProps._surfaceScore = surfaceScore;
-      enhancedProps._inclineScore = inclineScore;
-      enhancedProps._widthScore = widthScore;
-      enhancedProps._smoothnessScore = smoothnessScore;
-
-      if (predictedProps._hasPredictions) {
-        predictedCount++;
-      }
-
-      enrichedFeatures.push({
-        ...feature,
-        properties: enhancedProps,
-      });
-    } catch (error) {
-      console.warn("ML prediction failed for feature:", error);
-      enrichedFeatures.push(feature);
+    if (needsPrediction) {
+      needsPredictionFeatures.push(feature);
+      needsPredictionIndices.push(i);
+    } else {
+      // No prediction needed, keep as-is
+      enrichedFeatures[i] = feature;
     }
   }
 
-  console.log(`🤖 Applied ML predictions to ${predictedCount} features`);
+  const skippedCount = features.length - needsPredictionFeatures.length;
+  console.log(
+    `⏱️ [RoadMap] ${needsPredictionFeatures.length} features need prediction, ${skippedCount} already have data`
+  );
+
+  if (needsPredictionFeatures.length === 0) {
+    console.log(
+      `⏱️ [RoadMap] No predictions needed, returning original features`
+    );
+    return features;
+  }
+
+  // Extract just the properties for batch prediction
+  const propsToPredict = needsPredictionFeatures.map((f) => f.properties || {});
+
+  // Batch predict all at once (single worker round-trip!)
+  const batchStart = performance.now();
+  let predictedPropsList;
+  try {
+    predictedPropsList = await predictRoadFeaturesBatch(propsToPredict);
+  } catch (error) {
+    console.error("🤖 Batch prediction failed:", error);
+    // Fall back to original features
+    for (let i = 0; i < needsPredictionFeatures.length; i++) {
+      enrichedFeatures[needsPredictionIndices[i]] = needsPredictionFeatures[i];
+    }
+    return enrichedFeatures;
+  }
+  const batchTime = performance.now() - batchStart;
+  console.log(
+    `⏱️ [RoadMap] Batch prediction: ${batchTime.toFixed(1)}ms for ${
+      propsToPredict.length
+    } features (${(batchTime / propsToPredict.length).toFixed(3)}ms/feature)`
+  );
+
+  // Process results and calculate scores
+  const processStart = performance.now();
+  let predictedCount = 0;
+  let cachedCount = 0;
+
+  for (let i = 0; i < predictedPropsList.length; i++) {
+    const predictedProps = predictedPropsList[i];
+    const originalFeature = needsPredictionFeatures[i];
+    const targetIndex = needsPredictionIndices[i];
+
+    if (predictedProps._fromCache) {
+      cachedCount++;
+    }
+
+    // Recalculate colors based on predicted values
+    const enhancedProps = {
+      ...predictedProps,
+      _surfaceColor: getSurfaceColor(predictedProps.surface),
+      _inclineColor: getInclineColor(predictedProps.incline),
+      _widthColor: getWidthColor(predictedProps.width),
+      _smoothnessColor: getSmoothnessColor(predictedProps.smoothness),
+    };
+
+    // Recalculate scores with predicted data
+    const surfaceScore = calculateSurfaceScore(enhancedProps.surface);
+    const inclineScore = calculateInclineScore(enhancedProps.incline);
+    const widthScore = calculateWidthScore(enhancedProps.width);
+    const smoothnessScore = calculateSmoothnessScore(enhancedProps.smoothness);
+
+    const overallScore = calculateOverallScore({
+      surfaceScore,
+      inclineScore,
+      widthScore,
+      smoothnessScore,
+      hasLighting: enhancedProps.lit === "yes",
+      hasTactilePaving: enhancedProps.tactile_paving === "yes",
+      hasKerb: enhancedProps.kerb && enhancedProps.kerb !== "no",
+      hasRamp: enhancedProps.ramp && enhancedProps.ramp !== "no",
+      isSteps: enhancedProps.highway === "steps",
+    });
+
+    enhancedProps._accessibilityScore = overallScore;
+    enhancedProps._overallColor = getOverallColor(overallScore);
+    enhancedProps._surfaceScore = surfaceScore;
+    enhancedProps._inclineScore = inclineScore;
+    enhancedProps._widthScore = widthScore;
+    enhancedProps._smoothnessScore = smoothnessScore;
+
+    if (predictedProps._hasPredictions) {
+      predictedCount++;
+    }
+
+    enrichedFeatures[targetIndex] = {
+      ...originalFeature,
+      properties: enhancedProps,
+    };
+  }
+
+  const processTime = performance.now() - processStart;
+  const totalTime = performance.now() - applyStart;
+
+  console.log(
+    `🤖 Applied ML predictions: ${predictedCount} predicted, ${cachedCount} from cache, ${skippedCount} skipped`
+  );
+  console.log(
+    `⏱️ [RoadMap] Score calculation: ${processTime.toFixed(
+      1
+    )}ms | Total: ${totalTime.toFixed(1)}ms`
+  );
+
   return enrichedFeatures;
 }
 

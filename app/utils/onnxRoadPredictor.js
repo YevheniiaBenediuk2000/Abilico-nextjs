@@ -29,25 +29,46 @@ let localInitPromise = null;
  */
 export async function initOnnxModels() {
   if (localInitialized) {
+    console.log(
+      "⏱️ [ONNX Predictor] Already initialized, returning immediately"
+    );
     return true;
   }
   if (localInitPromise) {
+    console.log("⏱️ [ONNX Predictor] Waiting for existing init promise...");
     return localInitPromise;
   }
 
   localInitPromise = (async () => {
     try {
+      const totalStart = performance.now();
       console.log("🤖 [ONNX] Initializing road inference via web worker...");
 
       // Initialize the worker
+      const workerStart = performance.now();
       await initRoadInferenceWorker();
+      console.log(
+        `⏱️ [ONNX Predictor] Worker init: ${(
+          performance.now() - workerStart
+        ).toFixed(1)}ms`
+      );
 
       // Load models in worker
+      const modelsStart = performance.now();
       const result = await workerInitOnnxModels();
+      console.log(
+        `⏱️ [ONNX Predictor] Models load: ${(
+          performance.now() - modelsStart
+        ).toFixed(1)}ms`
+      );
 
       if (result.success) {
         localInitialized = true;
-        console.log("🤖 [ONNX] Web worker models loaded:", result.models);
+        console.log(
+          `🤖 [ONNX] Web worker models loaded: ${result.models} (total: ${(
+            performance.now() - totalStart
+          ).toFixed(1)}ms)`
+        );
         return true;
       } else {
         console.warn("🤖 [ONNX] Worker model initialization failed");
