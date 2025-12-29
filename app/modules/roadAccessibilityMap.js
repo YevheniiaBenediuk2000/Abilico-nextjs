@@ -351,27 +351,18 @@ async function refreshRoadAccessibilityData(map) {
   setLoadingState(true);
 
   try {
-    const refreshStart = performance.now();
-
     // Start ONNX loading in background if not already loading (don't wait for it)
     if (predictionsEnabled && !isOnnxReady() && !onnxLoadingPromise) {
-      console.log("⏱️ [RoadMap] Starting ONNX preload in background...");
       preloadOnnxModelsInBackground();
     }
 
     // Use the caching-enabled fetch
-    const fetchStart = performance.now();
     const geojson = await fetchWaypointsWithCache({
       south: bounds.getSouth(),
       west: bounds.getWest(),
       north: bounds.getNorth(),
       east: bounds.getEast(),
     });
-    console.log(
-      `⏱️ [RoadMap] Fetch waypoints: ${(performance.now() - fetchStart).toFixed(
-        1
-      )}ms`
-    );
 
     if (!geojson || !geojson.features) {
       setLoadingState(false);
@@ -379,33 +370,18 @@ async function refreshRoadAccessibilityData(map) {
     }
 
     // RENDER ROADS IMMEDIATELY (without predictions)
-    const renderStart = performance.now();
     renderRoadFeatures(geojson.features);
-    console.log(
-      `⏱️ [RoadMap] Initial render: ${(performance.now() - renderStart).toFixed(
-        1
-      )}ms for ${geojson.features.length} features`
-    );
 
     // Mark loading as done - roads are visible now!
     setLoadingState(false);
-    console.log(
-      `⏱️ [RoadMap] Total time to visible roads: ${(
-        performance.now() - refreshStart
-      ).toFixed(1)}ms`
-    );
 
     // Apply ML predictions in background (if models are ready or when they become ready)
     if (predictionsEnabled) {
       if (isOnnxReady()) {
         // Models are ready, apply predictions in background
-        console.log("⏱️ [RoadMap] ONNX ready, applying predictions now...");
         applyPredictionsInBackground(geojson.features);
       } else {
         // Store features for later when models are loaded
-        console.log(
-          `⏱️ [RoadMap] ONNX not ready, storing ${geojson.features.length} features for later prediction`
-        );
         pendingPredictionFeatures = geojson.features;
       }
     }
@@ -422,16 +398,10 @@ async function refreshRoadAccessibilityData(map) {
  */
 async function applyPredictionsInBackground(features) {
   if (isApplyingPredictions) {
-    console.log(
-      "⏱️ [RoadMap] applyPredictionsInBackground skipped - already in progress"
-    );
     return;
   }
 
   if (!isOnnxReady()) {
-    console.log(
-      "⏱️ [RoadMap] applyPredictionsInBackground skipped - ONNX not ready"
-    );
     return;
   }
 
@@ -439,31 +409,11 @@ async function applyPredictionsInBackground(features) {
   pendingPredictionFeatures = null; // Clear pending
 
   try {
-    const startTime = performance.now();
-    console.log(
-      `⏱️ [RoadMap] Starting background predictions for ${features.length} features...`
-    );
-
     const enrichedFeatures = await applyMlPredictions(features);
-
-    const predictTime = performance.now() - startTime;
-    console.log(
-      `⏱️ [RoadMap] Background predictions complete: ${predictTime.toFixed(
-        1
-      )}ms for ${features.length} features (${(
-        predictTime / features.length
-      ).toFixed(2)}ms/feature)`
-    );
 
     // Re-render with predictions if road layer is still enabled
     if (roadAccessibilityEnabled && roadAccessibilityLayer) {
-      const renderStart = performance.now();
       renderRoadFeatures(enrichedFeatures);
-      console.log(
-        `⏱️ [RoadMap] Re-render after predictions: ${(
-          performance.now() - renderStart
-        ).toFixed(1)}ms`
-      );
     }
   } catch (error) {
     console.error("🤖 [ONNX] Background prediction failed:", error);
@@ -479,8 +429,6 @@ async function applyPredictionsInBackground(features) {
  * @returns {Promise<Array>} - Enriched features with predictions
  */
 async function applyMlPredictions(features) {
-  const applyStart = performance.now();
-
   // Separate features that need prediction from those that don't
   const needsPredictionFeatures = [];
   const needsPredictionIndices = [];
@@ -503,14 +451,8 @@ async function applyMlPredictions(features) {
   }
 
   const skippedCount = features.length - needsPredictionFeatures.length;
-  console.log(
-    `⏱️ [RoadMap] ${needsPredictionFeatures.length} features need prediction, ${skippedCount} already have data`
-  );
 
   if (needsPredictionFeatures.length === 0) {
-    console.log(
-      `⏱️ [RoadMap] No predictions needed, returning original features`
-    );
     return features;
   }
 
@@ -518,7 +460,6 @@ async function applyMlPredictions(features) {
   const propsToPredict = needsPredictionFeatures.map((f) => f.properties || {});
 
   // Batch predict all at once (single worker round-trip!)
-  const batchStart = performance.now();
   let predictedPropsList;
   try {
     predictedPropsList = await predictRoadFeaturesBatch(propsToPredict);
@@ -530,15 +471,8 @@ async function applyMlPredictions(features) {
     }
     return enrichedFeatures;
   }
-  const batchTime = performance.now() - batchStart;
-  console.log(
-    `⏱️ [RoadMap] Batch prediction: ${batchTime.toFixed(1)}ms for ${
-      propsToPredict.length
-    } features (${(batchTime / propsToPredict.length).toFixed(3)}ms/feature)`
-  );
 
   // Process results and calculate scores
-  const processStart = performance.now();
   let predictedCount = 0;
   let cachedCount = 0;
 
@@ -595,16 +529,8 @@ async function applyMlPredictions(features) {
     };
   }
 
-  const processTime = performance.now() - processStart;
-  const totalTime = performance.now() - applyStart;
-
   console.log(
     `🤖 Applied ML predictions: ${predictedCount} predicted, ${cachedCount} from cache, ${skippedCount} skipped`
-  );
-  console.log(
-    `⏱️ [RoadMap] Score calculation: ${processTime.toFixed(
-      1
-    )}ms | Total: ${totalTime.toFixed(1)}ms`
   );
 
   return enrichedFeatures;

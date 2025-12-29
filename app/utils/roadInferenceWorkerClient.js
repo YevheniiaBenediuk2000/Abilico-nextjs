@@ -100,17 +100,7 @@ function sendMessage(type, data = {}) {
     }
 
     const id = messageId++;
-    const startTime = performance.now();
-    pendingRequests.set(id, {
-      resolve: (result) => {
-        const elapsed = performance.now() - startTime;
-        console.log(
-          `⏱️ [WorkerClient] ${type} round-trip: ${elapsed.toFixed(1)}ms`
-        );
-        resolve(result);
-      },
-      reject,
-    });
+    pendingRequests.set(id, { resolve, reject });
 
     worker.postMessage({ type, id, data });
   });
@@ -121,27 +111,13 @@ function sendMessage(type, data = {}) {
  * @returns {Promise<{success: boolean, models: string[]}>}
  */
 export async function initOnnxModels() {
-  const totalStart = performance.now();
-  console.log("⏱️ [WorkerClient] Starting ONNX model initialization...");
-
   if (!isWorkerInitialized) {
-    const workerStart = performance.now();
     await initRoadInferenceWorker();
-    console.log(
-      `⏱️ [WorkerClient] Worker creation: ${(
-        performance.now() - workerStart
-      ).toFixed(1)}ms`
-    );
   }
 
   const result = await sendMessage("init");
   isWorkerReady = result.success;
   availableModels = result.models || [];
-  console.log(
-    `⏱️ [WorkerClient] Total ONNX init: ${(
-      performance.now() - totalStart
-    ).toFixed(1)}ms`
-  );
   return result;
 }
 
@@ -227,24 +203,11 @@ export async function getAvailableModels() {
  * @returns {Promise<Object>} - Enhanced properties with predictions
  */
 export async function predictRoadFeatures(props) {
-  const startTime = performance.now();
-
   if (!isWorkerInitialized) {
-    console.log(
-      "⏱️ [WorkerClient] Worker not ready, initializing for prediction..."
-    );
     await initRoadInferenceWorker();
   }
 
   const response = await sendMessage("predict", { props });
-  const elapsed = performance.now() - startTime;
-  if (elapsed > 50) {
-    console.log(
-      `⏱️ [WorkerClient] Slow prediction: ${elapsed.toFixed(1)}ms for highway=${
-        props.highway
-      }`
-    );
-  }
   return response.result;
 }
 
@@ -254,29 +217,11 @@ export async function predictRoadFeatures(props) {
  * @returns {Promise<Array<Object>>} - Enhanced properties with predictions
  */
 export async function predictRoadFeaturesBatch(roadsList) {
-  const startTime = performance.now();
-  console.log(
-    `⏱️ [WorkerClient] Starting batch prediction for ${roadsList.length} items...`
-  );
-
   if (!isWorkerInitialized) {
-    const initStart = performance.now();
     await initRoadInferenceWorker();
-    console.log(
-      `⏱️ [WorkerClient] Worker init for batch: ${(
-        performance.now() - initStart
-      ).toFixed(1)}ms`
-    );
   }
 
   const response = await sendMessage("predictBatch", { roadsList });
-  const elapsed = performance.now() - startTime;
-  console.log(
-    `⏱️ [WorkerClient] Batch prediction complete: ${elapsed.toFixed(1)}ms for ${
-      roadsList.length
-    } items (${(elapsed / roadsList.length).toFixed(3)}ms/item)`
-  );
-
   return response.results;
 }
 
