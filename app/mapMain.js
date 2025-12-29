@@ -109,13 +109,58 @@ if (typeof window !== "undefined") {
   window.globals = globals;
 }
 
-let accessibilityFilter = new Set([
-  "designated",
-  "yes",
-  "limited",
-  "unknown",
-  "no",
-]);
+// Initialize accessibility filter from localStorage, or default to all tiers
+const ACCESSIBILITY_FILTER_LS_KEY = "ui.placeAccessibility.filter";
+const ALL_ACCESSIBILITY_TIERS = ["designated", "yes", "limited", "unknown", "no"];
+
+function loadAccessibilityFilterFromLS() {
+  if (typeof window === "undefined") return new Set(ALL_ACCESSIBILITY_TIERS);
+  try {
+    const raw = window.localStorage.getItem(ACCESSIBILITY_FILTER_LS_KEY);
+    if (!raw) return new Set(ALL_ACCESSIBILITY_TIERS);
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      const filtered = parsed.filter((t) => ALL_ACCESSIBILITY_TIERS.includes(t));
+      if (filtered.length) return new Set(filtered);
+    }
+  } catch {
+    // ignore parse errors
+  }
+  return new Set(ALL_ACCESSIBILITY_TIERS);
+}
+
+let accessibilityFilter = loadAccessibilityFilterFromLS();
+
+/**
+ * Get the accessibility tier for a feature based on its wheelchair tags
+ * @param {Object} feature - GeoJSON feature
+ * @returns {string} - One of: "designated", "yes", "limited", "no", "unknown"
+ */
+function getFeatureAccessibilityTier(feature) {
+  const tags = feature?.properties?.tags || feature?.properties || {};
+  const raw = (
+    tags.wheelchair ??
+    tags["toilets:wheelchair"] ??
+    tags["wheelchair:toilets"] ??
+    ""
+  ).toString().toLowerCase();
+
+  if (raw.includes("designated")) return "designated";
+  if (raw === "yes" || raw.includes("true")) return "yes";
+  if (raw.includes("limited") || raw.includes("partial")) return "limited";
+  if (raw === "no" || raw.includes("false")) return "no";
+  return "unknown";
+}
+
+/**
+ * Check if a feature passes the current accessibility filter
+ * @param {Object} feature - GeoJSON feature
+ * @returns {boolean}
+ */
+function isFeatureAllowedByAccessibilityFilter(feature) {
+  const tier = getFeatureAccessibilityTier(feature);
+  return accessibilityFilter.has(tier);
+}
 
 // Map-wide cache of places by stable OSM key (N/123, W/456, R/789)
 const placesCacheById = new Map();
@@ -1303,7 +1348,7 @@ async function refreshPlaces() {
     // Optional: keep a flat array for convenience
     allPlacesFeatures = Array.from(placesCacheById.values());
 
-    // ✅ 2) Compute which cached features are inside current bounds
+    // ✅ 2) Compute which cached features are inside current bounds AND match accessibility filter
     const featuresInView = allPlacesFeatures
       .filter((f) => {
         const g = f.geometry;
@@ -1313,7 +1358,10 @@ async function refreshPlaces() {
         const [lng, lat] = g.coordinates;
         return bounds.contains(L.latLng(lat, lng));
       })
-      .filter((f) => !isBenchFeature(f));
+      .filter((f) => !isBenchFeature(f))
+      .filter((f) => isFeatureAllowedByAccessibilityFilter(f));
+
+    console.log(`🗺️ [refreshPlaces] Features in view after accessibility filter: ${featuresInView.length}`);
 
     const geojsonForView = {
       type: "FeatureCollection",
@@ -8494,19 +8542,15 @@ export async function initMap(user = null) {
   // ✅ Global — must be OUTSIDE the submit handler
   document.addEventListener("accessibilityFilterChanged", (e) => {
     const incoming = e.detail;
+    console.log("🎯 accessibilityFilterChanged received:", incoming);
 
     if (!incoming || !incoming.length) {
-      accessibilityFilter = new Set([
-        "designated",
-        "yes",
-        "limited",
-        "unknown",
-        "no",
-      ]);
+      accessibilityFilter = new Set(ALL_ACCESSIBILITY_TIERS);
     } else {
       accessibilityFilter = new Set(incoming);
     }
 
+    console.log("🎯 accessibilityFilter updated to:", Array.from(accessibilityFilter));
     refreshPlaces();
   });
 
