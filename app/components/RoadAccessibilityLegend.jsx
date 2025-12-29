@@ -107,6 +107,7 @@ export default function RoadAccessibilityLegend({
   onVizModeChange,
   loading = false,
   predictionsEnabled = true,
+  predictionsLoading = false,
   onPredictionsToggle,
   onnxReady = false,
 }) {
@@ -269,10 +270,30 @@ export default function RoadAccessibilityLegend({
               }}
             >
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                {predictionsLoading ? (
+                  <CircularProgress size={12} sx={{ mr: 0.5 }} />
+                ) : (
+                  <Typography variant="caption" component="span">
+                    🤖
+                  </Typography>
+                )}
                 <Typography variant="caption" color="text.secondary">
-                  🤖 ML Predictions
+                  ML Predictions
                 </Typography>
-                {onnxReady && (
+                {predictionsLoading ? (
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      bgcolor: "info.light",
+                      color: "info.contrastText",
+                      px: 0.5,
+                      borderRadius: 0.5,
+                      fontSize: "9px",
+                    }}
+                  >
+                    Loading...
+                  </Typography>
+                ) : onnxReady ? (
                   <Typography
                     variant="caption"
                     sx={{
@@ -285,7 +306,7 @@ export default function RoadAccessibilityLegend({
                   >
                     Ready
                   </Typography>
-                )}
+                ) : null}
               </Box>
               <Switch
                 size="small"
@@ -299,7 +320,9 @@ export default function RoadAccessibilityLegend({
               color="text.secondary"
               sx={{ fontSize: "10px", display: "block", mt: 0.5 }}
             >
-              Predicts missing surface, smoothness, width & incline data
+              {predictionsLoading
+                ? "Predicting accessibility data..."
+                : "Predicts missing surface, smoothness, width & incline data"}
             </Typography>
             {predictionsEnabled && (
               <Box

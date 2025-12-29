@@ -711,38 +711,16 @@ async function runInference(modelName, props) {
  * Predict road features
  */
 async function predictRoadFeatures(props) {
-  const predStart = performance.now();
   const cacheKey = getPredictionCacheKey(props);
 
-  const cacheCheckStart = performance.now();
   const cachedResult = await getCachedPrediction(cacheKey);
-  const cacheCheckTime = performance.now() - cacheCheckStart;
 
   if (cachedResult) {
-    console.log(
-      `[Worker ONNX] ⏱️ Prediction cache HIT: ${cacheCheckTime.toFixed(
-        1
-      )}ms (key: ${cacheKey.slice(0, 20)}...)`
-    );
     return { ...props, ...cachedResult, _fromCache: true };
   }
 
-  if (cacheCheckTime > 10) {
-    console.log(
-      `[Worker ONNX] ⏱️ Prediction cache MISS check took: ${cacheCheckTime.toFixed(
-        1
-      )}ms`
-    );
-  }
-
   if (!isInitialized) {
-    const initStart = performance.now();
     await initOnnxModels();
-    console.log(
-      `[Worker ONNX] ⏱️ Late init during predict: ${(
-        performance.now() - initStart
-      ).toFixed(1)}ms`
-    );
   }
 
   const result = { ...props };
@@ -751,9 +729,7 @@ async function predictRoadFeatures(props) {
 
   // Surface
   if (!props.surface && sessions.surface) {
-    const infStart = performance.now();
     const pred = await runInference("surface", props);
-    inferenceTimings.surface = performance.now() - infStart;
     if (pred.prediction) {
       result.surface = pred.prediction;
       result._surfacePredicted = true;
@@ -767,9 +743,7 @@ async function predictRoadFeatures(props) {
 
   // Smoothness
   if (!props.smoothness && sessions.smoothness) {
-    const infStart = performance.now();
     const pred = await runInference("smoothness", props);
-    inferenceTimings.smoothness = performance.now() - infStart;
     if (pred.prediction) {
       result.smoothness = pred.prediction;
       result._smoothnessPredicted = true;
@@ -783,9 +757,7 @@ async function predictRoadFeatures(props) {
 
   // Width
   if (!props.width && sessions.width) {
-    const infStart = performance.now();
     const pred = await runInference("width", props);
-    inferenceTimings.width = performance.now() - infStart;
     if (pred.prediction != null && pred.prediction > 0) {
       result.width = `${pred.prediction.toFixed(1)} m`;
       result._widthPredicted = true;
@@ -798,9 +770,7 @@ async function predictRoadFeatures(props) {
 
   // Incline
   if (!props.incline && sessions.incline) {
-    const infStart = performance.now();
     const pred = await runInference("incline", props);
-    inferenceTimings.incline = performance.now() - infStart;
     if (pred.prediction != null) {
       result.incline = `${pred.prediction.toFixed(1)}%`;
       result._inclinePredicted = true;
@@ -813,21 +783,6 @@ async function predictRoadFeatures(props) {
 
   result._predictions = predictions;
   result._hasPredictions = Object.keys(predictions).length > 0;
-
-  const totalPredTime = performance.now() - predStart;
-  if (totalPredTime > 20) {
-    console.log(
-      `[Worker ONNX] ⏱️ Prediction total: ${totalPredTime.toFixed(
-        1
-      )}ms | inference: surface=${
-        inferenceTimings.surface?.toFixed(1) || "skip"
-      }ms, smoothness=${
-        inferenceTimings.smoothness?.toFixed(1) || "skip"
-      }ms, width=${inferenceTimings.width?.toFixed(1) || "skip"}ms, incline=${
-        inferenceTimings.incline?.toFixed(1) || "skip"
-      }ms`
-    );
-  }
 
   // Cache predictions
   if (result._hasPredictions) {

@@ -39,6 +39,7 @@ let predictionsEnabled = true; // Toggle for ML predictions
 let currentBounds = null;
 let isLoadingRoadData = false;
 let loadingStateCallback = null;
+let predictionsLoadingCallback = null;
 
 // Background ONNX loading state
 let onnxLoadingPromise = null;
@@ -52,6 +53,26 @@ let currentMapRef = null; // Reference to map for background updates
  */
 export function setRoadLoadingCallback(callback) {
   loadingStateCallback = callback;
+}
+
+/**
+ * Set callback for predictions loading state changes
+ * @param {Function} callback - Called with boolean indicating predictions loading state
+ */
+export function setPredictionsLoadingCallback(callback) {
+  predictionsLoadingCallback = callback;
+}
+
+/**
+ * Internal helper to update predictions loading state and notify callback
+ */
+function setPredictionsLoadingState(loading) {
+  console.log(
+    `🤖 Predictions loading state: ${loading}, callback: ${!!predictionsLoadingCallback}`
+  );
+  if (predictionsLoadingCallback) {
+    predictionsLoadingCallback(loading);
+  }
 }
 
 /**
@@ -200,6 +221,9 @@ export function setRoadAccessibilityEnabled(map, enabled) {
     roadAccessibilityLayer.addTo(map);
     refreshRoadAccessibilityData(map);
   } else {
+    // When disabling, clear pending features and reset loading states
+    pendingPredictionFeatures = null;
+    setPredictionsLoadingState(false);
     if (roadAccessibilityLayer) {
       roadAccessibilityLayer.remove();
       clearRoadAccessibilityLayer();
@@ -383,6 +407,8 @@ async function refreshRoadAccessibilityData(map) {
       } else {
         // Store features for later when models are loaded
         pendingPredictionFeatures = geojson.features;
+        // Set predictions loading state to show waiting for models
+        setPredictionsLoadingState(true);
       }
     }
   } catch (error) {
@@ -407,18 +433,20 @@ async function applyPredictionsInBackground(features) {
 
   isApplyingPredictions = true;
   pendingPredictionFeatures = null; // Clear pending
+  setPredictionsLoadingState(true); // Notify that predictions are loading
 
   try {
     const enrichedFeatures = await applyMlPredictions(features);
 
-    // Re-render with predictions if road layer is still enabled
+    // Update existing layers in place (keeps popups open)
     if (roadAccessibilityEnabled && roadAccessibilityLayer) {
-      renderRoadFeatures(enrichedFeatures);
+      updateRoadLayersInPlace(enrichedFeatures);
     }
   } catch (error) {
     console.error("🤖 [ONNX] Background prediction failed:", error);
   } finally {
     isApplyingPredictions = false;
+    setPredictionsLoadingState(false); // Notify that predictions finished
   }
 }
 
@@ -537,13 +565,97 @@ async function applyMlPredictions(features) {
 }
 
 /**
+ * Update existing road layers in place with new properties
+ * This preserves open popups and avoids visual flashing
+ * @param {Array} features - Enriched GeoJSON features with predictions
+ */
+function updateRoadLayersInPlace(features) {
+  if (!roadAccessibilityLayer) return;
+
+  // Build a map of feature ID -> enriched feature for quick lookup
+  const featureMap = new Map();
+  features.forEach((feature) => {
+    const id = feature.properties?.["@id"] || feature.id;
+    if (id) {
+      featureMap.set(id, feature);
+    }
+  });
+
+  // Update each existing layer
+  roadAccessibilityLayer.eachLayer((layer) => {
+    if (!layer.feature) return;
+
+    const featureId = layer.feature.properties?.["@id"] || layer.feature.id;
+    const enrichedFeature = featureMap.get(featureId);
+
+    if (!enrichedFeature) return;
+
+    // Update the layer's feature reference with enriched properties
+    layer.feature = enrichedFeature;
+    const properties = enrichedFeature.properties;
+
+    // Update style based on new properties
+    const color = getColorForMode(properties, currentVizMode);
+    const weight = getWeightForHighway(properties.highway);
+    const opacity = 0.8;
+
+    const hasPredictions =
+      properties._hasPredictions ||
+      properties._surfacePredicted ||
+      properties._smoothnessPredicted ||
+      properties._widthPredicted ||
+      properties._inclinePredicted;
+
+    const dashArray = hasPredictions ? "5, 5" : null;
+
+    // Apply new styles
+    if (layer.setStyle) {
+      layer.setStyle({
+        color,
+        weight,
+        opacity,
+        dashArray,
+      });
+    }
+
+    // Update popup content if popup is open
+    if (layer.isPopupOpen && layer.isPopupOpen()) {
+      const popup = layer.getPopup();
+      if (popup) {
+        popup.setContent(createRoadPopup(properties));
+      }
+    }
+
+    // Update the bound popup function for future opens
+    layer.unbindPopup();
+    layer.bindPopup(() => createRoadPopup(properties), {
+      maxWidth: 300,
+      className: "road-accessibility-popup",
+    });
+  });
+
+  console.log("🔄 Updated road layers in place with ML predictions");
+}
+
+/**
  * Render road features on the map
  * @param {Array} features - GeoJSON features
  */
 function renderRoadFeatures(features) {
   if (!roadAccessibilityLayer) return;
 
+  // Save currently open popup's feature ID before clearing
+  let openPopupFeatureId = null;
+  roadAccessibilityLayer.eachLayer((layer) => {
+    if (layer.isPopupOpen && layer.isPopupOpen() && layer.feature) {
+      openPopupFeatureId =
+        layer.feature.properties?.["@id"] || layer.feature.id;
+    }
+  });
+
   clearRoadAccessibilityLayer();
+
+  let layerToReopen = null;
 
   features.forEach((feature) => {
     if (!feature.geometry) return;
@@ -609,8 +721,8 @@ function renderRoadFeatures(features) {
     }
 
     if (layer) {
-      // Add popup
-      layer.bindPopup(createRoadPopup(properties), {
+      // Add popup - use a function so it's evaluated on each open (captures current loading state)
+      layer.bindPopup(() => createRoadPopup(properties), {
         maxWidth: 300,
         className: "road-accessibility-popup",
       });
@@ -629,8 +741,21 @@ function renderRoadFeatures(features) {
       layer.feature = feature;
 
       roadAccessibilityLayer.addLayer(layer);
+
+      // Check if this is the feature that had an open popup
+      if (openPopupFeatureId) {
+        const featureId = feature.properties?.["@id"] || feature.id;
+        if (featureId === openPopupFeatureId) {
+          layerToReopen = layer;
+        }
+      }
     }
   });
+
+  // Restore the popup if one was open before re-rendering
+  if (layerToReopen) {
+    layerToReopen.openPopup();
+  }
 }
 
 /**
@@ -696,6 +821,23 @@ function createRoadPopup(properties) {
       )}</div>`
     );
   }
+
+  // Check if predictions are currently loading and this feature doesn't have predictions yet
+  const hasPredictions = properties._hasPredictions;
+  const needsPrediction =
+    !properties.surface ||
+    !properties.smoothness ||
+    !properties.width ||
+    !properties.incline;
+
+  // Show loading if: actively predicting, or models still loading with pending features
+  const modelsStillLoading = onnxLoadingPromise !== null && !isOnnxReady();
+  const showPredictionsLoading =
+    predictionsEnabled &&
+    needsPrediction &&
+    !hasPredictions &&
+    (isApplyingPredictions ||
+      (modelsStillLoading && pendingPredictionFeatures));
 
   // Helper to format confidence as colored badge
   const getConfidenceBadge = (confidence) => {
@@ -867,11 +1009,22 @@ function createRoadPopup(properties) {
     );
   }
 
-  // Add prediction info section if any predictions were made
+  // Add prediction info section if any predictions were made OR if loading
   if (properties._hasPredictions) {
     items.push(`<div class="prediction-info-section" style="margin-top:8px;padding-top:8px;border-top:1px solid #eee;font-size:10px;color:#7f8c8d">
       <div>🤖 = ML predicted value</div>
       <div style="margin-top:2px">Confidence badge shows model certainty</div>
+    </div>`);
+  } else if (showPredictionsLoading) {
+    const loadingMessage = modelsStillLoading
+      ? "Loading ML models..."
+      : "Loading ML predictions...";
+    items.push(`<div class="prediction-info-section" style="margin-top:8px;padding-top:8px;border-top:1px solid #eee;font-size:10px;color:#7f8c8d">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span class="prediction-loading-spinner" style="display:inline-block;width:12px;height:12px;border:2px solid #2196f3;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></span>
+        <span style="color:#1565c0;">${loadingMessage}</span>
+      </div>
+      <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
     </div>`);
   }
 
@@ -1031,5 +1184,6 @@ const roadAccessibilityModule = {
   isOnnxModelsReady,
   preloadOnnxModelsInBackground,
   isPredictionsLoading,
+  setPredictionsLoadingCallback,
 };
 export default roadAccessibilityModule;

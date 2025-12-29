@@ -188,6 +188,7 @@ export default function MapContainer({
   const [roadAccessibilityLoading, setRoadAccessibilityLoading] =
     useState(false);
   const [predictionsEnabled, setPredictionsEnabled] = useState(true);
+  const [predictionsLoading, setPredictionsLoading] = useState(false);
   const [onnxReady, setOnnxReady] = useState(false);
 
   // Set up road accessibility loading callback
@@ -225,6 +226,50 @@ export default function MapContainer({
       if (intervalId) clearInterval(intervalId);
       if (typeof window !== "undefined" && window.setRoadLoadingCallback) {
         window.setRoadLoadingCallback(null);
+      }
+    };
+  }, []);
+
+  // Set up predictions loading callback
+  useEffect(() => {
+    let mounted = true;
+    let intervalId = null;
+
+    const trySetCallback = () => {
+      if (
+        typeof window !== "undefined" &&
+        window.setPredictionsLoadingCallback
+      ) {
+        window.setPredictionsLoadingCallback(setPredictionsLoading);
+        if (intervalId) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
+        return true;
+      }
+      return false;
+    };
+
+    // Try immediately
+    if (!trySetCallback()) {
+      // If not available yet, poll every 100ms
+      intervalId = setInterval(() => {
+        if (!mounted) {
+          clearInterval(intervalId);
+          return;
+        }
+        trySetCallback();
+      }, 100);
+    }
+
+    return () => {
+      mounted = false;
+      if (intervalId) clearInterval(intervalId);
+      if (
+        typeof window !== "undefined" &&
+        window.setPredictionsLoadingCallback
+      ) {
+        window.setPredictionsLoadingCallback(null);
       }
     };
   }, []);
@@ -3042,6 +3087,7 @@ export default function MapContainer({
         }}
         loading={roadAccessibilityLoading}
         predictionsEnabled={predictionsEnabled}
+        predictionsLoading={predictionsLoading}
         onPredictionsToggle={(enabled) => {
           setPredictionsEnabled(enabled);
           if (typeof window !== "undefined" && window.setPredictionsEnabled) {

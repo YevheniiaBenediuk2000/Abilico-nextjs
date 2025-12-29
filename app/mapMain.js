@@ -98,6 +98,7 @@ import {
   isPredictionsEnabled,
   isOnnxModelsReady,
   preloadOnnxModelsInBackground,
+  setPredictionsLoadingCallback,
 } from "./modules/roadAccessibilityMap.js";
 
 // DEBUG: confirm import really works
@@ -8121,6 +8122,7 @@ export async function initMap(user = null) {
       window.isOnnxModelsReady = isOnnxModelsReady;
       window.preloadOnnxModelsInBackground = preloadOnnxModelsInBackground;
       window.preloadAccessibilityModel = preloadAccessibilityModel;
+      window.setPredictionsLoadingCallback = setPredictionsLoadingCallback;
     }
 
     // Preload accessibility model in background
