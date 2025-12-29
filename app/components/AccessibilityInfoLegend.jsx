@@ -65,7 +65,7 @@ export default function AccessibilityInfoLegend() {
           position: "fixed",
           bottom: LEGEND_BOTTOM,
           right: LEGEND_RIGHT,
-          zIndex: 1000,
+          zIndex: 1001,
         }}
       >
         <IconButton
@@ -81,7 +81,7 @@ export default function AccessibilityInfoLegend() {
             minWidth: LEGEND_BUTTON_SIZE,
             padding: 0,
             "&:hover": {
-              backgroundColor: "rgba(0, 0, 0, 0.04)",
+              backgroundColor: "#f5f5f5",
             },
             transition: "all 0.2s ease-in-out",
           }}
@@ -99,7 +99,7 @@ export default function AccessibilityInfoLegend() {
         position: "fixed",
         bottom: LEGEND_BOTTOM,
         right: LEGEND_RIGHT,
-        zIndex: 1000,
+        zIndex: 1001,
         width: { xs: "calc(100vw - 20px)", sm: 360 },
         maxWidth: 380,
       }}
