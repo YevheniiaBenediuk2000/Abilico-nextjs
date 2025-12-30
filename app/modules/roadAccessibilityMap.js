@@ -101,6 +101,7 @@ export function preloadOnnxModelsInBackground() {
       if (
         pendingPredictionFeatures &&
         roadAccessibilityEnabled &&
+        predictionsEnabled &&
         currentMapRef
       ) {
         console.log(
@@ -1335,6 +1336,42 @@ export function setPredictionsEnabled(enabled) {
   // Update visual representation of existing layers when toggling predictions
   if (roadAccessibilityLayer && wasEnabled !== enabled) {
     updateLayerVisualsForPredictionsToggle();
+
+    // When re-enabling predictions, apply ML predictions to features that don't have them
+    if (enabled && roadAccessibilityEnabled) {
+      const featuresNeedingPredictions = [];
+      roadAccessibilityLayer.eachLayer((layer) => {
+        if (!layer.feature) return;
+        const props = layer.feature.properties || {};
+        // Check if this feature needs predictions (missing any accessibility data AND not already predicted)
+        const needsPrediction =
+          (!props.surface && !props._surfacePredicted) ||
+          (!props.smoothness && !props._smoothnessPredicted) ||
+          (!props.width && !props._widthPredicted) ||
+          (!props.incline && !props._inclinePredicted);
+        if (needsPrediction) {
+          featuresNeedingPredictions.push(layer.feature);
+        }
+      });
+
+      if (featuresNeedingPredictions.length > 0) {
+        console.log(
+          `🤖 Re-enabling predictions: ${featuresNeedingPredictions.length} features need ML predictions`
+        );
+        // Start ONNX loading if not ready
+        if (!isOnnxReady() && !onnxLoadingPromise) {
+          preloadOnnxModelsInBackground();
+        }
+        // Apply predictions in background
+        if (isOnnxReady()) {
+          applyPredictionsInBackground(featuresNeedingPredictions);
+        } else {
+          // Store for later when models are ready
+          pendingPredictionFeatures = featuresNeedingPredictions;
+          setPredictionsLoadingState(true);
+        }
+      }
+    }
   }
 }
 
