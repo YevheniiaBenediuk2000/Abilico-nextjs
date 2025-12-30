@@ -111,6 +111,7 @@ if (typeof window !== "undefined") {
 
 // Initialize accessibility filter from localStorage, or default to all tiers
 const ACCESSIBILITY_FILTER_LS_KEY = "ui.placeAccessibility.filter";
+const ML_PREDICTIONS_LS_KEY = "ui.placeAccessibility.mlPredictions";
 const ALL_ACCESSIBILITY_TIERS = [
   "designated",
   "yes",
@@ -135,6 +136,17 @@ function loadAccessibilityFilterFromLS() {
     // ignore parse errors
   }
   return new Set(ALL_ACCESSIBILITY_TIERS);
+}
+
+function loadMlPredictionsEnabledFromLS() {
+  if (typeof window === "undefined") return true;
+  try {
+    const raw = window.localStorage.getItem(ML_PREDICTIONS_LS_KEY);
+    if (raw === null) return true; // default to enabled
+    return JSON.parse(raw) !== false;
+  } catch {
+    return true;
+  }
 }
 
 let accessibilityFilter = loadAccessibilityFilterFromLS();
@@ -199,7 +211,7 @@ const placeClusterLayer = L.markerClusterGroup(placeClusterConfig);
 
 // Cache for ML accessibility predictions (persists across refreshes)
 const placePredictionsCache = new Map(); // placeKey -> { label, probability, confidence }
-let placePredictionsEnabled = true; // Toggle for showing predictions on map
+let placePredictionsEnabled = loadMlPredictionsEnabledFromLS(); // Toggle for showing predictions on map
 
 // Expose toggle function and prediction cache for React components
 if (typeof window !== "undefined") {
@@ -3922,8 +3934,8 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     originalWheelchair &&
     originalWheelchair !== userReportedWheelchair;
 
-  // Track if we need to show ML prediction (for unknown accessibility)
-  const showMlPrediction = primaryTier === "unknown";
+  // Track if we need to show ML prediction (for unknown accessibility and predictions enabled)
+  const showMlPrediction = primaryTier === "unknown" && placePredictionsEnabled;
 
   const accItem = document.createElement("div");
   accItem.className = "list-group-item";
@@ -8591,6 +8603,17 @@ export async function initMap(user = null) {
       Array.from(accessibilityFilter)
     );
     refreshPlaces();
+  });
+
+  // Listen for ML predictions toggle changes from React
+  document.addEventListener("mlPredictionsEnabledChanged", (e) => {
+    const enabled = e.detail;
+    console.log("🤖 mlPredictionsEnabledChanged received:", enabled);
+    placePredictionsEnabled = enabled;
+    // Refresh markers to show/hide predictions
+    if (map) {
+      refreshPlaceMarkerPredictions();
+    }
   });
 
   // Listen for React nested filter updates

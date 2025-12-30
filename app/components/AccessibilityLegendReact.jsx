@@ -5,8 +5,10 @@ import { useEffect, useState } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Chip from "@mui/material/Chip";
+import Switch from "@mui/material/Switch";
 
 const ACCESSIBILITY_FILTER_LS_KEY = "ui.placeAccessibility.filter";
+const ML_PREDICTIONS_LS_KEY = "ui.placeAccessibility.mlPredictions";
 const ALL_TIERS = ["designated", "yes", "limited", "unknown", "no"];
 
 // Display labels for accessibility tiers
@@ -38,8 +40,21 @@ function getInitialSelection() {
   return ALL_TIERS;
 }
 
+function getInitialMlPredictionsEnabled() {
+  if (typeof window === "undefined") return true;
+
+  try {
+    const raw = window.localStorage.getItem(ML_PREDICTIONS_LS_KEY);
+    if (raw === null) return true; // default to enabled
+    return JSON.parse(raw) !== false;
+  } catch {
+    return true;
+  }
+}
+
 export default function AccessibilityLegendReact({ hideTitle = false }) {
   const [selected, setSelected] = useState(getInitialSelection);
+  const [mlPredictionsEnabled, setMlPredictionsEnabled] = useState(getInitialMlPredictionsEnabled);
 
   // Persist + notify mapMain.js whenever selection changes
   useEffect(() => {
@@ -57,6 +72,23 @@ export default function AccessibilityLegendReact({ hideTitle = false }) {
       new CustomEvent("accessibilityFilterChanged", { detail: selected })
     );
   }, [selected]);
+
+  // Persist + notify mapMain.js whenever ML predictions toggle changes
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        ML_PREDICTIONS_LS_KEY,
+        JSON.stringify(mlPredictionsEnabled)
+      );
+    } catch {
+      // ignore storage errors
+    }
+
+    console.log("🤖 Dispatching mlPredictionsEnabledChanged:", mlPredictionsEnabled);
+    document.dispatchEvent(
+      new CustomEvent("mlPredictionsEnabledChanged", { detail: mlPredictionsEnabled })
+    );
+  }, [mlPredictionsEnabled]);
 
   const toggleTier = (tier) => {
     console.log("🎯 Toggling tier:", tier);
@@ -223,6 +255,45 @@ export default function AccessibilityLegendReact({ hideTitle = false }) {
               />
             );
           })}
+        </Box>
+
+        {/* ML Predictions Toggle */}
+        <Box
+          sx={{
+            mt: 1,
+            pt: 1.5,
+            borderTop: 1,
+            borderColor: "divider",
+          }}
+        >
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <Typography variant="caption" component="span">
+                ✨
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                AI Predictions
+              </Typography>
+            </Box>
+            <Switch
+              size="small"
+              checked={mlPredictionsEnabled}
+              onChange={(e) => setMlPredictionsEnabled(e.target.checked)}
+            />
+          </Box>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ fontSize: "10px", display: "block", mt: 0.5 }}
+          >
+            Predicts accessibility for places without wheelchair data
+          </Typography>
         </Box>
       </Box>
     </Box>
