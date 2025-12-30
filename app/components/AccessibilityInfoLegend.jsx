@@ -9,7 +9,6 @@ import IconButton from "@mui/material/IconButton";
 import CloseIcon from "@mui/icons-material/Close";
 import InfoIcon from "@mui/icons-material/Info";
 
-
 // Tier labels and descriptions
 const TIER_INFO = [
   {
@@ -235,4 +234,3 @@ export default function AccessibilityInfoLegend() {
     </Box>
   );
 }
-

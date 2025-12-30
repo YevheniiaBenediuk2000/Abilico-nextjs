@@ -508,14 +508,27 @@ async function applyMlPredictions(features) {
     const predictedProps = predictedPropsList[i];
     const originalFeature = needsPredictionFeatures[i];
     const targetIndex = needsPredictionIndices[i];
+    const originalProps = originalFeature.properties || {};
 
     if (predictedProps._fromCache) {
       cachedCount++;
     }
 
+    // Store original colors from OSM data before overwriting with ML predictions
+    // These will be used when predictions are disabled
+    const originalColors = {
+      _originalSurfaceColor: originalProps._surfaceColor,
+      _originalInclineColor: originalProps._inclineColor,
+      _originalWidthColor: originalProps._widthColor,
+      _originalSmoothnessColor: originalProps._smoothnessColor,
+      _originalOverallColor: originalProps._overallColor,
+      _originalAccessibilityScore: originalProps._accessibilityScore,
+    };
+
     // Recalculate colors based on predicted values
     const enhancedProps = {
       ...predictedProps,
+      ...originalColors,
       _surfaceColor: getSurfaceColor(predictedProps.surface),
       _inclineColor: getInclineColor(predictedProps.incline),
       _widthColor: getWidthColor(predictedProps.width),
@@ -760,20 +773,58 @@ function renderRoadFeatures(features) {
 
 /**
  * Get color based on visualization mode
+ * When predictions are disabled, uses original OSM colors (before ML predictions)
  */
 function getColorForMode(properties, mode) {
+  const GREY = "#95a5a6";
+
+  // When predictions are disabled, use original colors from OSM data
+  if (!predictionsEnabled) {
+    switch (mode) {
+      case "surface":
+        // Use original color if available (for features that had ML predictions)
+        // Otherwise use current color (for features without predictions)
+        if (properties._surfacePredicted) {
+          return properties._originalSurfaceColor || GREY;
+        }
+        return properties._surfaceColor || GREY;
+      case "incline":
+        if (properties._inclinePredicted) {
+          return properties._originalInclineColor || GREY;
+        }
+        return properties._inclineColor || GREY;
+      case "width":
+        if (properties._widthPredicted) {
+          return properties._originalWidthColor || GREY;
+        }
+        return properties._widthColor || GREY;
+      case "smoothness":
+        if (properties._smoothnessPredicted) {
+          return properties._originalSmoothnessColor || GREY;
+        }
+        return properties._smoothnessColor || GREY;
+      case "overall":
+      default:
+        if (properties._hasPredictions) {
+          return properties._originalOverallColor || GREY;
+        }
+        return properties._overallColor || GREY;
+    }
+  }
+
+  // When predictions are enabled, use the ML-enhanced colors
   switch (mode) {
     case "surface":
-      return properties._surfaceColor || "#95a5a6";
+      return properties._surfaceColor || GREY;
     case "incline":
-      return properties._inclineColor || "#95a5a6";
+      return properties._inclineColor || GREY;
     case "width":
-      return properties._widthColor || "#95a5a6";
+      return properties._widthColor || GREY;
     case "smoothness":
-      return properties._smoothnessColor || "#95a5a6";
+      return properties._smoothnessColor || GREY;
     case "overall":
     default:
-      return properties._overallColor || "#95a5a6";
+      return properties._overallColor || GREY;
   }
 }
 
@@ -877,13 +928,18 @@ function createRoadPopup(properties) {
   };
 
   // Helper to add prediction indicator with confidence
+  // Only show badges if predictions are enabled
   const predBadge = (isPredicted, confidence) => {
-    if (!isPredicted) return "";
+    if (!isPredicted || !predictionsEnabled) return "";
     const confBadge = getConfidenceBadge(confidence);
     return `<span class="ml-prediction-badge" title="ML Predicted">🤖</span>${confBadge}`;
   };
 
-  if (properties.surface) {
+  // Only show surface if it exists AND (not predicted OR predictions enabled)
+  if (
+    properties.surface &&
+    (!properties._surfacePredicted || predictionsEnabled)
+  ) {
     const surfaceColor = properties._surfaceColor || "#95a5a6";
     const badge = predBadge(
       properties._surfacePredicted,
@@ -892,19 +948,31 @@ function createRoadPopup(properties) {
     items.push(
       `<div class="road-popup-row"><strong>Surface:</strong> <span style="color:${surfaceColor}">${properties.surface}</span>${badge}</div>`
     );
-    // Show alternatives for predicted surface
-    if (properties._surfacePredicted && properties._surfaceAlternatives) {
+    // Show alternatives for predicted surface (only if predictions enabled)
+    if (
+      properties._surfacePredicted &&
+      predictionsEnabled &&
+      properties._surfaceAlternatives
+    ) {
       items.push(formatAlternatives(properties._surfaceAlternatives));
     }
-    // Show contributing features
-    if (properties._surfacePredicted && properties._surfaceContributors) {
+    // Show contributing features (only if predictions enabled)
+    if (
+      properties._surfacePredicted &&
+      predictionsEnabled &&
+      properties._surfaceContributors
+    ) {
       items.push(
         formatContributors(properties._surfaceContributors, "surface")
       );
     }
   }
 
-  if (properties.smoothness) {
+  // Only show smoothness if it exists AND (not predicted OR predictions enabled)
+  if (
+    properties.smoothness &&
+    (!properties._smoothnessPredicted || predictionsEnabled)
+  ) {
     const smoothColor = properties._smoothnessColor || "#95a5a6";
     const badge = predBadge(
       properties._smoothnessPredicted,
@@ -913,27 +981,38 @@ function createRoadPopup(properties) {
     items.push(
       `<div class="road-popup-row"><strong>Smoothness:</strong> <span style="color:${smoothColor}">${properties.smoothness}</span>${badge}</div>`
     );
-    // Show alternatives for predicted smoothness
-    if (properties._smoothnessPredicted && properties._smoothnessAlternatives) {
+    // Show alternatives for predicted smoothness (only if predictions enabled)
+    if (
+      properties._smoothnessPredicted &&
+      predictionsEnabled &&
+      properties._smoothnessAlternatives
+    ) {
       items.push(formatAlternatives(properties._smoothnessAlternatives));
     }
-    // Show contributing features
-    if (properties._smoothnessPredicted && properties._smoothnessContributors) {
+    // Show contributing features (only if predictions enabled)
+    if (
+      properties._smoothnessPredicted &&
+      predictionsEnabled &&
+      properties._smoothnessContributors
+    ) {
       items.push(
         formatContributors(properties._smoothnessContributors, "smoothness")
       );
     }
   }
 
-  if (properties.width) {
+  // Only show width if it exists AND (not predicted OR predictions enabled)
+  if (properties.width && (!properties._widthPredicted || predictionsEnabled)) {
     const widthColor = properties._widthColor || "#95a5a6";
     const isPredicted = properties._widthPredicted;
-    const badge = isPredicted
-      ? `<span class="ml-prediction-badge" title="ML Predicted">🤖</span>`
-      : "";
+    // Only show badge and uncertainty if predictions are enabled
+    const badge =
+      isPredicted && predictionsEnabled
+        ? `<span class="ml-prediction-badge" title="ML Predicted">🤖</span>`
+        : "";
     // For regressors, show uncertainty info
     let uncertaintyInfo = "";
-    if (isPredicted && properties._widthMetrics) {
+    if (isPredicted && predictionsEnabled && properties._widthMetrics) {
       const rmse = properties._widthMetrics.rmse;
       if (rmse) {
         uncertaintyInfo = `<span style="font-size:10px;color:#7f8c8d;margin-left:4px" title="Expected error: ±${rmse.toFixed(
@@ -944,20 +1023,30 @@ function createRoadPopup(properties) {
     items.push(
       `<div class="road-popup-row"><strong>Width:</strong> <span style="color:${widthColor}">${properties.width}</span>${badge}${uncertaintyInfo}</div>`
     );
-    if (properties._widthPredicted && properties._widthContributors) {
+    if (
+      properties._widthPredicted &&
+      predictionsEnabled &&
+      properties._widthContributors
+    ) {
       items.push(formatContributors(properties._widthContributors, "width"));
     }
   }
 
-  if (properties.incline) {
+  // Only show incline if it exists AND (not predicted OR predictions enabled)
+  if (
+    properties.incline &&
+    (!properties._inclinePredicted || predictionsEnabled)
+  ) {
     const inclineColor = properties._inclineColor || "#95a5a6";
     const isPredicted = properties._inclinePredicted;
-    const badge = isPredicted
-      ? `<span class="ml-prediction-badge" title="ML Predicted">🤖</span>`
-      : "";
+    // Only show badge and uncertainty if predictions are enabled
+    const badge =
+      isPredicted && predictionsEnabled
+        ? `<span class="ml-prediction-badge" title="ML Predicted">🤖</span>`
+        : "";
     // For regressors, show uncertainty info
     let uncertaintyInfo = "";
-    if (isPredicted && properties._inclineMetrics) {
+    if (isPredicted && predictionsEnabled && properties._inclineMetrics) {
       const rmse = properties._inclineMetrics.rmse;
       if (rmse) {
         uncertaintyInfo = `<span style="font-size:10px;color:#7f8c8d;margin-left:4px" title="Expected error: ±${rmse.toFixed(
@@ -968,7 +1057,11 @@ function createRoadPopup(properties) {
     items.push(
       `<div class="road-popup-row"><strong>Incline:</strong> <span style="color:${inclineColor}">${properties.incline}</span>${badge}${uncertaintyInfo}</div>`
     );
-    if (properties._inclinePredicted && properties._inclineContributors) {
+    if (
+      properties._inclinePredicted &&
+      predictionsEnabled &&
+      properties._inclineContributors
+    ) {
       items.push(
         formatContributors(properties._inclineContributors, "incline")
       );
@@ -997,20 +1090,40 @@ function createRoadPopup(properties) {
     );
   }
 
-  if (properties._accessibilityScore != null) {
-    const score = properties._accessibilityScore;
-    const color = properties._overallColor || "#95a5a6";
-    const hasPredictions = properties._hasPredictions;
-    const predictedLabel = hasPredictions
-      ? `<span style="font-size:10px;color:#7f8c8d;display:block;margin-top:2px">Includes ML predictions (dashed line)</span>`
-      : "";
+  // Show accessibility score - use original score when predictions are disabled for ML-enhanced features
+  // Note: hasPredictions was already defined earlier in the function
+
+  // Determine which score to show
+  let scoreToShow = null;
+  let colorToShow = "#95a5a6";
+
+  if (!predictionsEnabled && hasPredictions) {
+    // When predictions disabled and this feature had predictions, show original score if available
+    if (properties._originalAccessibilityScore != null) {
+      scoreToShow = properties._originalAccessibilityScore;
+      colorToShow = properties._originalOverallColor || "#95a5a6";
+    }
+    // If no original score, don't show score at all (grey state)
+  } else if (properties._accessibilityScore != null) {
+    // Normal case: show current score
+    scoreToShow = properties._accessibilityScore;
+    colorToShow = properties._overallColor || "#95a5a6";
+  }
+
+  if (scoreToShow != null) {
+    // Only show prediction label if predictions are enabled
+    const predictedLabel =
+      hasPredictions && predictionsEnabled
+        ? `<span style="font-size:10px;color:#7f8c8d;display:block;margin-top:2px">Includes ML predictions (dashed line)</span>`
+        : "";
     items.push(
-      `<div class="road-popup-row road-popup-score"><strong>Accessibility Score:</strong> <span style="color:${color};font-weight:bold">${score}/100</span>${predictedLabel}</div>`
+      `<div class="road-popup-row road-popup-score"><strong>Accessibility Score:</strong> <span style="color:${colorToShow};font-weight:bold">${scoreToShow}/100</span>${predictedLabel}</div>`
     );
   }
 
   // Add prediction info section if any predictions were made OR if loading
-  if (properties._hasPredictions) {
+  // Only show if predictions are enabled
+  if (properties._hasPredictions && predictionsEnabled) {
     items.push(`<div class="prediction-info-section" style="margin-top:8px;padding-top:8px;border-top:1px solid #eee;font-size:10px;color:#7f8c8d">
       <div>🤖 = ML predicted value</div>
       <div style="margin-top:2px">Confidence badge shows model certainty</div>
@@ -1142,8 +1255,72 @@ export function clearInMemoryWaypointsCache() {
  * @param {boolean} enabled - Whether to enable predictions
  */
 export function setPredictionsEnabled(enabled) {
+  const wasEnabled = predictionsEnabled;
   predictionsEnabled = enabled;
   console.log(`🤖 ML predictions ${enabled ? "enabled" : "disabled"}`);
+
+  // Update visual representation of existing layers when toggling predictions
+  if (roadAccessibilityLayer && wasEnabled !== enabled) {
+    updateLayerVisualsForPredictionsToggle();
+  }
+}
+
+/**
+ * Update layer visuals when predictions toggle changes
+ * Removes or restores dashed lines based on predictions enabled state
+ */
+function updateLayerVisualsForPredictionsToggle() {
+  if (!roadAccessibilityLayer) return;
+
+  roadAccessibilityLayer.eachLayer((layer) => {
+    if (!layer.feature) return;
+
+    const properties = layer.feature.properties;
+    const weight = getWeightForHighway(properties.highway);
+    const opacity = 0.8;
+    const color = getColorForMode(properties, currentVizMode);
+
+    // Only show dashed lines if predictions are enabled AND feature has predictions
+    const hasPredictions =
+      properties._hasPredictions ||
+      properties._surfacePredicted ||
+      properties._smoothnessPredicted ||
+      properties._widthPredicted ||
+      properties._inclinePredicted;
+
+    const dashArray = predictionsEnabled && hasPredictions ? "5, 5" : null;
+
+    // Apply updated styles
+    if (layer.setStyle) {
+      layer.setStyle({
+        color,
+        weight,
+        opacity,
+        dashArray,
+      });
+    }
+
+    // Update popup content if popup is open
+    if (layer.isPopupOpen && layer.isPopupOpen()) {
+      const popup = layer.getPopup();
+      if (popup) {
+        popup.setContent(createRoadPopup(properties));
+      }
+    }
+
+    // Update the bound popup function for future opens
+    layer.unbindPopup();
+    layer.bindPopup(() => createRoadPopup(properties), {
+      maxWidth: 300,
+      className: "road-accessibility-popup",
+    });
+  });
+
+  console.log(
+    `🔄 Updated road layer visuals for predictions ${
+      predictionsEnabled ? "enabled" : "disabled"
+    }`
+  );
 }
 
 /**
