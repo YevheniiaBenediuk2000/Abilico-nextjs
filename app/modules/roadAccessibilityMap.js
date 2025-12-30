@@ -85,10 +85,15 @@ export function preloadOnnxModelsInBackground() {
     return onnxLoadingPromise || Promise.resolve();
   }
 
-  console.log("🤖 [ONNX] Starting background preload of models...");
+  const preloadStart = performance.now();
+  console.log("⏱️ [PERF-MAIN] preloadOnnxModelsInBackground START");
   onnxLoadingPromise = initOnnxModels()
     .then(() => {
-      console.log("🤖 [ONNX] Background preload complete!");
+      console.log(
+        `⏱️ [PERF-MAIN] preloadOnnxModelsInBackground DONE: ${(
+          performance.now() - preloadStart
+        ).toFixed(0)}ms`
+      );
       console.log("🤖 Available models:", getAvailableModels());
 
       // If there are pending features waiting for predictions, apply them now
@@ -108,6 +113,11 @@ export function preloadOnnxModelsInBackground() {
     })
     .catch((err) => {
       console.warn("🤖 [ONNX] Background preload failed:", err);
+      console.log(
+        `⏱️ [PERF-MAIN] preloadOnnxModelsInBackground FAILED: ${(
+          performance.now() - preloadStart
+        ).toFixed(0)}ms`
+      );
       onnxLoadingPromise = null;
       return false;
     });
@@ -431,6 +441,11 @@ async function applyPredictionsInBackground(features) {
     return;
   }
 
+  const bgStart = performance.now();
+  console.log(
+    `⏱️ [PERF-MAIN] applyPredictionsInBackground START: ${features.length} features`
+  );
+
   isApplyingPredictions = true;
   pendingPredictionFeatures = null; // Clear pending
   setPredictionsLoadingState(true); // Notify that predictions are loading
@@ -439,11 +454,27 @@ async function applyPredictionsInBackground(features) {
     const enrichedFeatures = await applyMlPredictions(features);
 
     // Update existing layers in place (keeps popups open)
+    const updateStart = performance.now();
     if (roadAccessibilityEnabled && roadAccessibilityLayer) {
       updateRoadLayersInPlace(enrichedFeatures);
     }
+    console.log(
+      `⏱️ [PERF-MAIN] updateRoadLayersInPlace: ${(
+        performance.now() - updateStart
+      ).toFixed(0)}ms`
+    );
+    console.log(
+      `⏱️ [PERF-MAIN] applyPredictionsInBackground TOTAL: ${(
+        performance.now() - bgStart
+      ).toFixed(0)}ms`
+    );
   } catch (error) {
     console.error("🤖 [ONNX] Background prediction failed:", error);
+    console.log(
+      `⏱️ [PERF-MAIN] applyPredictionsInBackground FAILED: ${(
+        performance.now() - bgStart
+      ).toFixed(0)}ms`
+    );
   } finally {
     isApplyingPredictions = false;
     setPredictionsLoadingState(false); // Notify that predictions finished
@@ -457,7 +488,13 @@ async function applyPredictionsInBackground(features) {
  * @returns {Promise<Array>} - Enriched features with predictions
  */
 async function applyMlPredictions(features) {
+  const totalStart = performance.now();
+  console.log(
+    `⏱️ [PERF-MAIN] applyMlPredictions START: ${features.length} features`
+  );
+
   // Separate features that need prediction from those that don't
+  const filterStart = performance.now();
   const needsPredictionFeatures = [];
   const needsPredictionIndices = [];
   const enrichedFeatures = new Array(features.length);
@@ -479,8 +516,20 @@ async function applyMlPredictions(features) {
   }
 
   const skippedCount = features.length - needsPredictionFeatures.length;
+  console.log(
+    `⏱️ [PERF-MAIN] Filter features: ${(
+      performance.now() - filterStart
+    ).toFixed(0)}ms, need=${
+      needsPredictionFeatures.length
+    }, skip=${skippedCount}`
+  );
 
   if (needsPredictionFeatures.length === 0) {
+    console.log(
+      `⏱️ [PERF-MAIN] applyMlPredictions DONE (nothing to predict): ${(
+        performance.now() - totalStart
+      ).toFixed(0)}ms`
+    );
     return features;
   }
 
@@ -490,9 +539,23 @@ async function applyMlPredictions(features) {
   // Batch predict all at once (single worker round-trip!)
   let predictedPropsList;
   try {
+    const batchStart = performance.now();
+    console.log(
+      `⏱️ [PERF-MAIN] Calling predictRoadFeaturesBatch with ${propsToPredict.length} items...`
+    );
     predictedPropsList = await predictRoadFeaturesBatch(propsToPredict);
+    console.log(
+      `⏱️ [PERF-MAIN] predictRoadFeaturesBatch returned: ${(
+        performance.now() - batchStart
+      ).toFixed(0)}ms`
+    );
   } catch (error) {
     console.error("🤖 Batch prediction failed:", error);
+    console.log(
+      `⏱️ [PERF-MAIN] applyMlPredictions FAILED: ${(
+        performance.now() - totalStart
+      ).toFixed(0)}ms`
+    );
     // Fall back to original features
     for (let i = 0; i < needsPredictionFeatures.length; i++) {
       enrichedFeatures[needsPredictionIndices[i]] = needsPredictionFeatures[i];
@@ -572,6 +635,11 @@ async function applyMlPredictions(features) {
 
   console.log(
     `🤖 Applied ML predictions: ${predictedCount} predicted, ${cachedCount} from cache, ${skippedCount} skipped`
+  );
+  console.log(
+    `⏱️ [PERF-MAIN] applyMlPredictions TOTAL: ${(
+      performance.now() - totalStart
+    ).toFixed(0)}ms`
   );
 
   return enrichedFeatures;

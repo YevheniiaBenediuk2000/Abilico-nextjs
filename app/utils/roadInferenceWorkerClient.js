@@ -111,13 +111,34 @@ function sendMessage(type, data = {}) {
  * @returns {Promise<{success: boolean, models: string[]}>}
  */
 export async function initOnnxModels() {
+  const start = performance.now();
+  console.log(`⏱️ [PERF-CLIENT] initOnnxModels START`);
+
   if (!isWorkerInitialized) {
+    const initStart = performance.now();
     await initRoadInferenceWorker();
+    console.log(
+      `⏱️ [PERF-CLIENT] Worker creation: ${(
+        performance.now() - initStart
+      ).toFixed(0)}ms`
+    );
   }
 
+  const msgStart = performance.now();
   const result = await sendMessage("init");
+  console.log(
+    `⏱️ [PERF-CLIENT] Worker init message round-trip: ${(
+      performance.now() - msgStart
+    ).toFixed(0)}ms`
+  );
+
   isWorkerReady = result.success;
   availableModels = result.models || [];
+  console.log(
+    `⏱️ [PERF-CLIENT] initOnnxModels TOTAL: ${(
+      performance.now() - start
+    ).toFixed(0)}ms, models: ${availableModels.join(", ")}`
+  );
   return result;
 }
 
@@ -217,11 +238,34 @@ export async function predictRoadFeatures(props) {
  * @returns {Promise<Array<Object>>} - Enhanced properties with predictions
  */
 export async function predictRoadFeaturesBatch(roadsList) {
+  const start = performance.now();
+  console.log(
+    `⏱️ [PERF-CLIENT] predictRoadFeaturesBatch START: ${roadsList.length} items`
+  );
+
   if (!isWorkerInitialized) {
+    const initStart = performance.now();
     await initRoadInferenceWorker();
+    console.log(
+      `⏱️ [PERF-CLIENT] Worker init: ${(performance.now() - initStart).toFixed(
+        0
+      )}ms`
+    );
   }
 
+  const msgStart = performance.now();
   const response = await sendMessage("predictBatch", { roadsList });
+  console.log(
+    `⏱️ [PERF-CLIENT] Worker round-trip: ${(
+      performance.now() - msgStart
+    ).toFixed(0)}ms`
+  );
+  console.log(
+    `⏱️ [PERF-CLIENT] predictRoadFeaturesBatch TOTAL: ${(
+      performance.now() - start
+    ).toFixed(0)}ms`
+  );
+
   return response.results;
 }
 
