@@ -169,5 +169,9 @@ export function getConfidenceColor(confidence) {
   return workerGetConfidenceColor(confidence);
 }
 
-// Re-export preload function for background initialization
-export { preloadOnnxModelsInBackground } from "./roadInferenceWorkerClient.js";
+// Re-export preload and warmup functions for background initialization
+export {
+  preloadOnnxModelsInBackground,
+  warmupWasm,
+  warmupWasmOnIdle,
+} from "./roadInferenceWorkerClient.js";

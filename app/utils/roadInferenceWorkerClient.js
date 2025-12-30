@@ -13,6 +13,7 @@ const pendingRequests = new Map();
 // State tracking
 let isWorkerInitialized = false;
 let isWorkerReady = false;
+let isWasmWarmedUp = false;
 let availableModels = [];
 
 /**
@@ -164,6 +165,63 @@ export async function preloadOnnxModelsInBackground() {
     });
 
   return true;
+}
+
+/**
+ * Warm up WASM compiler early (loads smallest model to trigger compilation)
+ * Call this on page load or idle to improve perceived performance
+ * @returns {Promise<boolean>}
+ */
+export async function warmupWasm() {
+  if (isWasmWarmedUp) {
+    console.log("🤖 [ONNX] WASM already warmed up");
+    return true;
+  }
+
+  const start = performance.now();
+  console.log("⏱️ [PERF-CLIENT] warmupWasm START");
+
+  if (!isWorkerInitialized) {
+    await initRoadInferenceWorker();
+  }
+
+  try {
+    const result = await sendMessage("warmup");
+    isWasmWarmedUp = result.success;
+    console.log(
+      `⏱️ [PERF-CLIENT] warmupWasm DONE: ${(performance.now() - start).toFixed(
+        0
+      )}ms, success: ${result.success}`
+    );
+    return result.success;
+  } catch (error) {
+    console.warn("🤖 [RoadWorkerClient] WASM warmup failed:", error);
+    return false;
+  }
+}
+
+/**
+ * Start WASM warmup in background using requestIdleCallback
+ * This runs during browser idle time for minimal UI impact
+ */
+export function warmupWasmOnIdle() {
+  if (typeof globalThis.window === "undefined") return;
+  if (isWasmWarmedUp) return;
+
+  const doWarmup = () => {
+    console.log("🤖 [ONNX] Starting WASM warmup on idle...");
+    warmupWasm().catch((err) => {
+      console.warn("🤖 [ONNX] Idle warmup failed:", err);
+    });
+  };
+
+  if ("requestIdleCallback" in globalThis) {
+    // Use requestIdleCallback with a timeout to ensure it runs
+    globalThis.requestIdleCallback(doWarmup, { timeout: 3000 });
+  } else {
+    // Fallback: use setTimeout for browsers without requestIdleCallback
+    setTimeout(doWarmup, 1000);
+  }
 }
 
 /**

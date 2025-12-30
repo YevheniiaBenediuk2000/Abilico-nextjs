@@ -29,6 +29,7 @@ import {
   predictRoadFeaturesBatch,
   isOnnxReady,
   getAvailableModels,
+  warmupWasmOnIdle,
 } from "../utils/onnxRoadPredictor.js";
 
 // Layer group for road accessibility features
@@ -191,6 +192,10 @@ export function initRoadAccessibilityLayer(map) {
 
   // Create layer group
   roadAccessibilityLayer = L.layerGroup([], { pane: "roadAccessibilityPane" });
+
+  // Start WASM warmup in background during idle time
+  // This pre-compiles the WASM module so full model loading is faster later
+  warmupWasmOnIdle();
 
   // Set up event handlers
   map.on(

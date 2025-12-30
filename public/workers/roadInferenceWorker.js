@@ -48,6 +48,8 @@ let isInitialized = false;
 let initPromise = null;
 let cachedDb = null;
 let dbOpenPromise = null;
+let isWasmWarmedUp = false;
+let wasmWarmupPromise = null;
 
 // Inference queues (per model)
 const inferenceQueues = {
@@ -367,6 +369,60 @@ function getPredictionCacheKey(props) {
 }
 
 /**
+ * Warm up WASM by loading the heaviest model (surface: 97.14MB)
+ * This does the expensive WASM compilation + large model load during idle time
+ * so subsequent model loads on user interaction are nearly instant
+ */
+async function warmupWasm() {
+  if (isWasmWarmedUp) return true;
+  if (wasmWarmupPromise) return wasmWarmupPromise;
+
+  wasmWarmupPromise = (async () => {
+    const start = performance.now();
+    console.log("⏱️ [PERF] warmupWasm START (loading surface model)");
+
+    try {
+      // Load schema first
+      const schemaResponse = await fetch(`${MODEL_BASE_PATH}/schema.json`);
+      if (!schemaResponse.ok) {
+        throw new Error(`Failed to load schema: ${schemaResponse.status}`);
+      }
+      schema = await schemaResponse.json();
+
+      // Load the heaviest model (surface: 97.14MB) during idle time
+      // This handles both WASM compilation AND the largest model fetch
+      const heaviestModel = "surface";
+      const modelInfo = schema.models?.[heaviestModel];
+      if (modelInfo) {
+        await loadSingleModel(
+          heaviestModel,
+          modelInfo,
+          schema.version || "1.0"
+        );
+        isWasmWarmedUp = true;
+        console.log(
+          `⏱️ [PERF] warmupWasm DONE: ${(performance.now() - start).toFixed(
+            0
+          )}ms`
+        );
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.warn("[Worker ONNX] WASM warmup failed:", error);
+      console.log(
+        `⏱️ [PERF] warmupWasm FAILED: ${(performance.now() - start).toFixed(
+          0
+        )}ms`
+      );
+      return false;
+    }
+  })();
+
+  return wasmWarmupPromise;
+}
+
+/**
  * Initialize ONNX models
  * Loads all models in parallel for faster startup
  */
@@ -399,11 +455,13 @@ async function initOnnxModels() {
       const allModels = Object.entries(schema.models || {});
       console.log(`⏱️ [PERF] Loading ${allModels.length} models...`);
 
-      // Load ALL models in parallel
+      // Load ALL models in parallel (skip any already loaded during warmup)
       const modelsLoadStart = performance.now();
-      const loadPromises = allModels.map(([modelName, modelInfo]) =>
-        loadSingleModel(modelName, modelInfo, schemaVersion)
-      );
+      const loadPromises = allModels
+        .filter(([modelName]) => !sessions[modelName]) // Skip already-loaded models
+        .map(([modelName, modelInfo]) =>
+          loadSingleModel(modelName, modelInfo, schemaVersion)
+        );
 
       await Promise.all(loadPromises);
       console.log(
@@ -1140,6 +1198,15 @@ globalThis.onmessage = async function (event) {
 
   try {
     switch (type) {
+      case "warmup": {
+        const warmupResult = await warmupWasm();
+        postMsg("warmupResult", {
+          id,
+          success: warmupResult,
+        });
+        break;
+      }
+
       case "init": {
         const initResult = await initOnnxModels();
         postMsg("initResult", {
