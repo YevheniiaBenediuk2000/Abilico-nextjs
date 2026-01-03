@@ -41,6 +41,7 @@ let currentBounds = null;
 let isLoadingRoadData = false;
 let loadingStateCallback = null;
 let predictionsLoadingCallback = null;
+let currentRefreshRequestId = 0; // Track latest refresh request to handle concurrent calls
 
 // Background ONNX loading state
 let onnxLoadingPromise = null;
@@ -68,9 +69,6 @@ export function setPredictionsLoadingCallback(callback) {
  * Internal helper to update predictions loading state and notify callback
  */
 function setPredictionsLoadingState(loading) {
-  console.log(
-    `🤖 Predictions loading state: ${loading}, callback: ${!!predictionsLoadingCallback}`
-  );
   if (predictionsLoadingCallback) {
     predictionsLoadingCallback(loading);
   }
@@ -139,9 +137,6 @@ export function isRoadAccessibilityLoading() {
  */
 function setLoadingState(loading) {
   isLoadingRoadData = loading;
-  console.log(
-    `🛣️ Road accessibility loading state: ${loading}, callback: ${!!loadingStateCallback}`
-  );
   if (loadingStateCallback) {
     loadingStateCallback(loading);
   }
@@ -370,7 +365,12 @@ async function fetchWaypointsWithCache(bounds) {
  * @param {L.Map} map - Leaflet map instance
  */
 async function refreshRoadAccessibilityData(map) {
-  if (!map || !roadAccessibilityEnabled) return;
+  // Generate a unique request ID for this refresh call
+  const requestId = ++currentRefreshRequestId;
+
+  if (!map || !roadAccessibilityEnabled) {
+    return;
+  }
 
   // Store map reference for background prediction updates
   currentMapRef = map;
@@ -409,6 +409,12 @@ async function refreshRoadAccessibilityData(map) {
       east: bounds.getEast(),
     });
 
+    // Check if this request is still the latest one - if not, discard results
+    // This prevents older concurrent requests from overwriting newer data
+    if (requestId !== currentRefreshRequestId) {
+      return;
+    }
+
     if (!geojson || !geojson.features) {
       setLoadingState(false);
       return;
@@ -434,7 +440,10 @@ async function refreshRoadAccessibilityData(map) {
     }
   } catch (error) {
     console.error("🛣️ Error fetching road accessibility:", error);
-    setLoadingState(false);
+    // Only set loading to false if this is still the current request
+    if (requestId === currentRefreshRequestId) {
+      setLoadingState(false);
+    }
   }
 }
 
@@ -745,7 +754,11 @@ function renderRoadFeatures(features) {
     }
   });
 
+  // Save bounds before clearing - we don't want to reset bounds during re-renders
+  // (bounds should only reset when layer is disabled or zoom is too low)
+  const savedBounds = currentBounds;
   clearRoadAccessibilityLayer();
+  currentBounds = savedBounds;
 
   let layerToReopen = null;
 
