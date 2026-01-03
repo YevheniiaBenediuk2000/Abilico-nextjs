@@ -1,4 +1,5 @@
 import debounce from "lodash.debounce";
+import OpeningHoursLib from "opening_hours";
 
 import elements from "./constants/domElements.js";
 import {
@@ -260,6 +261,9 @@ let placeTypeFilterState = null; // { [groupLabel]: { [subLabel]: boolean } } or
 let photosOnlyFilterEnabled = false;
 let photosOnlyPlaceKeys = new Set(); // placeKeys that have photos
 
+// open-now filter state used on the map side
+let openNowFilterEnabled = false;
+
 // ---- User accessibility preferences (for personalised scores) ----
 let userPrefsCache = [];
 let userPrefsLoaded = false;
@@ -439,6 +443,28 @@ function isFeatureAllowedByPhotosFilter(feature) {
   if (!placeKey) return false; // no key -> can't match
 
   return photosOnlyPlaceKeys.has(placeKey);
+}
+
+// used when building markers to decide if a feature should be shown based on open now filter
+function isFeatureAllowedByOpenNowFilter(feature) {
+  if (!openNowFilterEnabled) return true; // filter not active -> all allowed
+
+  const props = feature.properties || {};
+  const tags = props.tags || props;
+  const openingHours = tags.opening_hours || tags["opening_hours"];
+
+  if (!openingHours) return false; // no opening hours -> can't determine if open
+
+  try {
+    const oh = new OpeningHoursLib(openingHours, null, { locale: "en" });
+    const now = new Date();
+    const isUnknown = oh.getUnknown(now);
+    if (isUnknown) return false; // unknown hours -> hide when filter is active
+    return oh.getState(now); // true if open now
+  } catch {
+    // Failed to parse opening_hours - treat as closed/unknown
+    return false;
+  }
 }
 
 function isBenchFeature(feature) {
@@ -1420,6 +1446,7 @@ async function refreshPlaces() {
         if (isBenchFeature(feature)) return false; // don't show benches on the map
         if (!isFeatureAllowedByTypeFilter(feature)) return false;
         if (!isFeatureAllowedByPhotosFilter(feature)) return false;
+        if (!isFeatureAllowedByOpenNowFilter(feature)) return false;
         return true;
       },
       pointToLayer: (feature, latlng) => {
@@ -8175,6 +8202,14 @@ export async function initMap(user = null) {
       // ignore storage errors
     }
 
+    // Initialize open-now filter state from localStorage on map load
+    try {
+      openNowFilterEnabled =
+        window.localStorage.getItem("ui.placeList.openNow") === "1";
+    } catch {
+      // ignore storage errors
+    }
+
     map.addControl(new ZoomMuiControl({ position: "bottomright" }));
     placeClusterLayer.addTo(map);
 
@@ -8653,6 +8688,19 @@ export async function initMap(user = null) {
     console.log(
       `📷 photosOnlyFilterChanged: enabled=${photosOnlyFilterEnabled}, placesWithPhotos=${photosOnlyPlaceKeys.size}`
     );
+
+    // Rebuild places layer in the current viewport using cached features
+    if (map) {
+      refreshPlaces();
+    }
+  });
+
+  // Listen for open-now filter updates from React
+  document.addEventListener("openNowFilterChanged", (ev) => {
+    const { enabled } = ev.detail || {};
+    openNowFilterEnabled = !!enabled;
+
+    console.log(`🕐 openNowFilterChanged: enabled=${openNowFilterEnabled}`);
 
     // Rebuild places layer in the current viewport using cached features
     if (map) {

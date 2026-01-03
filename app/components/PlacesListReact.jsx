@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import OpeningHoursLib from "opening_hours";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import List from "@mui/material/List";
@@ -62,6 +63,33 @@ function getAccessibilityTier(tags = {}) {
   if (raw.includes("limited")) return "limited";
   if (raw === "no" || raw.includes("false")) return "no";
   return "unknown";
+}
+
+/**
+ * Check if a place is currently open based on opening_hours tag.
+ * Returns: { isOpen: boolean, hasHours: boolean }
+ * - isOpen: true if open now, false if closed or unknown
+ * - hasHours: true if the place has valid opening_hours data
+ */
+function isPlaceOpenNow(tags = {}) {
+  const openingHours = tags.opening_hours || tags["opening_hours"];
+  if (!openingHours) {
+    return { isOpen: false, hasHours: false };
+  }
+
+  try {
+    const oh = new OpeningHoursLib(openingHours, null, { locale: "en" });
+    const now = new Date();
+    const isUnknown = oh.getUnknown(now);
+    if (isUnknown) {
+      return { isOpen: false, hasHours: true };
+    }
+    const isOpen = oh.getState(now);
+    return { isOpen, hasHours: true };
+  } catch (e) {
+    // Failed to parse opening_hours - treat as unknown
+    return { isOpen: false, hasHours: true };
+  }
 }
 
 function haversineKm(lat1, lon1, lat2, lon2) {
@@ -386,6 +414,7 @@ function buildTypeTree(items) {
 // localStorage key for place-type filter
 const PLACE_TYPE_FILTER_LS_KEY = "ui.placeType.filter";
 const PHOTOS_ONLY_LS_KEY = "ui.placeList.photosOnly";
+const OPEN_NOW_LS_KEY = "ui.placeList.openNow";
 const ACCESSIBILITY_FILTER_LS_KEY = "ui.placeAccessibility.filter";
 const ALL_ACCESSIBILITY_TIERS = [
   "designated",
@@ -1378,6 +1407,17 @@ export default function PlacesListReact({
     }
   });
 
+  const [openNowOnly, setOpenNowOnly] = useState(() => {
+    // Disable openNowOnly filter when hideControls is true (e.g., saved places page)
+    if (hideControls) return false;
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem(OPEN_NOW_LS_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+
   // Clear all filters function
   const clearAllFilters = () => {
     if (typeof window === "undefined") return;
@@ -1403,6 +1443,10 @@ export default function PlacesListReact({
       // Clear photos only filter
       window.localStorage.removeItem(PHOTOS_ONLY_LS_KEY);
       setPhotosOnly(false);
+
+      // Clear open now filter
+      window.localStorage.removeItem(OPEN_NOW_LS_KEY);
+      setOpenNowOnly(false);
 
       // Force re-render of filter components (they will rebuild with defaults and dispatch events)
       setFilterResetKey((prev) => prev + 1);
@@ -1452,6 +1496,30 @@ export default function PlacesListReact({
       })
     );
   }, [photoByKey, photosOnly, hideControls]);
+
+  // Persist and dispatch openNowOnly filter changes
+  useEffect(() => {
+    if (hideControls) return;
+    if (typeof window === "undefined") return;
+    try {
+      if (openNowOnly) {
+        window.localStorage.setItem(OPEN_NOW_LS_KEY, "1");
+      } else {
+        window.localStorage.removeItem(OPEN_NOW_LS_KEY);
+      }
+
+      // Dispatch event to notify mapMain.js about the filter change
+      document.dispatchEvent(
+        new CustomEvent("openNowFilterChanged", {
+          detail: {
+            enabled: openNowOnly,
+          },
+        })
+      );
+    } catch {
+      // ignore storage errors
+    }
+  }, [openNowOnly, hideControls]);
 
   // raw items (with type metadata)
   const rawItems = useMemo(() => {
@@ -2256,6 +2324,15 @@ export default function PlacesListReact({
       });
     }
 
+    // 👇 NEW: keep only places that are currently open
+    // Skip this filter when hideControls is true
+    if (openNowOnly && !hideControls) {
+      filtered = filtered.filter((item) => {
+        const { isOpen } = isPlaceOpenNow(item.tags || {});
+        return isOpen;
+      });
+    }
+
     // 👇 NEW: when Best for me is active:
     // keep ONLY places that have multi-level ratings AND belong to the detected city
     // Skip this filter when hideControls is true
@@ -2306,6 +2383,7 @@ export default function PlacesListReact({
     activeTypeFilters,
     photosOnly,
     photoByKey,
+    openNowOnly,
     sortBy,
     scoresByPlaceKey,
     currentBestForMeCity,
@@ -2817,6 +2895,38 @@ export default function PlacesListReact({
                   >
                     Only places with photos
                     {!hasAnyPhotoInArea && " – no photos in this area yet"}
+                  </Typography>
+                }
+              />
+            </Box>
+
+            {/* Open Now filter */}
+            <Box sx={{ mt: 1.5, mb: 1.5 }}>
+              <Typography
+                variant="overline"
+                sx={{
+                  color: "text.primary",
+                  fontWeight: 600,
+                  letterSpacing: 1,
+                  fontSize: "0.7rem",
+                  mb: 0.75,
+                  display: "block",
+                }}
+              >
+                OPENING HOURS
+              </Typography>
+
+              <FormControlLabel
+                control={
+                  <Switch
+                    size="small"
+                    checked={openNowOnly}
+                    onChange={(e) => setOpenNowOnly(e.target.checked)}
+                  />
+                }
+                label={
+                  <Typography variant="body2" color="text.secondary">
+                    Open now
                   </Typography>
                 }
               />
