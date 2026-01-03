@@ -27,6 +27,8 @@ import EmailIcon from "@mui/icons-material/Email";
 import LockIcon from "@mui/icons-material/Lock";
 import AccessibilityNewIcon from "@mui/icons-material/AccessibilityNew";
 import EditIcon from "@mui/icons-material/Edit";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Grid from "@mui/material/Grid";
@@ -60,7 +62,9 @@ function getInitialsFromEmail(email) {
 // Helper function to get color based on email
 function getAvatarColor(email) {
   if (!email) return deepOrange[500];
-  const hash = email.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const hash = email
+    .split("")
+    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return hash % 2 === 0 ? deepOrange[500] : deepPurple[500];
 }
 
@@ -91,6 +95,9 @@ export default function ProfilePage() {
   const [nameLoading, setNameLoading] = useState(false);
   const [nameError, setNameError] = useState("");
   const [showDisable2FADialog, setShowDisable2FADialog] = useState(false);
+  const [showDeleteAccountDialog, setShowDeleteAccountDialog] = useState(false);
+  const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -135,7 +142,9 @@ export default function ProfilePage() {
       try {
         const { data, error } = await supabase
           .from("profiles")
-          .select("accessibility_preferences, disability_types, home_area, full_name")
+          .select(
+            "accessibility_preferences, disability_types, home_area, full_name"
+          )
           .eq("id", user.id)
           .maybeSingle();
 
@@ -149,7 +158,7 @@ export default function ProfilePage() {
             full_name: null,
           };
           setProfile(profileData);
-          
+
           // Parse full_name into first name and surname
           if (profileData.full_name) {
             const nameParts = profileData.full_name.trim().split(/\s+/);
@@ -191,7 +200,8 @@ export default function ProfilePage() {
   const handleSetupMFA = async () => {
     try {
       // First, check for existing unverified factors and clean them up
-      const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
+      const { data: factors, error: listError } =
+        await supabase.auth.mfa.listFactors();
       if (listError) {
         console.error("Error listing factors:", listError);
       } else {
@@ -199,13 +209,16 @@ export default function ProfilePage() {
         const unverifiedFactors = factors?.all?.filter(
           (f) => f.factor_type === "totp" && f.status !== "verified"
         );
-        
+
         if (unverifiedFactors && unverifiedFactors.length > 0) {
           for (const factor of unverifiedFactors) {
             try {
               await supabase.auth.mfa.unenroll({ factorId: factor.id });
             } catch (unenrollErr) {
-              console.warn("Failed to unenroll unverified factor:", unenrollErr);
+              console.warn(
+                "Failed to unenroll unverified factor:",
+                unenrollErr
+              );
             }
           }
         }
@@ -215,24 +228,31 @@ export default function ProfilePage() {
       const { data, error } = await supabase.auth.mfa.enroll({
         factorType: "totp",
       });
-      
+
       if (error) {
-        toastError(error.message || "An error occurred while setting up 2FA. Please try again.", {
-          title: "Failed to Start 2FA Setup",
-        });
+        toastError(
+          error.message ||
+            "An error occurred while setting up 2FA. Please try again.",
+          {
+            title: "Failed to Start 2FA Setup",
+          }
+        );
         console.error("2FA enrollment error:", error);
         // Refresh MFA status to ensure toggle reflects actual state
         await refreshMFAStatus();
         return;
       }
-      
+
       currentFactorId = data.id;
       setQrCode(data.totp.qr_code);
       setShow2FASetup(true);
     } catch (error) {
-      toastError(error.message || "An unexpected error occurred. Please try again.", {
-        title: "Failed to Start 2FA Setup",
-      });
+      toastError(
+        error.message || "An unexpected error occurred. Please try again.",
+        {
+          title: "Failed to Start 2FA Setup",
+        }
+      );
       console.error("2FA setup error:", error);
       // Refresh MFA status to ensure toggle reflects actual state
       await refreshMFAStatus();
@@ -247,14 +267,19 @@ export default function ProfilePage() {
   // Confirm and disable 2FA
   const confirmDisableMFA = async () => {
     setShowDisable2FADialog(false);
-    
+
     try {
       // Get all factors for the user
-      const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
+      const { data: factors, error: listError } =
+        await supabase.auth.mfa.listFactors();
       if (listError) {
-        toastError(listError.message || "Unable to retrieve your 2FA settings. Please try again.", {
-          title: "Failed to Fetch 2FA Factors",
-        });
+        toastError(
+          listError.message ||
+            "Unable to retrieve your 2FA settings. Please try again.",
+          {
+            title: "Failed to Fetch 2FA Factors",
+          }
+        );
         console.error(listError);
         return;
       }
@@ -277,25 +302,34 @@ export default function ProfilePage() {
       });
 
       if (unenrollError) {
-        toastError(unenrollError.message || "Unable to disable 2FA. Please try again.", {
-          title: "Failed to Disable 2FA",
-        });
+        toastError(
+          unenrollError.message || "Unable to disable 2FA. Please try again.",
+          {
+            title: "Failed to Disable 2FA",
+          }
+        );
         console.error(unenrollError);
         return;
       }
 
       // Show success message
-      toastSuccess("Two-factor authentication has been successfully disabled.", {
-        title: "2FA Disabled",
-      });
-      
+      toastSuccess(
+        "Two-factor authentication has been successfully disabled.",
+        {
+          title: "2FA Disabled",
+        }
+      );
+
       // Refresh MFA status and session
       await refreshMFAStatus();
       await supabase.auth.refreshSession();
     } catch (error) {
-      toastError(error.message || "An unexpected error occurred. Please try again.", {
-        title: "Error Disabling 2FA",
-      });
+      toastError(
+        error.message || "An unexpected error occurred. Please try again.",
+        {
+          title: "Error Disabling 2FA",
+        }
+      );
       console.error(error);
     }
   };
@@ -315,9 +349,13 @@ export default function ProfilePage() {
       });
     if (challengeErr) {
       console.error("Challenge failed:", challengeErr);
-      toastError(challengeErr.message || "Unable to create verification challenge. Please try again.", {
-        title: "Verification Failed",
-      });
+      toastError(
+        challengeErr.message ||
+          "Unable to create verification challenge. Please try again.",
+        {
+          title: "Verification Failed",
+        }
+      );
       return;
     }
 
@@ -348,7 +386,9 @@ export default function ProfilePage() {
     setNameLoading(true);
 
     try {
-      const fullName = [firstName.trim(), surname.trim()].filter(Boolean).join(" ");
+      const fullName = [firstName.trim(), surname.trim()]
+        .filter(Boolean)
+        .join(" ");
       const { error: updateError } = await supabase
         .from("profiles")
         .update({
@@ -358,7 +398,9 @@ export default function ProfilePage() {
 
       if (updateError) {
         console.error("Error saving name:", updateError);
-        setNameError(`Failed to save: ${updateError.message || "Unknown error"}`);
+        setNameError(
+          `Failed to save: ${updateError.message || "Unknown error"}`
+        );
         setNameLoading(false);
         return;
       }
@@ -423,10 +465,86 @@ export default function ProfilePage() {
     }
   };
 
+  // Handle account deletion
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== "DELETE") {
+      toastError("Please type DELETE to confirm account deletion.", {
+        title: "Confirmation Required",
+      });
+      return;
+    }
+
+    setDeleteAccountLoading(true);
+
+    try {
+      // Get the current session token
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        toastError("Unable to verify your session. Please sign in again.", {
+          title: "Session Error",
+        });
+        setDeleteAccountLoading(false);
+        return;
+      }
+
+      // Call the delete account API
+      const response = await fetch("/api/user/delete-account", {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        toastError(
+          result.error || "Failed to delete account. Please try again.",
+          {
+            title: "Delete Account Failed",
+          }
+        );
+        setDeleteAccountLoading(false);
+        return;
+      }
+
+      // Sign out and redirect to auth page
+      await supabase.auth.signOut();
+
+      toastSuccess("Your account has been permanently deleted.", {
+        title: "Account Deleted",
+      });
+
+      // Redirect to auth page
+      if (typeof window !== "undefined") {
+        window.location.assign("/auth");
+      } else {
+        router.push("/auth");
+      }
+    } catch (error) {
+      console.error("Error deleting account:", error);
+      toastError("An unexpected error occurred. Please try again.", {
+        title: "Error",
+      });
+      setDeleteAccountLoading(false);
+    }
+  };
+
   if (!user) {
     return (
       <MapLayout isDashboard={true}>
-        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "50vh" }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            minHeight: "50vh",
+          }}
+        >
           <Typography>Loading...</Typography>
         </Box>
       </MapLayout>
@@ -471,7 +589,11 @@ export default function ProfilePage() {
               >
                 {getInitialsFromEmail(user.email)}
               </Avatar>
-              <Typography variant="h5" component="h1" sx={{ mb: 1, fontWeight: 500 }}>
+              <Typography
+                variant="h5"
+                component="h1"
+                sx={{ mb: 1, fontWeight: 500 }}
+              >
                 Profile
               </Typography>
             </Box>
@@ -490,7 +612,11 @@ export default function ProfilePage() {
               >
                 <EmailIcon sx={{ color: "text.secondary" }} />
                 <Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: "block", mb: 0.5 }}
+                  >
                     Email
                   </Typography>
                   <Typography variant="body1">{user.email}</Typography>
@@ -514,11 +640,20 @@ export default function ProfilePage() {
                 <>
                   {/* Full Name */}
                   <Box sx={{ mb: 2 }}>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ mb: 0.5 }}
+                    >
                       Name
                     </Typography>
                     {isEditingName ? (
-                      <Grid container spacing={2} alignItems="center" sx={{ mt: 2 }}>
+                      <Grid
+                        container
+                        spacing={2}
+                        alignItems="center"
+                        sx={{ mt: 2 }}
+                      >
                         <Grid item xs={12} sm={6}>
                           <TextField
                             fullWidth
@@ -558,7 +693,8 @@ export default function ProfilePage() {
                               "& .MuiInputLabel-root": {
                                 fontSize: "0.875rem",
                                 "&.MuiInputLabel-shrink": {
-                                  transform: "translate(14px, -9px) scale(0.75)",
+                                  transform:
+                                    "translate(14px, -9px) scale(0.75)",
                                 },
                               },
                             }}
@@ -580,9 +716,13 @@ export default function ProfilePage() {
                                 setIsEditingName(false);
                                 // Reset to original values
                                 if (profile?.full_name) {
-                                  const nameParts = profile.full_name.trim().split(/\s+/);
+                                  const nameParts = profile.full_name
+                                    .trim()
+                                    .split(/\s+/);
                                   if (nameParts.length >= 2) {
-                                    setFirstName(nameParts.slice(0, -1).join(" "));
+                                    setFirstName(
+                                      nameParts.slice(0, -1).join(" ")
+                                    );
                                     setSurname(nameParts[nameParts.length - 1]);
                                   } else if (nameParts.length === 1) {
                                     setFirstName(nameParts[0]);
@@ -624,14 +764,27 @@ export default function ProfilePage() {
                               "& .MuiInputLabel-root": {
                                 fontSize: "0.875rem",
                                 "&.MuiInputLabel-shrink": {
-                                  transform: "translate(14px, -9px) scale(0.75)",
+                                  transform:
+                                    "translate(14px, -9px) scale(0.75)",
                                 },
                               },
                             }}
                           />
                         </Grid>
-                        <Grid item xs={12} sm={12} sx={{ display: { xs: "block", sm: "none" } }}>
-                          <Box sx={{ display: "flex", gap: 1.5, justifyContent: "flex-end", mt: 1 }}>
+                        <Grid
+                          item
+                          xs={12}
+                          sm={12}
+                          sx={{ display: { xs: "block", sm: "none" } }}
+                        >
+                          <Box
+                            sx={{
+                              display: "flex",
+                              gap: 1.5,
+                              justifyContent: "flex-end",
+                              mt: 1,
+                            }}
+                          >
                             <Button
                               variant="contained"
                               size="small"
@@ -646,7 +799,11 @@ export default function ProfilePage() {
                                 height: "32.5px",
                               }}
                             >
-                              {nameLoading ? <CircularProgress size={16} /> : "Save"}
+                              {nameLoading ? (
+                                <CircularProgress size={16} />
+                              ) : (
+                                "Save"
+                              )}
                             </Button>
                             <Button
                               variant="outlined"
@@ -655,9 +812,13 @@ export default function ProfilePage() {
                                 setIsEditingName(false);
                                 // Reset to original values
                                 if (profile?.full_name) {
-                                  const nameParts = profile.full_name.trim().split(/\s+/);
+                                  const nameParts = profile.full_name
+                                    .trim()
+                                    .split(/\s+/);
                                   if (nameParts.length >= 2) {
-                                    setFirstName(nameParts.slice(0, -1).join(" "));
+                                    setFirstName(
+                                      nameParts.slice(0, -1).join(" ")
+                                    );
                                     setSurname(nameParts[nameParts.length - 1]);
                                   } else if (nameParts.length === 1) {
                                     setFirstName(nameParts[0]);
@@ -683,7 +844,17 @@ export default function ProfilePage() {
                             </Button>
                           </Box>
                         </Grid>
-                        <Grid item xs={12} sm={12} sx={{ display: { xs: "none", sm: "flex" }, alignItems: "center", justifyContent: "flex-end", gap: 1.5 }}>
+                        <Grid
+                          item
+                          xs={12}
+                          sm={12}
+                          sx={{
+                            display: { xs: "none", sm: "flex" },
+                            alignItems: "center",
+                            justifyContent: "flex-end",
+                            gap: 1.5,
+                          }}
+                        >
                           <Button
                             variant="contained"
                             size="small"
@@ -698,7 +869,11 @@ export default function ProfilePage() {
                               height: "32.5px",
                             }}
                           >
-                            {nameLoading ? <CircularProgress size={16} /> : "Save"}
+                            {nameLoading ? (
+                              <CircularProgress size={16} />
+                            ) : (
+                              "Save"
+                            )}
                           </Button>
                           <Button
                             variant="outlined"
@@ -707,9 +882,13 @@ export default function ProfilePage() {
                               setIsEditingName(false);
                               // Reset to original values
                               if (profile?.full_name) {
-                                const nameParts = profile.full_name.trim().split(/\s+/);
+                                const nameParts = profile.full_name
+                                  .trim()
+                                  .split(/\s+/);
                                 if (nameParts.length >= 2) {
-                                  setFirstName(nameParts.slice(0, -1).join(" "));
+                                  setFirstName(
+                                    nameParts.slice(0, -1).join(" ")
+                                  );
                                   setSurname(nameParts[nameParts.length - 1]);
                                 } else if (nameParts.length === 1) {
                                   setFirstName(nameParts[0]);
@@ -736,7 +915,11 @@ export default function ProfilePage() {
                         </Grid>
                         {nameError && (
                           <Grid item xs={12}>
-                            <Typography variant="body2" color="error" sx={{ mt: 1 }}>
+                            <Typography
+                              variant="body2"
+                              color="error"
+                              sx={{ mt: 1 }}
+                            >
                               {nameError}
                             </Typography>
                           </Grid>
@@ -754,7 +937,12 @@ export default function ProfilePage() {
                       >
                         <Typography variant="body1">
                           {profile?.full_name || (
-                            <Typography component="span" variant="body2" color="text.secondary" fontStyle="italic">
+                            <Typography
+                              component="span"
+                              variant="body2"
+                              color="text.secondary"
+                              fontStyle="italic"
+                            >
                               Not set
                             </Typography>
                           )}
@@ -787,7 +975,12 @@ export default function ProfilePage() {
                     </Box>
                     <Typography variant="body1">
                       {profile?.home_area || (
-                        <Typography component="span" variant="body2" color="text.secondary" fontStyle="italic">
+                        <Typography
+                          component="span"
+                          variant="body2"
+                          color="text.secondary"
+                          fontStyle="italic"
+                        >
                           Not specified
                         </Typography>
                       )}
@@ -807,10 +1000,14 @@ export default function ProfilePage() {
               <List sx={{ bgcolor: "background.paper" }}>
                 <ListItem disablePadding>
                   <ListItemButton
-                    onClick={() => setAccessibilityExpanded(!accessibilityExpanded)}
+                    onClick={() =>
+                      setAccessibilityExpanded(!accessibilityExpanded)
+                    }
                     sx={{
                       borderRadius: 1,
-                      bgcolor: accessibilityExpanded ? "action.hover" : "transparent",
+                      bgcolor: accessibilityExpanded
+                        ? "action.hover"
+                        : "transparent",
                       "&:hover": {
                         bgcolor: "action.hover",
                       },
@@ -821,7 +1018,11 @@ export default function ProfilePage() {
                     </ListItemIcon>
                     <ListItemText
                       primary="Accessibility Settings"
-                      secondary={accessibilityExpanded ? "Click to collapse" : "Click to expand"}
+                      secondary={
+                        accessibilityExpanded
+                          ? "Click to collapse"
+                          : "Click to expand"
+                      }
                     />
                   </ListItemButton>
                 </ListItem>
@@ -864,18 +1065,29 @@ export default function ProfilePage() {
                           </Button>
                         </Box>
                         {profile?.accessibility_preferences?.length > 0 ? (
-                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                          <Stack
+                            direction="row"
+                            spacing={1}
+                            flexWrap="wrap"
+                            useFlexGap
+                          >
                             {profile.accessibility_preferences.map((pref) => (
                               <Chip
                                 key={pref}
-                                label={ACCESSIBILITY_CATEGORY_LABELS[pref] || pref}
+                                label={
+                                  ACCESSIBILITY_CATEGORY_LABELS[pref] || pref
+                                }
                                 size="small"
                                 variant="outlined"
                               />
                             ))}
                           </Stack>
                         ) : (
-                          <Typography variant="body2" color="text.secondary" fontStyle="italic">
+                          <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            fontStyle="italic"
+                          >
                             No preferences selected yet
                           </Typography>
                         )}
@@ -906,11 +1118,19 @@ export default function ProfilePage() {
                           </Button>
                         </Box>
                         {profile?.disability_types?.length > 0 ? (
-                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                          <Stack
+                            direction="row"
+                            spacing={1}
+                            flexWrap="wrap"
+                            useFlexGap
+                          >
                             {profile.disability_types.map((type) => (
                               <Chip
                                 key={type}
-                                label={DISABILITY_TYPES.find(t => t.id === type)?.label || type}
+                                label={
+                                  DISABILITY_TYPES.find((t) => t.id === type)
+                                    ?.label || type
+                                }
                                 size="small"
                                 variant="outlined"
                                 color="primary"
@@ -918,7 +1138,11 @@ export default function ProfilePage() {
                             ))}
                           </Stack>
                         ) : (
-                          <Typography variant="body2" color="text.secondary" fontStyle="italic">
+                          <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            fontStyle="italic"
+                          >
                             Not specified yet
                           </Typography>
                         )}
@@ -942,7 +1166,9 @@ export default function ProfilePage() {
                     onClick={() => setSecurityExpanded(!securityExpanded)}
                     sx={{
                       borderRadius: 1,
-                      bgcolor: securityExpanded ? "action.hover" : "transparent",
+                      bgcolor: securityExpanded
+                        ? "action.hover"
+                        : "transparent",
                       "&:hover": {
                         bgcolor: "action.hover",
                       },
@@ -953,7 +1179,11 @@ export default function ProfilePage() {
                     </ListItemIcon>
                     <ListItemText
                       primary="Security Settings"
-                      secondary={securityExpanded ? "Click to collapse" : "Click to expand"}
+                      secondary={
+                        securityExpanded
+                          ? "Click to collapse"
+                          : "Click to expand"
+                      }
                     />
                   </ListItemButton>
                 </ListItem>
@@ -969,8 +1199,17 @@ export default function ProfilePage() {
                 >
                   {/* Password Change Section */}
                   <Box sx={{ mb: 4 }}>
-                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        mb: 2,
+                      }}
+                    >
+                      <Box
+                        sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                      >
                         <LockIcon sx={{ color: "text.secondary" }} />
                         <Box>
                           <Typography variant="body1" sx={{ fontWeight: 500 }}>
@@ -1027,12 +1266,20 @@ export default function ProfilePage() {
                           autoComplete="new-password"
                         />
                         {passwordError && (
-                          <Typography variant="body2" color="error" sx={{ mb: 2 }}>
+                          <Typography
+                            variant="body2"
+                            color="error"
+                            sx={{ mb: 2 }}
+                          >
                             {passwordError}
                           </Typography>
                         )}
                         {passwordSuccess && (
-                          <Typography variant="body2" color="success.main" sx={{ mb: 2 }}>
+                          <Typography
+                            variant="body2"
+                            color="success.main"
+                            sx={{ mb: 2 }}
+                          >
                             {passwordSuccess}
                           </Typography>
                         )}
@@ -1094,15 +1341,34 @@ export default function ProfilePage() {
                         borderColor: "divider",
                       }}
                     >
-                      <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 500 }}>
+                      <Typography
+                        variant="subtitle1"
+                        sx={{ mb: 2, fontWeight: 500 }}
+                      >
                         Set up Two-Factor Authentication
                       </Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        Scan this QR code with Google Authenticator, then enter the 6-digit code:
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ mb: 2 }}
+                      >
+                        Scan this QR code with Google Authenticator, then enter
+                        the 6-digit code:
                       </Typography>
                       {qrCode && (
-                        <Box sx={{ display: "flex", justifyContent: "center", mb: 3 }}>
-                          <img src={qrCode} alt="QR code" width="200" height="200" />
+                        <Box
+                          sx={{
+                            display: "flex",
+                            justifyContent: "center",
+                            mb: 3,
+                          }}
+                        >
+                          <img
+                            src={qrCode}
+                            alt="QR code"
+                            width="200"
+                            height="200"
+                          />
                         </Box>
                       )}
                       <TextField
@@ -1138,6 +1404,60 @@ export default function ProfilePage() {
                   )}
                 </Box>
               )}
+            </Box>
+
+            <Divider sx={{ my: 3 }} />
+
+            {/* Danger Zone - Delete Account */}
+            <Box>
+              <Typography
+                variant="h6"
+                sx={{ mb: 2, fontWeight: 500, color: "error.main" }}
+              >
+                Danger Zone
+              </Typography>
+              <Box
+                sx={{
+                  p: 3,
+                  border: "1px solid",
+                  borderColor: "error.light",
+                  borderRadius: 1,
+                  bgcolor: "error.50",
+                }}
+              >
+                <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
+                  <DeleteForeverIcon
+                    sx={{ color: "error.main", fontSize: 28, mt: 0.5 }}
+                  />
+                  <Box sx={{ flex: 1 }}>
+                    <Typography
+                      variant="body1"
+                      sx={{ fontWeight: 500, mb: 0.5 }}
+                    >
+                      Delete Account
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ mb: 2 }}
+                    >
+                      Permanently delete your account and all associated data.
+                      This action cannot be undone.
+                    </Typography>
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      onClick={() => setShowDeleteAccountDialog(true)}
+                      startIcon={<DeleteForeverIcon />}
+                      sx={{
+                        textTransform: "none",
+                      }}
+                    >
+                      Delete my account
+                    </Button>
+                  </Box>
+                </Box>
+              </Box>
             </Box>
           </CardContent>
         </Card>
@@ -1237,7 +1557,7 @@ export default function ProfilePage() {
                 }}
               />
             </Box>
-            
+
             {/* Text Content */}
             <Box sx={{ flex: 1 }}>
               <Typography
@@ -1257,11 +1577,14 @@ export default function ProfilePage() {
                   mb: 3,
                 }}
               >
-                Are you sure you want to disable Two-Factor Authentication? This will reduce your account security.
+                Are you sure you want to disable Two-Factor Authentication? This
+                will reduce your account security.
               </Typography>
-              
+
               {/* Action Buttons */}
-              <Box sx={{ display: "flex", gap: 1.5, justifyContent: "flex-end" }}>
+              <Box
+                sx={{ display: "flex", gap: 1.5, justifyContent: "flex-end" }}
+              >
                 <Button
                   variant="outlined"
                   color="primary"
@@ -1291,7 +1614,176 @@ export default function ProfilePage() {
           </Box>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Account Confirmation Dialog */}
+      <Dialog
+        open={showDeleteAccountDialog}
+        onClose={() => {
+          if (!deleteAccountLoading) {
+            setShowDeleteAccountDialog(false);
+            setDeleteConfirmText("");
+          }
+        }}
+        maxWidth="sm"
+        fullWidth
+        sx={{
+          "& .MuiDialog-container": {
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          },
+        }}
+        PaperProps={{
+          sx: {
+            borderRadius: DIALOG_BORDER_RADIUS,
+            boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+            margin: "auto",
+            maxHeight: "90vh",
+          },
+        }}
+      >
+        <DialogContent sx={{ p: 3, pb: 2 }}>
+          <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
+            {/* Warning Icon */}
+            <Box
+              sx={{
+                flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <WarningAmberIcon
+                sx={{
+                  fontSize: 48,
+                  color: "error.main",
+                }}
+              />
+            </Box>
+
+            {/* Text Content */}
+            <Box sx={{ flex: 1 }}>
+              <Typography
+                variant="h6"
+                sx={{
+                  fontWeight: 600,
+                  mb: 1,
+                  color: "error.main",
+                }}
+              >
+                Delete Your Account?
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  mb: 2,
+                }}
+              >
+                This action is <strong>permanent and irreversible</strong>. All
+                your data will be deleted, including:
+              </Typography>
+              <Box component="ul" sx={{ m: 0, pl: 2, mb: 2 }}>
+                <Typography
+                  component="li"
+                  variant="body2"
+                  color="text.secondary"
+                >
+                  Your profile and personal information
+                </Typography>
+                <Typography
+                  component="li"
+                  variant="body2"
+                  color="text.secondary"
+                >
+                  All places you&apos;ve added
+                </Typography>
+                <Typography
+                  component="li"
+                  variant="body2"
+                  color="text.secondary"
+                >
+                  Your saved places and reviews
+                </Typography>
+                <Typography
+                  component="li"
+                  variant="body2"
+                  color="text.secondary"
+                >
+                  Your ratings and votes
+                </Typography>
+              </Box>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  mb: 2,
+                }}
+              >
+                To confirm, please type <strong>DELETE</strong> below:
+              </Typography>
+              <TextField
+                fullWidth
+                placeholder="Type DELETE to confirm"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                disabled={deleteAccountLoading}
+                sx={{ mb: 3 }}
+                autoComplete="off"
+                error={
+                  deleteConfirmText.length > 0 && deleteConfirmText !== "DELETE"
+                }
+                helperText={
+                  deleteConfirmText.length > 0 && deleteConfirmText !== "DELETE"
+                    ? 'Please type "DELETE" exactly as shown'
+                    : ""
+                }
+              />
+
+              {/* Action Buttons */}
+              <Box
+                sx={{ display: "flex", gap: 1.5, justifyContent: "flex-end" }}
+              >
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  onClick={() => {
+                    setShowDeleteAccountDialog(false);
+                    setDeleteConfirmText("");
+                  }}
+                  disabled={deleteAccountLoading}
+                  sx={{
+                    textTransform: "none",
+                    px: 3,
+                    py: 0.75,
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="contained"
+                  color="error"
+                  onClick={handleDeleteAccount}
+                  disabled={
+                    deleteAccountLoading || deleteConfirmText !== "DELETE"
+                  }
+                  sx={{
+                    textTransform: "none",
+                    px: 3,
+                    py: 0.75,
+                  }}
+                >
+                  {deleteAccountLoading ? (
+                    <CircularProgress size={20} color="inherit" />
+                  ) : (
+                    "Delete Account"
+                  )}
+                </Button>
+              </Box>
+            </Box>
+          </Box>
+        </DialogContent>
+      </Dialog>
     </MapLayout>
   );
 }
-
