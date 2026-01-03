@@ -709,6 +709,9 @@ function updateRoadLayersInPlace(features) {
 
     const dashArray = hasPredictions ? "5, 5" : null;
 
+    // Update stored base styles for hover handlers
+    layer._baseStyles = { weight, opacity, dashArray };
+
     // Apply new styles
     if (layer.setStyle) {
       layer.setStyle({
@@ -826,20 +829,42 @@ function renderRoadFeatures(features) {
     }
 
     if (layer) {
+      // Store base styles on the layer for hover handlers to reference
+      // This allows updateRoadLayersInPlace to update these values when predictions are applied
+      layer._baseStyles = { weight, opacity, dashArray };
+
       // Add popup - use a function so it's evaluated on each open (captures current loading state)
       layer.bindPopup(() => createRoadPopup(properties), {
         maxWidth: 300,
         className: "road-accessibility-popup",
       });
 
-      // Add hover effect
+      // Add hover effect - reference stored styles so they update when predictions are applied
       layer.on("mouseover", function () {
-        this.setStyle({ weight: weight + 2, opacity: 1 });
+        const base = this._baseStyles || {
+          weight: 3,
+          opacity: 0.8,
+          dashArray: null,
+        };
+        this.setStyle({
+          weight: base.weight + 2,
+          opacity: 1,
+          dashArray: base.dashArray,
+        });
         this.bringToFront();
       });
 
       layer.on("mouseout", function () {
-        this.setStyle({ weight, opacity, dashArray });
+        const base = this._baseStyles || {
+          weight: 3,
+          opacity: 0.8,
+          dashArray: null,
+        };
+        this.setStyle({
+          weight: base.weight,
+          opacity: base.opacity,
+          dashArray: base.dashArray,
+        });
       });
 
       // Store feature reference
@@ -1417,6 +1442,9 @@ function updateLayerVisualsForPredictionsToggle() {
       properties._inclinePredicted;
 
     const dashArray = predictionsEnabled && hasPredictions ? "5, 5" : null;
+
+    // Update stored base styles for hover handlers
+    layer._baseStyles = { weight, opacity, dashArray };
 
     // Apply updated styles
     if (layer.setStyle) {
