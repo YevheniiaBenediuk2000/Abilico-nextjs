@@ -45,14 +45,14 @@ export default function RegisterPersonalInfoPage() {
         return;
       }
       setCheckingAuth(false);
-      
+
       // Load existing profile data if available
       const { data: profile } = await supabase
         .from("profiles")
         .select("full_name, home_area")
         .eq("id", user.id)
         .maybeSingle();
-      
+
       if (profile) {
         // Split full_name into first name and surname
         if (profile.full_name) {
@@ -64,10 +64,10 @@ export default function RegisterPersonalInfoPage() {
             setFirstName(nameParts[0]);
           }
         }
-        
+
         // Parse home_area to extract city and country if it's in "City, Country" format
         if (profile.home_area) {
-          const parts = profile.home_area.split(",").map(p => p.trim());
+          const parts = profile.home_area.split(",").map((p) => p.trim());
           if (parts.length >= 2) {
             setCity(parts[0]);
             setCityInputValue(parts[0]);
@@ -94,7 +94,9 @@ export default function RegisterPersonalInfoPage() {
 
         setCountryLoading(true);
         try {
-          const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=30`;
+          const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(
+            query
+          )}&limit=30`;
 
           const response = await fetch(url);
           const data = await response.json();
@@ -110,9 +112,12 @@ export default function RegisterPersonalInfoPage() {
               // Prioritize direct country matches, but also collect countries from other features
               const isDirectCountry = placeType === "country";
               const existing = countries.get(countryName);
-              
+
               if (!existing || (isDirectCountry && !existing.isDirect)) {
-                countries.set(countryName, { name: countryName, isDirect: isDirectCountry });
+                countries.set(countryName, {
+                  name: countryName,
+                  isDirect: isDirectCountry,
+                });
               }
             }
           });
@@ -124,7 +129,7 @@ export default function RegisterPersonalInfoPage() {
               if (!a.isDirect && b.isDirect) return 1;
               return a.name.localeCompare(b.name);
             })
-            .map(item => item.name)
+            .map((item) => item.name)
             .slice(0, 20);
 
           setCountryOptions(sortedCountries);
@@ -134,7 +139,7 @@ export default function RegisterPersonalInfoPage() {
         } finally {
           setCountryLoading(false);
         }
-      }, 400),
+      }, 200),
     []
   );
 
@@ -151,7 +156,9 @@ export default function RegisterPersonalInfoPage() {
         try {
           // Build search query with city name and country
           const searchQuery = `${query}, ${selectedCountry}`;
-          const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(searchQuery)}&limit=15`;
+          const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(
+            searchQuery
+          )}&limit=15`;
 
           const response = await fetch(url);
           const data = await response.json();
@@ -168,7 +175,9 @@ export default function RegisterPersonalInfoPage() {
               cityName &&
               cityCountry &&
               cityCountry.toLowerCase() === selectedCountry.toLowerCase() &&
-              (placeType === "city" || placeType === "town" || placeType === "village")
+              (placeType === "city" ||
+                placeType === "town" ||
+                placeType === "village")
             ) {
               // Use Map to avoid duplicates, prioritize cities over towns
               if (!cities.has(cityName)) {
@@ -196,7 +205,7 @@ export default function RegisterPersonalInfoPage() {
         } finally {
           setCityLoading(false);
         }
-      }, 400),
+      }, 200),
     []
   );
 
@@ -241,15 +250,13 @@ export default function RegisterPersonalInfoPage() {
 
       // Create a minimal profile entry if it doesn't exist (so flow knows user skipped this step)
       if (!existingProfile) {
-        const { error } = await supabase
-          .from("profiles")
-          .insert({
-            id: user.id,
-            full_name: null,
-            home_area: null,
-            accessibility_preferences: [],
-            disability_types: [],
-          });
+        const { error } = await supabase.from("profiles").insert({
+          id: user.id,
+          full_name: null,
+          home_area: null,
+          accessibility_preferences: [],
+          disability_types: [],
+        });
 
         if (error) {
           console.error("Error creating profile:", error);
@@ -270,8 +277,10 @@ export default function RegisterPersonalInfoPage() {
     setValidationError("");
 
     // Build full name from first name and surname
-    const fullName = [firstName.trim(), surname.trim()].filter(Boolean).join(" ");
-    
+    const fullName = [firstName.trim(), surname.trim()]
+      .filter(Boolean)
+      .join(" ");
+
     // Build home area from city and country
     const homeAreaParts = [city.trim(), country.trim()].filter(Boolean);
     const homeArea = homeAreaParts.length > 0 ? homeAreaParts.join(", ") : null;
@@ -317,20 +326,20 @@ export default function RegisterPersonalInfoPage() {
         }
       } else {
         // Profile doesn't exist, insert it (create with empty defaults if nothing provided)
-        ({ error } = await supabase
-          .from("profiles")
-          .insert({
-            id: user.id,
-            full_name: hasName ? fullName.trim() : null,
-            home_area: hasHomeArea ? homeArea : null,
-            accessibility_preferences: [],
-            disability_types: [],
-          }));
+        ({ error } = await supabase.from("profiles").insert({
+          id: user.id,
+          full_name: hasName ? fullName.trim() : null,
+          home_area: hasHomeArea ? homeArea : null,
+          accessibility_preferences: [],
+          disability_types: [],
+        }));
       }
 
       if (error) {
         console.error("Error saving personal info:", error);
-        setValidationError(`Failed to save: ${error.message || "Unknown error"}`);
+        setValidationError(
+          `Failed to save: ${error.message || "Unknown error"}`
+        );
         setLoading(false);
         return;
       }
@@ -509,7 +518,15 @@ export default function RegisterPersonalInfoPage() {
                 color: "text.primary",
               }}
             >
-              Location <Typography component="span" variant="body2" color="text.secondary" sx={{ fontWeight: 400 }}>(Optional)</Typography>
+              Location{" "}
+              <Typography
+                component="span"
+                variant="body2"
+                color="text.secondary"
+                sx={{ fontWeight: 400 }}
+              >
+                (Optional)
+              </Typography>
             </Typography>
 
             <Grid container spacing={4}>
@@ -544,7 +561,9 @@ export default function RegisterPersonalInfoPage() {
                         ...params.InputProps,
                         endAdornment: (
                           <>
-                            {countryLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                            {countryLoading ? (
+                              <CircularProgress color="inherit" size={20} />
+                            ) : null}
                             {params.InputProps.endAdornment}
                           </>
                         ),
@@ -610,13 +629,21 @@ export default function RegisterPersonalInfoPage() {
                     <TextField
                       {...params}
                       label="City"
-                      placeholder={country ? "Search or type city" : "Select country first"}
-                      helperText={country ? "City or neighbourhood" : "Please select a country first"}
+                      placeholder={
+                        country ? "Search or type city" : "Select country first"
+                      }
+                      helperText={
+                        country
+                          ? "City or neighbourhood"
+                          : "Please select a country first"
+                      }
                       InputProps={{
                         ...params.InputProps,
                         endAdornment: (
                           <>
-                            {cityLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                            {cityLoading ? (
+                              <CircularProgress color="inherit" size={20} />
+                            ) : null}
                             {params.InputProps.endAdornment}
                           </>
                         ),
@@ -718,7 +745,11 @@ export default function RegisterPersonalInfoPage() {
                 },
               }}
             >
-              {loading ? <CircularProgress size={24} color="inherit" /> : "Continue"}
+              {loading ? (
+                <CircularProgress size={24} color="inherit" />
+              ) : (
+                "Continue"
+              )}
             </Button>
           </Stack>
         </CardContent>
@@ -726,4 +757,3 @@ export default function RegisterPersonalInfoPage() {
     </Box>
   );
 }
-

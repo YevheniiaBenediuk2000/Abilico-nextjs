@@ -1,7 +1,20 @@
-const bar = document.getElementById("global-loading");
+// Lazy lookup of the loading bar element to handle React hydration timing
+let bar = null;
+function getBar() {
+  if (!bar) {
+    bar = document.getElementById("global-loading");
+  }
+  return bar;
+}
+
 let count = 0;
 const active = new Set();
-const update = () => bar.classList.toggle("d-none", count === 0);
+const update = () => {
+  const el = getBar();
+  if (el) {
+    el.classList.toggle("d-none", count === 0);
+  }
+};
 
 export function showLoading(key = Symbol("loading")) {
   if (!active.has(key)) {
@@ -52,12 +65,12 @@ export function showDetailsLoading(
 ) {
   container.classList.remove("d-none");
   const list = container.querySelector("#details-list");
-  
+
   // Create a beautiful loading state with proper spacing and modern styling
   const loadingItem = document.createElement("div");
   loadingItem.className = "list-group-item";
   loadingItem.style.padding = "0";
-  
+
   const loadingContainer = document.createElement("div");
   loadingContainer.style.padding = "48px 24px"; // Generous padding for breathing room
   loadingContainer.style.display = "flex";
@@ -66,13 +79,13 @@ export function showDetailsLoading(
   loadingContainer.style.justifyContent = "center";
   loadingContainer.style.gap = "16px"; // Space between spinner and text
   loadingContainer.style.minHeight = "200px"; // Minimum height for better visual presence
-  
+
   // Spinner container with better styling
   const spinnerContainer = document.createElement("div");
   spinnerContainer.style.display = "flex";
   spinnerContainer.style.alignItems = "center";
   spinnerContainer.style.justifyContent = "center";
-  
+
   const spinner = document.createElement("span");
   spinner.className = "spinner-border";
   spinner.setAttribute("role", "status");
@@ -82,7 +95,7 @@ export function showDetailsLoading(
   spinner.style.borderWidth = "3px";
   spinner.style.color = "var(--bs-primary)"; // Use brand primary
   spinnerContainer.appendChild(spinner);
-  
+
   // Loading text with better typography
   const loadingText = document.createElement("span");
   loadingText.textContent = "Loading details…";
@@ -90,14 +103,14 @@ export function showDetailsLoading(
   loadingText.style.fontWeight = "500";
   loadingText.style.color = "rgba(0, 0, 0, 0.87)";
   loadingText.style.letterSpacing = "-0.01em";
-  
+
   loadingContainer.appendChild(spinnerContainer);
   loadingContainer.appendChild(loadingText);
   loadingItem.appendChild(loadingContainer);
-  
+
   list.innerHTML = "";
   list.appendChild(loadingItem);
-  
+
   moveDepartureSearchBarUnderTo();
   mountInOffcanvas(titleText);
 }

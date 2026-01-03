@@ -1269,7 +1269,7 @@ async function refreshPlaces() {
 
   const bounds = map.getBounds();
   const zoom = map.getZoom();
-  const key = showLoading("places");
+  const key = showLoading(Symbol(`places-${mySeq}`));
 
   try {
     // Avoid any extra work (Supabase, clustering, etc.) when we don't show places.
@@ -1326,7 +1326,9 @@ async function refreshPlaces() {
     }
 
     // If this response is for an old call, ignore it
-    if (mySeq !== placesReqSeq) return;
+    if (mySeq !== placesReqSeq) {
+      return;
+    }
 
     // ✅ 3. Fetch user-added places from Supabase and merge them
     // IMPORTANT: OSM places have priority - never overwrite them with user places
@@ -1339,7 +1341,9 @@ async function refreshPlaces() {
       }));
 
     // If a newer refresh started while we were fetching, ignore this work
-    if (mySeq !== placesReqSeq) return;
+    if (mySeq !== placesReqSeq) {
+      return;
+    }
     if (
       userPlacesGeoJSON &&
       userPlacesGeoJSON.features &&
@@ -8182,7 +8186,11 @@ export async function initMap(user = null) {
     map.on("draw:deletestop", () => (drawState.deleting = false));
 
     // Debounce viewport-driven fetching/rendering to avoid churn while the user is interacting.
-    map.on("moveend", debounce(refreshPlaces, 250));
+    // Use leading: true so loading indicator shows immediately on first drag
+    map.on(
+      "moveend",
+      debounce(refreshPlaces, 20, { leading: true, trailing: true })
+    );
     const initialZoom = map.getZoom();
     if (initialZoom >= SHOW_PLACES_ZOOM) {
       // Run once on first load so list & markers appear without dragging

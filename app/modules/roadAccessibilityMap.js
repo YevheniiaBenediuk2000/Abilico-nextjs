@@ -199,13 +199,18 @@ export function initRoadAccessibilityLayer(map) {
   warmupWasmOnIdle();
 
   // Set up event handlers
+  // Use leading: true so loading indicator shows immediately on first drag
   map.on(
     "moveend",
-    debounce(() => {
-      if (roadAccessibilityEnabled) {
-        refreshRoadAccessibilityData(map);
-      }
-    }, 500)
+    debounce(
+      () => {
+        if (roadAccessibilityEnabled) {
+          refreshRoadAccessibilityData(map);
+        }
+      },
+      500,
+      { leading: true, trailing: true }
+    )
   );
 
   map.on("zoomend", () => {
