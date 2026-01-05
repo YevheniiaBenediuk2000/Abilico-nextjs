@@ -1,0 +1,643 @@
+{
+  "description": "Sample review data for accessibility extraction and 'best for me' sorting testing",
+  "accessibilityLabels": [
+    "step-free entrance",
+    "stairs at entrance",
+    "ramp",
+    "automatic door",
+    "wide doorway",
+    "narrow doorway",
+    "elevator",
+    "broken elevator",
+    "accessible toilet",
+    "no accessible toilet",
+    "accessible parking",
+    "no accessible parking"
+  ],
+  "sampleReviews": [
+    {
+      "id": "review_001",
+      "place_name": "City Museum",
+      "comment": "Great museum! The entrance has a ramp and automatic door which made it easy to enter with my wheelchair. Inside, there's an elevator to access all floors. The accessible toilet on the ground floor is spacious and well-equipped. There's also accessible parking right outside. Highly recommend!",
+      "overall_rating": 5,
+      "category_ratings": {
+        "entrance": 5,
+        "indoor_mobility": 5,
+        "restroom": 5,
+        "parking": 5
+      },
+      "expectedKeywords": [
+        {
+          "label": "ramp",
+          "score": 0.99
+        },
+        {
+          "label": "automatic door",
+          "score": 0.99
+        },
+        {
+          "label": "elevator",
+          "score": 0.99
+        },
+        {
+          "label": "accessible toilet",
+          "score": 0.99
+        },
+        {
+          "label": "accessible parking",
+          "score": 0.99
+        }
+      ],
+      "bestForMeScore": {
+        "userWithWheelchair": 0.95,
+        "userWithMobilityAid": 0.90,
+        "userWithVisualImpairment": 0.70
+      }
+    },
+    {
+      "id": "review_002",
+      "place_name": "Downtown Café",
+      "comment": "Nice coffee but accessibility is poor. There are stairs at entrance with no ramp. The doorway is narrow and hard to navigate with a wheelchair. No accessible toilet available. Staff was friendly though.",
+      "overall_rating": 2,
+      "category_ratings": {
+        "entrance": 1,
+        "indoor_mobility": 2,
+        "restroom": 1
+      },
+      "expectedKeywords": [
+        {
+          "label": "stairs at entrance",
+          "score": 0.99
+        },
+        {
+          "label": "narrow doorway",
+          "score": 0.98
+        },
+        {
+          "label": "no accessible toilet",
+          "score": 0.99
+        }
+      ],
+      "bestForMeScore": {
+        "userWithWheelchair": 0.15,
+        "userWithMobilityAid": 0.20,
+        "userWithVisualImpairment": 0.60
+      }
+    },
+    {
+      "id": "review_003",
+      "place_name": "Shopping Mall",
+      "comment": "The mall has step-free entrance and wide doorways throughout. Multiple elevators connect all floors. Accessible toilets are available on every level. However, the accessible parking is quite far from the main entrance, about 200 meters away.",
+      "overall_rating": 4,
+      "category_ratings": {
+        "entrance": 5,
+        "indoor_mobility": 5,
+        "restroom": 5,
+        "parking": 3
+      },
+      "expectedKeywords": [
+        {
+          "label": "step-free entrance",
+          "score": 0.99
+        },
+        {
+          "label": "wide doorway",
+          "score": 0.98
+        },
+        {
+          "label": "elevator",
+          "score": 0.99
+        },
+        {
+          "label": "accessible toilet",
+          "score": 0.99
+        },
+        {
+          "label": "accessible parking",
+          "score": 0.85
+        }
+      ],
+      "bestForMeScore": {
+        "userWithWheelchair": 0.85,
+        "userWithMobilityAid": 0.90,
+        "userWithVisualImpairment": 0.75
+      }
+    },
+    {
+      "id": "review_004",
+      "place_name": "Historic Theater",
+      "comment": "Beautiful building but accessibility is limited. There's a ramp at the side entrance, but the main entrance has stairs. The elevator was broken when we visited, so we couldn't access the upper level. No accessible toilet on the ground floor.",
+      "overall_rating": 2,
+      "category_ratings": {
+        "entrance": 2,
+        "indoor_mobility": 1,
+        "restroom": 1
+      },
+      "expectedKeywords": [
+        {
+          "label": "ramp",
+          "score": 0.95
+        },
+        {
+          "label": "stairs at entrance",
+          "score": 0.98
+        },
+        {
+          "label": "broken elevator",
+          "score": 0.99
+        },
+        {
+          "label": "no accessible toilet",
+          "score": 0.99
+        }
+      ],
+      "bestForMeScore": {
+        "userWithWheelchair": 0.25,
+        "userWithMobilityAid": 0.30,
+        "userWithVisualImpairment": 0.50
+      }
+    },
+    {
+      "id": "review_005",
+      "place_name": "Modern Library",
+      "comment": "Excellent accessibility! Step-free entrance with automatic doors. Wide doorways everywhere. Elevator works perfectly. Accessible toilets on every floor with grab bars. Accessible parking spots are right next to the entrance. This is how all public buildings should be!",
+      "overall_rating": 5,
+      "category_ratings": {
+        "entrance": 5,
+        "indoor_mobility": 5,
+        "restroom": 5,
+        "parking": 5,
+        "visual_auditory": 4
+      },
+      "expectedKeywords": [
+        {
+          "label": "step-free entrance",
+          "score": 0.99
+        },
+        {
+          "label": "automatic door",
+          "score": 0.99
+        },
+        {
+          "label": "wide doorway",
+          "score": 0.99
+        },
+        {
+          "label": "elevator",
+          "score": 0.99
+        },
+        {
+          "label": "accessible toilet",
+          "score": 0.99
+        },
+        {
+          "label": "accessible parking",
+          "score": 0.99
+        }
+      ],
+      "bestForMeScore": {
+        "userWithWheelchair": 0.98,
+        "userWithMobilityAid": 0.95,
+        "userWithVisualImpairment": 0.85
+      }
+    },
+    {
+      "id": "review_006",
+      "place_name": "Local Restaurant",
+      "comment": "Good food but the entrance is challenging. Narrow doorway and you need to step up about 6 inches. No ramp available. Once inside, the tables are wheelchair accessible but the restroom is not accessible - it's too small and has no grab bars.",
+      "overall_rating": 3,
+      "category_ratings": {
+        "entrance": 2,
+        "indoor_mobility": 3,
+        "restroom": 1,
+        "seating": 4
+      },
+      "expectedKeywords": [
+        {
+          "label": "narrow doorway",
+          "score": 0.99
+        },
+        {
+          "label": "no accessible toilet",
+          "score": 0.98
+        }
+      ],
+      "bestForMeScore": {
+        "userWithWheelchair": 0.40,
+        "userWithMobilityAid": 0.50,
+        "userWithVisualImpairment": 0.65
+      }
+    },
+    {
+      "id": "review_007",
+      "place_name": "Community Center",
+      "comment": "The building has a ramp and automatic door at the main entrance. Wide doorways make navigation easy. There's an elevator but it's quite slow. Accessible toilet is available. Parking situation is unclear - I didn't see any accessible parking signs.",
+      "overall_rating": 4,
+      "category_ratings": {
+        "entrance": 5,
+        "indoor_mobility": 4,
+        "restroom": 4,
+        "parking": 2
+      },
+      "expectedKeywords": [
+        {
+          "label": "ramp",
+          "score": 0.99
+        },
+        {
+          "label": "automatic door",
+          "score": 0.99
+        },
+        {
+          "label": "wide doorway",
+          "score": 0.98
+        },
+        {
+          "label": "elevator",
+          "score": 0.95
+        },
+        {
+          "label": "accessible toilet",
+          "score": 0.99
+        }
+      ],
+      "bestForMeScore": {
+        "userWithWheelchair": 0.80,
+        "userWithMobilityAid": 0.85,
+        "userWithVisualImpairment": 0.70
+      }
+    },
+    {
+      "id": "review_008",
+      "place_name": "Sports Complex",
+      "comment": "No accessible parking available. You have to park far away and walk. The entrance has stairs and no ramp. Once inside, there are elevators but they're often out of service. The accessible toilets exist but are frequently locked.",
+      "overall_rating": 1,
+      "category_ratings": {
+        "entrance": 1,
+        "indoor_mobility": 2,
+        "restroom": 2,
+        "parking": 1
+      },
+      "expectedKeywords": [
+        {
+          "label": "no accessible parking",
+          "score": 0.99
+        },
+        {
+          "label": "stairs at entrance",
+          "score": 0.99
+        },
+        {
+          "label": "elevator",
+          "score": 0.70
+        },
+        {
+          "label": "accessible toilet",
+          "score": 0.60
+        }
+      ],
+      "bestForMeScore": {
+        "userWithWheelchair": 0.10,
+        "userWithMobilityAid": 0.15,
+        "userWithVisualImpairment": 0.40
+      }
+    },
+    {
+      "id": "review_009",
+      "place_name": "Art Gallery",
+      "comment": "Wonderful collection! The gallery has step-free entrance and automatic doors. All doorways are wide enough for wheelchairs. There's an elevator to the second floor. Accessible toilet is clean and well-maintained. Accessible parking is available in the adjacent lot.",
+      "overall_rating": 5,
+      "category_ratings": {
+        "entrance": 5,
+        "indoor_mobility": 5,
+        "restroom": 5,
+        "parking": 5
+      },
+      "expectedKeywords": [
+        {
+          "label": "step-free entrance",
+          "score": 0.99
+        },
+        {
+          "label": "automatic door",
+          "score": 0.99
+        },
+        {
+          "label": "wide doorway",
+          "score": 0.99
+        },
+        {
+          "label": "elevator",
+          "score": 0.99
+        },
+        {
+          "label": "accessible toilet",
+          "score": 0.99
+        },
+        {
+          "label": "accessible parking",
+          "score": 0.99
+        }
+      ],
+      "bestForMeScore": {
+        "userWithWheelchair": 0.98,
+        "userWithMobilityAid": 0.95,
+        "userWithVisualImpairment": 0.80
+      }
+    },
+    {
+      "id": "review_010",
+      "place_name": "Medical Clinic",
+      "comment": "The clinic has a ramp and automatic door. However, the doorway to the exam rooms is narrow. There's an accessible toilet but it's on the second floor and the elevator was broken elevator when I visited. No accessible parking - had to park on the street.",
+      "overall_rating": 2,
+      "category_ratings": {
+        "entrance": 4,
+        "indoor_mobility": 2,
+        "restroom": 3,
+        "parking": 1
+      },
+      "expectedKeywords": [
+        {
+          "label": "ramp",
+          "score": 0.99
+        },
+        {
+          "label": "automatic door",
+          "score": 0.99
+        },
+        {
+          "label": "narrow doorway",
+          "score": 0.98
+        },
+        {
+          "label": "broken elevator",
+          "score": 0.99
+        },
+        {
+          "label": "accessible toilet",
+          "score": 0.95
+        },
+        {
+          "label": "no accessible parking",
+          "score": 0.99
+        }
+      ],
+      "bestForMeScore": {
+        "userWithWheelchair": 0.35,
+        "userWithMobilityAid": 0.45,
+        "userWithVisualImpairment": 0.60
+      }
+    }
+  ],
+  "userProfiles": {
+    "userWithWheelchair": {
+      "disability_types": ["mobility"],
+      "accessibility_preferences": [
+        "entrance",
+        "indoor_mobility",
+        "restroom",
+        "parking"
+      ],
+      "description": "User primarily uses a wheelchair, needs step-free access, elevators, accessible toilets, and parking"
+    },
+    "userWithMobilityAid": {
+      "disability_types": ["mobility"],
+      "accessibility_preferences": [
+        "entrance",
+        "indoor_mobility",
+        "restroom"
+      ],
+      "description": "User uses mobility aids (walker, cane), needs ramps, wide doorways, and accessible toilets"
+    },
+    "userWithVisualImpairment": {
+      "disability_types": ["visual"],
+      "accessibility_preferences": [
+        "visual_auditory",
+        "staff"
+      ],
+      "description": "User has visual impairment, needs visual/auditory support and staff assistance"
+    }
+  },
+  "aggregatedKeywordOutput": {
+    "description": "Example aggregated output from recomputePlaceAccessibilityKeywords for a place with multiple reviews",
+    "place_id": "example_place_001",
+    "accessibility_keywords": [
+      {
+        "label": "accessible toilet",
+        "count": 8,
+        "pct": 80.0,
+        "scoreAvg": 0.98
+      },
+      {
+        "label": "elevator",
+        "count": 7,
+        "pct": 70.0,
+        "scoreAvg": 0.95
+      },
+      {
+        "label": "step-free entrance",
+        "count": 5,
+        "pct": 50.0,
+        "scoreAvg": 0.99
+      },
+      {
+        "label": "ramp",
+        "count": 5,
+        "pct": 50.0,
+        "scoreAvg": 0.99
+      },
+      {
+        "label": "automatic door",
+        "count": 5,
+        "pct": 50.0,
+        "scoreAvg": 0.99
+      },
+      {
+        "label": "accessible parking",
+        "count": 4,
+        "pct": 40.0,
+        "scoreAvg": 0.96
+      },
+      {
+        "label": "wide doorway",
+        "count": 4,
+        "pct": 40.0,
+        "scoreAvg": 0.98
+      },
+      {
+        "label": "stairs at entrance",
+        "count": 3,
+        "pct": 30.0,
+        "scoreAvg": 0.99
+      },
+      {
+        "label": "narrow doorway",
+        "count": 3,
+        "pct": 30.0,
+        "scoreAvg": 0.98
+      },
+      {
+        "label": "broken elevator",
+        "count": 2,
+        "pct": 20.0,
+        "scoreAvg": 0.99
+      },
+      {
+        "label": "no accessible toilet",
+        "count": 2,
+        "pct": 20.0,
+        "scoreAvg": 0.98
+      },
+      {
+        "label": "no accessible parking",
+        "count": 2,
+        "pct": 20.0,
+        "scoreAvg": 0.99
+      }
+    ]
+  },
+  "bestForMeSortingExample": {
+    "description": "Example of how places would be sorted for 'best for me' based on user preferences",
+    "userProfile": "userWithWheelchair",
+    "userPreferences": ["entrance", "indoor_mobility", "restroom", "parking"],
+    "places": [
+      {
+        "place_id": "place_001",
+        "place_name": "City Museum",
+        "averageRating": 4.8,
+        "reviewCount": 15,
+        "accessibility_keywords": [
+          { "label": "step-free entrance", "count": 12, "pct": 80.0 },
+          { "label": "elevator", "count": 15, "pct": 100.0 },
+          { "label": "accessible toilet", "count": 14, "pct": 93.3 },
+          { "label": "accessible parking", "count": 13, "pct": 86.7 }
+        ],
+        "category_ratings_avg": {
+          "entrance": 4.9,
+          "indoor_mobility": 4.8,
+          "restroom": 4.7,
+          "parking": 4.6
+        },
+        "bestForMeScore": 0.95,
+        "scoreBreakdown": {
+          "keywordMatch": 0.90,
+          "categoryRatings": 0.95,
+          "reviewCount": 0.90
+        }
+      },
+      {
+        "place_id": "place_002",
+        "place_name": "Modern Library",
+        "averageRating": 4.9,
+        "reviewCount": 22,
+        "accessibility_keywords": [
+          { "label": "step-free entrance", "count": 20, "pct": 90.9 },
+          { "label": "elevator", "count": 22, "pct": 100.0 },
+          { "label": "accessible toilet", "count": 21, "pct": 95.5 },
+          { "label": "accessible parking", "count": 19, "pct": 86.4 }
+        ],
+        "category_ratings_avg": {
+          "entrance": 5.0,
+          "indoor_mobility": 5.0,
+          "restroom": 4.9,
+          "parking": 4.8
+        },
+        "bestForMeScore": 0.98,
+        "scoreBreakdown": {
+          "keywordMatch": 0.93,
+          "categoryRatings": 0.98,
+          "reviewCount": 0.95
+        }
+      },
+      {
+        "place_id": "place_003",
+        "place_name": "Downtown Café",
+        "averageRating": 3.2,
+        "reviewCount": 8,
+        "accessibility_keywords": [
+          { "label": "stairs at entrance", "count": 7, "pct": 87.5 },
+          { "label": "narrow doorway", "count": 6, "pct": 75.0 },
+          { "label": "no accessible toilet", "count": 8, "pct": 100.0 }
+        ],
+        "category_ratings_avg": {
+          "entrance": 1.5,
+          "indoor_mobility": 2.0,
+          "restroom": 1.0,
+          "parking": 2.5
+        },
+        "bestForMeScore": 0.15,
+        "scoreBreakdown": {
+          "keywordMatch": 0.10,
+          "categoryRatings": 0.15,
+          "reviewCount": 0.20
+        }
+      }
+    ],
+    "sortedPlaces": [
+      {
+        "rank": 1,
+        "place_id": "place_002",
+        "place_name": "Modern Library",
+        "bestForMeScore": 0.98
+      },
+      {
+        "rank": 2,
+        "place_id": "place_001",
+        "place_name": "City Museum",
+        "bestForMeScore": 0.95
+      },
+      {
+        "rank": 3,
+        "place_id": "place_003",
+        "place_name": "Downtown Café",
+        "bestForMeScore": 0.15
+      }
+    ]
+  },
+  "sortingAlgorithmNotes": {
+    "description": "Notes on how 'best for me' sorting should work",
+    "factors": [
+      {
+        "factor": "Keyword Match Score",
+        "weight": 0.4,
+        "description": "Percentage of reviews mentioning positive accessibility features that match user preferences. Higher percentage = higher score."
+      },
+      {
+        "factor": "Category Ratings Average",
+        "weight": 0.4,
+        "description": "Average rating across user's preferred accessibility categories. Uses category_ratings from reviews."
+      },
+      {
+        "factor": "Review Count",
+        "weight": 0.1,
+        "description": "More reviews = more reliable data. Normalized score based on review count (capped at reasonable max)."
+      },
+      {
+        "factor": "Overall Rating",
+        "weight": 0.1,
+        "description": "General quality indicator. Places with higher overall ratings are preferred."
+      }
+    ],
+    "negativeKeywords": {
+      "description": "Negative keywords (like 'no accessible toilet', 'broken elevator') should reduce the score",
+      "penalty": 0.2,
+      "examples": [
+        "no accessible toilet",
+        "no accessible parking",
+        "broken elevator",
+        "stairs at entrance",
+        "narrow doorway"
+      ]
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
+

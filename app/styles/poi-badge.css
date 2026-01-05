@@ -1,0 +1,79 @@
+/* Fixed-size outer circle */
+.poi-badge {
+  width: 33px;
+  height: 33px;
+  border-radius: 9999px;
+  background: var(--badge, #3b82f6); /* <-- leave var so JS can override */
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.65);
+  display: grid;
+  place-items: center;
+  position: relative;
+}
+
+/* ML-predicted badge variant */
+.poi-badge--predicted {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.65);
+}
+
+/* AI indicator badge - positioned at bottom center, overlapping the badge */
+.poi-badge__ai-indicator {
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--badge, #3b82f6);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  font-size: 8px;
+  font-weight: 600;
+  line-height: 1;
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  z-index: 1;
+}
+
+/* Fixed-size glyph mask */
+.poi-badge__glyph {
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  mask: var(--glyph) center/contain no-repeat;
+  -webkit-mask: var(--glyph) center/contain no-repeat;
+}
+
+/* (nice to have) remove default Leaflet div-icon box */
+.poi-badge-wrapper.leaflet-div-icon {
+  background: transparent;
+  border: none;
+}
+
+/* Caution badge - circular with yellow border ring like POI badge */
+.caution-badge {
+  width: 33px;
+  height: 33px;
+  border-radius: 9999px;
+  background: #ffffff;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25), inset 0 0 0 2px #ffc107;
+  display: grid;
+  place-items: center;
+}
+
+/* Caution icon inside badge - same size as POI glyph */
+.caution-badge img {
+  width: 16px;
+  height: 16px;
+  display: block;
+  object-fit: contain;
+}
+
+/* Remove default Leaflet div-icon box for caution badge */
+.caution-badge-wrapper.leaflet-div-icon {
+  background: transparent;
+  border: none;
+}

@@ -1,0 +1,1554 @@
+:root {
+  /* Brand primary (single source of truth) */
+  --abilico-primary: #0c77d2;
+  --abilico-primary-rgb: 12, 119, 210;
+
+  /* Bootstrap override for consistent button/link blues */
+  --bs-primary: var(--abilico-primary);
+  --bs-primary-rgb: var(--abilico-primary-rgb);
+}
+
+.abilico-map {
+  /* Soft background while tiles load (prevents white flash). */
+  background: #e5edf5;
+}
+
+/* Fade-in only for the initial tile load to reduce perceived “jumpiness”. */
+.abilico-map.leaflet-container {
+  opacity: 0;
+  transition: opacity 220ms ease;
+  will-change: opacity;
+}
+
+.abilico-map.leaflet-container.is-ready {
+  opacity: 1;
+}
+
+.map-overlay {
+  position: absolute;
+  z-index: 401;
+  top: 12px;
+  left: 12px;
+  width: clamp(240px, 60vw, 420px);
+}
+
+/* Smooth transitions for details tab panels */
+.details-tab-panel {
+  transition: opacity 150ms ease-out;
+  will-change: opacity;
+}
+
+/* Reduce bottom padding in details panel when zoomed out */
+#details-list {
+  padding-bottom: 0 !important;
+}
+
+#details-list .list-group-item:last-child {
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* Details panel links should use the brand primary color (consistent across all sections) */
+#details-list a {
+  color: var(--bs-primary);
+}
+
+#details-list a:hover {
+  color: color-mix(in srgb, var(--bs-primary) 78%, #000);
+}
+
+.search-suggestions button {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+/* Suggestions dropdown */
+.search-suggestions {
+  position: absolute;
+  /* Anchor directly under the input (works for both From and To) */
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  /* Must sit above MUI Drawers/Offcanvas panels */
+  z-index: 2000;
+  max-height: 320px;
+
+  overflow: auto;
+  /* This node is only a React mount target; the Paper inside provides visuals */
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  box-shadow: none !important;
+}
+
+#destination-search-bar div {
+  margin-left: 0;
+}
+
+/* When the destination-search-bar lives inside the Offcanvas, make it full-width & non-absolute */
+#placeOffcanvasRoute #destination-search-bar {
+  position: relative;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+.quick-choose-popup .leaflet-popup-content {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.quick-choose-popup .leaflet-popup-content-wrapper {
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.quick-choose-popup .leaflet-popup-tip {
+  background: transparent;
+  box-shadow: none;
+}
+
+.quick-route-popup-container {
+  position: relative;
+  display: inline-block;
+}
+
+.quick-route-bubble {
+  position: relative;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  min-width: unset;
+  max-width: unset;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 18px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Pointer/triangle belongs to the WHITE bubble (not the blue button) */
+.quick-route-bubble::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -12px;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 12px solid transparent;
+  border-right: 12px solid transparent;
+  border-top: 12px solid rgba(0, 0, 0, 0.12);
+}
+
+.quick-route-bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -11px;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 11px solid transparent;
+  border-right: 11px solid transparent;
+  border-top: 11px solid #fff;
+}
+
+.quick-route-location {
+  padding-right: 28px; /* room for the close button */
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgba(0, 0, 0, 0.88);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quick-route-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.quick-route-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background-color: var(--bs-primary);
+  color: white;
+  border: 1px solid var(--bs-primary);
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14), 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s ease-in-out;
+  position: relative;
+  z-index: 1;
+}
+
+.quick-route-btn:hover {
+  background-color: color-mix(in srgb, var(--bs-primary) 86%, #000);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.12);
+  transform: translateY(-1px);
+}
+
+.quick-route-btn:active {
+  transform: translateY(0);
+}
+
+.quick-route-icon {
+  font-size: 18px !important;
+  width: 18px;
+  height: 18px;
+}
+
+.quick-route-text {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.quick-route-close {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease-in-out;
+  z-index: 2;
+}
+
+.quick-route-close:hover {
+  background-color: rgba(0, 0, 0, 0.8);
+  transform: scale(1.1);
+}
+
+.quick-route-close .material-icons {
+  font-size: 14px !important;
+  width: 14px;
+  height: 14px;
+}
+
+/* === Directions button (single primary action) === */
+:root {
+  --directions-btn-bg: var(--bs-primary);
+  --directions-btn-border: var(--bs-primary);
+  --directions-btn-fg: #fff;
+  --directions-btn-bg-hover: color-mix(in srgb, var(--bs-primary) 86%, #000);
+  --directions-btn-border-hover: var(--directions-btn-bg-hover);
+}
+
+.btn.btn-directions {
+  background-color: var(--directions-btn-bg);
+  border-color: var(--directions-btn-border);
+  color: var(--directions-btn-fg);
+}
+.btn.btn-directions:hover,
+.btn.btn-directions:focus {
+  background-color: var(--directions-btn-bg-hover);
+  border-color: var(--directions-btn-border-hover);
+  color: var(--directions-btn-fg);
+}
+.btn.btn-directions:focus-visible {
+  box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--directions-btn-bg) 25%, transparent);
+}
+
+/* === Route toolbar (in Directions panel) === */
+:root {
+  --route-toolbar-fg: rgba(0, 0, 0, 0.6);
+  --route-toolbar-icon-size: 18px;
+
+  --route-btn-secondary-border: var(--bs-secondary);
+  --route-btn-secondary-fg: var(--bs-secondary);
+
+  --route-btn-danger-border: var(--bs-danger);
+  --route-btn-danger-fg: var(--bs-danger);
+}
+
+.route-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.route-toolbar__mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--route-toolbar-fg);
+  font-size: 0.875rem;
+  line-height: 1.1;
+  user-select: none;
+}
+
+.route-toolbar__icon {
+  width: var(--route-toolbar-icon-size);
+  height: var(--route-toolbar-icon-size);
+  display: block;
+  opacity: 0.8;
+}
+
+.route-toolbar__actions {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.route-actions-bottom {
+  display: flex;
+  justify-content: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.directions-panel {
+  /* Spacing scale for a cleaner, more consistent layout */
+  --dp-radius: 20px;
+  --dp-pad-x: 20px;
+  --dp-pad-y: 18px;
+  --dp-gap: 16px;
+  --dp-card-bg: #fff;
+  --dp-border: 1px solid rgba(15, 23, 42, 0.10);
+  --dp-shadow: 0 14px 34px rgba(15, 23, 42, 0.10);
+
+  border-radius: var(--dp-radius);
+  padding: var(--dp-pad-y) var(--dp-pad-x);
+  border: var(--dp-border);
+  background: var(--dp-card-bg);
+  box-shadow: var(--dp-shadow);
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--dp-gap);
+}
+
+/* Directions UI card when embedded in the right drawer (drawer itself is transparent) */
+#directions-ui.directions-panel {
+  background: var(--dp-card-bg);
+  box-shadow: var(--dp-shadow);
+  border: var(--dp-border);
+  border-radius: var(--dp-radius);
+  padding: var(--dp-pad-y) var(--dp-pad-x);
+  position: relative;
+  z-index: 5; /* keep above map overlays */
+}
+
+.directions-panel .form-label {
+  margin-bottom: 6px !important;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.7);
+}
+
+.route-inputs {
+  position: relative;
+  padding-right: 60px; /* space for swap button on the right */
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.route-inputs__swap {
+  position: absolute !important;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  background: #fff !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.10);
+  border-radius: 12px;
+}
+
+.route-inputs__swap:hover {
+  background: rgba(15, 23, 42, 0.03) !important;
+}
+
+/* Panel header */
+.directions-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 2px;
+}
+
+.directions-panel__header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+
+.directions-panel__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.directions-panel__title-text {
+  font-size: 1.0625rem;
+  font-weight: 750;
+  color: rgba(15, 23, 42, 0.92);
+  letter-spacing: -0.01em;
+}
+
+.directions-panel__badge {
+  font-size: 0.75rem;
+  font-weight: 650;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(var(--bs-primary-rgb), 0.10);
+  color: var(--bs-primary);
+  border: 1px solid rgba(var(--bs-primary-rgb), 0.18);
+  white-space: nowrap;
+}
+
+.directions-panel__mode-btn.MuiIconButton-root {
+  width: 36px;
+  height: 36px;
+  background-color: var(--mode-icon-bg);
+  color: var(--mode-icon-fg);
+}
+
+.directions-panel__mode-btn.MuiIconButton-root:hover {
+  background-color: var(--mode-icon-bg-hover);
+}
+
+.directions-panel__close-btn.MuiIconButton-root {
+  width: 36px;
+  height: 36px;
+  background-color: rgba(15, 23, 42, 0.06);
+  color: rgba(15, 23, 42, 0.8);
+}
+
+.directions-panel__close-btn.MuiIconButton-root:hover {
+  background-color: rgba(15, 23, 42, 0.10);
+}
+
+/* Route fields */
+.route-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(15, 23, 42, 0.02);
+}
+
+.route-field__marker {
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #fff;
+  flex: none;
+  margin-top: 22px; /* align with label/input stack */
+  user-select: none;
+}
+
+.route-field__marker--from {
+  background: #16a34a;
+}
+
+.route-field__marker--to {
+  background: rgba(var(--bs-primary-rgb), 1);
+}
+
+.route-field__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.route-field__chips {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.btn.route-chip {
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  color: rgba(15, 23, 42, 0.78);
+}
+
+.btn.route-chip:hover,
+.btn.route-chip:focus {
+  background: rgba(15, 23, 42, 0.06);
+  border-color: rgba(15, 23, 42, 0.16);
+  color: rgba(15, 23, 42, 0.84);
+}
+
+/* Search icon on the search bar (always visible) */
+.route-search-icon {
+  opacity: 1;
+  /* Keep it subtle and consistent across pages */
+  color: rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+/* Make MUI inputs feel like “cards” inside the Directions panel */
+#directions-ui .MuiOutlinedInput-root {
+  background: #fff;
+  border-radius: 14px;
+}
+
+#directions-ui .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(15, 23, 42, 0.14);
+}
+
+#directions-ui .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(15, 23, 42, 0.22);
+}
+
+#directions-ui .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(var(--bs-primary-rgb), 1);
+  border-width: 2px;
+}
+
+#directions-ui .search-suggestions {
+  border-radius: 12px;
+  overflow: hidden;
+  max-height: 280px;
+  overflow-y: auto;
+  /* Keep dropdown above other route UI elements within the drawer */
+  z-index: 2000;
+}
+
+#directions-ui .search-suggestions .list-group-item {
+  cursor: pointer;
+}
+
+#directions-ui .search-suggestions .list-group-item:hover {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+/* Route action buttons */
+.route-actions-bottom {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.btn.route-btn {
+  /* Match a more “normal” button size (avoid giant pill buttons) */
+  border-radius: 12px;
+  padding: 8px 14px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.btn.route-btn--primary {
+  background: rgba(var(--bs-primary-rgb), 1);
+  border-color: rgba(var(--bs-primary-rgb), 1);
+  color: #fff;
+  flex: 0 0 auto;
+}
+
+.btn.route-btn--primary:hover,
+.btn.route-btn--primary:focus {
+  background: color-mix(in srgb, rgba(var(--bs-primary-rgb), 1) 88%, #000);
+  border-color: color-mix(in srgb, rgba(var(--bs-primary-rgb), 1) 88%, #000);
+  color: #fff;
+}
+
+.btn.route-btn--secondary {
+  background: #fff;
+  border-color: rgba(15, 23, 42, 0.16);
+  color: rgba(15, 23, 42, 0.78);
+}
+
+.btn.route-btn--secondary:hover,
+.btn.route-btn--secondary:focus {
+  background: rgba(15, 23, 42, 0.03);
+  border-color: rgba(15, 23, 42, 0.22);
+  color: rgba(15, 23, 42, 0.84);
+}
+
+@media (max-width: 420px) {
+  .directions-panel {
+    --dp-pad-x: 16px;
+    --dp-pad-y: 14px;
+    --dp-gap: 14px;
+  }
+  .route-actions-bottom {
+    flex-direction: row;
+  }
+  .btn.route-btn--primary,
+  .btn.route-btn--secondary {
+    width: auto;
+  }
+  .route-inputs {
+    padding-right: 0;
+  }
+  .route-inputs__swap {
+    position: static !important;
+    transform: none;
+    margin: 6px auto 0;
+  }
+}
+
+.btn.btn-route-secondary {
+  background: transparent;
+  border-color: var(--route-btn-secondary-border);
+  color: var(--route-btn-secondary-fg);
+}
+.btn.btn-route-secondary:hover,
+.btn.btn-route-secondary:focus {
+  background: color-mix(in srgb, var(--route-btn-secondary-border) 10%, transparent);
+  border-color: var(--route-btn-secondary-border);
+  color: var(--route-btn-secondary-fg);
+}
+
+.btn.btn-route-danger {
+  background: transparent;
+  border-color: var(--route-btn-danger-border);
+  color: var(--route-btn-danger-fg);
+}
+.btn.btn-route-danger:hover,
+.btn.btn-route-danger:focus {
+  background: color-mix(in srgb, var(--route-btn-danger-border) 10%, transparent);
+  border-color: var(--route-btn-danger-border);
+  color: var(--route-btn-danger-fg);
+}
+
+/* === Wheelchair mode icon + route actions (Directions panel) === */
+:root {
+  /* match existing blue used in place cards */
+  --mode-icon-fg: var(--bs-primary);
+  --mode-icon-bg: rgba(var(--bs-primary-rgb), 0.12);
+  --mode-icon-bg-hover: rgba(var(--bs-primary-rgb), 0.18);
+
+  /* Shared tag/chip styling (category + feature chips) */
+  --tag-chip-height: 24px;
+  --tag-chip-font-size: 0.75rem;
+  --tag-chip-px: 12px;
+  --tag-chip-icon-size: 14px;
+  --tag-chip-bg: rgba(var(--bs-primary-rgb), 0.08);
+  --tag-chip-fg: var(--bs-primary);
+
+  --route-btn-secondary-border: var(--bs-secondary);
+  --route-btn-secondary-fg: var(--bs-secondary);
+
+  --route-btn-danger-border: var(--bs-danger);
+  --route-btn-danger-fg: var(--bs-danger);
+}
+
+.tag-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--tag-chip-height);
+  padding: 0 var(--tag-chip-px);
+  border-radius: 9999px;
+  background-color: var(--tag-chip-bg);
+  color: var(--tag-chip-fg);
+  font-size: var(--tag-chip-font-size);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.tag-chip__icon.material-icons {
+  font-size: var(--tag-chip-icon-size);
+  line-height: 1;
+}
+
+.route-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.route-toolbar--top {
+  margin-bottom: 6px;
+  justify-content: center;
+}
+
+.route-toolbar__actions {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn.btn-route-secondary {
+  background: transparent;
+  border-color: var(--route-btn-secondary-border);
+  color: var(--route-btn-secondary-fg);
+}
+.btn.btn-route-secondary:hover,
+.btn.btn-route-secondary:focus {
+  background: color-mix(in srgb, var(--route-btn-secondary-border) 10%, transparent);
+  border-color: var(--route-btn-secondary-border);
+  color: var(--route-btn-secondary-fg);
+}
+
+.btn.btn-route-danger {
+  background: transparent;
+  border-color: var(--route-btn-danger-border);
+  color: var(--route-btn-danger-fg);
+}
+.btn.btn-route-danger:hover,
+.btn.btn-route-danger:focus {
+  background: color-mix(in srgb, var(--route-btn-danger-border) 10%, transparent);
+  border-color: var(--route-btn-danger-border);
+  color: var(--route-btn-danger-fg);
+}
+
+#btn-check-designated + label {
+  background-color: #16a34a;
+}
+
+#btn-check-yes + label {
+  background-color: #6cc24a;
+}
+
+#btn-check-limited + label {
+  background-color: var(--bs-warning);
+}
+
+#btn-check-unknown + label {
+  background-color: var(--bs-tertiary-color);
+}
+
+#btn-check-no + label {
+  background-color: var(--bs-danger);
+}
+
+@media (max-width: 768px) {
+  .map-overlay {
+    width: calc(100% - 24px);
+  }
+}
+
+/* === Basemap Gallery (Leaflet control) === */
+.leaflet-control.basemap-gallery {
+  --bm-thumb-w: 96px;
+  --bm-thumb-h: 64px;
+
+  background-color: #fff;
+  border-radius: 4px;
+
+  /* MUI-ish elevation (approx. Card elevation 1–2) */
+  box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),
+    0px 1px 1px 0px rgba(0, 0, 0, 0.14), 0px 1px 3px 0px rgba(0, 0, 0, 0.12);
+
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  overflow: hidden; /* keep thumbnails clipped to rounded corners */
+}
+
+.basemap-gallery__head {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background-color: rgba(0, 0, 0, 0.02); /* subtle header background */
+}
+
+.bm-head-btn {
+  position: relative;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.bm-head-img {
+  width: var(--bm-thumb-w);
+  height: var(--bm-thumb-h);
+  object-fit: cover;
+  display: block;
+  border-radius: 4px;
+}
+
+.map-list-button {
+  border-radius: 0;
+}
+
+.basemap-gallery__grid {
+  display: none; /* collapsed by default */
+  grid-template-columns: repeat(2, var(--bm-thumb-w));
+  gap: 0.5rem;
+  padding: 0.75rem;
+}
+
+.leaflet-control.basemap-gallery:hover .basemap-gallery__grid {
+  display: grid; /* expand on hover */
+}
+.leaflet-control.basemap-gallery:hover .basemap-gallery__head {
+  display: none;
+}
+
+/* Thumb buttons */
+
+.bm-item__img {
+  width: var(--bm-thumb-w);
+  height: var(--bm-thumb-h);
+  object-fit: cover;
+  display: block;
+}
+
+.leaflet-control.basemap-gallery .bm-item.active,
+.leaflet-control.basemap-gallery .bm-item.active:focus,
+.leaflet-control.basemap-gallery .bm-item.active:focus-visible {
+  border-color: var(--bs-primary);
+  box-shadow: 0 0 0 2px var(--bs-primary); /* visible “active border” */
+}
+
+/* Touch fallback: toggle 'expanded' class via JS */
+.leaflet-control.basemap-gallery.expanded .basemap-gallery__grid {
+  display: grid;
+}
+.leaflet-control.basemap-gallery.expanded .basemap-gallery__head {
+  display: none;
+}
+
+#draw-help-alert {
+  max-width: 245.08px;
+}
+
+#main-photo-wrapper {
+  cursor: pointer;
+}
+
+#main-photo-caption {
+  font-size: 0.7rem;
+}
+
+#photos-grid .figure-caption {
+  font-size: 0.6rem;
+}
+
+/* Center the map vertically and horizontally */
+#map-container {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 13vh; /* adds top spacing */
+  height: 100vh; /* full viewport height */
+  background-color: #f8f9fa; /* optional: light gray background */
+}
+
+#map {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  /* Avoid white/grey flashes while tiles are loading */
+  background: #e5edf5;
+}
+
+/* === Obstacle Management Overlay === */
+#obstacle-management-overlay {
+  pointer-events: auto;
+  right: 12px;
+  left: auto;
+  /* Keep above the MUI right drawer (zIndex.drawer ~ 1200) */
+  z-index: 1402;
+  top: 12px;
+}
+
+/* If the Directions drawer is open, move the obstacle overlay to the left side so it doesn't overlap */
+#obstacle-management-overlay.obstacle-overlay--with-drawer {
+  right: auto;
+  left: 12px;
+}
+
+/* === Leaflet.draw toolbar – MUI-like card === */
+
+.leaflet-control.leaflet-draw {
+  /* MUI Card-ish container */
+  background-color: #fff;
+  border-radius: 0;
+  box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),
+    0px 1px 1px 0px rgba(0, 0, 0, 0.14), 0px 1px 3px 0px rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* Remove default Leaflet bar styling inside draw control */
+.leaflet-control.leaflet-draw .leaflet-bar {
+  box-shadow: none;
+  border-radius: 0;
+  border: 0;
+  background-color: transparent;
+  margin: 0;
+}
+
+/* Separate draw / edit sections with a subtle divider */
+.leaflet-control.leaflet-draw .leaflet-draw-section + .leaflet-draw-section {
+  border-top: none;
+}
+
+/* Toolbar buttons (polyline, polygon, rectangle, circle, edit, delete) */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a {
+  border-radius: 0;
+  border: 0;
+  background-color: transparent;
+  display: block;
+}
+
+/* Hover / focus states similar to MUI icon buttons */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a:hover,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a:focus {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+/* Active mode (button enabled) – primary-tinted background */
+.leaflet-control.leaflet-draw
+  .leaflet-draw-toolbar
+  a.leaflet-draw-toolbar-button-enabled {
+  background-color: rgba(25, 118, 210, 0.12);
+}
+
+/* Action row (Finish / Cancel / Delete last point, etc.) */
+.leaflet-control.leaflet-draw .leaflet-draw-actions {
+  border-radius: 0;
+  background-color: #fafafa;
+  border-top: none;
+}
+
+.leaflet-control.leaflet-draw .leaflet-draw-actions li {
+  border: 0;
+}
+
+.leaflet-control.leaflet-draw .leaflet-draw-actions a {
+  letter-spacing: 0.04em;
+}
+
+/* === Custom Draw Toolbar: Consistent Design === */
+
+/* Base styling for all toolbar buttons - no rounding */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a {
+  width: 40px !important;
+  height: 40px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background-color: #f5f5f5 !important;
+  border-radius: 0 !important;
+  margin: 4px 6px !important;
+  box-shadow: none !important;
+  transition: all 0.15s ease;
+}
+
+/* Same hover state for ALL buttons - no exceptions */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a:hover,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-caution:hover,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown:hover,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"]:hover,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"]:hover,
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-"]:hover {
+  background-color: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12) !important;
+  transform: translateY(-1px);
+}
+
+/* Active/enabled state - same for all */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a.leaflet-draw-toolbar-button-enabled {
+  background-color: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Caution button styling - rounded button card, icon color stays yellow */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-caution,
+.leaflet-control.leaflet-draw a.leaflet-draw-toolbar-button-caution,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a.leaflet-draw-toolbar-button-caution {
+  /* Remove any default Leaflet.draw sprite/background */
+  background-image: none !important;
+  background-color: #f5f5f5 !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  background-size: auto !important;
+  box-shadow: none !important;
+  filter: none !important;
+  border-radius: 8px !important;
+  width: 40px !important;
+  height: 40px !important;
+  margin: 4px 6px !important;
+}
+
+/* Hide any default Leaflet.draw icon spans or pseudo-elements */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-caution span,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-caution .leaflet-draw-toolbar-icon,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-caution::before,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-caution::after {
+  display: none !important;
+  background: none !important;
+  background-image: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-caution svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  z-index: 1;
+  position: relative;
+  margin: 0 auto;
+}
+
+/* Dropdown toggle button - rounded button card */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown,
+.leaflet-control.leaflet-draw a.leaflet-draw-toolbar-button-dropdown {
+  font-size: 18px;
+  color: #464646 !important;
+  /* Remove any default Leaflet.draw sprite/background */
+  background-image: none !important;
+  background-color: #f5f5f5 !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  background-size: auto !important;
+  box-shadow: none !important;
+  filter: none !important;
+  border-radius: 8px !important;
+  width: 40px !important;
+  height: 40px !important;
+  margin: 4px 6px !important;
+}
+
+/* Hide any default icon elements in dropdown button */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown span,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown .leaflet-draw-toolbar-icon,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown::before,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown::after {
+  display: none !important;
+  background: none !important;
+  background-image: none !important;
+}
+
+/* Dropdown button uses base hover styles */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown.expanded {
+  color: #464646 !important;
+  background-image: none !important;
+}
+
+/* Ensure React icon container inside dropdown has no background */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown > div {
+  background: none !important;
+  background-image: none !important;
+  background-color: transparent !important;
+}
+
+/* Separator line removed - now using section-level pseudo-elements */
+
+/* Edit and Delete buttons - rounded button cards, color #464646 */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"],
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"] {
+  background-image: none !important;
+  background-color: #f5f5f5 !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  background-size: auto !important;
+  box-shadow: none !important;
+  filter: none !important;
+  color: #464646 !important;
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 8px !important;
+  margin: 4px 6px !important;
+  position: relative !important;
+}
+
+/* Consistent icon sizing for MUI icons - centered, slightly smaller */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"] svg,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"] svg,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown svg,
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-"] svg {
+  width: 18px !important;
+  height: 18px !important;
+  margin: 0 auto;
+  display: block;
+  color: #464646 !important;
+}
+
+/* Hide default icons in edit/delete buttons */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"] span,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"] .leaflet-draw-toolbar-icon,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"] span,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"] .leaflet-draw-toolbar-icon,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"]::before,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"]::after,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"]::before,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"]::after {
+  display: none !important;
+  background: none !important;
+  background-image: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+/* Hide default icons in drawing tool buttons (polyline, polygon, rectangle, circle) - COMPLETE HIDE */
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-polyline"],
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-polygon"],
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-rectangle"],
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-circle"] {
+  background-image: none !important;
+  background: none !important;
+  background-color: transparent !important;
+}
+
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-polyline"] span,
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-polyline"] .leaflet-draw-toolbar-icon,
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-polygon"] span,
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-polygon"] .leaflet-draw-toolbar-icon,
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-rectangle"] span,
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-rectangle"] .leaflet-draw-toolbar-icon,
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-circle"] span,
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-circle"] .leaflet-draw-toolbar-icon,
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-"]::before,
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-"]::after {
+  display: none !important;
+  background: none !important;
+  background-image: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Ensure React icon containers have no background */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"] > div,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"] > div {
+  background: none !important;
+  background-image: none !important;
+  background-color: transparent !important;
+  color: #464646 !important;
+}
+
+/* Collapsible draw tools container */
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container {
+  display: none;
+  background-color: #ffffff;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+  border: none;
+}
+
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container[style*="block"] {
+  display: block !important;
+}
+
+/* Ensure draw tool buttons inside container are visible when expanded */
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Remove grey background from Leaflet.draw toolbar and make it wider */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar {
+  background-color: transparent;
+  width: auto !important;
+  min-width: 52px !important;
+}
+
+/* Ensure all icons are same gray color except caution */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"],
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"],
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-"] {
+  color: #666 !important;
+}
+
+/* Drawing tool icons are now MUI React components - default Leaflet.draw icons are hidden above */
+
+/* Remove backgrounds only from custom buttons, NOT from drawing tools */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-caution,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"],
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"] {
+  background-image: none !important;
+  background-color: #f5f5f5 !important;
+}
+
+
+/* Hide default icons only for custom buttons, NOT for drawing tools */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-caution .leaflet-draw-toolbar-icon,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-caution span,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown .leaflet-draw-toolbar-icon,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-button-dropdown span,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"] .leaflet-draw-toolbar-icon,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-edit"] span,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"] .leaflet-draw-toolbar-icon,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a[class*="leaflet-draw-edit-remove"] span {
+  background-image: none !important;
+  background: none !important;
+  display: none !important;
+}
+
+/* Drawing tools now use MUI icons - hide all default Leaflet.draw sprites */
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-"] {
+  background-image: none !important;
+  background: none !important;
+  background-color: transparent !important;
+}
+
+/* Drawing tool icons are now MUI React components, handled by the force centering rules at bottom */
+
+/* Ensure toolbar container has clean white background with rounded corners */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar-top,
+.leaflet-control.leaflet-draw .leaflet-draw-section,
+.leaflet-control.leaflet-draw .leaflet-draw-section:first-child {
+  background-color: #ffffff;
+  border-radius: 16px;
+  box-shadow: none;
+  border: none;
+}
+
+/* Remove all separators between sections */
+.leaflet-control.leaflet-draw .leaflet-draw-section {
+  border-top: none;
+  border-bottom: none;
+}
+
+/* Ensure all sections have consistent styling with rounded corners */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar .leaflet-draw-section {
+  background-color: #ffffff;
+  border-radius: 16px;
+  box-shadow: none;
+  border: none;
+}
+
+/* Main toolbar container - rounded corners */
+.leaflet-control.leaflet-draw {
+  border-radius: 16px;
+  overflow: hidden;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+/* Drawing tools - rounded buttons */
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a[class*="leaflet-draw-draw-"] {
+  background-color: #f5f5f5 !important;
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 8px !important;
+  margin: 4px 6px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* === Supabase Auth UI Custom Styling === */
+/* Target the Supabase Auth UI container */
+[data-theme="default"] {
+  width: 100%;
+}
+
+/* Title styling - "Create an account" or "Sign in" */
+[data-theme="default"] h1,
+[data-theme="default"] h2,
+[data-theme="default"] h3 {
+  font-size: 1.75rem !important;
+  font-weight: 700 !important;
+  color: #000000 !important;
+  margin-bottom: 1.5rem !important;
+  text-align: left !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+  line-height: 1.2 !important;
+}
+
+/* Input fields styling */
+[data-theme="default"] input[type="email"],
+[data-theme="default"] input[type="password"],
+[data-theme="default"] input[type="text"] {
+  background-color: #ffffff !important;
+  border: 1.5px solid rgba(0, 0, 0, 0.23) !important;
+  border-radius: 8px !important;
+  padding: 16px !important;
+  font-size: 16px !important;
+  color: #000000 !important;
+  width: 100% !important;
+  margin-bottom: 1.5rem !important;
+  transition: border-color 0.2s ease !important;
+  box-sizing: border-box !important;
+}
+
+[data-theme="default"] input[type="email"]:hover,
+[data-theme="default"] input[type="password"]:hover,
+[data-theme="default"] input[type="text"]:hover {
+  border-color: rgba(0, 0, 0, 0.5) !important;
+}
+
+[data-theme="default"] input[type="email"]:focus,
+[data-theme="default"] input[type="password"]:focus,
+[data-theme="default"] input[type="text"]:focus {
+  border-color: var(--bs-primary) !important;
+  border-width: 2px !important;
+  outline: none !important;
+}
+
+[data-theme="default"] input[type="email"]::placeholder,
+[data-theme="default"] input[type="password"]::placeholder,
+[data-theme="default"] input[type="text"]::placeholder {
+  color: #9e9e9e !important;
+  opacity: 1 !important;
+  font-size: 11px !important;
+}
+
+/* Label styling */
+[data-theme="default"] label,
+.supabase-auth-ui_ui-label {
+  font-size: 14px !important;
+  color: #000000 !important;
+  margin-bottom: 0.5rem !important;
+  display: block !important;
+  font-weight: 500 !important;
+  text-align: left !important;
+}
+
+/* Button styling - Register/Sign in button */
+[data-theme="default"] button[type="submit"] {
+  background-color: var(--bs-primary) !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 16px !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  width: 100% !important;
+  cursor: pointer !important;
+  text-transform: none !important;
+  margin-top: 0.5rem !important;
+  transition: background-color 0.2s ease !important;
+}
+
+[data-theme="default"] button[type="submit"]:hover {
+  background-color: color-mix(in srgb, var(--bs-primary) 86%, #000) !important;
+}
+
+[data-theme="default"] button[type="submit"]:active {
+  background-color: color-mix(in srgb, var(--bs-primary) 78%, #000) !important;
+}
+
+/* Link styling */
+[data-theme="default"] a,
+.supabase-auth-ui_ui-anchor {
+  color: var(--bs-primary) !important;
+  text-decoration: none !important;
+  font-size: 14px !important;
+  transition: color 0.2s ease !important;
+}
+
+[data-theme="default"] a:hover,
+.supabase-auth-ui_ui-anchor:hover {
+  color: color-mix(in srgb, var(--bs-primary) 78%, #000) !important;
+  text-decoration: none !important;
+}
+
+/* Message/error text */
+[data-theme="default"] [data-state="error"],
+[data-theme="default"] [role="alert"] {
+  font-size: 14px !important;
+  margin-top: 0.5rem !important;
+  margin-bottom: 1rem !important;
+  color: #d32f2f !important;
+}
+
+/* Password hint text */
+[data-theme="default"] p[data-state="default"],
+[data-theme="default"] p[class*="hint"],
+[data-theme="default"] p[class*="description"] {
+  font-size: 11px !important;
+  color: #9e9e9e !important;
+  margin-top: -1rem !important;
+  margin-bottom: 1rem !important;
+  text-align: left !important;
+}
+
+/* "Already have an account? Log In" text */
+[data-theme="default"] > div:last-child,
+[data-theme="default"] form + div {
+  margin-top: 1.5rem !important;
+  text-align: center !important;
+  font-size: 14px !important;
+  color: #000000 !important;
+}
+
+/* Google button styling */
+[data-theme="default"] button[type="button"]:not([type="submit"]),
+[data-theme="default"] button[class*="google"],
+[data-theme="default"] button[class*="provider"] {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border: 1.5px solid rgba(0, 0, 0, 0.23) !important;
+  border-radius: 8px !important;
+  padding: 16px !important;
+  font-size: 16px !important;
+  width: 100% !important;
+  margin-bottom: 1rem !important;
+  text-transform: none !important;
+  font-weight: 500 !important;
+}
+
+[data-theme="default"] button[type="button"]:not([type="submit"]):hover {
+  background-color: #f5f5f5 !important;
+  border-color: rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Divider styling */
+[data-theme="default"] hr,
+[data-theme="default"] [role="separator"] {
+  margin: 1.5rem 0 !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Form wrapper */
+[data-theme="default"] form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+}
+
+/* Input wrapper */
+[data-theme="default"] div[class*="input"],
+[data-theme="default"] div[class*="field"] {
+  margin-bottom: 0 !important;
+}
+
+/* Remove any default margins/padding from form elements */
+[data-theme="default"] * {
+  box-sizing: border-box;
+}
+
+/* Override font-size for Abilico brand text in header only */
+/* Target MUI Typography root class with higher specificity */
+.header-logo-container .abilico-brand-text,
+.header-logo-container .abilico-brand-text.MuiTypography-root,
+.header-logo-container .MuiTypography-root.abilico-brand-text {
+  font-size: 20px !important;
+}
+
+@media (min-width: 900px) {
+  .header-logo-container .abilico-brand-text,
+  .header-logo-container .abilico-brand-text.MuiTypography-root,
+  .header-logo-container .MuiTypography-root.abilico-brand-text {
+    font-size: 14px !important;
+  }
+}
+
+/* === Force draw-toolbar icons to be perfectly centered === */
+
+/* Make every toolbar button a flex box with no extra text/line height */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a,
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  line-height: 1 !important;
+  box-sizing: border-box;
+}
+
+/* Kill extra margins / offsets on inner wrappers and SVGs (MUI + caution icon) */
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a > div,
+.leaflet-control.leaflet-draw .leaflet-draw-toolbar a svg,
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a > div,
+.leaflet-control.leaflet-draw .leaflet-draw-tools-container a svg {
+  margin: 0 !important;
+  display: block;
+}
+
+/* --- Thin separators in the custom draw toolbar (scoped to obstacle management) --- */
+
+/* 0) Let Leaflet.draw helper actions (Finish / Cancel / Delete last point)
+      render outside the white card */
+#obstacle-management-overlay .leaflet-control.leaflet-draw {
+  border-radius: 16px;
+  overflow: visible; /* was hidden – this was clipping the helpers */
+  position: relative;
+  z-index: 10000 !important; /* ensure entire control is above everything */
+}
+
+/* 1) A bit of vertical breathing room for both sections */
+#obstacle-management-overlay .leaflet-control.leaflet-draw .leaflet-draw-section {
+  padding: 4px 0 8px;
+}
+
+/* 2) ONE separator, just under the expand icon (i.e. under the first section) */
+#obstacle-management-overlay .leaflet-control.leaflet-draw
+  .leaflet-draw-section:first-child::after {
+  content: "";
+  display: block;
+  height: 1px;
+  background-color: #e0e0e0;
+  /* line is shorter than the white card and sits "outside" the inner boxes */
+  margin: 10px 16px 0;  /* top spacing before the line, no bottom spacing */
+}
+
+/* Nice spacing + stacking for the helper text bubble */
+#obstacle-management-overlay .leaflet-control.leaflet-draw .leaflet-draw-actions {
+  margin-top: 8px;        /* pushes helper a bit away from the card */
+  position: relative;
+  z-index: 10000 !important;  /* keep it above everything - map tiles, markers, popups */
+}
+
+/* Optional: pill styling, if you want it to feel like a small hint */
+#obstacle-management-overlay .leaflet-control.leaflet-draw .leaflet-draw-actions a {
+  background: #ffffff;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  border: 1px solid rgba(0,0,0,0.12);
+}
+
+/* Make Leaflet.draw helper tooltip ("Click cancel to undo changes…")
+   float above everything (header, toolbar, markers, etc.) */
+.leaflet-draw-tooltip-pane,
+.leaflet-draw-tooltip {
+  z-index: 10050 !important; /* higher than #obstacle-management-overlay (1402) */
+}
+
+/* Optional: keep it clickable-safe and a bit nicer */
+.leaflet-draw-tooltip {
+  pointer-events: none;          /* don't block map clicks */
+  border-radius: 999px;          /* pill look like your toolbar helper */
+  padding: 6px 12px;
+  font-size: 11px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.18);
+  background: #ffffff;
+}

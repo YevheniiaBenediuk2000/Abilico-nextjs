@@ -1,0 +1,68 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+.onnx
+.cache/
+osm_data_cache*.json
+osm_chunks/
+*.osm.pbf
+*.osm.o5m
+planet-wheelchair.geojson
+cache/
+wheelchair_xgboost_3class.pkl
+ukraine_wheelchair_nodes.geojson
+.ipynb_checkpoints/
+*.pkl
+*.csv
+*.joblib
+
+# Large cache files
+road_accessibility_data_cache.json
+road_accessibility_europe_cache.json
+road_accessibility_europe_cache_v2.json
+road_accessibility_fetched_regions.json
+road_accessibility_europe_cache.json.partial
+*.json.partial
+road_accessibility_models.joblib
+
+# Note: public/models/ contains ONNX models needed for production
+# They must be committed to deploy to Vercel
