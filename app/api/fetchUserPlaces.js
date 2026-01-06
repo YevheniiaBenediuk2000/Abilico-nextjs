@@ -13,14 +13,14 @@ export async function fetchUserPlaces(bounds) {
     const n = bounds.getNorth();
     const e = bounds.getEast();
 
-    // Query places within bounds where source = 'user' and status is 'active'
-    // Closed and archived places are excluded from user-facing queries (preserved for admin/history)
+    // Query places within bounds where source = 'user'.
+    // Requirement: show user-submitted places immediately (even before admin approval),
+    // and hide them only when admin explicitly rejects them (status='rejected').
     const { data, error } = await supabase
       .from("places")
       .select("*")
       .eq("source", "user")
       .is("osm_id", null) // Ensure only user-added places
-      .eq("status", "active") // Only show active places (excludes closed and archived)
       .gte("lat", s)
       .lte("lat", n)
       .gte("lon", w)
@@ -35,8 +35,12 @@ export async function fetchUserPlaces(bounds) {
       return { type: "FeatureCollection", features: [] };
     }
 
+    // Hide rejected from the user map, but keep them in the DB for admin/history.
+    // Note: Filter in JS so places with NULL status are included.
+    const visiblePlaces = data.filter((place) => place?.status !== "rejected");
+
     // Convert Supabase rows to GeoJSON features
-    const features = data.map((place) => {
+    const features = visiblePlaces.map((place) => {
       // Convert place_type to OSM-style tags for icon generation
       const tags = {
         name: place.name,

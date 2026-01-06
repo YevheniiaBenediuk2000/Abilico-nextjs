@@ -56,8 +56,7 @@ export async function GET(request) {
           lat,
           lon,
           city,
-          country,
-          status
+          country
         )
       `)
       .order("created_at", { ascending: false });
@@ -138,118 +137,57 @@ export async function PUT(request) {
     if (updateError) throw updateError;
 
     // Step 4: Update place based on action and report reason
-    // Core principle: Reports never directly change places. Admins confirm reports → admin actions change places.
-    if (report.place_id && action === "approve") {
+    if (report.place_id) {
       const placeUpdate = {
         updated_at: new Date().toISOString(),
       };
 
-      // Handle each report type according to the moderation model
-      switch (report.reason) {
-        case "accessibility_info_wrong":
-          // ✅ Place stays visible
-          // ✅ User-reported accessibility info is ADDED (not replacing original)
-          // ❌ Place is NOT removed
-          
-          // Store user-reported accessibility in a separate field
-          // This preserves the original OSM/place accessibility status
-          const userReportedAccessibility = {};
-          
-          // Map accessibility_reality to wheelchair field (if provided)
-          if (report.accessibility_reality && report.accessibility_reality.trim() !== "") {
-            userReportedAccessibility.wheelchair = report.accessibility_reality.trim();
-          }
-          
-          // Map accessibility_issues array (if provided)
-          if (report.accessibility_issues && Array.isArray(report.accessibility_issues) && report.accessibility_issues.length > 0) {
-            userReportedAccessibility.issues = report.accessibility_issues;
-          }
-          
-          // Store user-reported accessibility in a dedicated field
-          // This allows displaying both original and user-reported status
-          placeUpdate.user_reported_accessibility = userReportedAccessibility;
-          
-          // Also store the report comment if provided
-          if (report.comment && report.comment.trim() !== "") {
-            placeUpdate.user_reported_accessibility_comment = report.comment.trim();
-          }
-          
-          // Optional: Set last_verified_at if field exists
-          placeUpdate.last_verified_at = new Date().toISOString();
-          break;
+      if (action === "approve") {
+        // Approve: Apply ONLY the fields that the user actually submitted in the report
+        // Do not overwrite existing place data with null/empty values
+        // This ensures partial updates work correctly (e.g., only accessibility_status submitted)
+        
+        // Only update accessibility_status if user submitted it (not null/empty)
+        if (report.accessibility_reality && report.accessibility_reality.trim() !== "") {
+          placeUpdate.accessibility_status = report.accessibility_reality;
+        }
 
-        case "permanently_closed":
-          // ✅ Place becomes inactive / hidden (status = 'closed')
-          // ❌ Place is NOT deleted
-          // ❌ Routes should avoid it
-          // ❌ Should not appear in search
+        // Only update accessibility_keywords if user submitted it (not null/empty array)
+        if (report.accessibility_issues && 
+            Array.isArray(report.accessibility_issues) && 
+            report.accessibility_issues.length > 0) {
+          placeUpdate.accessibility_keywords = report.accessibility_issues;
+        }
+
+        // Only update accessibility_comment if user submitted it (not null/empty)
+        if (report.comment && report.comment.trim() !== "") {
+          placeUpdate.accessibility_comment = report.comment;
+        }
+
+        // Handle permanently_closed reports
+        // When a place is confirmed as permanently closed:
+        // 1. Mark status as 'closed' (soft delete - preserves data integrity)
+        // 2. Add context message indicating admin verification
+        // 3. Place will be excluded from user-facing queries (see fetchUserPlaces.js)
+        // 4. Place remains in database for historical data and referential integrity
+        if (report.reason === "permanently_closed") {
           placeUpdate.status = "closed";
-          // Add context message about closure
+          // Add clear context message about closure
           const closureMessage = "Marked as permanently closed (verified by admin)";
           if (report.comment && report.comment.trim() !== "") {
             placeUpdate.accessibility_comment = `${closureMessage}. ${report.comment}`;
           } else {
             placeUpdate.accessibility_comment = closureMessage;
           }
-          break;
-
-        case "wrong_type":
-          // ✅ Place stays visible
-          // ✅ Category is corrected
-          // Note: For "wrong_type" reports, the admin should manually update place_type
-          // This is a placeholder - in a full implementation, you might want to accept
-          // a corrected_type field from the admin panel
-          // For now, we log that this needs manual admin action
-          console.log(
-            `[Admin API] Report ${id}: wrong_type - requires manual category update by admin`
-          );
-          // If the report has a suggested_type in comment or metadata, you could use it here
-          // For now, we'll just update the timestamp to indicate action was taken
-          break;
-
-        case "duplicate":
-          // ✅ One place remains active
-          // ❌ Duplicate place is archived
-          // 🔗 Optional: merged into canonical place (future enhancement)
-          placeUpdate.status = "archived";
-          // Add context message
-          const archiveMessage = "Marked as duplicate (verified by admin)";
-          if (report.comment && report.comment.trim() !== "") {
-            placeUpdate.accessibility_comment = `${archiveMessage}. ${report.comment}`;
-          } else {
-            placeUpdate.accessibility_comment = archiveMessage;
-          }
-          break;
-
-        case "location_wrong":
-          // ✅ Coordinates updated
-          // ✅ Place stays active
-          // Note: For "location_wrong" reports, the admin should manually update coordinates
-          // This requires admin to search via Photon/map and drag pin
-          // For now, we log that this needs manual admin action
-          console.log(
-            `[Admin API] Report ${id}: location_wrong - requires manual coordinate update by admin`
-          );
-          // If the report has corrected coordinates in metadata, you could use them here
-          // For now, we'll just update the timestamp to indicate action was taken
-          break;
-
-        case "other":
-          // ⚠ Admin decision required
-          // Admin chooses one: Update accessibility, Update category, Mark closed, Archive place, Reject report
-          // "Other" is intentionally non-automated
-          console.log(
-            `[Admin API] Report ${id}: other - requires manual admin decision`
-          );
-          // No automatic place update for "other" reports
-          // Admin must manually decide what action to take
-          break;
-
-        default:
-          // Unknown reason - log for investigation
-          console.warn(
-            `[Admin API] Report ${id}: Unknown reason "${report.reason}" - no automatic action`
-          );
+        }
+      } else if (action === "reject" && isReversal) {
+        // Reject (reversal): Revert place state if it was previously approved
+        if (report.reason === "permanently_closed") {
+          // Revert closed status back to active
+          placeUpdate.status = "active";
+        }
+        // For accessibility reports, we leave the place data unchanged
+        // (simpler approach - previous state is preserved)
       }
 
       // Only update if there are changes to make
@@ -264,53 +202,7 @@ export async function PUT(request) {
           // Don't fail the whole request, but log the error
         } else {
           console.log(
-            `[Admin API] Updated place ${report.place_id} for reason: ${report.reason}`
-          );
-        }
-      }
-    } else if (report.place_id && action === "reject" && isReversal) {
-      // Reject (reversal): Revert place state if it was previously approved
-      const placeUpdate = {
-        updated_at: new Date().toISOString(),
-      };
-
-      // Revert based on the original report reason
-      switch (report.reason) {
-        case "permanently_closed":
-          // Revert closed status back to active
-          placeUpdate.status = "active";
-          break;
-
-        case "duplicate":
-          // Revert archived status back to active
-          placeUpdate.status = "active";
-          break;
-
-        case "accessibility_info_wrong":
-          // Revert: Clear user-reported accessibility by setting to null
-          placeUpdate.user_reported_accessibility = null;
-          placeUpdate.user_reported_accessibility_comment = null;
-          break;
-
-        case "wrong_type":
-        case "location_wrong":
-        case "other":
-          // These don't have automatic updates, so no reversal needed
-          break;
-      }
-
-      // Only update if there are changes to make
-      if (Object.keys(placeUpdate).length > 1) {
-        const { error: placeUpdateError } = await supabase
-          .from("places")
-          .update(placeUpdate)
-          .eq("id", report.place_id);
-
-        if (placeUpdateError) {
-          console.error("[Admin API] Error reverting place:", placeUpdateError);
-        } else {
-          console.log(
-            `[Admin API] Reverted place ${report.place_id} (reversal of ${report.reason})`
+            `[Admin API] Updated place ${report.place_id} (reversal: ${isReversal})`
           );
         }
       }

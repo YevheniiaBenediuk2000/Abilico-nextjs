@@ -1399,6 +1399,23 @@ async function refreshPlaces() {
         return true;
       });
 
+      // ✅ IMPORTANT: prune stale user-place cache entries in the current viewport.
+      // User places can be rejected/deleted; if we never prune, their markers can persist.
+      const freshUserKeysInView = new Set(
+        uniqueUserPlaces.map((f) => placeKeyFromFeature(f)).filter(Boolean)
+      );
+      for (const [k, f] of placesCacheById.entries()) {
+        const p = f?.properties || {};
+        if (p.source !== "user") continue;
+        const g = f?.geometry;
+        if (!g || g.type !== "Point" || !Array.isArray(g.coordinates)) continue;
+        const [lng, lat] = g.coordinates;
+        if (!bounds.contains(L.latLng(lat, lng))) continue;
+        if (!freshUserKeysInView.has(k)) {
+          placesCacheById.delete(k);
+        }
+      }
+
       // Merge user places with OSM places (OSM places are protected)
       geojson.features = [...(geojson.features || []), ...uniqueUserPlaces];
     }
@@ -2801,6 +2818,18 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
   if (typeof window !== "undefined" && window.visionAccessibilityControl) {
     window.visionAccessibilityControl.update(tags);
   }
+
+  // Helper: convert hex to rgba with opacity.
+  // Needed in multiple sections of renderDetails (e.g., restroom card).
+  const hexToRgba = (hex, alpha) => {
+    if (!hex || !hex.startsWith("#") || hex.length !== 7) {
+      return `rgba(108, 117, 125, ${alpha})`; // fallback to unknown color
+    }
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
 
   const titleText = displayNameFromTags(tags) || "Details";
 
@@ -8725,6 +8754,21 @@ export async function initMap(user = null) {
       queryClient.invalidateQueries({ queryKey: placesQueryKey });
       // Refresh places on map
       refreshPlaces();
+    });
+
+    // ✅ Cross-tab sync: when an admin approves/rejects/deletes a user place in /admin-panel,
+    // broadcast via localStorage so any open map tabs immediately refresh.
+    window.addEventListener("storage", (ev) => {
+      try {
+        if (ev.key !== "abilico:user-places-updated") return;
+        if (!map) return;
+
+        console.log("🔄 User places updated in another tab, refreshing map...");
+        queryClient.invalidateQueries({ queryKey: ["user-places"] });
+        refreshPlaces();
+      } catch (e) {
+        console.warn("storage listener failed:", e);
+      }
     });
   }
 

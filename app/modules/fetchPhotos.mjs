@@ -285,7 +285,7 @@ async function fetchWikipediaImagesList(lang, title) {
   const data = await res.json();
   const pages = data?.query?.pages || {};
   if (!pages || typeof pages !== 'object' || pages === null || Array.isArray(pages)) return [];
-  const fileTitles = Object.values(pages)
+  const fileTitles = Object.values(pages || {})
     .flatMap((p) => p.images || [])
     .map((im) => im.title)
     .filter((t) => /^File:/i.test(t));
@@ -694,7 +694,7 @@ async function commonsGeoSearch({ lat, lng }, radiusM = 8, limit = 100) {
   const data = await res.json();
   const pages = data?.query?.pages || {};
   if (!pages || typeof pages !== 'object' || pages === null || Array.isArray(pages)) return [];
-  const items = Object.values(pages)
+  const items = Object.values(pages || {})
     .map((p) => {
       const ii = p.imageinfo?.[0];
       if (!ii?.url) return null;

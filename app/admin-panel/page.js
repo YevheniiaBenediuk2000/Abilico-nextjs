@@ -12,7 +12,6 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import PlaceIcon from "@mui/icons-material/Place";
 import ReportIcon from "@mui/icons-material/Report";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
-import EditIcon from "@mui/icons-material/Edit";
 import { toastSuccess, toastError } from "../utils/toast.mjs";
 
 // Allowed admin emails
@@ -34,26 +33,7 @@ export default function AdminPanel() {
   const [actionLoading, setActionLoading] = useState(null); // Track which action is loading
   const [error, setError] = useState(null);
   const [activePanel, setActivePanel] = useState("obstacles"); // "obstacles", "places", or "reports"
-  const [editingReports, setEditingReports] = useState(new Set()); // Track which reports are in edit mode
   const router = useRouter();
-
-  // Toggle edit mode for a report
-  const toggleEditMode = (reportId) => {
-    setEditingReports((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(reportId)) {
-        newSet.delete(reportId);
-      } else {
-        newSet.add(reportId);
-      }
-      return newSet;
-    });
-  };
-
-  // Check if an admin made a decision on this report (approved or rejected)
-  const hasAdminDecision = (report) => {
-    return report.status === "approved" || report.status === "rejected";
-  };
 
   // Check user access
   useEffect(() => {
@@ -722,13 +702,12 @@ export default function AdminPanel() {
                     <th>ID</th>
                     <th>Place ID</th>
                     <th>Place</th>
-                    <th>Place Status</th>
                     <th>Reason</th>
                     <th>Reality Status</th>
                     <th>Issues</th>
                     <th>Comment</th>
                     <th>Created At</th>
-                    <th>Report Status</th>
+                    <th>Status</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -743,25 +722,11 @@ export default function AdminPanel() {
                       ? `${place.city}, ${place.country}`
                       : place?.city || place?.country || "";
                     const hasCoordinates = place?.lat && place?.lon;
-                    const placeStatus = place?.status || "active";
                     const photonUrl = hasCoordinates
                       ? `https://photon.komoot.io/?lat=${place.lat}&lon=${place.lon}&zoom=18`
                       : placeName !== "Unknown Place"
                       ? `https://photon.komoot.io/?q=${encodeURIComponent(placeName)}`
                       : null;
-
-                    // Helper function to get action description for each report type
-                    const getActionDescription = (reason) => {
-                      const actions = {
-                        accessibility_info_wrong: "Update accessibility info",
-                        permanently_closed: "Mark place as closed",
-                        wrong_type: "Update category (manual)",
-                        duplicate: "Archive duplicate",
-                        location_wrong: "Update coordinates (manual)",
-                        other: "Admin decision required",
-                      };
-                      return actions[reason] || "Review required";
-                    };
 
                     return (
                       <tr key={report.id}>
@@ -817,21 +782,7 @@ export default function AdminPanel() {
                             )}
                           </div>
                         </td>
-                        <td className={styles.statusCell}>
-                          <span className={getStatusClass(placeStatus)}>
-                            {placeStatus}
-                          </span>
-                        </td>
-                        <td>
-                          <div>
-                            <strong>{report.reason || "-"}</strong>
-                            {report.reason && (
-                              <div style={{ fontSize: "10px", opacity: 0.7, marginTop: "2px" }}>
-                                {getActionDescription(report.reason)}
-                              </div>
-                            )}
-                          </div>
-                        </td>
+                        <td>{report.reason || "-"}</td>
                         <td>{report.accessibility_reality || "-"}</td>
                         <td>
                           {report.accessibility_issues && Array.isArray(report.accessibility_issues)
@@ -849,68 +800,48 @@ export default function AdminPanel() {
                         </td>
                         <td className={styles.actionsCell}>
                           <div className={styles.actionsInner}>
-                            {hasAdminDecision(report) && !editingReports.has(report.id) ? (
-                              // Show Edit button if admin made a decision and not in edit mode
-                              <button
-                                onClick={() => toggleEditMode(report.id)}
-                                className={`${styles.actionBtn} ${styles.editBtn}`}
-                                title="Edit report decision"
-                              >
-                                <EditIcon />
-                              </button>
-                            ) : (
-                              // Show approve/reject buttons for pending reports or when in edit mode
-                              <>
-                                <button
-                                  onClick={() => {
-                                    handleReportAction(report.id, "approve");
-                                    if (editingReports.has(report.id)) {
-                                      toggleEditMode(report.id); // Exit edit mode after action
-                                    }
-                                  }}
-                                  disabled={
-                                    actionLoading === `report-${report.id}-approve` ||
-                                    actionLoading === `report-${report.id}-reject`
-                                  }
-                                  className={`${styles.actionBtn} ${styles.approveBtn}`}
-                                  title={
-                                    report.status === "approved"
-                                      ? "Currently approved (click to change)"
-                                      : "Approve report"
-                                  }
-                                >
-                                  {actionLoading === `report-${report.id}-approve` ? (
-                                    "..."
-                                  ) : (
-                                    <CheckIcon />
-                                  )}
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    handleReportAction(report.id, "reject");
-                                    if (editingReports.has(report.id)) {
-                                      toggleEditMode(report.id); // Exit edit mode after action
-                                    }
-                                  }}
-                                  disabled={
-                                    actionLoading === `report-${report.id}-approve` ||
-                                    actionLoading === `report-${report.id}-reject`
-                                  }
-                                  className={`${styles.actionBtn} ${styles.rejectBtn}`}
-                                  title={
-                                    report.status === "rejected"
-                                      ? "Currently rejected (click to change)"
-                                      : "Reject report"
-                                  }
-                                >
-                                  {actionLoading === `report-${report.id}-reject` ? (
-                                    "..."
-                                  ) : (
-                                    <CloseIcon />
-                                  )}
-                                </button>
-                              </>
-                            )}
+                            <button
+                              onClick={() => handleReportAction(report.id, "approve")}
+                              disabled={
+                                actionLoading === `report-${report.id}-approve` ||
+                                actionLoading === `report-${report.id}-reject`
+                              }
+                              className={`${styles.actionBtn} ${styles.approveBtn} ${
+                                report.status === "approved" ? styles.actionBtnActive : ""
+                              }`}
+                              title={
+                                report.status === "approved"
+                                  ? "Currently approved (click to change)"
+                                  : "Approve report"
+                              }
+                            >
+                              {actionLoading === `report-${report.id}-approve` ? (
+                                "..."
+                              ) : (
+                                <CheckIcon />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleReportAction(report.id, "reject")}
+                              disabled={
+                                actionLoading === `report-${report.id}-approve` ||
+                                actionLoading === `report-${report.id}-reject`
+                              }
+                              className={`${styles.actionBtn} ${styles.rejectBtn} ${
+                                report.status === "rejected" ? styles.actionBtnActive : ""
+                              }`}
+                              title={
+                                report.status === "rejected"
+                                  ? "Currently rejected (click to change)"
+                                  : "Reject report"
+                              }
+                            >
+                              {actionLoading === `report-${report.id}-reject` ? (
+                                "..."
+                              ) : (
+                                <CloseIcon />
+                              )}
+                            </button>
                           </div>
                         </td>
                       </tr>

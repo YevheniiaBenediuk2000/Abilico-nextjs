@@ -644,12 +644,56 @@ export default function MapContainer({
                   name: placeData.name,
                   city: placeData.city,
                   country: placeData.country,
-                  place_type: placeData.place_type,
-                  accessibility_status: placeData.accessibility_status,
-                  accessibility_keywords: placeData.accessibility_keywords,
-                  photos: placeData.photos,
                   source: placeData.source || "user",
                 };
+
+                // Only include optional fields when present (avoid rendering "Null"/placeholders)
+                if (placeData.place_type) tags.place_type = placeData.place_type;
+                if (placeData.accessibility_status) {
+                  tags.accessibility_status = placeData.accessibility_status;
+                }
+                if (
+                  placeData.accessibility_keywords &&
+                  (Array.isArray(placeData.accessibility_keywords)
+                    ? placeData.accessibility_keywords.length > 0
+                    : true)
+                ) {
+                  tags.accessibility_keywords = placeData.accessibility_keywords;
+                }
+                if (
+                  placeData.photos &&
+                  (Array.isArray(placeData.photos) ? placeData.photos.length > 0 : true)
+                ) {
+                  tags.photos = placeData.photos;
+                }
+
+                // If admin opened this place from the reports table, a report may be provided via storage
+                // so we can display it under the same place details view (without relying on RLS).
+                let adminSelectedReport = null;
+                try {
+                  const raw =
+                    sessionStorage?.getItem("adminSelectedPlaceReport") ||
+                    localStorage?.getItem("adminSelectedPlaceReport");
+                  if (raw) adminSelectedReport = JSON.parse(raw);
+                } catch (e) {
+                  console.warn("Failed to parse adminSelectedPlaceReport:", e);
+                }
+
+                // Clear the report payload after reading (avoid leaking across unrelated opens)
+                try {
+                  sessionStorage?.removeItem("adminSelectedPlaceReport");
+                  localStorage?.removeItem("adminSelectedPlaceReport");
+                } catch {
+                  // ignore
+                }
+
+                if (
+                  adminSelectedReport &&
+                  adminSelectedReport.place_id &&
+                  adminSelectedReport.place_id === selectedPlaceId
+                ) {
+                  tags.selected_place_report = adminSelectedReport;
+                }
 
                 // If this is an OSM place, fetch full OSM tags from Overpass
                 if (placeData.osm_id) {
@@ -1038,6 +1082,22 @@ export default function MapContainer({
         console.error("No data returned from insert");
         toastError("Could not submit report. Please try again.");
         return;
+      }
+
+      // Immediately reflect the submitted report in the place details UI (main view)
+      // without waiting for admin approval. The details renderer will hide it if later rejected.
+      try {
+        if (typeof document !== "undefined") {
+          const inserted = data[0];
+          document.dispatchEvent(
+            new CustomEvent("placeReportSubmitted", {
+              detail: { placeId, report: inserted },
+            })
+          );
+        }
+      } catch (e) {
+        // Non-fatal: UI will still show the toast and the report will appear on next open.
+        console.warn("Failed to dispatch placeReportSubmitted event:", e);
       }
 
       // Success
