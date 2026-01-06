@@ -24,11 +24,32 @@ export default function AuthPage() {
   const [pendingMFA, setPendingMFA] = useState(null);
   const [totpCode, setTotpCode] = useState(["", "", "", "", "", ""]);
   const [mounted, setMounted] = useState(false);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const inputRefs = useRef([]);
 
   // Set mounted state on client side only to prevent hydration mismatch
   useEffect(() => {
     setMounted(true);
+
+    // Check URL hash for recovery type on page load
+    // This handles the case when redirected from callback or direct link
+    if (typeof window !== "undefined") {
+      // Check hash fragment
+      if (window.location.hash) {
+        const hashParams = new URLSearchParams(
+          window.location.hash.substring(1)
+        );
+        if (hashParams.get("type") === "recovery") {
+          setIsPasswordRecovery(true);
+        }
+      }
+
+      // Check sessionStorage (set by callback page)
+      if (sessionStorage.getItem("passwordRecovery") === "true") {
+        setIsPasswordRecovery(true);
+        sessionStorage.removeItem("passwordRecovery");
+      }
+    }
   }, []);
 
   // Get redirect URL - only use on client side
@@ -42,6 +63,29 @@ export default function AuthPage() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Handle password recovery - show password update form
+      if (event === "PASSWORD_RECOVERY") {
+        setIsPasswordRecovery(true);
+        return;
+      }
+
+      // Handle successful password update - redirect to dashboard
+      if (event === "USER_UPDATED" && isPasswordRecovery) {
+        setIsPasswordRecovery(false);
+        toastSuccess("Password updated successfully!");
+        if (typeof window !== "undefined") {
+          window.location.assign("/dashboard");
+        } else {
+          router.push("/dashboard");
+        }
+        return;
+      }
+
+      // If user is in password recovery mode, don't redirect on sign in
+      if (isPasswordRecovery) {
+        return;
+      }
+
       if (event === "SIGNED_IN") {
         const userId = session?.user?.id;
 
@@ -87,7 +131,7 @@ export default function AuthPage() {
     });
 
     return () => subscription.unsubscribe();
-  }, [router]);
+  }, [router, isPasswordRecovery]);
 
   // Auto-focus first input when 2FA screen appears
   useEffect(() => {
@@ -350,6 +394,7 @@ export default function AuthPage() {
                 }}
                 providers={["google"]}
                 redirectTo={redirectTo}
+                view={isPasswordRecovery ? "update_password" : undefined}
               />
             </Box>
           </Box>

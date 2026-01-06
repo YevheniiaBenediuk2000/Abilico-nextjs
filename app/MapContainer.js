@@ -648,7 +648,8 @@ export default function MapContainer({
                 };
 
                 // Only include optional fields when present (avoid rendering "Null"/placeholders)
-                if (placeData.place_type) tags.place_type = placeData.place_type;
+                if (placeData.place_type)
+                  tags.place_type = placeData.place_type;
                 if (placeData.accessibility_status) {
                   tags.accessibility_status = placeData.accessibility_status;
                 }
@@ -658,11 +659,14 @@ export default function MapContainer({
                     ? placeData.accessibility_keywords.length > 0
                     : true)
                 ) {
-                  tags.accessibility_keywords = placeData.accessibility_keywords;
+                  tags.accessibility_keywords =
+                    placeData.accessibility_keywords;
                 }
                 if (
                   placeData.photos &&
-                  (Array.isArray(placeData.photos) ? placeData.photos.length > 0 : true)
+                  (Array.isArray(placeData.photos)
+                    ? placeData.photos.length > 0
+                    : true)
                 ) {
                   tags.photos = placeData.photos;
                 }

@@ -62,7 +62,11 @@ function getAvatarColor(email) {
   return hash % 2 === 0 ? deepOrange[500] : deepPurple[500];
 }
 
-export default function MapLayout({ isDashboard = false, children, hideSidebar = false }) {
+export default function MapLayout({
+  isDashboard = false,
+  children,
+  hideSidebar = false,
+}) {
   const router = useRouter();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -73,7 +77,7 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
 
   // Keep sidebar closed when hideSidebar is true
   const effectiveIsPlacesListOpen = hideSidebar ? false : isPlacesListOpen;
-  
+
   // Remove shadow from header when sidebar is open on mobile
   const headerElevation = isMobile && effectiveIsPlacesListOpen ? 0 : 1;
 
@@ -85,7 +89,16 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       setUser(session?.user ?? null);
-      
+
+      // ✅ Handle password recovery - redirect to auth page with recovery flag
+      if (event === "PASSWORD_RECOVERY") {
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("passwordRecovery", "true");
+          window.location.assign("/auth");
+        }
+        return;
+      }
+
       // ✅ Fix gray map issue: invalidate size after authentication (without causing visible "pan jumps")
       if (event === "SIGNED_IN" && typeof window !== "undefined") {
         const safeInvalidate = () => {
@@ -104,14 +117,14 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
         // Double-rAF to wait for layout + paint.
         requestAnimationFrame(() => requestAnimationFrame(safeInvalidate));
       }
-      
+
       // Force map refresh on logout to clear user-specific state
       if (event === "SIGNED_OUT") {
         // Clear any user-specific caches
         if (typeof window !== "undefined" && window.clearAllCaches) {
           window.clearAllCaches();
         }
-        
+
         // Force map refresh by reloading the page if we're on the map page
         if (!isDashboard && !hideSidebar) {
           // Small delay to ensure logout completes
@@ -171,8 +184,8 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
           sx={{
             bgcolor: effectiveIsPlacesListOpen ? "#fafafa" : "#fff",
             color: "text.primary",
-            borderBottom: effectiveIsPlacesListOpen 
-              ? "1px solid rgba(0,0,0,0.08)" 
+            borderBottom: effectiveIsPlacesListOpen
+              ? "1px solid rgba(0,0,0,0.08)"
               : "1px solid rgba(0,0,0,0.12)",
             transition: "background-color 0.2s ease, border-color 0.2s ease",
           }}
@@ -184,7 +197,9 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
                 <IconButton
                   size="large"
                   edge="start"
-                  aria-label={isPlacesListOpen ? "close places list" : "open places list"}
+                  aria-label={
+                    isPlacesListOpen ? "close places list" : "open places list"
+                  }
                   onClick={() => setIsPlacesListOpen((prev) => !prev)}
                   sx={{
                     color: "rgba(0, 0, 0, 0.54)",
@@ -202,17 +217,17 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
                   logoHeight={26}
                   showText
                   horizontal
-                onClick={() => {
-                  // Force full page reload to ensure map initializes properly
-                  window.location.href = "/";
-                }}
-                sx={{ 
+                  onClick={() => {
+                    // Force full page reload to ensure map initializes properly
+                    window.location.href = "/";
+                  }}
+                  sx={{
                     display: "flex",
                     alignItems: "center",
                     gap: 0.3, // logo + text closer together
                   }}
                   textSx={{
-                  display: { xs: "none", sm: "block" },
+                    display: { xs: "none", sm: "block" },
                     fontSize: { sm: "20px", md: "22px" },
                     lineHeight: 1,
                   }}
@@ -412,12 +427,15 @@ export default function MapLayout({ isDashboard = false, children, hideSidebar =
                         setAvatarMenuAnchor(null);
                         await supabase.auth.signOut();
                         setUser(null);
-                        
+
                         // Clear caches on logout
-                        if (typeof window !== "undefined" && window.clearAllCaches) {
+                        if (
+                          typeof window !== "undefined" &&
+                          window.clearAllCaches
+                        ) {
                           window.clearAllCaches();
                         }
-                        
+
                         if (isDashboard) {
                           router.push("/");
                         } else {

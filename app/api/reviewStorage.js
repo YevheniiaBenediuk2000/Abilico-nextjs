@@ -8,7 +8,12 @@ import { supabase } from "./supabaseClient.js";
  */
 export async function ensurePlaceExists(tags = {}, latlng = null) {
   // 🧠 Safely extract OSM identity
-  let osmType = tags.osm_type || tags.type || tags.source_type || tags.osm_type_guess || null;
+  let osmType =
+    tags.osm_type ||
+    tags.type ||
+    tags.source_type ||
+    tags.osm_type_guess ||
+    null;
   let osmId = tags.osm_id || tags.id || tags.place_id || null;
 
   // Handle case where osmId might already include the type (e.g., "node/123456")
@@ -138,23 +143,27 @@ export async function reviewStorage(method = "GET", reviewData) {
       }
 
       // Fetch profiles for all users who have reviews
-      const userIds = [...new Set(reviewsData.map(r => r.user_id).filter(Boolean))];
+      const userIds = [
+        ...new Set(reviewsData.map((r) => r.user_id).filter(Boolean)),
+      ];
       let profilesMap = new Map();
-      
+
       if (userIds.length > 0) {
         console.log("🔍 Fetching profiles for user_ids:", userIds);
         const { data: profilesData, error: profilesError } = await supabase
           .from("profiles")
           .select("id, full_name")
           .in("id", userIds);
-        
+
         if (profilesError) {
           console.error("❌ Error fetching profiles:", profilesError);
         } else {
           console.log("✅ Fetched profiles:", profilesData);
           if (profilesData && profilesData.length > 0) {
-            profilesData.forEach(profile => {
-              console.log(`  - Profile ID: ${profile.id}, Full Name: "${profile.full_name}"`);
+            profilesData.forEach((profile) => {
+              console.log(
+                `  - Profile ID: ${profile.id}, Full Name: "${profile.full_name}"`
+              );
               profilesMap.set(profile.id, profile);
             });
           } else {
@@ -166,12 +175,17 @@ export async function reviewStorage(method = "GET", reviewData) {
       }
 
       // Attach profile information to each review
-      const reviewsWithProfiles = reviewsData.map(review => {
-        const profile = review.user_id ? profilesMap.get(review.user_id) || null : null;
-        console.log(`📝 Review ${review.id}: user_id=${review.user_id}, profile=`, profile);
+      const reviewsWithProfiles = reviewsData.map((review) => {
+        const profile = review.user_id
+          ? profilesMap.get(review.user_id) || null
+          : null;
+        console.log(
+          `📝 Review ${review.id}: user_id=${review.user_id}, profile=`,
+          profile
+        );
         return {
           ...review,
-          profile: profile
+          profile: profile,
         };
       });
 
@@ -180,32 +194,40 @@ export async function reviewStorage(method = "GET", reviewData) {
 
     if (method === "POST") {
       const overall = reviewData.overall_rating ?? reviewData.rating ?? null;
-      
+
       // Validate overall_rating is a valid number between 1-5
       // The database check constraint requires an integer between 1-5
       // Round to nearest integer since Rating component allows half-stars (precision={0.5})
-      const overallRating = overall != null ? Math.round(Number(overall)) : null;
-      if (overallRating === null || isNaN(overallRating) || overallRating < 1 || overallRating > 5) {
-        throw new Error(`Invalid overall_rating: ${overall}. Must be a number between 1 and 5.`);
+      const overallRating =
+        overall != null ? Math.round(Number(overall)) : null;
+      if (
+        overallRating === null ||
+        isNaN(overallRating) ||
+        overallRating < 1 ||
+        overallRating > 5
+      ) {
+        throw new Error(
+          `Invalid overall_rating: ${overall}. Must be a number between 1 and 5.`
+        );
       }
-    
+
       const payload = {
         comment: reviewData.text ?? null,
         place_id: reviewData.place_id ?? null,
-        rating: overallRating,                   // legacy, real
-        overall_rating: overallRating,           // smallint 1–5 (required by check constraint, must be integer)
+        rating: overallRating, // legacy, real
+        overall_rating: overallRating, // smallint 1–5 (required by check constraint, must be integer)
         category_ratings: reviewData.category_ratings || null,
         image_url: reviewData.image_url || null,
         user_id: reviewData.user_id || null, // if you added this column
       };
-    
+
       console.log("📦 Payload sent to Supabase:", payload);
-    
+
       const { data, error } = await supabase
         .from("reviews")
         .insert([payload])
         .select();
-    
+
       if (error) throw error;
       console.log("✅ Review inserted:", data);
       return data;

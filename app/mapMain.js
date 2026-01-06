@@ -1448,6 +1448,78 @@ async function refreshPlaces() {
       `🗺️ [refreshPlaces] Features in view after accessibility filter: ${featuresInView.length}`
     );
 
+    // Fetch user_reported_accessibility from database for places that have approved reports
+    // This ensures markers show the correct accessibility color on first load
+    try {
+      // Collect OSM IDs from visible features
+      const osmIds = featuresInView
+        .map((f) => {
+          const props = f.properties || {};
+          const osmType = props.osm_type || props.type || null;
+          const osmIdNum = props.osm_id || props.id || null;
+          if (osmType && osmIdNum) {
+            return `${osmType}/${osmIdNum}`;
+          } else if (typeof f.id === "string" && f.id.includes("/")) {
+            return f.id;
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      if (osmIds.length > 0) {
+        // Batch query: get all places with user_reported_accessibility
+        const { data: placesWithReports, error } = await supabase
+          .from("places")
+          .select(
+            "osm_id, user_reported_accessibility, user_reported_accessibility_comment, accessibility_status"
+          )
+          .in("osm_id", osmIds)
+          .not("user_reported_accessibility", "is", null);
+
+        if (!error && placesWithReports && placesWithReports.length > 0) {
+          // Create a lookup map for quick access
+          const reportsByOsmId = new Map();
+          placesWithReports.forEach((p) => {
+            reportsByOsmId.set(p.osm_id, p);
+          });
+
+          // Merge user_reported_accessibility into feature tags
+          featuresInView.forEach((f) => {
+            const props = f.properties || {};
+            const osmType = props.osm_type || props.type || null;
+            const osmIdNum = props.osm_id || props.id || null;
+            let dbOsmId = null;
+            if (osmType && osmIdNum) {
+              dbOsmId = `${osmType}/${osmIdNum}`;
+            } else if (typeof f.id === "string" && f.id.includes("/")) {
+              dbOsmId = f.id;
+            }
+
+            if (dbOsmId && reportsByOsmId.has(dbOsmId)) {
+              const dbData = reportsByOsmId.get(dbOsmId);
+              const tags = f.properties.tags || f.properties;
+              if (dbData.user_reported_accessibility) {
+                tags.user_reported_accessibility =
+                  dbData.user_reported_accessibility;
+              }
+              if (dbData.user_reported_accessibility_comment) {
+                tags.user_reported_accessibility_comment =
+                  dbData.user_reported_accessibility_comment;
+              }
+              if (dbData.accessibility_status) {
+                tags.accessibility_status = dbData.accessibility_status;
+              }
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.warn(
+        "[refreshPlaces] Failed to fetch user_reported_accessibility batch:",
+        e
+      );
+    }
+
     const geojsonForView = {
       type: "FeatureCollection",
       features: featuresInView,
@@ -1494,11 +1566,94 @@ async function refreshPlaces() {
           pane: "places-pane",
           icon,
         })
-          .on("click", () => {
+          .on("click", async () => {
             hideAllBootstrapTooltips();
             // Temporarily override the selected marker badge to brand blue
             setSelectedPlaceMarker(placeKey, tags);
-            renderDetails(tags, L.latLng(latlng), { keepDirectionsUi: true });
+
+            // Fetch user_reported_accessibility from database if this place has an osm_id
+            // This allows displaying admin-approved inaccuracy reports
+            let mergedTags = { ...tags };
+
+            // Construct the osm_id in database format: "node/123456" or "way/789"
+            // Feature can have osm_type + osm_id separately, or feature.id as "node/123"
+            let dbOsmId = null;
+            const props = feature.properties || {};
+            const osmType = props.osm_type || props.type || null;
+            const osmIdNum = props.osm_id || props.id || null;
+
+            if (osmType && osmIdNum) {
+              // Combine type and id: "node/8926666445"
+              dbOsmId = `${osmType}/${osmIdNum}`;
+            } else if (
+              typeof feature?.id === "string" &&
+              feature.id.includes("/")
+            ) {
+              // feature.id is already in "node/123" format
+              dbOsmId = feature.id;
+            }
+
+            if (dbOsmId) {
+              try {
+                const { data: placeData, error } = await supabase
+                  .from("places")
+                  .select(
+                    "user_reported_accessibility, user_reported_accessibility_comment, accessibility_status"
+                  )
+                  .eq("osm_id", dbOsmId)
+                  .maybeSingle();
+
+                if (!error && placeData) {
+                  // Merge database fields into tags (DB takes precedence for user-reported data)
+                  if (placeData.user_reported_accessibility) {
+                    mergedTags.user_reported_accessibility =
+                      placeData.user_reported_accessibility;
+                  }
+                  if (placeData.user_reported_accessibility_comment) {
+                    mergedTags.user_reported_accessibility_comment =
+                      placeData.user_reported_accessibility_comment;
+                  }
+                  if (placeData.accessibility_status) {
+                    mergedTags.accessibility_status =
+                      placeData.accessibility_status;
+                  }
+
+                  // Update marker icon if user-reported accessibility was found
+                  // This ensures the marker reflects the admin-approved accessibility status
+                  // Use badgeOverride to preserve the blue "selected" color
+                  if (
+                    placeData.user_reported_accessibility &&
+                    typeof marker.setIcon === "function"
+                  ) {
+                    marker.setIcon(
+                      makePoiIcon(mergedTags, {
+                        badgeOverride: "var(--bs-primary)",
+                      })
+                    );
+                    // Update the stored original icon with the new accessibility-colored icon
+                    // so when deselected, the marker shows the correct accessibility color
+                    if (
+                      selectedMarkerState &&
+                      selectedMarkerState.key === placeKey
+                    ) {
+                      selectedMarkerState.originalIcon =
+                        makePoiIcon(mergedTags);
+                    }
+                  }
+                } else if (error) {
+                  console.warn("[mapMain] DB query error:", error);
+                }
+              } catch (e) {
+                console.warn(
+                  "[mapMain] Failed to fetch user_reported_accessibility:",
+                  e
+                );
+              }
+            }
+
+            renderDetails(mergedTags, L.latLng(latlng), {
+              keepDirectionsUi: true,
+            });
           })
           .on("add", () => {
             const title = displayNameFromTags(tags);
@@ -5558,6 +5713,15 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
     const isWheelchair = /^wheelchair/i.test(key);
     if (isWheelchair) return;
 
+    // Skip user_reported_accessibility fields - already rendered in Accessibility section
+    if (
+      lk === "user_reported_accessibility" ||
+      lk === "user_reported_accessibility_comment" ||
+      lk === "accessibility_status"
+    ) {
+      return;
+    }
+
     // Skip toilets:wheelchair - already rendered in Accessibility section
     if (
       lk === "toilets:wheelchair" ||
@@ -6604,32 +6768,23 @@ const renderDetails = async (tags, latlng, { keepDirectionsUi } = {}) => {
       if (isValidUUID(globals.detailsCtx.placeId)) {
         const reviewsQueryKey = ["place-reviews", globals.detailsCtx.placeId];
 
-        // 1) If cached, show instantly (fast UI), then refresh if stale.
-        const cached = queryClient.getQueryData(reviewsQueryKey);
-        if (Array.isArray(cached) && cached.length) {
-          globals.reviews = cached;
-          if (!isStale()) {
-            renderReviewsList();
-          }
-        }
-
-        // 2) Fetch (deduped) with a short stale window. This keeps data fresh without hammering.
-        const data =
-          queryClient.getQueryData(reviewsQueryKey) ??
-          (await queryClient.fetchQuery({
-            queryKey: reviewsQueryKey,
-            staleTime: 30 * 1000,
-            queryFn: async () => {
-              let retries = 3;
-              while (retries-- > 0) {
-                const d = await reviewStorage("GET", {
-                  place_id: globals.detailsCtx.placeId,
-                });
-                if (d?.length || retries === 0) return d || [];
-              }
-              return [];
-            },
-          }));
+        // Use React Query's fetchQuery which handles caching properly
+        // After submitting a review, we call setQueryData to update the cache,
+        // so this will return the fresh data on subsequent opens
+        const data = await queryClient.fetchQuery({
+          queryKey: reviewsQueryKey,
+          staleTime: 30 * 1000,
+          queryFn: async () => {
+            let retries = 3;
+            while (retries-- > 0) {
+              const d = await reviewStorage("GET", {
+                place_id: globals.detailsCtx.placeId,
+              });
+              if (d?.length || retries === 0) return d || [];
+            }
+            return [];
+          },
+        });
 
         if (isStale()) return;
         globals.reviews = Array.isArray(data) ? data : [];
@@ -7572,6 +7727,40 @@ async function selectDestinationSuggestion(res) {
     tags = { ...tags, ...enriched };
     console.log("📦 Enriched tags:", tags);
 
+    // 🧭 STEP 2.5: Fetch user_reported_accessibility from database
+    // This allows displaying admin-approved inaccuracy reports
+    const dbOsmId = `${
+      osmType === "N" ? "node" : osmType === "W" ? "way" : "relation"
+    }/${osmId}`;
+    try {
+      const { data: placeData, error } = await supabase
+        .from("places")
+        .select(
+          "user_reported_accessibility, user_reported_accessibility_comment, accessibility_status"
+        )
+        .eq("osm_id", dbOsmId)
+        .maybeSingle();
+
+      if (!error && placeData) {
+        if (placeData.user_reported_accessibility) {
+          tags.user_reported_accessibility =
+            placeData.user_reported_accessibility;
+        }
+        if (placeData.user_reported_accessibility_comment) {
+          tags.user_reported_accessibility_comment =
+            placeData.user_reported_accessibility_comment;
+        }
+        if (placeData.accessibility_status) {
+          tags.accessibility_status = placeData.accessibility_status;
+        }
+      }
+    } catch (e) {
+      console.warn(
+        "[mapMain] selectDestinationSuggestion - Failed to fetch user_reported_accessibility:",
+        e
+      );
+    }
+
     // 🧭 STEP 3: render all details, photos, reviews, etc.
     renderDetails(tags, L.latLng(res.center));
   } catch (err) {
@@ -8190,10 +8379,60 @@ export async function initMap(user = null) {
 
           const latlng = L.latLng(lat, lon);
           const props = feature.properties || {};
-          const tags = props.tags || props || {};
+          let tags = props.tags || props || {};
+
+          // Fetch user_reported_accessibility from database if this place has an osm_id
+          // This allows displaying admin-approved inaccuracy reports
+          let mergedTags = { ...tags };
+
+          // Construct the osm_id in database format: "node/123456" or "way/789"
+          let dbOsmId = null;
+          const osmType = props.osm_type || props.type || null;
+          const osmIdNum = props.osm_id || props.id || null;
+
+          if (osmType && osmIdNum) {
+            dbOsmId = `${osmType}/${osmIdNum}`;
+          } else if (
+            typeof feature?.id === "string" &&
+            feature.id.includes("/")
+          ) {
+            dbOsmId = feature.id;
+          }
+
+          if (dbOsmId) {
+            try {
+              const { data: placeData, error } = await supabase
+                .from("places")
+                .select(
+                  "user_reported_accessibility, user_reported_accessibility_comment, accessibility_status"
+                )
+                .eq("osm_id", dbOsmId)
+                .maybeSingle();
+
+              if (!error && placeData) {
+                if (placeData.user_reported_accessibility) {
+                  mergedTags.user_reported_accessibility =
+                    placeData.user_reported_accessibility;
+                }
+                if (placeData.user_reported_accessibility_comment) {
+                  mergedTags.user_reported_accessibility_comment =
+                    placeData.user_reported_accessibility_comment;
+                }
+                if (placeData.accessibility_status) {
+                  mergedTags.accessibility_status =
+                    placeData.accessibility_status;
+                }
+              }
+            } catch (e) {
+              console.warn(
+                "[mapMain] selectPlaceFromListFeature - Failed to fetch user_reported_accessibility:",
+                e
+              );
+            }
+          }
 
           // Show details panel (Overview/Reviews/Photos)
-          await renderDetails(tags, latlng, { keepDirectionsUi: true });
+          await renderDetails(mergedTags, latlng, { keepDirectionsUi: true });
 
           // Focus map on the selected place
           if (map) {
@@ -8469,9 +8708,18 @@ export async function initMap(user = null) {
 
   // ✅ Set up review form handler using event delegation (for old HTML form, kept for backward compatibility)
   // This works even if the form is created dynamically after login
+  // NOTE: The React ReviewForm also has id="review-form" but handles its own submission
+  // We differentiate by checking for the #review-text textarea (only in old HTML form)
   elements.detailsPanel.addEventListener("submit", async (e) => {
     // Only handle review form submissions (old HTML form)
     if (e.target.id !== "review-form") return;
+
+    // Skip if this is the React ReviewForm (it has its own handler)
+    // The old HTML form has a #review-text textarea, React form doesn't
+    const textarea = e.target.querySelector("#review-text");
+    if (!textarea) {
+      return;
+    }
 
     e.preventDefault();
 
@@ -8480,9 +8728,6 @@ export async function initMap(user = null) {
       toastError("Please log in to submit a review.");
       return;
     }
-
-    const textarea = e.target.querySelector("#review-text");
-    if (!textarea) return;
 
     const text = textarea.value.trim();
     if (!text) return;
@@ -8528,8 +8773,13 @@ export async function initMap(user = null) {
         "Saving…"
       );
 
-      // ✅ Reload and render updated reviews list
+      // ✅ Fetch fresh reviews from server
+      const reviewsQueryKey = ["place-reviews", placeId];
       globals.reviews = await reviewStorage("GET", { place_id: placeId });
+
+      // ✅ Update React Query cache with the fresh data (replaces any stale data)
+      queryClient.setQueryData(reviewsQueryKey, globals.reviews);
+
       renderReviewsList();
 
       textarea.value = "";
@@ -8594,35 +8844,25 @@ export async function initMap(user = null) {
 
       // Check if reviews are cached in queryClient
       const reviewsQueryKey = ["place-reviews", placeId];
-      const cached = queryClient.getQueryData(reviewsQueryKey);
 
-      // If we have cached reviews, use them and render
-      if (Array.isArray(cached) && cached.length > 0) {
-        globals.reviews = cached;
-        renderReviewsList();
-        return;
-      }
-
-      // Fetch reviews (this will use cache if available, or fetch if stale)
+      // Use React Query's fetchQuery which handles caching properly
       const keyReviews = showLoading(Symbol("reviews-load"));
       try {
-        const data =
-          queryClient.getQueryData(reviewsQueryKey) ??
-          (await queryClient.fetchQuery({
-            queryKey: reviewsQueryKey,
-            staleTime: 30 * 1000,
-            queryFn: async () => {
-              let retries = 3;
-              while (retries-- > 0) {
-                const d = await reviewStorage("GET", {
-                  place_id: placeId,
-                });
-                if (d?.length || retries === 0) return d || [];
-                await new Promise((r) => setTimeout(r, 500)); // Brief delay before retry
-              }
-              return [];
-            },
-          }));
+        const data = await queryClient.fetchQuery({
+          queryKey: reviewsQueryKey,
+          staleTime: 30 * 1000,
+          queryFn: async () => {
+            let retries = 3;
+            while (retries-- > 0) {
+              const d = await reviewStorage("GET", {
+                place_id: placeId,
+              });
+              if (d?.length || retries === 0) return d || [];
+              await new Promise((r) => setTimeout(r, 500));
+            }
+            return [];
+          },
+        });
 
         globals.reviews = Array.isArray(data) ? data : [];
         renderReviewsList();
@@ -8650,8 +8890,13 @@ export async function initMap(user = null) {
     if (!placeId) return;
 
     try {
-      // Reload and render updated reviews list
+      // ✅ Fetch fresh reviews from server
+      const reviewsQueryKey = ["place-reviews", placeId];
       globals.reviews = await reviewStorage("GET", { place_id: placeId });
+
+      // ✅ Update React Query cache with the fresh data (replaces any stale data)
+      queryClient.setQueryData(reviewsQueryKey, globals.reviews);
+
       renderReviewsList();
       recomputePlaceAccessibilityKeywords(true).catch(console.error);
     } catch (error) {

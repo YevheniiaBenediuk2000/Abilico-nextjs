@@ -57,40 +57,40 @@ export async function fetchUserPlaces(bounds) {
         const typeToTag = {
           // Tourism (hotel uses tourism, not amenity!) - see TOURISM_TO_MAKI
           hotel: { tourism: "hotel" }, // tourism:hotel -> "lodging" icon in makiIconFor
-          
+
           // Amenities (food & drink) - see AMENITY_TO_MAKI
           restaurant: { amenity: "restaurant" }, // amenity:restaurant -> "restaurant" icon
           cafe: { amenity: "cafe" }, // amenity:cafe -> "cafe" icon
-          
+
           // Amenities (healthcare) - see AMENITY_TO_MAKI
           hospital: { amenity: "hospital" }, // amenity:hospital -> "hospital" icon
           pharmacy: { amenity: "pharmacy" }, // amenity:pharmacy -> "pharmacy" icon
-          
+
           // Amenities (learning & culture) - see AMENITY_TO_MAKI
           library: { amenity: "library" }, // amenity:library -> "library" icon
           school: { amenity: "school" }, // amenity:school -> "school" icon
-          
+
           // Leisure - see LEISURE_TO_MAKI
           park: { leisure: "park" }, // leisure:park -> "park" icon
-          
+
           // Amenities (water & toilets) - see AMENITY_TO_MAKI
           toilet: { amenity: "toilets" }, // amenity:toilets -> "toilet" icon
-          
+
           // Amenities (mobility) - see AMENITY_TO_MAKI
           parking: { amenity: "parking" }, // amenity:parking -> "parking" icon
-          
+
           // Shop - see SHOP_TO_MAKI
           shop: { shop: "general" }, // shop:general -> "shop" icon (fallback)
-          
+
           // Public transport - see PUBTRANS_TO_MAKI
           stop: { public_transport: "stop_position" }, // public_transport:stop_position -> "bus" icon
-          
+
           // Amenities (shelter) - might not have direct mapping, will use fallback
           shelter: { amenity: "shelter" }, // amenity:shelter -> fallback to "information"
-          
+
           // Housing - not a standard OSM tag, use residential (might not work)
           housing: { amenity: "residential" }, // This might not work, will fallback
-          
+
           // Other - fallback
           other: {}, // Will use fallback "information" icon
         };
@@ -110,25 +110,30 @@ export async function fetchUserPlaces(bounds) {
       // Add additional user-submitted data as tags
       if (place.city) tags["addr:city"] = place.city;
       if (place.country) tags["addr:country"] = place.country;
-      if (place.accessibility_comments) tags.accessibility_comments = place.accessibility_comments;
-      if (place.photos && Array.isArray(place.photos)) tags.photos = place.photos;
+      if (place.accessibility_comments)
+        tags.accessibility_comments = place.accessibility_comments;
+      if (place.photos && Array.isArray(place.photos))
+        tags.photos = place.photos;
 
       // Add OSM-standard accessibility tags for proper icon coloring
       // These values come from accessibility_keywords JSONB field (designated, yes, limited, no)
       // They will be used by getAccessibilityTier() to determine badge color
-      if (place.accessibility_keywords && typeof place.accessibility_keywords === 'object') {
+      if (
+        place.accessibility_keywords &&
+        typeof place.accessibility_keywords === "object"
+      ) {
         const accKw = place.accessibility_keywords;
-        
+
         // Overall accessibility - OSM standard: wheelchair=designated/yes/limited/no
         if (accKw.wheelchair) {
           tags.wheelchair = accKw.wheelchair;
         }
-        
+
         // Step-free entrance - store as additional info
         if (accKw.step_free_entrance) {
           tags["entrance:step_free"] = accKw.step_free_entrance;
         }
-        
+
         // Accessible toilet - OSM uses toilets:wheelchair or wheelchair:toilets
         if (accKw.accessible_toilet) {
           tags["toilets:wheelchair"] = accKw.accessible_toilet; // OSM standard
@@ -164,4 +169,3 @@ export async function fetchUserPlaces(bounds) {
     return { type: "FeatureCollection", features: [] };
   }
 }
-

@@ -48,7 +48,8 @@ export async function GET(request) {
   try {
     const { data, error: dbError } = await supabase
       .from("place_reports")
-      .select(`
+      .select(
+        `
         *,
         places (
           id,
@@ -58,12 +59,15 @@ export async function GET(request) {
           city,
           country
         )
-      `)
+      `
+      )
       .order("created_at", { ascending: false });
 
     if (dbError) throw dbError;
 
-    console.log(`[Admin API] Fetched ${data?.length || 0} place reports with place data`);
+    console.log(
+      `[Admin API] Fetched ${data?.length || 0} place reports with place data`
+    );
     return NextResponse.json({ data });
   } catch (e) {
     console.error("[Admin API] Error fetching place reports:", e);
@@ -106,10 +110,7 @@ export async function PUT(request) {
     if (fetchError) throw fetchError;
 
     if (!report) {
-      return NextResponse.json(
-        { error: "Report not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Report not found" }, { status: 404 });
     }
 
     // Step 2: Determine new status (allow reversibility)
@@ -138,29 +139,60 @@ export async function PUT(request) {
 
     // Step 4: Update place based on action and report reason
     if (report.place_id) {
-      const placeUpdate = {
-        updated_at: new Date().toISOString(),
-      };
+      const placeUpdate = {};
+
+      // DEBUG: Log the report data to see what we're working with
+      console.log("[Admin API] DEBUG - Report data:", {
+        place_id: report.place_id,
+        reason: report.reason,
+        accessibility_reality: report.accessibility_reality,
+        accessibility_issues: report.accessibility_issues,
+        comment: report.comment,
+        action: action,
+      });
 
       if (action === "approve") {
         // Approve: Apply ONLY the fields that the user actually submitted in the report
         // Do not overwrite existing place data with null/empty values
         // This ensures partial updates work correctly (e.g., only accessibility_status submitted)
-        
-        // Only update accessibility_status if user submitted it (not null/empty)
-        if (report.accessibility_reality && report.accessibility_reality.trim() !== "") {
+
+        // Update user_reported_accessibility (JSONB object with wheelchair key)
+        // This is the field the frontend looks for to display corrected accessibility
+        if (
+          report.accessibility_reality &&
+          report.accessibility_reality.trim() !== ""
+        ) {
+          // Store as JSONB object with wheelchair key for frontend compatibility
+          placeUpdate.user_reported_accessibility = {
+            wheelchair: report.accessibility_reality,
+          };
+          // Also update accessibility_status for backwards compatibility
           placeUpdate.accessibility_status = report.accessibility_reality;
+
+          console.log("[Admin API] DEBUG - Will update accessibility:", {
+            user_reported_accessibility:
+              placeUpdate.user_reported_accessibility,
+            accessibility_status: placeUpdate.accessibility_status,
+          });
+        } else {
+          console.log(
+            "[Admin API] DEBUG - No accessibility_reality in report, skipping accessibility update"
+          );
         }
 
         // Only update accessibility_keywords if user submitted it (not null/empty array)
-        if (report.accessibility_issues && 
-            Array.isArray(report.accessibility_issues) && 
-            report.accessibility_issues.length > 0) {
+        if (
+          report.accessibility_issues &&
+          Array.isArray(report.accessibility_issues) &&
+          report.accessibility_issues.length > 0
+        ) {
           placeUpdate.accessibility_keywords = report.accessibility_issues;
         }
 
-        // Only update accessibility_comment if user submitted it (not null/empty)
+        // Update user_reported_accessibility_comment (for frontend display)
+        // Also keep accessibility_comment for backwards compatibility
         if (report.comment && report.comment.trim() !== "") {
+          placeUpdate.user_reported_accessibility_comment = report.comment;
           placeUpdate.accessibility_comment = report.comment;
         }
 
@@ -173,11 +205,14 @@ export async function PUT(request) {
         if (report.reason === "permanently_closed") {
           placeUpdate.status = "closed";
           // Add clear context message about closure
-          const closureMessage = "Marked as permanently closed (verified by admin)";
+          const closureMessage =
+            "Marked as permanently closed (verified by admin)";
           if (report.comment && report.comment.trim() !== "") {
             placeUpdate.accessibility_comment = `${closureMessage}. ${report.comment}`;
+            placeUpdate.user_reported_accessibility_comment = `${closureMessage}. ${report.comment}`;
           } else {
             placeUpdate.accessibility_comment = closureMessage;
+            placeUpdate.user_reported_accessibility_comment = closureMessage;
           }
         }
       } else if (action === "reject" && isReversal) {
@@ -186,31 +221,63 @@ export async function PUT(request) {
           // Revert closed status back to active
           placeUpdate.status = "active";
         }
-        // For accessibility reports, we leave the place data unchanged
-        // (simpler approach - previous state is preserved)
+        // For accessibility reports, clear the user-reported fields when rejecting a reversal
+        placeUpdate.user_reported_accessibility = null;
+        placeUpdate.user_reported_accessibility_comment = null;
       }
 
-      // Only update if there are changes to make
-      if (Object.keys(placeUpdate).length > 1) {
-        const { error: placeUpdateError } = await supabase
+      // DEBUG: Log what we're about to update
+      console.log(
+        "[Admin API] DEBUG - placeUpdate object:",
+        JSON.stringify(placeUpdate, null, 2)
+      );
+      console.log(
+        "[Admin API] DEBUG - placeUpdate keys count:",
+        Object.keys(placeUpdate).length
+      );
+
+      // Only update if there are changes to make (at least 1 field)
+      if (Object.keys(placeUpdate).length > 0) {
+        console.log(
+          "[Admin API] DEBUG - Executing place update for place_id:",
+          report.place_id
+        );
+
+        const { data: updatedPlace, error: placeUpdateError } = await supabase
           .from("places")
           .update(placeUpdate)
-          .eq("id", report.place_id);
+          .eq("id", report.place_id)
+          .select();
 
         if (placeUpdateError) {
-          console.error("[Admin API] Error updating place:", placeUpdateError);
+          console.error("[Admin API] ERROR updating place:", placeUpdateError);
+          console.error(
+            "[Admin API] ERROR details:",
+            JSON.stringify(placeUpdateError, null, 2)
+          );
           // Don't fail the whole request, but log the error
         } else {
           console.log(
-            `[Admin API] Updated place ${report.place_id} (reversal: ${isReversal})`
+            "[Admin API] SUCCESS - Updated place:",
+            JSON.stringify(updatedPlace, null, 2)
           );
         }
+      } else {
+        console.log(
+          "[Admin API] DEBUG - No changes to make (only updated_at), skipping place update"
+        );
       }
+    } else {
+      console.log(
+        "[Admin API] DEBUG - No place_id in report, skipping place update"
+      );
     }
 
     // Log action for audit trail
     console.log(
-      `[Admin API] ${action === "approve" ? "Approved" : "Rejected"} report ${id}`,
+      `[Admin API] ${
+        action === "approve" ? "Approved" : "Rejected"
+      } report ${id}`,
       {
         reportId: id,
         action,
@@ -228,4 +295,3 @@ export async function PUT(request) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
-

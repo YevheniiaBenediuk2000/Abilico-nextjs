@@ -285,7 +285,7 @@ export default function AdminPanel() {
       });
       const json = await res.json();
       console.log("[Admin Panel] Report action response:", json);
-      
+
       if (json.data) {
         const newStatus = json.data.status;
         setReports((prev) =>
@@ -294,17 +294,15 @@ export default function AdminPanel() {
 
         // Show success confirmation
         const actionText = action === "approve" ? "approved" : "rejected";
-        const placeUpdateText = action === "approve" && report.place_id
-          ? " and applied to place"
-          : "";
-        
-        toastSuccess(
-          `Report ${actionText}${placeUpdateText}.`,
-          {
-            title: action === "approve" ? "Report Approved" : "Report Rejected",
-            delay: 4000,
-          }
-        );
+        const placeUpdateText =
+          action === "approve" && report.place_id
+            ? " and applied to place"
+            : "";
+
+        toastSuccess(`Report ${actionText}${placeUpdateText}.`, {
+          title: action === "approve" ? "Report Approved" : "Report Rejected",
+          delay: 4000,
+        });
 
         // Log for verification
         console.log(`[Admin Panel] ✅ Report ${id} ${actionText}`, {
@@ -421,254 +419,266 @@ export default function AdminPanel() {
       {/* Obstacles Table */}
       {activePanel === "obstacles" && (
         <section className={styles.section}>
-        <div className={styles.sectionHeader}>
-          <h2>
-            <WarningIcon sx={{ verticalAlign: "middle", mr: 1 }} />
-            Obstacles
-          </h2>
-          <button
-            onClick={fetchObstacles}
-            className={styles.refreshBtn}
-          >
-            <RefreshIcon sx={{ verticalAlign: "middle", mr: 0.5 }} />
-            Refresh
-          </button>
-        </div>
-
-        {obstaclesLoading ? (
-          <div className={styles.loadingMessage}>Loading obstacles...</div>
-        ) : obstacles.length === 0 ? (
-          <div className={styles.emptyMessage}>No obstacles found</div>
-        ) : (
-          <div className={styles.tableWrapper}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Type</th>
-                  <th>Title</th>
-                  <th>Coordinates</th>
-                  <th>Date Added</th>
-                  <th>Confirmations</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {obstacles.map((obstacle) => (
-                  <tr key={obstacle.id}>
-                    <td className={styles.idCell} title={obstacle.id}>
-                      {obstacle.id.slice(0, 8)}...
-                    </td>
-                    <td>{obstacle.properties?.shape || "-"}</td>
-                    <td>{obstacle.properties?.title || "-"}</td>
-                    <td>
-                      {obstacle.geometry?.coordinates &&
-                      typeof obstacle.geometry.coordinates[0] === 'number' &&
-                      typeof obstacle.geometry.coordinates[1] === 'number'
-                        ? `${Number(obstacle.geometry.coordinates[1]).toFixed(4)}, ${Number(obstacle.geometry.coordinates[0]).toFixed(4)}`
-                        : "-"}
-                    </td>
-                    <td>{formatDate(obstacle.date_added)}</td>
-                    <td>{obstacle.confirmation_count || 0}</td>
-                    <td className={styles.statusCell}>
-                      <span className={getStatusClass(obstacle.status)}>
-                        {obstacle.status || "pending"}
-                      </span>
-                    </td>
-                    <td className={styles.actionsCell}>
-                      <div className={styles.actionsInner}>
-                        <button
-                          onClick={() =>
-                            handleObstacleAction(obstacle.id, "active")
-                          }
-                          disabled={
-                            actionLoading === `obstacle-${obstacle.id}-active`
-                          }
-                          className={`${styles.actionBtn} ${styles.approveBtn}`}
-                          title="Approve"
-                        >
-                          {actionLoading === `obstacle-${obstacle.id}-active` ? (
-                            "..."
-                          ) : (
-                            <CheckIcon />
-                          )}
-                        </button>
-                        <button
-                          onClick={() =>
-                            handleObstacleAction(obstacle.id, "rejected")
-                          }
-                          disabled={
-                            actionLoading === `obstacle-${obstacle.id}-rejected`
-                          }
-                          className={`${styles.actionBtn} ${styles.rejectBtn}`}
-                          title="Reject"
-                        >
-                          {actionLoading === `obstacle-${obstacle.id}-rejected` ? (
-                            "..."
-                          ) : (
-                            <CloseIcon />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (
-                              confirm(
-                                "Are you sure you want to DELETE this obstacle?"
-                              )
-                            ) {
-                              handleObstacleAction(obstacle.id, "delete");
-                            }
-                          }}
-                          disabled={
-                            actionLoading === `obstacle-${obstacle.id}-delete`
-                          }
-                          className={`${styles.actionBtn} ${styles.deleteBtn}`}
-                          title="Delete"
-                        >
-                          {actionLoading === `obstacle-${obstacle.id}-delete` ? (
-                            "..."
-                          ) : (
-                            <DeleteIcon />
-                          )}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className={styles.sectionHeader}>
+            <h2>
+              <WarningIcon sx={{ verticalAlign: "middle", mr: 1 }} />
+              Obstacles
+            </h2>
+            <button onClick={fetchObstacles} className={styles.refreshBtn}>
+              <RefreshIcon sx={{ verticalAlign: "middle", mr: 0.5 }} />
+              Refresh
+            </button>
           </div>
-        )}
-      </section>
+
+          {obstaclesLoading ? (
+            <div className={styles.loadingMessage}>Loading obstacles...</div>
+          ) : obstacles.length === 0 ? (
+            <div className={styles.emptyMessage}>No obstacles found</div>
+          ) : (
+            <div className={styles.tableWrapper}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Type</th>
+                    <th>Title</th>
+                    <th>Coordinates</th>
+                    <th>Date Added</th>
+                    <th>Confirmations</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {obstacles.map((obstacle) => (
+                    <tr key={obstacle.id}>
+                      <td className={styles.idCell} title={obstacle.id}>
+                        {obstacle.id.slice(0, 8)}...
+                      </td>
+                      <td>{obstacle.properties?.shape || "-"}</td>
+                      <td>{obstacle.properties?.title || "-"}</td>
+                      <td>
+                        {obstacle.geometry?.coordinates &&
+                        typeof obstacle.geometry.coordinates[0] === "number" &&
+                        typeof obstacle.geometry.coordinates[1] === "number"
+                          ? `${Number(obstacle.geometry.coordinates[1]).toFixed(
+                              4
+                            )}, ${Number(
+                              obstacle.geometry.coordinates[0]
+                            ).toFixed(4)}`
+                          : "-"}
+                      </td>
+                      <td>{formatDate(obstacle.date_added)}</td>
+                      <td>{obstacle.confirmation_count || 0}</td>
+                      <td className={styles.statusCell}>
+                        <span className={getStatusClass(obstacle.status)}>
+                          {obstacle.status || "pending"}
+                        </span>
+                      </td>
+                      <td className={styles.actionsCell}>
+                        <div className={styles.actionsInner}>
+                          <button
+                            onClick={() =>
+                              handleObstacleAction(obstacle.id, "active")
+                            }
+                            disabled={
+                              actionLoading === `obstacle-${obstacle.id}-active`
+                            }
+                            className={`${styles.actionBtn} ${styles.approveBtn}`}
+                            title="Approve"
+                          >
+                            {actionLoading ===
+                            `obstacle-${obstacle.id}-active` ? (
+                              "..."
+                            ) : (
+                              <CheckIcon />
+                            )}
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleObstacleAction(obstacle.id, "rejected")
+                            }
+                            disabled={
+                              actionLoading ===
+                              `obstacle-${obstacle.id}-rejected`
+                            }
+                            className={`${styles.actionBtn} ${styles.rejectBtn}`}
+                            title="Reject"
+                          >
+                            {actionLoading ===
+                            `obstacle-${obstacle.id}-rejected` ? (
+                              "..."
+                            ) : (
+                              <CloseIcon />
+                            )}
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (
+                                confirm(
+                                  "Are you sure you want to DELETE this obstacle?"
+                                )
+                              ) {
+                                handleObstacleAction(obstacle.id, "delete");
+                              }
+                            }}
+                            disabled={
+                              actionLoading === `obstacle-${obstacle.id}-delete`
+                            }
+                            className={`${styles.actionBtn} ${styles.deleteBtn}`}
+                            title="Delete"
+                          >
+                            {actionLoading ===
+                            `obstacle-${obstacle.id}-delete` ? (
+                              "..."
+                            ) : (
+                              <DeleteIcon />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       )}
 
       {/* Places Table */}
       {activePanel === "places" && (
         <section className={styles.section}>
-        <div className={styles.sectionHeader}>
-          <h2>
-            <PlaceIcon sx={{ verticalAlign: "middle", mr: 1 }} />
-            User-Submitted Places
-          </h2>
-          <button
-            onClick={fetchPlaces}
-            className={styles.refreshBtn}
-          >
-            <RefreshIcon sx={{ verticalAlign: "middle", mr: 0.5 }} />
-            Refresh
-          </button>
-        </div>
+          <div className={styles.sectionHeader}>
+            <h2>
+              <PlaceIcon sx={{ verticalAlign: "middle", mr: 1 }} />
+              User-Submitted Places
+            </h2>
+            <button onClick={fetchPlaces} className={styles.refreshBtn}>
+              <RefreshIcon sx={{ verticalAlign: "middle", mr: 0.5 }} />
+              Refresh
+            </button>
+          </div>
 
-        {placesLoading ? (
-          <div className={styles.loadingMessage}>Loading places...</div>
-        ) : places.length === 0 ? (
-          <div className={styles.emptyMessage}>
-            No user-submitted places found
-          </div>
-        ) : (
-          <div className={styles.tableWrapper}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Name</th>
-                  <th>Type</th>
-                  <th>City</th>
-                  <th>Country</th>
-                  <th>Coordinates</th>
-                  <th>Created At</th>
-                  <th>Submitted By</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {places.map((place) => (
-                  <tr key={place.id}>
-                    <td className={styles.idCell} title={place.id}>
-                      {place.id.slice(0, 8)}...
-                    </td>
-                    <td>{place.name || "-"}</td>
-                    <td>{place.place_type || "-"}</td>
-                    <td>{place.city || "-"}</td>
-                    <td>{place.country || "-"}</td>
-                    <td>
-                      {place.lat != null && place.lon != null &&
-                      typeof place.lat === 'number' && typeof place.lon === 'number'
-                        ? `${Number(place.lat).toFixed(4)}, ${Number(place.lon).toFixed(4)}`
-                        : "-"}
-                    </td>
-                    <td>{formatDate(place.created_at)}</td>
-                    <td>
-                      {place.submitted_by_name ||
-                        place.submitted_by_email ||
-                        "-"}
-                    </td>
-                    <td className={styles.statusCell}>
-                      <span className={getStatusClass(place.status)}>
-                        {place.status || "pending"}
-                      </span>
-                    </td>
-                    <td className={styles.actionsCell}>
-                      <div className={styles.actionsInner}>
-                        <button
-                          onClick={() => handlePlaceAction(place.id, "approved")}
-                          disabled={
-                            actionLoading === `place-${place.id}-approved`
-                          }
-                          className={`${styles.actionBtn} ${styles.approveBtn}`}
-                          title="Approve"
-                        >
-                          {actionLoading === `place-${place.id}-approved` ? (
-                            "..."
-                          ) : (
-                            <CheckIcon />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => handlePlaceAction(place.id, "rejected")}
-                          disabled={
-                            actionLoading === `place-${place.id}-rejected`
-                          }
-                          className={`${styles.actionBtn} ${styles.rejectBtn}`}
-                          title="Reject"
-                        >
-                          {actionLoading === `place-${place.id}-rejected` ? (
-                            "..."
-                          ) : (
-                            <CloseIcon />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (
-                              confirm(
-                                "Are you sure you want to DELETE this place?"
-                              )
-                            ) {
-                              handlePlaceAction(place.id, "delete");
-                            }
-                          }}
-                          disabled={actionLoading === `place-${place.id}-delete`}
-                          className={`${styles.actionBtn} ${styles.deleteBtn}`}
-                          title="Delete"
-                        >
-                          {actionLoading === `place-${place.id}-delete` ? (
-                            "..."
-                          ) : (
-                            <DeleteIcon />
-                          )}
-                        </button>
-                      </div>
-                    </td>
+          {placesLoading ? (
+            <div className={styles.loadingMessage}>Loading places...</div>
+          ) : places.length === 0 ? (
+            <div className={styles.emptyMessage}>
+              No user-submitted places found
+            </div>
+          ) : (
+            <div className={styles.tableWrapper}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>City</th>
+                    <th>Country</th>
+                    <th>Coordinates</th>
+                    <th>Created At</th>
+                    <th>Submitted By</th>
+                    <th>Status</th>
+                    <th>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+                </thead>
+                <tbody>
+                  {places.map((place) => (
+                    <tr key={place.id}>
+                      <td className={styles.idCell} title={place.id}>
+                        {place.id.slice(0, 8)}...
+                      </td>
+                      <td>{place.name || "-"}</td>
+                      <td>{place.place_type || "-"}</td>
+                      <td>{place.city || "-"}</td>
+                      <td>{place.country || "-"}</td>
+                      <td>
+                        {place.lat != null &&
+                        place.lon != null &&
+                        typeof place.lat === "number" &&
+                        typeof place.lon === "number"
+                          ? `${Number(place.lat).toFixed(4)}, ${Number(
+                              place.lon
+                            ).toFixed(4)}`
+                          : "-"}
+                      </td>
+                      <td>{formatDate(place.created_at)}</td>
+                      <td>
+                        {place.submitted_by_name ||
+                          place.submitted_by_email ||
+                          "-"}
+                      </td>
+                      <td className={styles.statusCell}>
+                        <span className={getStatusClass(place.status)}>
+                          {place.status || "pending"}
+                        </span>
+                      </td>
+                      <td className={styles.actionsCell}>
+                        <div className={styles.actionsInner}>
+                          <button
+                            onClick={() =>
+                              handlePlaceAction(place.id, "approved")
+                            }
+                            disabled={
+                              actionLoading === `place-${place.id}-approved`
+                            }
+                            className={`${styles.actionBtn} ${styles.approveBtn}`}
+                            title="Approve"
+                          >
+                            {actionLoading === `place-${place.id}-approved` ? (
+                              "..."
+                            ) : (
+                              <CheckIcon />
+                            )}
+                          </button>
+                          <button
+                            onClick={() =>
+                              handlePlaceAction(place.id, "rejected")
+                            }
+                            disabled={
+                              actionLoading === `place-${place.id}-rejected`
+                            }
+                            className={`${styles.actionBtn} ${styles.rejectBtn}`}
+                            title="Reject"
+                          >
+                            {actionLoading === `place-${place.id}-rejected` ? (
+                              "..."
+                            ) : (
+                              <CloseIcon />
+                            )}
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (
+                                confirm(
+                                  "Are you sure you want to DELETE this place?"
+                                )
+                              ) {
+                                handlePlaceAction(place.id, "delete");
+                              }
+                            }}
+                            disabled={
+                              actionLoading === `place-${place.id}-delete`
+                            }
+                            className={`${styles.actionBtn} ${styles.deleteBtn}`}
+                            title="Delete"
+                          >
+                            {actionLoading === `place-${place.id}-delete` ? (
+                              "..."
+                            ) : (
+                              <DeleteIcon />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       )}
 
       {/* Place Reports Table */}
@@ -679,10 +689,7 @@ export default function AdminPanel() {
               <ReportIcon sx={{ verticalAlign: "middle", mr: 1 }} />
               Place Reports
             </h2>
-            <button
-              onClick={fetchReports}
-              className={styles.refreshBtn}
-            >
+            <button onClick={fetchReports} className={styles.refreshBtn}>
               <RefreshIcon sx={{ verticalAlign: "middle", mr: 0.5 }} />
               Refresh
             </button>
@@ -691,9 +698,7 @@ export default function AdminPanel() {
           {reportsLoading ? (
             <div className={styles.loadingMessage}>Loading reports...</div>
           ) : reports.length === 0 ? (
-            <div className={styles.emptyMessage}>
-              No place reports found
-            </div>
+            <div className={styles.emptyMessage}>No place reports found</div>
           ) : (
             <div className={styles.tableWrapper}>
               <table className={styles.table}>
@@ -714,18 +719,21 @@ export default function AdminPanel() {
                 <tbody>
                   {reports.map((report) => {
                     // Handle Supabase join: places can be object, array, or null
-                    const place = Array.isArray(report.places) 
-                      ? report.places[0] 
+                    const place = Array.isArray(report.places)
+                      ? report.places[0]
                       : report.places;
                     const placeName = place?.name || "Unknown Place";
-                    const placeLocation = place?.city && place?.country
-                      ? `${place.city}, ${place.country}`
-                      : place?.city || place?.country || "";
+                    const placeLocation =
+                      place?.city && place?.country
+                        ? `${place.city}, ${place.country}`
+                        : place?.city || place?.country || "";
                     const hasCoordinates = place?.lat && place?.lon;
                     const photonUrl = hasCoordinates
                       ? `https://photon.komoot.io/?lat=${place.lat}&lon=${place.lon}&zoom=18`
                       : placeName !== "Unknown Place"
-                      ? `https://photon.komoot.io/?q=${encodeURIComponent(placeName)}`
+                      ? `https://photon.komoot.io/?q=${encodeURIComponent(
+                          placeName
+                        )}`
                       : null;
 
                     return (
@@ -734,41 +742,89 @@ export default function AdminPanel() {
                           {report.id.slice(0, 8)}...
                         </td>
                         <td className={styles.idCell} title={report.place_id}>
-                          {report.place_id ? report.place_id.slice(0, 8) + "..." : "-"}
+                          {report.place_id
+                            ? report.place_id.slice(0, 8) + "..."
+                            : "-"}
                         </td>
                         <td>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                              flexWrap: "wrap",
+                            }}
+                          >
                             <div>
                               <strong>{placeName}</strong>
                               {placeLocation && (
-                                <div style={{ fontSize: "11px", opacity: 0.6, marginTop: "2px" }}>
+                                <div
+                                  style={{
+                                    fontSize: "11px",
+                                    opacity: 0.6,
+                                    marginTop: "2px",
+                                  }}
+                                >
                                   {placeLocation}
                                 </div>
                               )}
                               {hasCoordinates && (
-                                <div style={{ fontSize: "10px", opacity: 0.5, marginTop: "2px" }}>
+                                <div
+                                  style={{
+                                    fontSize: "10px",
+                                    opacity: 0.5,
+                                    marginTop: "2px",
+                                  }}
+                                >
                                   {place.lat.toFixed(4)}, {place.lon.toFixed(4)}
                                 </div>
                               )}
                             </div>
                             {report.place_id && (
                               <a
-                                href={`/?placeId=${encodeURIComponent(report.place_id)}${hasCoordinates ? `&lat=${place.lat}&lon=${place.lon}` : ""}`}
+                                href={`/?placeId=${encodeURIComponent(
+                                  report.place_id
+                                )}${
+                                  hasCoordinates
+                                    ? `&lat=${place.lat}&lon=${place.lon}`
+                                    : ""
+                                }`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => {
                                   // Store place ID in localStorage (shared across tabs) for the map to pick up
-                                  if (typeof window !== "undefined" && window.localStorage) {
-                                    window.localStorage.setItem("selectedPlaceId", report.place_id);
-                                    window.localStorage.setItem("fromSavedPlaces", "true");
+                                  if (
+                                    typeof window !== "undefined" &&
+                                    window.localStorage
+                                  ) {
+                                    window.localStorage.setItem(
+                                      "selectedPlaceId",
+                                      report.place_id
+                                    );
+                                    window.localStorage.setItem(
+                                      "fromSavedPlaces",
+                                      "true"
+                                    );
                                     // Also store coordinates if available for immediate map centering
                                     if (hasCoordinates) {
-                                      window.localStorage.setItem("selectedPlaceLat", place.lat.toString());
-                                      window.localStorage.setItem("selectedPlaceLon", place.lon.toString());
+                                      window.localStorage.setItem(
+                                        "selectedPlaceLat",
+                                        place.lat.toString()
+                                      );
+                                      window.localStorage.setItem(
+                                        "selectedPlaceLon",
+                                        place.lon.toString()
+                                      );
                                     }
                                     // Store place name if available
-                                    if (placeName && placeName !== "Unknown Place") {
-                                      window.localStorage.setItem("selectedPlaceName", placeName);
+                                    if (
+                                      placeName &&
+                                      placeName !== "Unknown Place"
+                                    ) {
+                                      window.localStorage.setItem(
+                                        "selectedPlaceName",
+                                        placeName
+                                      );
                                     }
                                   }
                                   // Let the browser handle navigation to new tab
@@ -785,11 +841,18 @@ export default function AdminPanel() {
                         <td>{report.reason || "-"}</td>
                         <td>{report.accessibility_reality || "-"}</td>
                         <td>
-                          {report.accessibility_issues && Array.isArray(report.accessibility_issues)
+                          {report.accessibility_issues &&
+                          Array.isArray(report.accessibility_issues)
                             ? report.accessibility_issues.join(", ")
                             : report.accessibility_issues || "-"}
                         </td>
-                        <td style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        <td
+                          style={{
+                            maxWidth: "200px",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
                           {report.comment || "-"}
                         </td>
                         <td>{formatDate(report.created_at)}</td>
@@ -801,13 +864,20 @@ export default function AdminPanel() {
                         <td className={styles.actionsCell}>
                           <div className={styles.actionsInner}>
                             <button
-                              onClick={() => handleReportAction(report.id, "approve")}
+                              onClick={() =>
+                                handleReportAction(report.id, "approve")
+                              }
                               disabled={
-                                actionLoading === `report-${report.id}-approve` ||
+                                actionLoading ===
+                                  `report-${report.id}-approve` ||
                                 actionLoading === `report-${report.id}-reject`
                               }
-                              className={`${styles.actionBtn} ${styles.approveBtn} ${
-                                report.status === "approved" ? styles.actionBtnActive : ""
+                              className={`${styles.actionBtn} ${
+                                styles.approveBtn
+                              } ${
+                                report.status === "approved"
+                                  ? styles.actionBtnActive
+                                  : ""
                               }`}
                               title={
                                 report.status === "approved"
@@ -815,20 +885,28 @@ export default function AdminPanel() {
                                   : "Approve report"
                               }
                             >
-                              {actionLoading === `report-${report.id}-approve` ? (
+                              {actionLoading ===
+                              `report-${report.id}-approve` ? (
                                 "..."
                               ) : (
                                 <CheckIcon />
                               )}
                             </button>
                             <button
-                              onClick={() => handleReportAction(report.id, "reject")}
+                              onClick={() =>
+                                handleReportAction(report.id, "reject")
+                              }
                               disabled={
-                                actionLoading === `report-${report.id}-approve` ||
+                                actionLoading ===
+                                  `report-${report.id}-approve` ||
                                 actionLoading === `report-${report.id}-reject`
                               }
-                              className={`${styles.actionBtn} ${styles.rejectBtn} ${
-                                report.status === "rejected" ? styles.actionBtnActive : ""
+                              className={`${styles.actionBtn} ${
+                                styles.rejectBtn
+                              } ${
+                                report.status === "rejected"
+                                  ? styles.actionBtnActive
+                                  : ""
                               }`}
                               title={
                                 report.status === "rejected"
@@ -836,7 +914,8 @@ export default function AdminPanel() {
                                   : "Reject report"
                               }
                             >
-                              {actionLoading === `report-${report.id}-reject` ? (
+                              {actionLoading ===
+                              `report-${report.id}-reject` ? (
                                 "..."
                               ) : (
                                 <CloseIcon />

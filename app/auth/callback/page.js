@@ -35,6 +35,31 @@ function AuthCallbackContent() {
           return;
         }
 
+        // Check if this is a password recovery callback
+        // Supabase includes type=recovery in query params OR in the hash fragment
+        const type = searchParams.get("type");
+
+        // Also check hash fragment for recovery type (Supabase often puts tokens there)
+        let isRecovery = type === "recovery";
+        if (typeof window !== "undefined" && window.location.hash) {
+          const hashParams = new URLSearchParams(
+            window.location.hash.substring(1)
+          );
+          if (hashParams.get("type") === "recovery") {
+            isRecovery = true;
+          }
+        }
+
+        if (isRecovery) {
+          // Store recovery state in sessionStorage so auth page knows to show password form
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem("passwordRecovery", "true");
+          }
+          // Redirect to auth page to show password update form
+          router.push("/auth");
+          return;
+        }
+
         // Get the current user
         const {
           data: { user },

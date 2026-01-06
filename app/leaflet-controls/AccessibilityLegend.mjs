@@ -47,7 +47,15 @@ export const AccessibilityLegend = L.Control.extend({
 
 // === Accessibility-driven icon sizing
 export function getAccessibilityTier(tags = {}) {
+  // Check user-reported accessibility first (from approved reports) - this takes precedence
+  const userReported = tags.user_reported_accessibility;
+  const userReportedWheelchair =
+    userReported && typeof userReported === "object"
+      ? userReported.wheelchair
+      : null;
+
   const raw = (
+    userReportedWheelchair ??
     tags.wheelchair ??
     tags["toilets:wheelchair"] ??
     tags["wheelchair:toilets"] ??
